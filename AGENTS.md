@@ -82,6 +82,9 @@ const isStorybookVite = typeof process !== "undefined" && process.env.STORYBOOK_
 ## Testing and Captures
 
 - Use Playwright as the primary automated test tool for web user flows. Derive durable behavior tests for new or changed flows from the confirmed Test Criteria and keep them in `tests/e2e/` with `playwright.config.ts` tracked in Git. Do not backfill unrelated existing features solely to add coverage.
+- Use Jest for unit tests of pure logic, hooks, and shared components. Keep tests colocated as `*.test.ts` or `*.test.tsx` next to the code, and add or update them for new or changed pure logic. Playwright stays the tool for user flows.
+- Run unit tests with `bun run test:unit`. Do not use `bun test`; it runs Bun's own test runner instead of Jest.
+- NativeWind classes are not compiled to styles under Jest. Assert text, roles, and behavior in component tests, not styles.
 - Run durable web tests with `bun test:e2e`; Playwright starts the Expo web server through `bun web`. Assert observable behavior after user actions; a screenshot alone does not establish that a Test Criterion passed.
 - Make loading, empty, error, and retry cases repeatable with controlled API responses. Also exercise the real server for server-dependent success paths when relevant.
 - Test web wide and web mobile for affected flows. When a responsive breakpoint changes, check both `768px` and `769px` viewport widths.
