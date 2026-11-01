@@ -86,9 +86,20 @@ const DEFAULT_FOLDERS: MockFolder[] = [
   },
 ];
 
+/** Per-page control of `GET /api/folders`. Page 0 is the first batch (no cursor). */
+type FolderPageControl = {
+  /** Pages answered with a 500. Mutable through the returned state to recover later. */
+  failPages: Set<number>;
+  /** Fails every page, as when the network is down. */
+  failAll: boolean;
+  /** Delay in ms per page before answering. */
+  delayMs: Record<number, number>;
+};
+
 type MockApiOptions = {
   links?: MockLink[];
   folders?: MockFolder[];
+  folderPages?: Partial<FolderPageControl>;
   details?: Record<number, MockDetail>;
   todos?: MockTodo[];
   /** Custom handlers checked first, keyed by `METHOD /api/path` (path without query). */
@@ -113,8 +124,45 @@ function envelope(data: unknown) {
   return { success: true, data, error: null };
 }
 
-function scroll(contents: unknown[]) {
-  return envelope({ isEmpty: contents.length === 0, contents, nextCursor: null, hasNext: false });
+function scroll(contents: unknown[], nextCursor: string | null = null) {
+  return envelope({
+    isEmpty: contents.length === 0,
+    contents,
+    nextCursor,
+    hasNext: nextCursor != null,
+  });
+}
+
+/** Slices `items` by the request's offset `cursor` and `size`, as the server's cursor paging. */
+function paginate<T>(items: T[], url: URL) {
+  const size = Number(url.searchParams.get("size") ?? "0");
+  const offset = Number(url.searchParams.get("cursor") ?? "0") || 0;
+  if (!(size > 0)) {
+    return { contents: items.slice(offset), nextCursor: null, pageIndex: 0 };
+  }
+  const end = offset + size;
+  return {
+    contents: items.slice(offset, end),
+    nextCursor: end < items.length ? String(end) : null,
+    pageIndex: Math.floor(offset / size),
+  };
+}
+
+/** `count` folders, newest first: ids count..1, every `sharedEvery`-th one shared. */
+function makeFolders(count: number, sharedEvery = 0): MockFolder[] {
+  return Array.from({ length: count }, (_, index) => {
+    const id = count - index;
+    const isShared = sharedEvery > 0 && id % sharedEvery === 0;
+    return {
+      id,
+      ownerId: isShared ? 2 : 1,
+      name: `폴더 ${id}`,
+      emoji: "📁",
+      isShared,
+      shareCounts: isShared ? 2 : 0,
+      linkCounts: id % 5,
+    };
+  });
 }
 
 function makeLink(overrides: Partial<MockLink> & Pick<MockLink, "id">): MockLink {
@@ -215,8 +263,7 @@ function filterLinks(links: MockLink[], url: URL) {
   if (url.searchParams.get("isFavorite") === "true") {
     result = result.filter((link) => link.isFavorite);
   }
-  const size = Number(url.searchParams.get("size") ?? "0");
-  return size > 0 ? result.slice(0, size) : result;
+  return result;
 }
 
 /**
@@ -229,7 +276,13 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
     details: options.details ?? {},
     todos: options.todos ?? [],
     folders: options.folders ?? DEFAULT_FOLDERS,
-    requests: [] as { method: string; path: string; body: unknown }[],
+    folderPages: {
+      failPages: new Set<number>(),
+      failAll: false,
+      delayMs: {},
+      ...options.folderPages,
+    } as FolderPageControl,
+    requests: [] as { method: string; path: string; search: string; body: unknown }[],
   };
 
   await page.addInitScript(() => {
@@ -253,7 +306,7 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
       } catch {
         body = request.postData();
       }
-      state.requests.push({ method, path, body });
+      state.requests.push({ method, path, search: url.search, body });
 
       const custom = options.handlers?.[`${method} ${path}`];
       if (custom) {
@@ -288,7 +341,15 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
         );
       }
       if (method === "GET" && path === "/api/folders") {
-        return json(scroll(state.folders));
+        const page = paginate(state.folders, url);
+        const delay = state.folderPages.delayMs[page.pageIndex];
+        if (delay) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+        if (state.folderPages.failAll || state.folderPages.failPages.has(page.pageIndex)) {
+          return json({ success: false, data: null, error: { message: "SERVER_ERROR" } }, 500);
+        }
+        return json(scroll(page.contents, page.nextCursor));
       }
       if (method === "GET" && path === "/api/notifications/unread") {
         return json(envelope({ unreadCount: 0 }));
@@ -297,7 +358,8 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
         return json(scroll([]));
       }
       if (method === "GET" && path === "/api/links") {
-        return json(scroll(filterLinks(state.links, url)));
+        const page = paginate(filterLinks(state.links, url), url);
+        return json(scroll(page.contents, page.nextCursor));
       }
       const detailMatch = path.match(/^\/api\/links\/(\d+)$/);
       if (detailMatch) {
@@ -420,8 +482,9 @@ export {
   envelope,
   iso,
   makeDetail,
+  makeFolders,
   makeLink,
   mockApi,
   scroll,
 };
-export type { MockDetail, MockFolder, MockLink, MockTodo, TodoCounts };
+export type { FolderPageControl, MockDetail, MockFolder, MockLink, MockTodo, TodoCounts };
