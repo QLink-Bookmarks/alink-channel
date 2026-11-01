@@ -10,6 +10,12 @@ import { getLinkDetailQueryKey } from "@/features/links/queries";
 import type { LinkDetail } from "@/features/links/types";
 import { reportError } from "@/lib/error-reporting";
 import { useGridColumns } from "@/lib/hooks/use-grid-columns";
+import {
+  useListMemoryKey,
+  useListScrollMemory,
+  useRememberedState,
+} from "@/lib/hooks/use-list-scroll-memory";
+import { usePullToRefresh } from "@/lib/hooks/use-pull-to-refresh";
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -42,8 +48,9 @@ const FILTER_OPTIONS: { value: TodoFilter; label: string }[] = [
   { value: "completed", label: "✓ 완료" },
 ];
 
-function useTodosScreenState() {
-  const [filter, setFilter] = React.useState<TodoFilter>("all");
+function useTodosScreenState(mode: TodosScreenMode) {
+  const memoryKey = useListMemoryKey(mode);
+  const [filter, setFilter] = useRememberedState<TodoFilter>(memoryKey, "filter", "all");
   const todosQuery = useTodosQuery({ size: 100 });
   const allTodos = React.useMemo(() => todosQuery.data?.contents ?? [], [todosQuery.data]);
   // Refresh "now" whenever the underlying todo list changes so that overdue/upcoming buckets stay consistent.
@@ -59,15 +66,25 @@ function useTodosScreenState() {
     value: option.value,
   }));
 
+  const { isRefreshing, handleRefresh } = usePullToRefresh(todosQuery.refetch);
+  const { scrollViewRef, scrollViewProps } = useListScrollMemory({
+    memoryKey,
+    contentKey: filter,
+    isLoading: todosQuery.isLoading,
+    hasContent: filteredTodos.length > 0,
+  });
+
   return {
     counts,
     filter,
     filterChips,
     filteredTodos,
+    handleRefresh,
     isLoading: todosQuery.isLoading,
-    isRefreshing: todosQuery.isFetching && !todosQuery.isLoading,
+    isRefreshing,
     nowMs,
-    refetch: todosQuery.refetch,
+    scrollViewProps,
+    scrollViewRef,
     setFilter,
     totalCount: counts.all,
   };
@@ -217,8 +234,17 @@ function WideTodoGrid({
 
 function WideTodosScreen() {
   const router = useRouter();
-  const { filter, filterChips, filteredTodos, isLoading, nowMs, setFilter, totalCount } =
-    useTodosScreenState();
+  const {
+    filter,
+    filterChips,
+    filteredTodos,
+    isLoading,
+    nowMs,
+    scrollViewProps,
+    scrollViewRef,
+    setFilter,
+    totalCount,
+  } = useTodosScreenState("wide");
   const handleToggle = useToggleHandler();
   const handleTodoPress = React.useCallback(
     (todo: TodoListItem) => {
@@ -242,6 +268,8 @@ function WideTodosScreen() {
 
   return (
     <ScrollView
+      ref={scrollViewRef}
+      {...scrollViewProps}
       className="flex-1"
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
@@ -303,8 +331,18 @@ function WideTodosScreen() {
 
 function MobileTodosScreen() {
   const router = useRouter();
-  const { filter, filterChips, filteredTodos, isLoading, isRefreshing, nowMs, refetch, setFilter } =
-    useTodosScreenState();
+  const {
+    filter,
+    filterChips,
+    filteredTodos,
+    handleRefresh,
+    isLoading,
+    isRefreshing,
+    nowMs,
+    scrollViewProps,
+    scrollViewRef,
+    setFilter,
+  } = useTodosScreenState("mobile");
   const handleToggle = useToggleHandler();
   const handleTodoPress = React.useCallback(
     (todo: TodoListItem) => {
@@ -328,15 +366,15 @@ function MobileTodosScreen() {
 
   return (
     <ScrollView
+      ref={scrollViewRef}
+      {...scrollViewProps}
       className="flex-1"
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
-          onRefresh={() => {
-            void refetch();
-          }}
+          onRefresh={handleRefresh}
         />
       }
     >

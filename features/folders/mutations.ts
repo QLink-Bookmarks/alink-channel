@@ -34,6 +34,7 @@ function useUpdateFolderMutation() {
       updateFolder(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: folderQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: ["links"] });
     },
   });
 }

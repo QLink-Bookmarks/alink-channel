@@ -4,6 +4,7 @@ import { getTodos } from "./api";
 import type { GetTodosParams } from "./types";
 
 const todoQueryKeys = {
+  lists: () => ["todos", "list"] as const,
   list: (params: GetTodosParams) => ["todos", "list", params] as const,
 };
 
