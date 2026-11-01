@@ -2,7 +2,6 @@ import * as React from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 
 import { PageHeader } from "@/components/layout/page-header";
-import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
 import { useLinksQuery } from "@/features/links/queries";
@@ -83,12 +82,7 @@ function LinkListView({
           onFavoriteOnlyChange={setFavoriteOnly}
           onValueChange={setOrder}
         />
-        {linksQuery.isLoading ? (
-          <ActivityIndicator
-            size="large"
-            className="py-16"
-          />
-        ) : isEmpty ? (
+        {isEmpty ? (
           <EmptyState
             emoji="📭"
             title="아직 링크가 없어요"
@@ -96,7 +90,9 @@ function LinkListView({
           />
         ) : (
           <LinkCardGrid
+            isLoading={linksQuery.isLoading}
             links={links}
+            skeletonCount={8}
             activeLinkId={activeLinkId}
             onCardPress={handleCardPress}
           />

@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
-// View scope: 모바일 전용. md >= 768px에서는 사용하지 않는다.
+// View scope: 모바일 전용. md >= 769px에서는 사용하지 않는다.
 
 function AccountRow({
   className,

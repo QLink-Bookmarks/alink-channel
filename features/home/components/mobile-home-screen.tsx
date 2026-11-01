@@ -2,21 +2,19 @@ import * as React from "react";
 import { RefreshControl, ScrollView, type TextInput, View } from "react-native";
 
 import { TopbarSearchField } from "@/components/layout/topbar-search-field";
-import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useFoldersQuery } from "@/features/folders/queries";
-import { LinkCard } from "@/features/links/components/link-card/link-card";
+import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
 import { useLinksQuery } from "@/features/links/queries";
 import type { LinkOrder } from "@/features/links/types";
 import { useHomeSearchFocus } from "@/stores/home-search-focus";
 
-import { mapLinkListItem } from "../lib/link-card-mapper";
 import { OrderFilter } from "./order-filter";
 
 import { type Href, useRouter } from "expo-router";
-import { Search, Star } from "lucide-react-native";
+import { Search } from "lucide-react-native";
 
 const ALL_VALUE = "all";
 const UNCATEGORIZED_FOLDER_VALUE = "0";
@@ -141,52 +139,21 @@ function MobileHomeScreen() {
           />
         </View>
 
-        {isLoading ? (
-          <ActivityIndicator
-            size="large"
-            className="py-16"
-          />
-        ) : isEmpty ? (
+        {isEmpty ? (
           <EmptyState
             emoji="📭"
             title="아직 링크가 없어요"
             description="새 링크를 추가하면 이곳에 표시돼요."
           />
         ) : (
-          <View className="gap-3">
-            {links.map((item) => {
-              const mapped = mapLinkListItem(item);
-              const bookmarkHoverAction = item.isFavorite ? (
-                <View className="size-6 items-center justify-center rounded-full border border-border bg-warning/15 shadow-qlink-sm">
-                  <Icon
-                    as={Star}
-                    size={12}
-                    className="fill-warning text-warning"
-                  />
-                </View>
-              ) : undefined;
-              return (
-                <LinkCard
-                  key={mapped.id}
-                  bookmarkHoverAction={bookmarkHoverAction}
-                  bookmarkPinned={item.isFavorite}
-                  domain={mapped.domain}
-                  faviconUrl={mapped.faviconUrl}
-                  remainingTodoCount={mapped.remainingTodoCount}
-                  statusLabel={mapped.statusLabel}
-                  statusVariant={mapped.statusVariant}
-                  summaryModelLabel={mapped.summaryModelLabel}
-                  tags={mapped.tags}
-                  title={mapped.title}
-                  todos={mapped.todos}
-                  todoLayout="stack"
-                  onPress={() => {
-                    router.push(`/links/${mapped.id}` as Href);
-                  }}
-                />
-              );
-            })}
-          </View>
+          <LinkCardGrid
+            isLoading={isLoading}
+            links={links}
+            skeletonCount={6}
+            onCardPress={(item) => {
+              router.push(`/links/${item.id}` as Href);
+            }}
+          />
         )}
       </View>
     </ScrollView>

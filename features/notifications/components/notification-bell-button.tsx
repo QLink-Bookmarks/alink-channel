@@ -21,8 +21,10 @@ function NotificationBellButton({ onPress, size = "sm" }: NotificationBellButton
   return (
     <View className="relative">
       <IconButton
+        accessibilityLabel="알림"
         icon={Bell}
         size={size}
+        variant="ghost"
         onPress={onPress}
       />
       {unreadCount > 0 ? (

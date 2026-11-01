@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useWindowDimensions } from "react-native";
 
-const WIDE_VIEW_MIN_WIDTH = 768;
+const WIDE_VIEW_MIN_WIDTH = 769;
 
 function useWideView() {
   const { width } = useWindowDimensions();

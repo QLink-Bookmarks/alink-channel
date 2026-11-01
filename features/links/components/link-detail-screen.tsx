@@ -36,8 +36,10 @@ function LinkDetailScreen({ linkId }: { linkId?: string }) {
     );
   }
 
-  if (linkDetailQuery.isError || !linkDetailQuery.data) {
-    if (isLinkNotFound(linkDetailQuery.error)) {
+  // A failed refresh keeps the loaded detail on screen; the view shows the failure itself.
+  const isNotFound = linkDetailQuery.isError && isLinkNotFound(linkDetailQuery.error);
+  if (isNotFound || !linkDetailQuery.data) {
+    if (isNotFound) {
       return (
         <View className="flex-1 bg-background">
           <EmptyState

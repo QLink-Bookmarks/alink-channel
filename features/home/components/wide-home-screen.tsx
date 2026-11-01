@@ -19,12 +19,13 @@ import { formatReminderLabel, isOverdue } from "@/features/todos/lib/todo-list-h
 import { useToggleTodoCompletedMutation } from "@/features/todos/mutations";
 import { useTodosQuery } from "@/features/todos/queries";
 import type { TodoListItem } from "@/features/todos/types";
+import { useGridColumns } from "@/lib/hooks/use-grid-columns";
 import { useDisplaySettings } from "@/stores/display-settings";
 import { useSearchDialog } from "@/stores/search-dialog";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { formatFullDateLabel, getGreetingMessage } from "../lib/greeting";
-import { getDomainFromUrl, getFaviconUrl } from "../lib/link-card-mapper";
+import { getDomainFromUrl } from "../lib/link-card-mapper";
 import { AddShortcutDialog } from "./add-shortcut-dialog";
 
 import { type Href, useRouter } from "expo-router";
@@ -39,7 +40,8 @@ const SEARCH_SCOPES = [
 const TODO_PREVIEW_COUNT = 6;
 const RECENT_PREVIEW_COUNT = 6;
 const SHORTCUT_PREVIEW_COUNT = 9;
-const GRID_ITEM_CLASS = "w-[calc(33.333%-0.5rem)] min-w-[260px]";
+const TODO_GRID_GAP = 12;
+const TODO_MIN_CARD_WIDTH = 240;
 
 function dispatchWideShortcut(key: "search" | "new-link") {
   if (Platform.OS !== "web" || typeof window === "undefined") {
@@ -142,6 +144,7 @@ function WideHomeScreen() {
   const todosQuery = useTodosQuery({ isCompleted: false, size: 30 });
   const recentLinksQuery = useLinksQuery({ order: "latest", size: RECENT_PREVIEW_COUNT });
   const toggleTodo = useToggleTodoCompletedMutation();
+  const todoGrid = useGridColumns({ gap: TODO_GRID_GAP, minItemWidth: TODO_MIN_CARD_WIDTH });
 
   const shortcuts = favoritesQuery.data?.contents ?? [];
   const todos = React.useMemo(() => todosQuery.data?.contents ?? [], [todosQuery.data?.contents]);
@@ -163,6 +166,8 @@ function WideHomeScreen() {
         {
           onSettled: () => {
             void queryClient.invalidateQueries({ queryKey: ["todos"] });
+            // Link cards show todo counts, so the link lists change with the todo.
+            void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
           },
         },
       );
@@ -225,7 +230,7 @@ function WideHomeScreen() {
             <ShortcutTile
               key={link.id}
               label={link.title || getDomainFromUrl(link.url)}
-              faviconUrl={getFaviconUrl(link.url)}
+              faviconUrl={link.faviconUrl ?? undefined}
               onPress={() => openExternalUrl(link.url)}
             />
           ))}
@@ -264,13 +269,18 @@ function WideHomeScreen() {
               title="오늘 할 일이 없어요"
             />
           ) : (
-            <View className="flex-row flex-wrap gap-3">
+            <View
+              className="w-full flex-row flex-wrap"
+              style={{ gap: TODO_GRID_GAP }}
+              onLayout={todoGrid.onLayout}
+            >
               {previewTodos.map((todo) => (
                 <View
                   key={todo.id}
-                  className={GRID_ITEM_CLASS}
+                  style={todoGrid.itemStyle}
                 >
                   <TodoItem
+                    className="h-full"
                     variant="display"
                     text={todo.title}
                     done={Boolean(todo.completedAt)}
@@ -280,6 +290,8 @@ function WideHomeScreen() {
                     overdue={isOverdue(todo, nowMs)}
                     linkUrl={todo.linkUrl}
                     linkTitle={todo.linkTitle}
+                    linkThumbnailUrl={todo.linkThumbnailUrl}
+                    linkFaviconUrl={todo.linkFaviconUrl}
                     onToggle={(next) => handleToggleTodo(todo, next)}
                     onPress={() => router.push(`/links/${todo.linkId}` as Href)}
                   />
@@ -296,19 +308,16 @@ function WideHomeScreen() {
             count={recentLinks.length}
             onSeeAll={() => router.push("/links" as Href)}
           />
-          {recentLinksQuery.isLoading ? (
-            <ActivityIndicator className="py-8" />
-          ) : recentLinks.length === 0 ? (
+          {!recentLinksQuery.isLoading && recentLinks.length === 0 ? (
             <EmptyState
               emoji="⛓️‍💥"
               title="최근 저장 링크가 없어요"
             />
           ) : (
             <LinkCardGrid
+              isLoading={recentLinksQuery.isLoading}
               links={recentLinks}
-              containerClassName="gap-3"
-              itemClassName={GRID_ITEM_CLASS}
-              todoLayout="stack"
+              skeletonCount={RECENT_PREVIEW_COUNT}
               onCardPress={(item) => router.push(`/links/${item.id}` as Href)}
             />
           )}

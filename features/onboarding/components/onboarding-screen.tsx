@@ -171,20 +171,25 @@ function OrganizeSlide() {
           active
         />
       </View>
-      <LinkCard
-        className="shadow-qlink-md"
-        domain="google.com"
-        faviconUrl={faviconFor("google.com")}
-        title="제주 맛집 지도 — 저장한 장소"
-        tags={["#제주", "#맛집"]}
-      />
-      <LinkCard
-        className="shadow-qlink-md"
-        domain="tistory.com"
-        faviconUrl={faviconFor("tistory.com")}
-        title="제주 3박4일 여행 코스 총정리"
-        tags={["#여행코스", "#뚜벅이"]}
-      />
+      {/* The redesigned card has a 16:9 image cell, so two cards sit side by side to fit the slide. */}
+      <View className="flex-row gap-3">
+        <LinkCard
+          className="flex-1 shadow-qlink-md"
+          domain="campaign.naver.com"
+          faviconUrl={faviconFor("campaign.naver.com")}
+          thumbnailAsset={require("@/assets/sample-links/jeju-food-map.jpg")}
+          title="제주 맛집 지도 — 저장한 장소"
+          tags={["#제주", "#맛집"]}
+        />
+        <LinkCard
+          className="flex-1 shadow-qlink-md"
+          domain="banksalad.com"
+          faviconUrl={faviconFor("banksalad.com")}
+          thumbnailAsset={require("@/assets/sample-links/jeju-course-guide.jpg")}
+          title="제주 3박4일 여행 코스 총정리"
+          tags={["#여행코스", "#뚜벅이"]}
+        />
+      </View>
     </View>
   );
 }
@@ -298,20 +303,25 @@ function SharedFolderSlide() {
           <Text className="text-xs text-muted-foreground">공유 폴더</Text>
         </View>
       </View>
-      <LinkCard
-        className="shadow-qlink-md"
-        domain="google.com"
-        faviconUrl={faviconFor("google.com")}
-        title="제주 맛집 지도 저장 목록"
-        tags={["#맛집", "#같이가요"]}
-      />
-      <LinkCard
-        className="shadow-qlink-md"
-        domain="airbnb.co.kr"
-        faviconUrl={faviconFor("airbnb.co.kr")}
-        title="애월 감성 숙소 모음"
-        tags={["#숙소", "#애월"]}
-      />
+      {/* The redesigned card has a 16:9 image cell, so two cards sit side by side to fit the slide. */}
+      <View className="flex-row gap-3">
+        <LinkCard
+          className="flex-1 shadow-qlink-md"
+          domain="harpersbazaar.co.kr"
+          faviconUrl={faviconFor("harpersbazaar.co.kr")}
+          thumbnailAsset={require("@/assets/sample-links/jeju-food-list.jpg")}
+          title="제주 맛집 지도 저장 목록"
+          tags={["#맛집", "#같이가요"]}
+        />
+        <LinkCard
+          className="flex-1 shadow-qlink-md"
+          domain="airbnb.co.kr"
+          faviconUrl={faviconFor("airbnb.co.kr")}
+          thumbnailAsset={require("@/assets/sample-links/aewol-stay.jpg")}
+          title="애월 감성 숙소 모음"
+          tags={["#숙소", "#애월"]}
+        />
+      </View>
     </View>
   );
 }

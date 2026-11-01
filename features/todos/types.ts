@@ -18,6 +18,8 @@ type TodoListItem = {
   linkId: number;
   linkUrl: string;
   linkTitle: string;
+  linkThumbnailUrl: string | null;
+  linkFaviconUrl: string | null;
 };
 
 type GetTodosParams = {

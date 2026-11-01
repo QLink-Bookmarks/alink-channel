@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Platform, Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 
 import { Sheet } from "@/components/layout/sheet";
 import {
@@ -26,38 +26,37 @@ import { FolderPickerList } from "@/features/folders/components/folder-picker-li
 import { mapLinkListItem } from "@/features/home/lib/link-card-mapper";
 import { deleteLink, patchLink } from "@/features/links/api";
 import { LinkCard } from "@/features/links/components/link-card/link-card";
+import { LinkCardSkeleton } from "@/features/links/components/link-card/link-card-skeleton";
+import { openLinkUrl } from "@/features/links/lib/open-link-url";
 import { useSetLinkFavoriteMutation } from "@/features/links/mutations";
 import type { LinkListItem } from "@/features/links/types";
 import { reportError } from "@/lib/error-reporting";
+import { useGridColumns } from "@/lib/hooks/use-grid-columns";
+import { useWideView } from "@/lib/hooks/use-wide-view";
 import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import * as Linking from "expo-linking";
 import { ExternalLink, FolderOpen, Star, Trash2 } from "lucide-react-native/icons";
 
-const DEFAULT_CONTAINER_CLASS = "flex-row flex-wrap gap-4";
-const DEFAULT_ITEM_CLASS =
-  "w-full md:w-[calc(50%-8px)] xl:w-[calc(33.333%-11px)] 2xl:w-[calc(25%-12px)]";
-
-function openInNewTab(url: string) {
-  if (process.env.EXPO_OS === "web") {
-    globalThis.open?.(url, "_blank", "noopener,noreferrer");
-    return;
-  }
-  Linking.openURL(url);
-}
+const GRID_GAP = 12;
+const WIDE_MIN_CARD_WIDTH = 196;
+const MOBILE_MIN_CARD_WIDTH = 280;
 
 function HoverActionButton({
   icon,
+  label,
   onPress,
   tone = "default",
 }: {
   icon: React.ComponentProps<typeof Icon>["as"];
+  label: string;
   onPress: () => void;
   tone?: "default" | "destructive";
 }) {
   return (
     <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
       className="size-7 items-center justify-center rounded-lg web:hover:bg-accent"
       onPress={onPress}
     >
@@ -79,16 +78,17 @@ function BookmarkBadgeButton({
 }) {
   return (
     <Pressable
-      className={cn(
-        "size-6 items-center justify-center rounded-full border border-border shadow-qlink-sm web:hover:bg-accent",
-        isFavorite ? "bg-warning/15" : "bg-card",
-      )}
+      accessibilityLabel={isFavorite ? "바로가기 해제" : "바로가기 추가"}
+      accessibilityRole="button"
+      className="size-6 items-center justify-center rounded-full border border-border bg-card web:hover:bg-accent"
+      testID="link-card-favorite"
       onPress={onPress}
     >
       <Icon
         as={Star}
         size={12}
-        className={isFavorite ? "fill-warning text-warning" : "text-muted-foreground"}
+        fill={isFavorite ? "currentColor" : "none"}
+        className={isFavorite ? "text-warning" : "text-muted-foreground"}
       />
     </Pressable>
   );
@@ -98,18 +98,23 @@ type LinkCardGridProps = {
   links: LinkListItem[];
   onCardPress: (item: LinkListItem) => void;
   activeLinkId?: number | null;
-  containerClassName?: string;
-  itemClassName?: string;
-  todoLayout?: "row" | "stack";
+  className?: string;
+  /** Shows card skeletons in the same grid instead of the links. */
+  isLoading?: boolean;
+  skeletonCount?: number;
 };
 
+/**
+ * Link cards in as many columns as the container width allows: at least 196px per card on
+ * wide, 280px on mobile (one column on phones). On wide, hovering a card shows its actions.
+ */
 function LinkCardGrid({
   links,
   onCardPress,
   activeLinkId,
-  containerClassName,
-  itemClassName,
-  todoLayout = "row",
+  className,
+  isLoading = false,
+  skeletonCount = 6,
 }: LinkCardGridProps) {
   const queryClient = useQueryClient();
   const [folderMoveLink, setFolderMoveLink] = React.useState<LinkListItem | null>(null);
@@ -122,7 +127,11 @@ function LinkCardGrid({
       patchLink(id, { folderId }),
   });
   const favoriteMutation = useSetLinkFavoriteMutation();
-  const isWebWide = Platform.OS === "web";
+  const isWideView = useWideView();
+  const { itemStyle, onLayout } = useGridColumns({
+    gap: GRID_GAP,
+    minItemWidth: isWideView ? WIDE_MIN_CARD_WIDTH : MOBILE_MIN_CARD_WIDTH,
+  });
 
   const handleBookmark = React.useCallback(
     async (item: LinkListItem) => {
@@ -187,65 +196,78 @@ function LinkCardGrid({
 
   return (
     <>
-      <View className={cn(DEFAULT_CONTAINER_CLASS, containerClassName)}>
-        {links.map((item) => {
-          const mapped = mapLinkListItem(item);
-          const bookmarkHoverAction = isWebWide ? (
-            <BookmarkBadgeButton
-              isFavorite={item.isFavorite}
-              onPress={() => handleBookmark(item)}
-            />
-          ) : item.isFavorite ? (
-            <BookmarkBadgeButton
-              isFavorite
-              onPress={() => handleBookmark(item)}
-            />
-          ) : undefined;
-          const trailingHoverActions = isWebWide ? (
-            <>
-              <HoverActionButton
-                icon={ExternalLink}
-                onPress={() => openInNewTab(item.url)}
-              />
-              <HoverActionButton
-                icon={FolderOpen}
-                onPress={() => setFolderMoveLink(item)}
-              />
-              <HoverActionButton
-                icon={Trash2}
-                tone="destructive"
-                onPress={() => setDeleteTargetLink(item)}
-              />
-            </>
-          ) : undefined;
-          return (
-            <View
-              key={mapped.id}
-              className={itemClassName ?? DEFAULT_ITEM_CLASS}
-            >
-              <LinkCard
-                active={activeLinkId === mapped.id}
-                bookmarkHoverAction={bookmarkHoverAction}
-                bookmarkPinned={item.isFavorite}
-                domain={mapped.domain}
-                faviconUrl={mapped.faviconUrl}
-                remainingTodoCount={mapped.remainingTodoCount}
-                statusLabel={mapped.statusLabel}
-                statusVariant={mapped.statusVariant}
-                summaryModelLabel={mapped.summaryModelLabel}
-                tags={mapped.tags}
-                title={mapped.title}
-                todos={mapped.todos}
-                todoLayout={todoLayout}
-                trailingHoverActions={trailingHoverActions}
-                onPress={() => onCardPress(item)}
-              />
-            </View>
-          );
-        })}
+      <View
+        className={cn("w-full flex-row flex-wrap", className)}
+        style={{ gap: GRID_GAP }}
+        testID="link-card-grid"
+        onLayout={onLayout}
+      >
+        {isLoading
+          ? Array.from({ length: skeletonCount }, (_, index) => (
+              <View
+                key={`skeleton-${index}`}
+                style={itemStyle}
+              >
+                <LinkCardSkeleton />
+              </View>
+            ))
+          : links.map((item) => {
+              const mapped = mapLinkListItem(item);
+              const bookmarkHoverAction =
+                isWideView || item.isFavorite ? (
+                  <BookmarkBadgeButton
+                    isFavorite={item.isFavorite}
+                    onPress={() => handleBookmark(item)}
+                  />
+                ) : undefined;
+              const trailingHoverActions = isWideView ? (
+                <>
+                  <HoverActionButton
+                    icon={ExternalLink}
+                    label="원본 열기"
+                    onPress={() => openLinkUrl(item.url)}
+                  />
+                  <HoverActionButton
+                    icon={FolderOpen}
+                    label="폴더 이동"
+                    onPress={() => setFolderMoveLink(item)}
+                  />
+                  <HoverActionButton
+                    icon={Trash2}
+                    label="삭제"
+                    tone="destructive"
+                    onPress={() => setDeleteTargetLink(item)}
+                  />
+                </>
+              ) : undefined;
+              return (
+                <View
+                  key={mapped.id}
+                  style={itemStyle}
+                >
+                  <LinkCard
+                    active={activeLinkId === mapped.id}
+                    bookmarkHoverAction={bookmarkHoverAction}
+                    bookmarkPinned={item.isFavorite}
+                    domain={mapped.domain}
+                    faviconUrl={mapped.faviconUrl}
+                    isVideo={mapped.isVideo}
+                    statusLabel={mapped.statusLabel}
+                    statusVariant={mapped.statusVariant}
+                    tags={mapped.tags}
+                    thumbnailUrl={mapped.thumbnailUrl}
+                    title={mapped.title}
+                    todoCounts={mapped.todoCounts}
+                    trailingHoverActions={trailingHoverActions}
+                    onImagePress={() => openLinkUrl(item.url)}
+                    onPress={() => onCardPress(item)}
+                  />
+                </View>
+              );
+            })}
       </View>
 
-      {isWebWide ? (
+      {isWideView ? (
         <Dialog
           open={Boolean(folderMoveLink)}
           onOpenChange={(open) => {

@@ -31,7 +31,7 @@ function useIsInsideSheet() {
   return React.useContext(SheetContext);
 }
 
-// View scope: 모바일 전용. md >= 768px에서는 사용하지 않는다.
+// View scope: 모바일 전용. md >= 769px에서는 사용하지 않는다.
 
 type SheetBackgroundProps = BottomSheetBackgroundProps & {
   accent: AccentName;

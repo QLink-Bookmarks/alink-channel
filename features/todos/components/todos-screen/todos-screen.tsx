@@ -9,6 +9,7 @@ import { Text } from "@/components/ui/text";
 import { getLinkDetailQueryKey } from "@/features/links/queries";
 import type { LinkDetail } from "@/features/links/types";
 import { reportError } from "@/lib/error-reporting";
+import { useGridColumns } from "@/lib/hooks/use-grid-columns";
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -28,6 +29,9 @@ import { type Href, useRouter } from "expo-router";
 import { CheckSquare } from "lucide-react-native";
 
 type TodosScreenMode = "mobile" | "wide";
+
+const TODO_GRID_GAP = 12;
+const TODO_MIN_CARD_WIDTH = 240;
 
 const FILTER_OPTIONS: { value: TodoFilter; label: string }[] = [
   { value: "all", label: "전체" },
@@ -107,6 +111,8 @@ function useToggleHandler() {
             ),
           };
         });
+        // Link cards show todo counts, so the link lists change with the todo.
+        void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
       } catch (error: unknown) {
         reportError(error, {
           area: "todos-screen:toggle",
@@ -121,11 +127,13 @@ function useToggleHandler() {
 }
 
 function TodoDisplayItem({
+  className,
   todo,
   nowMs,
   onToggle,
   onPress,
 }: {
+  className?: string;
   todo: TodoListItem;
   nowMs: number;
   onToggle: (todo: TodoListItem, nextChecked: boolean) => void;
@@ -137,6 +145,7 @@ function TodoDisplayItem({
 
   return (
     <TodoItem
+      className={className}
       variant="display"
       text={todo.title}
       done={done}
@@ -144,6 +153,8 @@ function TodoDisplayItem({
       reminderLabel={reminderLabel}
       linkUrl={todo.linkUrl}
       linkTitle={todo.linkTitle}
+      linkThumbnailUrl={todo.linkThumbnailUrl}
+      linkFaviconUrl={todo.linkFaviconUrl}
       onToggle={(nextChecked) => onToggle(todo, nextChecked)}
       onPress={() => onPress(todo)}
     />
@@ -162,6 +173,47 @@ function SectionHeader({ emoji, label, count }: { emoji: string; label: string; 
 }
 
 type WideSection = { key: string; emoji: string; label: string; todos: TodoListItem[] };
+
+function WideTodoGrid({
+  todos,
+  nowMs,
+  onToggle,
+  onPress,
+}: {
+  todos: TodoListItem[];
+  nowMs: number;
+  onToggle: (todo: TodoListItem, nextChecked: boolean) => void;
+  onPress: (todo: TodoListItem) => void;
+}) {
+  const { itemStyle, onLayout } = useGridColumns({
+    gap: TODO_GRID_GAP,
+    minItemWidth: TODO_MIN_CARD_WIDTH,
+  });
+
+  return (
+    <View
+      className="w-full flex-row flex-wrap"
+      style={{ gap: TODO_GRID_GAP }}
+      testID="todo-grid"
+      onLayout={onLayout}
+    >
+      {todos.map((todo) => (
+        <View
+          key={todo.id}
+          style={itemStyle}
+        >
+          <TodoDisplayItem
+            className="h-full"
+            nowMs={nowMs}
+            onPress={onPress}
+            onToggle={onToggle}
+            todo={todo}
+          />
+        </View>
+      ))}
+    </View>
+  );
+}
 
 function WideTodosScreen() {
   const router = useRouter();
@@ -234,21 +286,12 @@ function WideTodosScreen() {
                   label={section.label}
                   count={section.todos.length}
                 />
-                <View className="flex-row flex-wrap gap-3">
-                  {section.todos.map((todo) => (
-                    <View
-                      key={todo.id}
-                      className="w-full md:w-[20rem]"
-                    >
-                      <TodoDisplayItem
-                        nowMs={nowMs}
-                        onPress={handleTodoPress}
-                        onToggle={handleToggle}
-                        todo={todo}
-                      />
-                    </View>
-                  ))}
-                </View>
+                <WideTodoGrid
+                  nowMs={nowMs}
+                  todos={section.todos}
+                  onPress={handleTodoPress}
+                  onToggle={handleToggle}
+                />
               </View>
             ))}
           </View>
