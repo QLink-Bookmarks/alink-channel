@@ -233,8 +233,10 @@ test.describe("mobile", () => {
 
     await page.getByLabel("새 링크").click();
     await page.getByPlaceholder(/^https:\/\//).fill("https://example.com/new-note");
-    await page.locator('input[maxlength="300"]').fill("새로 저장한 링크");
     const addSheet = page.getByRole("slider", { name: "Bottom Sheet" });
+    await addSheet
+      .getByPlaceholder(/^(AI 생성으로 자동 정리해보세요|제목을 불러오는 중…)$/)
+      .fill("새로 저장한 링크");
     await addSheet.getByRole("button", { name: "변경" }).first().click();
     await addSheet.getByText("📚 공부", { exact: true }).click();
     await expect(addSheet.getByText("📚 공부", { exact: true })).toBeVisible();

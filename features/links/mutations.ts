@@ -10,7 +10,7 @@ import {
   setLinkFavorite,
   updateLink,
 } from "./api";
-import { getLinkDetailQueryKey } from "./queries";
+import { getLinkDetailQueryKey, getLinkListsQueryKey } from "./queries";
 import type {
   CopyLinkRequest,
   CreateLinkRequest,
@@ -18,8 +18,6 @@ import type {
   SetLinkFavoriteRequest,
   UpdateLinkRequest,
 } from "./types";
-
-const LINK_LISTS_QUERY_KEY = ["links", "list"] as const;
 
 function useInvalidateLinkQueries() {
   const queryClient = useQueryClient();
@@ -32,7 +30,7 @@ function useInvalidateLinkQueries() {
           refetchType: options.isDeleted ? "none" : "active",
         });
       }
-      void queryClient.invalidateQueries({ queryKey: LINK_LISTS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: getLinkListsQueryKey() });
     },
     [queryClient],
   );

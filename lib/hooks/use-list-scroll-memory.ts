@@ -7,21 +7,21 @@ import {
   useWindowDimensions,
 } from "react-native";
 
-import { useListMemoryStore } from "@/stores/list-memory";
-
 import {
   type ListVariant,
   ScrollRestorer,
   getListFilterKey,
   getListMemoryKey,
   getMaxScrollOffset,
-} from "./list-scroll-memory-rules";
-import { detectsUserScrollByOffset } from "./user-scroll-detection";
+} from "@/lib/list-scroll-memory-rules";
+import { useListMemoryStore } from "@/stores/list-memory";
 
 import { usePathname } from "expo-router";
 
 const RESTORE_SETTLE_MS = 500;
+// use-wide-view.ts와 같은 기준. #16·#18 머지 뒤 useWideView로 합칠 것
 const WIDE_LIST_MIN_WIDTH = 769;
+const DETECTS_USER_SCROLL_BY_OFFSET = process.env.EXPO_OS === "web";
 
 type ListScrollMemoryOptions = {
   memoryKey: string;
@@ -176,7 +176,7 @@ function useListScrollMemory({
       return;
     }
     if (restorer.isActive) {
-      if (!detectsUserScrollByOffset || restorer.isOwnScroll(offsetY)) {
+      if (!DETECTS_USER_SCROLL_BY_OFFSET || restorer.isOwnScroll(offsetY)) {
         return;
       }
       restorer.cancel();

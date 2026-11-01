@@ -1,4 +1,4 @@
-import { isSignOutTransition } from "@/lib/hooks/use-sign-out-effect";
+import { isSignOutTransition } from "@/lib/session-tokens";
 import { useAuthStore } from "@/stores/auth";
 
 import { create } from "zustand";

@@ -1,3 +1,4 @@
+import { getLinkQueryKeyRoot } from "@/features/links/queries";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -34,7 +35,7 @@ function useUpdateFolderMutation() {
       updateFolder(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: folderQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["links"] });
+      queryClient.invalidateQueries({ queryKey: getLinkQueryKeyRoot() });
     },
   });
 }

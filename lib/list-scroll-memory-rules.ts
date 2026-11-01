@@ -50,10 +50,6 @@ class ScrollRestorer {
     return this.status === "pending" || this.status === "settling";
   }
 
-  get hasScrolled() {
-    return this.lastTarget != null;
-  }
-
   cancel() {
     if (this.isActive) {
       this.status = "cancelled";

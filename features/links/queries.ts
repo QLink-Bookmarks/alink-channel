@@ -9,12 +9,20 @@ import type { GetLinksParams } from "./types";
 
 const LINK_PREVIEW_TYPING_DEBOUNCE_MS = 500;
 
+function getLinkQueryKeyRoot() {
+  return ["links"] as const;
+}
+
 function getLinkDetailQueryKey(linkId?: string | number | null) {
   return ["links", "detail", linkId == null ? null : String(linkId)] as const;
 }
 
 function getLinksQueryKey(params: GetLinksParams) {
   return ["links", "list", params] as const;
+}
+
+function getLinkListsQueryKey() {
+  return ["links", "list"] as const;
 }
 
 function getLinkPreviewQueryKey(url: string) {
@@ -101,7 +109,9 @@ function useLinksQuery(params: GetLinksParams = {}) {
 
 export {
   getLinkDetailQueryKey,
+  getLinkListsQueryKey,
   getLinkPreviewQueryKey,
+  getLinkQueryKeyRoot,
   getLinksQueryKey,
   useLinkDetailQuery,
   useLinkPreviewQuery,
