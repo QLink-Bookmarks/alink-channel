@@ -72,6 +72,8 @@ Check the server only when the requirement depends on server behavior, and recor
 
 The spec is large (~400KB); never read it whole. Fetch it and grep for the paths and schema names the feature needs. State plainly which endpoints exist, which are missing, and what has to be stubbed. A requirement that depends on a missing endpoint must say so before the user confirms it.
 
+Once the requirement is confirmed, set the Issue's Project `Start date` and `Target date` fields with the GraphQL `updateProjectV2ItemFieldValue` mutation (`date`). `Start date` is the confirmation day. `Target date` is a reasonable estimate of when the last PR lands, judged from the confirmed scope and the stages still ahead. Report both dates when closing the stage; the user may adjust them.
+
 ### 3. Design
 
 Present candidates as artifacts in chat, never in the Issue. Once one is picked, write only the confirmed design into section 3: behavior and screen transitions as text, plus one image filename per capture with the state it must show. The user uploads the images onto those lines, so never rewrite section 3 afterwards.
@@ -83,6 +85,14 @@ Conditions the user can walk through by hand to judge whether the feature works 
 ### 5. Breakdown
 
 The implementation spec: screens and components to build, data / API / state handling, and how the work splits. Follow the repo conventions already stated in `AGENTS.md`; do not restate them here. Split into several PRs only when one flow is too large to land at once, and into a sub-issue when the server has to change — see `## Across repos`.
+
+### Implementation
+
+Implement in a git worktree of its own, never in the main checkout, so several sessions can work on different issues at once.
+
+1. Run `git fetch origin`. Local `main` must not be behind `origin/main`: `git rev-list --count main..origin/main` is `0`. Local `main` being ahead is fine.
+2. If it is behind, fast-forward it: `git fetch origin main:main`, or `git merge --ff-only origin/main` in the checkout where `main` is checked out. If that fails because `main` has diverged, stop and tell the user.
+3. Create the worktree on a new branch for this issue from local `main`: `git worktree add -b <branch> <path> main`. When the session already runs in a worktree, check that its branch starts from that `main` instead of creating another one.
 
 ### 6. PR
 
