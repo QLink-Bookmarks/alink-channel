@@ -9,6 +9,7 @@ import type {
   GetLinksParams,
   GetLinksResponse,
   LinkDetailResponse,
+  LinkPreviewResponse,
   PatchLinkRequest,
   SetLinkFavoriteRequest,
   SetLinkFavoriteResponse,
@@ -25,6 +26,20 @@ async function getLinkDetail(linkId: string | number) {
 
 async function getLinks(params: GetLinksParams = {}) {
   return api.get<GetLinksResponse>("/api/links", { params });
+}
+
+// The preview API may live on its own host, so the full URL comes from the
+// environment. It uses the same bearer token; cookies are not needed.
+async function getLinkPreview(url: string, config: { timeout?: number } = {}) {
+  const previewApiUrl = process.env.EXPO_PUBLIC_LINK_PREVIEW_URL;
+  if (!previewApiUrl) {
+    throw new Error("EXPO_PUBLIC_LINK_PREVIEW_URL is not set");
+  }
+  return api.post<LinkPreviewResponse, { url: string }>(
+    previewApiUrl,
+    { url },
+    { ...config, withCredentials: false },
+  );
 }
 
 async function updateLink(linkId: string | number, payload: UpdateLinkRequest) {
@@ -55,6 +70,7 @@ export {
   createLink,
   deleteLink,
   getLinkDetail,
+  getLinkPreview,
   getLinks,
   patchLink,
   setLinkFavorite,

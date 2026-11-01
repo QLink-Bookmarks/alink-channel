@@ -86,7 +86,7 @@ function FeedbackEditor({
   const uploadPickedImage = React.useCallback(
     async (id: string, file: ImageUploadInput) => {
       try {
-        const response = await uploadImage(file);
+        const response = await uploadImage(file, "POST");
         const url = response.data.url;
         // Map (not append) so a tile the user already removed stays removed even
         // if its upload finishes afterwards.
