@@ -25,6 +25,10 @@ type AiSummaryRequest = {
   url: string;
   title?: string | null;
   generateTodo?: boolean;
+  // Omitted values are stored as null / false, even for an existing link.
+  thumbnailUrl?: string | null;
+  faviconUrl?: string | null;
+  isVideo?: boolean;
 };
 
 type AiSummaryResponseData = {

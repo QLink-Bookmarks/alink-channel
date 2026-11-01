@@ -1,6 +1,7 @@
 import * as React from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, ActivityIndicator as RNActivityIndicator, View } from "react-native";
 
+import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Button } from "@/components/ui/button";
 import { type DateValue } from "@/components/ui/date-picker";
 import { Icon } from "@/components/ui/icon";
@@ -47,20 +48,28 @@ import {
 } from "@/features/todos/lib/todo-schedule";
 import { useClipboardFailureFeedback } from "@/lib/clipboard-feedback";
 import { reportError } from "@/lib/error-reporting";
+import { getThemeTokens } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import { useDisplaySettings } from "@/stores/display-settings";
 import { useQrScanStore } from "@/stores/qr-scan";
 import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { getLinkPreviewRequestFields } from "../lib/link-preview/link-preview-result";
 import { useCreateLinkMutation } from "../mutations";
-import type { CreateLinkTodoRequest } from "../types";
+import { useLinkPreviewQuery } from "../queries";
+import type { CreateLinkTodoRequest, LinkPreview } from "../types";
 
 import * as Clipboard from "expo-clipboard";
+import { Image } from "expo-image";
 import { type Href, useRouter } from "expo-router";
 import { ChevronDown, ChevronLeft, FolderOpen, QrCode } from "lucide-react-native/icons";
 
 type LinkCreateFormMode = "wide" | "mobile";
 type MobileSheetStep = "form" | "folder-picker" | "ai-model-picker";
+// How the URL field got its current value: typed key by key, or filled at once
+// (paste, QR, share, clipboard). Typed URLs wait for a pause before the preview.
+type UrlFillMode = "typed" | "instant";
 
 type FolderDraft = {
   id: string | null;
@@ -94,6 +103,12 @@ function getFolderOptionValue(folderId: string | null) {
   return folderId ?? defaultFolderOptionValue;
 }
 
+// A change that adds more than one character at once is a paste or an autofill,
+// not typing.
+function getUrlFillMode(previousUrl: string, nextUrl: string): UrlFillMode {
+  return nextUrl.length - previousUrl.length > 1 ? "instant" : "typed";
+}
+
 function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreateFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -123,7 +138,16 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
   const defaultProvider = useDisplaySettings((state) => state.ai.defaultProvider);
   const requestAiSummaryMutation = useRequestAiSummaryMutation();
   const [url, setUrl] = React.useState("");
+  const [urlFillMode, setUrlFillMode] = React.useState<UrlFillMode>("instant");
+  // Latest URL for async callbacks (the clipboard read) that must not clobber it.
+  const urlRef = React.useRef(url);
+  React.useEffect(() => {
+    urlRef.current = url;
+  }, [url]);
   const [title, setTitle] = React.useState("");
+  // Set once the user edits the title; a fetched preview never overwrites it.
+  const isTitleEditedRef = React.useRef(false);
+  const appliedPreviewUrlRef = React.useRef<string | null>(null);
   const [memo, setMemo] = React.useState("");
   const [folder, setFolder] = React.useState<FolderDraft>(defaultFolder);
   const [aiProvider, setAiProvider] = React.useState<AiProviderSelection | null>(null);
@@ -166,9 +190,46 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
     [clipboardFeedback.description, clipboardFeedback.title, mode, showToast],
   );
 
+  const linkPreviewQuery = useLinkPreviewQuery(url, { immediate: urlFillMode === "instant" });
+  const linkPreview = linkPreviewQuery.preview;
+  const isPreviewLoading = linkPreviewQuery.isLoading;
+
+  React.useEffect(() => {
+    const previewUrl = linkPreviewQuery.previewUrl;
+    if (!linkPreview || !previewUrl || appliedPreviewUrlRef.current === previewUrl) {
+      return;
+    }
+    appliedPreviewUrlRef.current = previewUrl;
+    if (!isTitleEditedRef.current) {
+      setTitle(linkPreview.title ?? "");
+    }
+  }, [linkPreview, linkPreviewQuery.previewUrl]);
+
+  const handleUrlChange = React.useCallback(
+    (nextUrl: string) => {
+      setUrlFillMode(getUrlFillMode(url, nextUrl));
+      setUrl(nextUrl);
+    },
+    [url],
+  );
+
+  const fillUrlInstantly = React.useCallback((nextUrl: string) => {
+    setUrlFillMode("instant");
+    setUrl(nextUrl);
+  }, []);
+
+  const handleTitleChange = React.useCallback((nextTitle: string) => {
+    // Clearing the title hands it back to the preview.
+    isTitleEditedRef.current = nextTitle.trim().length > 0;
+    setTitle(nextTitle);
+  }, []);
+
   const resetForm = React.useCallback(() => {
     setUrl("");
+    setUrlFillMode("instant");
     setTitle("");
+    isTitleEditedRef.current = false;
+    appliedPreviewUrlRef.current = null;
     setMemo("");
     setFolder(defaultFolder);
     setAiProvider(null);
@@ -187,7 +248,7 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
 
     const sharedUrl = initialUrl?.trim();
     if (sharedUrl) {
-      setUrl(sharedUrl);
+      fillUrlInstantly(sharedUrl);
       return;
     }
 
@@ -197,13 +258,15 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
         if (nextUrl) {
           // Don't clobber a URL that arrived (e.g. a shared link) while this async
           // clipboard read was in flight behind the iOS paste-permission prompt.
-          setUrl((current) => (current ? current : nextUrl));
+          if (!urlRef.current) {
+            fillUrlInstantly(nextUrl);
+          }
         }
       })
       .catch((error: unknown) => {
         handleClipboardReadFailure(error);
       });
-  }, [handleClipboardReadFailure, initialUrl, open, resetForm]);
+  }, [fillUrlInstantly, handleClipboardReadFailure, initialUrl, open, resetForm]);
 
   const handleCancel = React.useCallback(() => {
     resetForm();
@@ -278,11 +341,14 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
     if (!open || pendingQrResult == null) {
       return;
     }
-    setUrl(pendingQrResult);
+    fillUrlInstantly(pendingQrResult);
     clearQrResult();
-  }, [clearQrResult, open, pendingQrResult]);
+  }, [clearQrResult, fillUrlInstantly, open, pendingQrResult]);
 
   const handleAiOrganize = React.useCallback(async () => {
+    if (isPreviewLoading) {
+      return;
+    }
     const trimmedUrl = url.trim();
     const trimmedTitle = title.trim();
     const nextErrors: { url?: string; title?: string } = {};
@@ -325,6 +391,7 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
         title: trimmedTitle ? trimmedTitle : null,
         url: trimmedUrl,
         userProviderId: target.userProviderId,
+        ...getLinkPreviewRequestFields(linkPreview),
       });
 
       showToast({
@@ -370,6 +437,8 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
     myProviders,
     generateTodo,
     invalidateLinkQueries,
+    isPreviewLoading,
+    linkPreview,
     mode,
     onCancel,
     onSaved,
@@ -398,7 +467,7 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
   }, [title, url]);
 
   const handleSave = React.useCallback(async () => {
-    if (!validate()) {
+    if (isPreviewLoading || !validate()) {
       return;
     }
 
@@ -432,6 +501,7 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
         sourceType: "INPUT",
         folderId: folder.id ? Number(folder.id) : null,
         todos: todoPayload,
+        ...getLinkPreviewRequestFields(linkPreview),
       });
 
       invalidateLinkQueries();
@@ -444,6 +514,8 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
     createLinkMutation,
     folder.id,
     invalidateLinkQueries,
+    isPreviewLoading,
+    linkPreview,
     memo,
     onSaved,
     resetForm,
@@ -454,6 +526,8 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
   ]);
 
   const aiProviderLabel = aiProvider?.providerLabel ?? "기본 제공자 사용";
+  const isSaveDisabled = isPreviewLoading || createLinkMutation.isPending;
+  const isAiOrganizeDisabled = isPreviewLoading || requestAiSummaryMutation.isPending;
 
   const decoratedTodos = React.useMemo(
     () => todos.map((todo) => ({ ...todo, isPast: isScheduleInPast(todo) })),
@@ -492,6 +566,11 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
 
         {mobileSheetStep === "form" ? (
           <>
+            <LinkPreviewImage
+              isLoading={isPreviewLoading}
+              mode={mode}
+              preview={linkPreview}
+            />
             <View className="flex-row items-start gap-2">
               <View className="min-w-0 flex-1">
                 <FieldError error={errors.url}>
@@ -501,7 +580,7 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
                     autoCapitalize="none"
                     keyboardType="url"
                     placeholder="https://..."
-                    onChangeText={setUrl}
+                    onChangeText={handleUrlChange}
                   />
                 </FieldError>
               </View>
@@ -521,29 +600,36 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
             <View className="gap-2">
               <Text className="px-1 text-sm font-semibold text-muted-foreground">링크 제목</Text>
               <FieldError error={errors.title}>
-                <Input
-                  className="h-10 rounded-xl border-primary/30 bg-background"
-                  value={title}
-                  maxLength={300}
-                  placeholder="AI 생성으로 자동 정리해보세요"
-                  onChangeText={setTitle}
-                />
+                <TitleField isLoading={isPreviewLoading}>
+                  <Input
+                    className="h-10 rounded-xl border-primary/30 bg-background pr-10"
+                    value={title}
+                    maxLength={300}
+                    placeholder={
+                      isPreviewLoading ? "제목을 불러오는 중…" : "AI 생성으로 자동 정리해보세요"
+                    }
+                    onChangeText={handleTitleChange}
+                  />
+                </TitleField>
               </FieldError>
             </View>
 
             <View className="flex-row gap-3">
               <Button
-                className="h-10 flex-1 rounded-2xl"
-                disabled={createLinkMutation.isPending}
+                className="h-10 flex-1 flex-row gap-2 rounded-2xl"
+                disabled={isSaveDisabled}
                 onPress={handleSave}
               >
+                {isPreviewLoading ? <ButtonSpinner /> : null}
                 <Text>저장</Text>
               </Button>
               <Button
-                className="h-10 flex-1 rounded-2xl"
+                className="h-10 flex-1 flex-row gap-2 rounded-2xl"
+                disabled={isAiOrganizeDisabled}
                 variant="gradient"
                 onPress={handleAiOrganize}
               >
+                {isPreviewLoading ? <ButtonSpinner /> : null}
                 <Text>AI 정리</Text>
               </Button>
             </View>
@@ -610,6 +696,11 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
 
   return (
     <View className="gap-5">
+      <LinkPreviewImage
+        isLoading={isPreviewLoading}
+        mode={mode}
+        preview={linkPreview}
+      />
       <View className="gap-2">
         <View className="flex-row items-center gap-2">
           <Text className="text-sm font-semibold text-muted-foreground">URL</Text>
@@ -622,7 +713,7 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
             autoCapitalize="none"
             keyboardType="url"
             placeholder="https://www.example.com"
-            onChangeText={setUrl}
+            onChangeText={handleUrlChange}
           />
         </FieldError>
       </View>
@@ -630,13 +721,17 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
       <View className="gap-2">
         <Text className="text-sm font-semibold text-muted-foreground">제목</Text>
         <FieldError error={errors.title}>
-          <Input
-            className="h-10 rounded-xl px-4 text-lg"
-            value={title}
-            maxLength={300}
-            placeholder="AI 생성으로 자동 정리해보세요"
-            onChangeText={setTitle}
-          />
+          <TitleField isLoading={isPreviewLoading}>
+            <Input
+              className="h-10 rounded-xl px-4 pr-10 text-lg"
+              value={title}
+              maxLength={300}
+              placeholder={
+                isPreviewLoading ? "제목을 불러오는 중…" : "AI 생성으로 자동 정리해보세요"
+              }
+              onChangeText={handleTitleChange}
+            />
+          </TitleField>
         </FieldError>
       </View>
 
@@ -737,18 +832,20 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
           <Text>취소</Text>
         </Button>
         <Button
-          className="h-10"
-          disabled={createLinkMutation.isPending}
+          className="h-10 flex-row gap-2"
+          disabled={isSaveDisabled}
           onPress={handleSave}
         >
+          {isPreviewLoading ? <ButtonSpinner /> : null}
           <Text>저장</Text>
         </Button>
         <Button
-          className="h-10"
-          disabled={requestAiSummaryMutation.isPending}
+          className="h-10 flex-row gap-2"
+          disabled={isAiOrganizeDisabled}
           variant="gradient"
           onPress={handleAiOrganize}
         >
+          {isPreviewLoading ? <ButtonSpinner /> : null}
           <Text>AI 정리</Text>
         </Button>
         <Popover>
@@ -797,6 +894,88 @@ function AiProviderPickerListWithClose({
         onSelect(selection);
         popoverContext.onOpenChange(false);
       }}
+    />
+  );
+}
+
+// Main image of the fetched preview, shown at the top of the form only when the page
+// has one. While the preview loads, the slot shows a loading state.
+// TODO(#5): swap this for `LinkThumbnail` from features/links/components/link-thumbnail
+// once PR 1 (presentation) is merged.
+function LinkPreviewImage({
+  isLoading,
+  mode,
+  preview,
+}: {
+  isLoading: boolean;
+  mode: LinkCreateFormMode;
+  preview: LinkPreview | null;
+}) {
+  const thumbnailUrl = preview?.thumbnailUrl ?? null;
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
+  const frameClassName = cn(
+    "w-full overflow-hidden rounded-xl border border-border bg-muted",
+    mode === "wide" ? "h-48" : "aspect-video",
+  );
+
+  if (isLoading) {
+    return (
+      <View
+        accessibilityLabel="대표 이미지를 불러오는 중"
+        className={cn(frameClassName, "items-center justify-center")}
+        testID="link-create-preview-image-loading"
+      >
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  if (!thumbnailUrl || failedUrl === thumbnailUrl) {
+    return null;
+  }
+
+  return (
+    <View
+      className={frameClassName}
+      testID="link-create-preview-image"
+    >
+      <Image
+        accessibilityLabel="대표 이미지"
+        contentFit="cover"
+        source={{ uri: thumbnailUrl }}
+        style={{ height: "100%", width: "100%" }}
+        onError={() => setFailedUrl(thumbnailUrl)}
+      />
+    </View>
+  );
+}
+
+function TitleField({ children, isLoading }: { children: React.ReactNode; isLoading: boolean }) {
+  return (
+    <View className="relative justify-center">
+      {children}
+      {isLoading ? (
+        <View
+          accessibilityLabel="제목을 불러오는 중"
+          className="absolute right-3"
+          pointerEvents="none"
+          testID="link-create-title-loading"
+        >
+          <ActivityIndicator />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function ButtonSpinner() {
+  const accent = useDisplaySettings((state) => state.display.accent);
+  const theme = useDisplaySettings((state) => state.display.theme);
+  return (
+    <RNActivityIndicator
+      accessibilityLabel="미리보기를 불러오는 중"
+      color={getThemeTokens(theme, accent).primaryForeground}
+      size="small"
     />
   );
 }

@@ -19,7 +19,10 @@ type CreateLinkRequest = {
   summary?: string;
   tags: string[];
   memo?: string;
-  thumbnailUrl?: string;
+  // Only one of the two image fields carries a value (see `LinkPreview`).
+  thumbnailUrl?: string | null;
+  faviconUrl?: string | null;
+  isVideo?: boolean;
   sourceType: SourceType;
   folderId?: number | null;
   todos: CreateLinkTodoRequest[];
@@ -156,6 +159,26 @@ type GetLinksParams = {
   isFavorite?: boolean;
 };
 
+// A link preview holds at most one image: the stored main image (`thumbnailUrl`),
+// or, only when there is none, the stored favicon (`faviconUrl`). Both null means
+// the card falls back to the domain.
+type LinkPreviewImages =
+  | { thumbnailUrl: string; faviconUrl: null }
+  | { thumbnailUrl: null; faviconUrl: string | null };
+
+type LinkPreview = LinkPreviewImages & {
+  title: string | null;
+  isVideo: boolean;
+};
+
+type LinkPreviewResponse = ApiEnvelope<{
+  url: string;
+  title: string | null;
+  thumbnailUrl: string | null;
+  faviconUrl: string | null;
+  isVideo: boolean;
+}>;
+
 export type {
   ApiEnvelope,
   CopyLinkRequest,
@@ -164,6 +187,9 @@ export type {
   CreateLinkResponse,
   CreateLinkTodoRequest,
   DeleteLinkResponse,
+  LinkPreview,
+  LinkPreviewImages,
+  LinkPreviewResponse,
   RepeatDay,
   GetLinksParams,
   GetLinksResponse,
