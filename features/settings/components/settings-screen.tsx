@@ -391,7 +391,7 @@ function ProfileEditOverlay({
   const handleAvatarPicked = React.useCallback(
     async (file: ImageUploadInput) => {
       try {
-        const response = await uploadImageMutation.mutateAsync(file);
+        const response = await uploadImageMutation.mutateAsync({ file, purpose: "PROFILE" });
         const uploadedUrl = response.data?.url;
         if (uploadedUrl) {
           setDraftAvatarUploadedUrl(uploadedUrl);
