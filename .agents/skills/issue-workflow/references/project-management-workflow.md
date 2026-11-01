@@ -84,6 +84,14 @@ Conditions the user can walk through by hand to judge whether the feature works 
 
 The implementation spec: screens and components to build, data / API / state handling, and how the work splits. Follow the repo conventions already stated in `AGENTS.md`; do not restate them here. Split into several PRs only when one flow is too large to land at once, and into a sub-issue when the server has to change — see `## Across repos`.
 
+### Implementation
+
+Implement in a git worktree of its own, never in the main checkout, so several sessions can work on different issues at once.
+
+1. Run `git fetch origin`. Local `main` must not be behind `origin/main`: `git rev-list --count main..origin/main` is `0`. Local `main` being ahead is fine.
+2. If it is behind, fast-forward it: `git fetch origin main:main`, or `git merge --ff-only origin/main` in the checkout where `main` is checked out. If that fails because `main` has diverged, stop and tell the user.
+3. Create the worktree on a new branch for this issue from local `main`: `git worktree add -b <branch> <path> main`. When the session already runs in a worktree, check that its branch starts from that `main` instead of creating another one.
+
 ### 6. PR
 
 The PR body carries the same checklist from section 4, with only the items actually verified checked off. When the work spans several PRs, every PR but the last links the Issue with `- Refs #n`, and the last one with `- Resolves #n`, so the Issue closes only when all of them land. Section 6 of the Issue records every PR link.

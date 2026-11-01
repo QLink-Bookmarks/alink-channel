@@ -43,7 +43,7 @@ Tell the user the Issue, its type, the completed stage and the next one, then as
 | `Design` | `references/design-candidates.md` | section 3 |
 | `Test Criteria` | `references/test-criteria.md` | section 4 |
 | `Breakdown` | workflow `5. Breakdown` and `Across repos`, `AGENTS.md` | section 5 |
-| `Implementation` | `AGENTS.md`, sections 2 to 5 | code and tests |
+| `Implementation` | workflow `Implementation`, `AGENTS.md`, sections 2 to 5 | code and tests, in a worktree |
 | `PR` | workflow `6. PR` | PR body, section 6 |
 
 ## 4. Close the stage
