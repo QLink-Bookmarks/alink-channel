@@ -483,8 +483,10 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
                   onPress={handleNotificationsPress}
                 />
                 <IconButton
+                  accessibilityLabel="설정"
                   icon={Settings}
                   size="sm"
+                  variant="ghost"
                   active={isSettingsRoute}
                   onPress={() => router.replace("/settings" as Href)}
                 />
@@ -602,8 +604,10 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
           isMobileHome ? (
             <View className="flex-row items-center gap-1">
               <IconButton
+                accessibilityLabel="검색"
                 icon={Search}
                 size="sm"
+                variant="ghost"
                 onPress={handleMobileSearchPress}
               />
               <NotificationBellButton

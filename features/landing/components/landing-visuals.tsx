@@ -102,24 +102,55 @@ const ORGANIZE_FOLDERS = [
     key: "맛집",
     label: "🍜 맛집",
     links: [
-      { domain: "map.naver.com", title: "성수 브런치 맛집 지도", tags: ["#성수", "#브런치"] },
-      { domain: "instagram.com", title: "요즘 핫한 이자카야 릴스", tags: ["#이자카야", "#릴스"] },
+      {
+        domain: "elle.co.kr",
+        title: "성수 브런치 맛집 지도",
+        tags: ["#성수", "#브런치"],
+        thumbnailAsset: require("@/assets/sample-links/seongsu-brunch.jpg"),
+      },
+      {
+        domain: "instagram.com",
+        title: "요즘 핫한 이자카야 릴스",
+        tags: ["#이자카야", "#릴스"],
+        isVideo: true,
+      },
     ],
   },
   {
     key: "플리",
     label: "🎧 플리",
     links: [
-      { domain: "youtube.com", title: "공부할 때 듣기 좋은 플리", tags: ["#집중", "#lofi"] },
-      { domain: "spotify.com", title: "드라이브 감성 플레이리스트", tags: ["#드라이브", "#감성"] },
+      {
+        domain: "youtube.com",
+        title: "공부할 때 듣기 좋은 플리",
+        tags: ["#집중", "#lofi"],
+        thumbnailAsset: require("@/assets/sample-links/study-playlist.jpg"),
+        isVideo: true,
+      },
+      {
+        domain: "spotify.com",
+        title: "드라이브 감성 플레이리스트",
+        tags: ["#드라이브", "#감성"],
+        thumbnailAsset: require("@/assets/sample-links/drive-playlist.jpg"),
+      },
     ],
   },
   {
     key: "여행",
     label: "✈️ 여행",
     links: [
-      { domain: "maps.google.com", title: "제주 3박4일 여행 코스", tags: ["#제주", "#뚜벅이"] },
-      { domain: "airbnb.co.kr", title: "애월 감성 숙소 모음", tags: ["#숙소", "#애월"] },
+      {
+        domain: "haniseoul.com",
+        title: "제주 3박4일 여행 코스",
+        tags: ["#제주", "#뚜벅이"],
+        thumbnailAsset: require("@/assets/sample-links/jeju-course-route.jpg"),
+      },
+      {
+        domain: "airbnb.co.kr",
+        title: "애월 감성 숙소 모음",
+        tags: ["#숙소", "#애월"],
+        thumbnailAsset: require("@/assets/sample-links/aewol-stay-ocean.jpg"),
+      },
     ],
   },
 ];
@@ -158,11 +189,13 @@ function OrganizeVisual() {
       {/* Keyed by folder so switching remounts the cards and replays their reveal. */}
       <View
         key={folder.key}
-        className="gap-3.5"
+        className="flex-row gap-3.5"
       >
+        {/* The redesigned card has a 16:9 image cell, so the cards sit side by side to fit the section. */}
         {folder.links.map((link, index) => (
           <Reveal
             key={link.domain}
+            className="flex-1"
             from="up"
             delay={index === 0 ? 0 : 110}
           >
@@ -170,6 +203,8 @@ function OrganizeVisual() {
               className="shadow-qlink-md"
               domain={link.domain}
               faviconUrl={faviconFor(link.domain)}
+              thumbnailAsset={"thumbnailAsset" in link ? link.thumbnailAsset : undefined}
+              isVideo={"isVideo" in link ? link.isVideo : false}
               title={link.title}
               tags={link.tags}
             />
@@ -449,30 +484,37 @@ function SharedVisual() {
           </View>
         </View>
       </Reveal>
-      <Reveal
-        from="up"
-        delay={620}
-      >
-        <LinkCard
-          className="shadow-qlink-md"
-          domain="google.com"
-          faviconUrl={faviconFor("google.com")}
-          title="제주 맛집 지도 저장 목록"
-          tags={["#맛집", "#같이가요"]}
-        />
-      </Reveal>
-      <Reveal
-        from="up"
-        delay={700}
-      >
-        <LinkCard
-          className="shadow-qlink-md"
-          domain="airbnb.co.kr"
-          faviconUrl={faviconFor("airbnb.co.kr")}
-          title="애월 감성 숙소 모음"
-          tags={["#숙소", "#애월"]}
-        />
-      </Reveal>
+      {/* Side by side, as in the archive section, so the section keeps its height. */}
+      <View className="flex-row gap-3.5">
+        <Reveal
+          className="flex-1"
+          from="up"
+          delay={620}
+        >
+          <LinkCard
+            className="shadow-qlink-md"
+            domain="harpersbazaar.co.kr"
+            faviconUrl={faviconFor("harpersbazaar.co.kr")}
+            thumbnailAsset={require("@/assets/sample-links/jeju-food-list.jpg")}
+            title="제주 맛집 지도 저장 목록"
+            tags={["#맛집", "#같이가요"]}
+          />
+        </Reveal>
+        <Reveal
+          className="flex-1"
+          from="up"
+          delay={700}
+        >
+          <LinkCard
+            className="shadow-qlink-md"
+            domain="airbnb.co.kr"
+            faviconUrl={faviconFor("airbnb.co.kr")}
+            thumbnailAsset={require("@/assets/sample-links/aewol-stay.jpg")}
+            title="애월 감성 숙소 모음"
+            tags={["#숙소", "#애월"]}
+          />
+        </Reveal>
+      </View>
     </View>
   );
 }

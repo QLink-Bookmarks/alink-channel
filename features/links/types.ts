@@ -34,6 +34,11 @@ type UpdateLinkRequest = {
   // PUT is a full replace — omitting folderId makes the server reset the link to
   // uncategorized, so always send the link's current folder.
   folderId?: number | null;
+  // Same for the preview fields: omitting them clears the image (null) and the
+  // video flag (false), so always resend the values from the detail.
+  thumbnailUrl?: string | null;
+  faviconUrl?: string | null;
+  isVideo?: boolean;
   sourceType: SourceType;
 };
 
@@ -85,6 +90,9 @@ type LinkDetail = {
   id: number;
   url: string;
   title: string;
+  thumbnailUrl: string | null;
+  faviconUrl: string | null;
+  isVideo: boolean;
   summary?: string | null;
   tags: string[];
   memo?: string | null;
@@ -113,11 +121,14 @@ type ApiEnvelope<TData> = {
 type LinkDetailResponse = ApiEnvelope<LinkDetail>;
 type DeleteLinkResponse = ApiEnvelope<null>;
 
-type LinkListTodo = {
-  id: number;
-  title: string;
-  completedAt?: string | null;
-  reminderAt?: string | null;
+/**
+ * Todo counts of a link in the list response. `open` includes `dueSoon` and `overdue`.
+ */
+type LinkTodoCounts = {
+  open: number;
+  dueSoon: number;
+  overdue: number;
+  completed: number;
 };
 
 type LinkListItem = {
@@ -127,10 +138,12 @@ type LinkListItem = {
   folderEmoji?: string | null;
   url: string;
   title: string;
+  thumbnailUrl: string | null;
+  faviconUrl: string | null;
+  isVideo: boolean;
   tags: string[];
   createdAt: string;
-  todos: LinkListTodo[];
-  countMoreTodos: number;
+  todoCounts: LinkTodoCounts;
   workModel?: string | null;
   status?: LinkStatus | null;
   isFavorite: boolean;
@@ -171,7 +184,7 @@ export type {
   LinkDetailResponse,
   LinkListItem,
   PatchLinkRequest,
-  LinkListTodo,
+  LinkTodoCounts,
   LinkOrder,
   LinkScrollResponse,
   LinkStatus,

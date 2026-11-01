@@ -22,7 +22,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +31,14 @@ import { type TimeValue } from "@/components/ui/time-picker";
 import { useMyProfileQuery } from "@/features/account/queries";
 import { FolderPickerList } from "@/features/folders/components/folder-picker-list";
 import { useFoldersQuery } from "@/features/folders/queries";
-import { formatLinkStatus, formatSummaryModelLabel } from "@/features/home/lib/link-card-mapper";
+import {
+  formatLinkStatus,
+  formatSummaryModelLabel,
+  getDomainFromUrl,
+} from "@/features/home/lib/link-card-mapper";
 import { buildShareText } from "@/features/links/lib/build-share-text";
+import { formatTagLabel } from "@/features/links/lib/format-tag-label";
+import { openLinkUrl } from "@/features/links/lib/open-link-url";
 import { shareLink } from "@/features/links/lib/share-link";
 import {
   useCopyLinkMutation,
@@ -69,24 +74,18 @@ import {
   useUpdateTodoMutation,
 } from "@/features/todos/mutations";
 import { reportError } from "@/lib/error-reporting";
+import { useGridColumns } from "@/lib/hooks/use-grid-columns";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
-import * as Linking from "expo-linking";
+import { DetailActionButton, HoverLabel, RefreshButton } from "./link-detail-parts";
+import { LinkThumbnail } from "./link-thumbnail/link-thumbnail";
+
 import { type Href, useRouter } from "expo-router";
-import {
-  Ellipsis,
-  ExternalLink,
-  FolderOpen,
-  FolderPlus,
-  Pencil,
-  RefreshCw,
-  Share2,
-  Star,
-  Trash2,
-  X,
-} from "lucide-react-native/icons";
+import { Ellipsis, FolderPlus, Pencil, Share2, Star, Trash2, X } from "lucide-react-native/icons";
+
+const TODO_GRID_GAP = 10;
 
 const defaultWeekdays: WeekdayValue[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
@@ -135,15 +134,20 @@ function DetailSection({
   title,
   action,
   children,
+  testID,
 }: {
   title: string;
   action?: React.ReactNode;
   children: React.ReactNode;
+  testID?: string;
 }) {
   return (
-    <View className="gap-3">
-      <View className="flex-row items-center justify-between gap-3">
-        <Text className="text-sm font-semibold text-muted-foreground">{title}</Text>
+    <View
+      className="gap-2.5"
+      testID={testID}
+    >
+      <View className="min-h-8 flex-row items-center justify-between gap-3">
+        <Text className="text-xs font-semibold text-muted-foreground">{title}</Text>
         {action}
       </View>
       {children}
@@ -153,8 +157,8 @@ function DetailSection({
 
 function DetailPlaceholder({ label }: { label: string }) {
   return (
-    <View className="rounded-2xl border border-dashed border-border px-4 py-4">
-      <Text className="text-sm font-medium text-muted-foreground">{label}</Text>
+    <View className="rounded-[14px] border border-dashed border-border px-4 py-3.5">
+      <Text className="text-xs font-medium text-muted-foreground">{label}</Text>
     </View>
   );
 }
@@ -165,9 +169,13 @@ function buildUpdateLinkPayload(
 ): UpdateLinkRequest {
   // TODO: Switch link detail field updates to PATCH /api/links/{id} when the server exposes partial update support.
   // PUT replaces the whole link, so every preserved field (esp. folderId) must be
-  // resent — otherwise the server drops the link back to uncategorized.
+  // resent — otherwise the server drops the link back to uncategorized, and clears
+  // the representative image, the favicon and the video flag.
   return {
+    faviconUrl: detail.faviconUrl ?? null,
     folderId: detail.folderId ?? null,
+    isVideo: detail.isVideo ?? false,
+    thumbnailUrl: detail.thumbnailUrl ?? null,
     memo: overrides.memo ?? detail.memo,
     sourceType: detail.sourceType,
     summary: overrides.summary ?? detail.summary,
@@ -247,55 +255,15 @@ function mergeLinkDetail(base: LinkDetail, incoming: Partial<LinkDetail>): LinkD
     folderId: incoming.folderId ?? base.folderId ?? null,
     folderEmoji: incoming.folderEmoji ?? base.folderEmoji ?? null,
     folderName: incoming.folderName ?? base.folderName ?? null,
+    // The PUT response does not echo the preview fields; the request resent them unchanged.
+    thumbnailUrl: incoming.thumbnailUrl ?? base.thumbnailUrl ?? null,
+    faviconUrl: incoming.faviconUrl ?? base.faviconUrl ?? null,
+    isVideo: incoming.isVideo ?? base.isVideo ?? false,
     memo: incoming.memo ?? base.memo ?? null,
     summary: incoming.summary ?? base.summary ?? null,
     tags: incoming.tags ?? base.tags ?? [],
     todos: incoming.todos ?? base.todos ?? [],
   };
-}
-
-function ActionButton({
-  label,
-  icon,
-  variant = "outline",
-  iconClassName: iconClassNameOverride,
-  loading = false,
-  disabled = false,
-  onPress,
-}: {
-  label: string;
-  icon: React.ComponentProps<typeof Icon>["as"];
-  variant?: React.ComponentProps<typeof Button>["variant"];
-  iconClassName?: string;
-  loading?: boolean;
-  disabled?: boolean;
-  onPress?: () => void;
-}) {
-  const iconClassName =
-    iconClassNameOverride ??
-    (variant === "gradient" ? "text-primary-foreground" : "text-foreground");
-
-  return (
-    <Button
-      className="h-11 min-w-0 flex-1 self-auto rounded-2xl"
-      variant={variant}
-      disabled={disabled || loading}
-      onPress={onPress}
-    >
-      <View>
-        {loading ? (
-          <ActivityIndicator size="small" />
-        ) : (
-          <Icon
-            as={icon}
-            size={16}
-            className={iconClassName}
-          />
-        )}
-      </View>
-      <Text>{label}</Text>
-    </Button>
-  );
 }
 
 function LinkDetailView({
@@ -324,6 +292,15 @@ function LinkDetailView({
   const updateTodoMutation = useUpdateTodoMutation();
   const deleteTodoMutation = useDeleteTodoMutation();
   const toggleTodoCompletedMutation = useToggleTodoCompletedMutation();
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [hasRefreshFailed, setHasRefreshFailed] = React.useState(false);
+  const isRefreshingRef = React.useRef(false);
+  const todoGrid = useGridColumns({
+    gap: TODO_GRID_GAP,
+    // The wide panel is 380–520px inside its padding: 180px keeps it at two columns.
+    minItemWidth: mode === "panel" ? 180 : 300,
+  });
+  const domain = React.useMemo(() => getDomainFromUrl(detail.url), [detail.url]);
   const tags = React.useMemo(() => detail.tags ?? [], [detail.tags]);
   const todos = React.useMemo(() => detail.todos ?? [], [detail.todos]);
   const dueTodos = todos.filter((todo) => !getTodoDone(todo));
@@ -369,6 +346,9 @@ function LinkDetailView({
     myProfileQuery.data?.id != null &&
     currentFolder.ownerId === myProfileQuery.data.id;
   const isMyOwnLink = !isSharedFolder || isFolderOwner;
+  const folderLabel = detail.folderName
+    ? `${detail.folderEmoji ?? "📁"} ${detail.folderName}`
+    : "📭 폴더 없음";
 
   const isTodoMutationPending =
     createTodoMutation.isPending || updateTodoMutation.isPending || deleteTodoMutation.isPending;
@@ -402,6 +382,8 @@ function LinkDetailView({
       queryClient.setQueryData<LinkDetail>(getLinkDetailQueryKey(detail.id), (currentDetail) =>
         mergeLinkDetail(currentDetail ?? detail, response.data as Partial<LinkDetail>),
       );
+      // Cards show the title, tags and star, so the link lists follow the detail.
+      void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
     },
     [detail, queryClient],
   );
@@ -411,6 +393,42 @@ function LinkDetailView({
       queryKey: getLinkDetailQueryKey(detail.id),
     });
   }, [detail.id, queryClient]);
+
+  // Link cards show todo counts, so every todo change also refreshes the link lists.
+  const invalidateLinkLists = React.useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
+  }, [queryClient]);
+
+  const handleRefresh = React.useCallback(async () => {
+    // One refresh at a time: extra presses while it runs are ignored.
+    if (isRefreshingRef.current) {
+      return;
+    }
+    isRefreshingRef.current = true;
+    setIsRefreshing(true);
+    try {
+      // Refetch the detail query itself; a failure rejects and the cached detail stays.
+      await queryClient.refetchQueries(
+        { exact: true, queryKey: getLinkDetailQueryKey(detail.id) },
+        { throwOnError: true },
+      );
+      setHasRefreshFailed(false);
+    } catch (error: unknown) {
+      setHasRefreshFailed(true);
+      showToast({
+        description: "잠시 후 다시 시도해주세요.",
+        dismissible: true,
+        durationMs: 4000,
+        sourceKey: "link-detail-refresh",
+        title: "새로고침에 실패했어요.",
+        variant: "error",
+      });
+      reportError(error, { area: "link-detail-view:refresh", extra: { linkId: detail.id } });
+    } finally {
+      isRefreshingRef.current = false;
+      setIsRefreshing(false);
+    }
+  }, [detail.id, queryClient, showToast]);
 
   const handleFolderMoveSelect = React.useCallback(
     async (selection: { id: number | null; label: string; emoji?: string | null }) => {
@@ -512,6 +530,7 @@ function LinkDetailView({
         });
 
         await refreshDetail();
+        invalidateLinkLists();
       } catch (error: unknown) {
         queryClient.setQueryData(queryKey, previousDetail);
         reportError(error, {
@@ -522,16 +541,18 @@ function LinkDetailView({
         setPendingTodoIds((currentIds) => currentIds.filter((id) => id !== todoKey));
       }
     },
-    [detail, pendingTodoIds, queryClient, refreshDetail, toggleTodoCompletedMutation],
+    [
+      detail,
+      invalidateLinkLists,
+      pendingTodoIds,
+      queryClient,
+      refreshDetail,
+      toggleTodoCompletedMutation,
+    ],
   );
 
   const handleOpenOriginal = React.useCallback(() => {
-    if (process.env.EXPO_OS === "web") {
-      globalThis.open?.(detail.url, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    Linking.openURL(detail.url);
+    openLinkUrl(detail.url);
   }, [detail.url]);
 
   const handleShowTagInput = React.useCallback(() => {
@@ -975,6 +996,9 @@ function LinkDetailView({
         area: "link-detail-view:save-todos",
         extra: { linkId: detail.id },
       });
+    } finally {
+      // Some todos may have changed even when a later request failed.
+      invalidateLinkLists();
     }
   }, [
     createTodoMutation,
@@ -982,6 +1006,7 @@ function LinkDetailView({
     detail.id,
     todos,
     hasInvalidTodoDraft,
+    invalidateLinkLists,
     refreshDetail,
     todoDrafts,
     updateTodoMutation,
@@ -999,7 +1024,11 @@ function LinkDetailView({
         className="px-3 py-1"
         variant="tag"
       >
-        {pendingTagName === tag ? <ActivityIndicator size="small" /> : <Text>{tag}</Text>}
+        {pendingTagName === tag ? (
+          <ActivityIndicator size="small" />
+        ) : (
+          <Text>{formatTagLabel(tag)}</Text>
+        )}
       </Badge>
       {isTagEditMode && pendingTagName !== tag ? (
         <Pressable
@@ -1099,109 +1128,197 @@ function LinkDetailView({
   return (
     <>
       <ScrollView
-        className={cn("flex-1 bg-background", mode === "screen" && "flex-1")}
+        className="flex-1 bg-background"
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
+        testID="link-detail"
       >
-        <View className={cn("relative gap-6 px-4 py-5", mode === "panel" && "px-5 py-5")}>
+        <View
+          className={cn("relative gap-5", mode === "panel" ? "px-5 pb-8 pt-4" : "px-4 pb-10 pt-3")}
+        >
           {isTagEditMode && !isTagInputVisible ? (
             <Pressable
               className="absolute inset-0 z-20"
               onPress={() => setIsTagEditMode(false)}
             />
           ) : null}
-          {mode === "panel" ? (
-            <View className="flex-row items-start justify-between gap-3">
-              <View className="min-w-0 flex-1 gap-1">
+
+          <View className="flex-row items-center gap-2">
+            <Text
+              className="min-w-0 flex-1 text-[11px] text-muted-foreground"
+              numberOfLines={1}
+              testID="link-detail-url"
+            >
+              {detail.url}
+            </Text>
+            <RefreshButton
+              failed={hasRefreshFailed}
+              refreshing={isRefreshing}
+              onPress={handleRefresh}
+            />
+            {mode === "panel" ? (
+              <Pressable
+                accessibilityLabel="닫기"
+                accessibilityRole="button"
+                className="size-9 items-center justify-center rounded-xl border border-border bg-card web:transition-colors web:hover:border-primary"
+                testID="link-detail-close"
+                onPress={onClose}
+              >
+                <Icon
+                  as={X}
+                  size={16}
+                  className="text-muted-foreground"
+                />
+              </Pressable>
+            ) : null}
+          </View>
+
+          <HoverLabel label="원본 열기">
+            <Pressable
+              accessibilityLabel="원본 열기"
+              accessibilityRole="link"
+              className={cn(
+                "overflow-hidden rounded-[14px] border border-border-soft",
+                "web:transition-colors web:hover:border-primary",
+              )}
+              testID="link-detail-image"
+              onPress={handleOpenOriginal}
+            >
+              <LinkThumbnail
+                className={mode === "panel" ? "max-h-[260px]" : undefined}
+                domain={domain}
+                fallback="domain"
+                faviconUrl={detail.faviconUrl}
+                fit="auto"
+                isVideo={detail.isVideo}
+                showHint
+                testID="link-detail-thumbnail"
+                thumbnailUrl={detail.thumbnailUrl}
+              />
+            </Pressable>
+          </HoverLabel>
+
+          <View className="-mt-1 gap-1.5">
+            <Text
+              className={cn(
+                "font-bold leading-snug text-foreground",
+                mode === "panel" ? "text-xl" : "text-lg",
+              )}
+              testID="link-detail-title"
+            >
+              {detail.title}
+            </Text>
+            {linkStatusMeta.label ? (
+              <Text
+                className={cn(
+                  "text-[11px] font-semibold",
+                  linkStatusMeta.variant === "progress" && "text-primary",
+                  linkStatusMeta.variant === "error" && "text-destructive",
+                  linkStatusMeta.variant === "success" && "text-muted-foreground",
+                )}
+              >
+                {linkStatusMeta.label}
+              </Text>
+            ) : null}
+          </View>
+
+          <View
+            className="flex-row items-center gap-1.5"
+            testID="link-detail-actions"
+          >
+            <HoverLabel
+              label="폴더 이동"
+              shrink
+            >
+              <Pressable
+                accessibilityLabel={`폴더 이동, 현재 ${folderLabel}`}
+                accessibilityRole="button"
+                className={cn(
+                  "h-10 min-w-0 max-w-[180px] flex-row items-center gap-1.5 rounded-xl border border-border bg-card px-3",
+                  "active:border-primary web:transition-colors web:hover:border-primary",
+                )}
+                // Inline so it wins over react-native-web's default `flex-shrink: 0`: a long
+                // folder name shrinks the chip and the buttons stay on one line.
+                style={{ flexShrink: 1 }}
+                testID="link-detail-folder"
+                onPress={() => setIsFolderMoveOpen(true)}
+              >
                 <Text
-                  className="text-xs text-muted-foreground"
+                  className="min-w-0 shrink text-[13px] font-semibold text-foreground"
                   numberOfLines={1}
                 >
-                  {detail.url}
+                  {folderLabel}
                 </Text>
-                <Text className="text-2xl font-bold text-foreground">{detail.title}</Text>
-                {linkStatusMeta.label ? (
-                  <Text
-                    className={cn(
-                      "text-xs font-semibold",
-                      linkStatusMeta.variant === "progress" && "text-primary",
-                      linkStatusMeta.variant === "error" && "text-destructive",
-                      linkStatusMeta.variant === "success" && "text-muted-foreground",
-                    )}
-                  >
-                    {linkStatusMeta.label}
-                  </Text>
-                ) : null}
-              </View>
-              <View className="flex-row items-center gap-2">
-                <IconButton
-                  icon={RefreshCw}
-                  size="sm"
-                  variant="ghost"
-                  onPress={refreshDetail}
-                />
-                <Pressable
-                  className="size-10 items-center justify-center rounded-2xl border border-border bg-card"
-                  onPress={onClose}
-                >
-                  <Icon
-                    as={X}
-                    size={18}
-                    className="text-muted-foreground"
-                  />
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <View className="flex-row items-start justify-between gap-3">
-              <View className="min-w-0 flex-1 gap-1">
-                <Text
-                  className="text-xs text-muted-foreground"
-                  numberOfLines={2}
-                >
-                  {detail.url}
-                </Text>
-                <Text className="text-2xl font-bold text-foreground">{detail.title}</Text>
-                {linkStatusMeta.label ? (
-                  <Text
-                    className={cn(
-                      "text-xs font-semibold",
-                      linkStatusMeta.variant === "progress" && "text-primary",
-                      linkStatusMeta.variant === "error" && "text-destructive",
-                      linkStatusMeta.variant === "success" && "text-muted-foreground",
-                    )}
-                  >
-                    {linkStatusMeta.label}
-                  </Text>
-                ) : null}
-              </View>
-              <IconButton
-                icon={RefreshCw}
-                size="sm"
-                variant="ghost"
-                onPress={refreshDetail}
+              </Pressable>
+            </HoverLabel>
+            <DetailActionButton
+              active={detail.isFavorite}
+              icon={Star}
+              label={detail.isFavorite ? "바로가기 해제" : "바로가기 추가"}
+              testID="link-detail-favorite"
+              onPress={handleToggleFavorite}
+            />
+            <DetailActionButton
+              icon={Share2}
+              label="공유"
+              testID="link-detail-share"
+              onPress={handleShare}
+            />
+            {isMyOwnLink ? (
+              <DetailActionButton
+                icon={Pencil}
+                label="수정하기"
+                testID="link-detail-edit"
+                onPress={openEditSheet}
               />
-            </View>
-          )}
+            ) : (
+              <DetailActionButton
+                disabled={copyLinkMutation.isPending}
+                icon={FolderPlus}
+                label="개인 폴더로 추가"
+                testID="link-detail-copy"
+                onPress={() => setIsCopyFolderOpen(true)}
+              />
+            )}
+            <View className="min-w-0 flex-1" />
+            <DetailActionButton
+              icon={Trash2}
+              label="링크 삭제"
+              testID="link-detail-delete"
+              tone="destructive"
+              onPress={() => setIsDeleteDialogOpen(true)}
+            />
+          </View>
 
-          {summaryModelLabel ? (
-            <Text className="-mt-2 text-sm font-medium text-muted-foreground">
-              {summaryModelLabel}
-            </Text>
-          ) : null}
-
-          <DetailSection title="한 줄 요약">
+          <DetailSection
+            title="한 줄 요약"
+            testID="link-detail-summary"
+            action={
+              summaryModelLabel ? (
+                <Text
+                  className="text-[11px] font-medium text-muted-foreground"
+                  numberOfLines={1}
+                >
+                  {summaryModelLabel}
+                </Text>
+              ) : null
+            }
+          >
             {detail.summary ? (
-              <Text className="text-base leading-5 text-foreground">{detail.summary}</Text>
+              <Text className="text-[13px] leading-5 text-foreground">{detail.summary}</Text>
             ) : (
               <DetailPlaceholder label="요약이 아직 없어요" />
             )}
           </DetailSection>
 
-          <View className="relative z-30 gap-3">
-            <View className="relative z-40 flex-row items-center gap-1">
-              <Text className="text-sm font-semibold text-muted-foreground">태그</Text>
+          <View
+            className="relative z-30 gap-2.5"
+            testID="link-detail-tags"
+          >
+            <View className="relative z-40 min-h-8 flex-row items-center gap-1">
+              <Text className="text-xs font-semibold text-muted-foreground">태그</Text>
               <IconButton
+                accessibilityLabel="태그 편집"
                 className="size-7"
                 icon={Ellipsis}
                 size="sm"
@@ -1245,136 +1362,93 @@ function LinkDetailView({
             </View>
           </View>
 
-          <DetailSection title="폴더">
-            {detail.folderName ? (
-              <Badge
-                className="gap-2 self-start px-3 py-1"
-                variant="folder"
-              >
-                <Text>{detail.folderEmoji ?? "📭"}</Text>
-                <Text>{detail.folderName}</Text>
-              </Badge>
-            ) : (
-              <Badge
-                className="self-start px-3 py-1"
-                variant="folder"
-              >
-                <Text>📭 폴더 없음</Text>
-              </Badge>
-            )}
-          </DetailSection>
-
-          <DetailSection title={`할 일 ${dueTodos.length}개`}>
-            <View className="gap-3">
-              {todos.length ? (
-                todos.map((todo) => {
-                  const done = getTodoDone(todo);
-                  const reminderAt = todo.reminderAt ?? todo.dueAt ?? null;
-                  const reminderMs = reminderAt ? new Date(reminderAt).getTime() : Number.NaN;
-                  const overdue = !done && !Number.isNaN(reminderMs) && reminderMs < Date.now();
-                  const reminderLabel = formatReminderLabel(reminderAt, {
-                    withOverdueSuffix: overdue,
-                  });
-
-                  return (
-                    <TodoItem
-                      key={todo.id}
-                      variant="display"
-                      text={getTodoTitle(todo)}
-                      done={done}
-                      overdue={overdue}
-                      reminderLabel={reminderLabel}
-                      onToggle={(nextChecked) => handleTodoCompletedChange(todo.id, nextChecked)}
-                    />
-                  );
-                })
-              ) : (
-                <EmptyState
-                  className="rounded-2xl border border-dashed border-border px-4 py-6"
-                  description="아직 연결된 할 일이 없다."
-                  title="할 일 없음"
-                />
-              )}
-              <Pressable
-                className="items-center rounded-2xl border border-dashed border-border px-4 py-4"
-                onPress={handleTodoEditorOpen}
-              >
-                <Text className="font-semibold text-muted-foreground">+ 할 일 추가 / 수정</Text>
-              </Pressable>
-            </View>
-          </DetailSection>
-
           <DetailSection
             title="메모"
             action={memoAction}
+            testID="link-detail-memo"
           >
             {isMemoEditing ? (
               <Textarea
                 ref={memoInputRef}
-                className="min-h-28 rounded-2xl border-border bg-card px-4 py-4 text-base"
+                className="min-h-28 rounded-[14px] border-border bg-card px-4 py-4 text-base"
                 value={memoDraft}
                 placeholder="메모를 입력해주세요"
                 variant="memo"
                 onChangeText={setMemoDraft}
               />
             ) : detail.memo ? (
-              <View className="rounded-2xl border border-border bg-card px-4 py-4">
-                <Text className="text-base leading-5 text-foreground">{detail.memo}</Text>
+              <View className="rounded-[14px] border border-border bg-card px-4 py-3.5">
+                <Text className="text-[13px] leading-5 text-foreground">{detail.memo}</Text>
               </View>
             ) : (
               <DetailPlaceholder label="메모가 아직 없어요" />
             )}
           </DetailSection>
 
-          <View className="gap-3 pb-2">
-            <View className="flex-row flex-wrap gap-3">
-              <ActionButton
-                icon={ExternalLink}
-                label="원본 열기"
-                variant="gradient"
-                onPress={handleOpenOriginal}
-              />
-              <ActionButton
-                icon={Star}
-                label={detail.isFavorite ? "바로가기 해제" : "바로가기 추가"}
-                iconClassName={detail.isFavorite ? "text-warning" : undefined}
-                onPress={handleToggleFavorite}
-              />
-            </View>
-            <View className="flex-row flex-wrap gap-3">
-              <ActionButton
-                icon={FolderOpen}
-                label="폴더 이동"
-                onPress={() => setIsFolderMoveOpen(true)}
-              />
-              <ActionButton
-                icon={Share2}
-                label="공유"
-                onPress={handleShare}
-              />
-            </View>
-            <View className="flex-row flex-wrap gap-3">
-              {isMyOwnLink ? (
-                <ActionButton
-                  icon={Pencil}
-                  label="수정하기"
-                  onPress={openEditSheet}
-                />
+          <DetailSection
+            title={`할 일 ${dueTodos.length}개`}
+            testID="link-detail-todos"
+          >
+            <View className="gap-3">
+              {todos.length ? (
+                <View
+                  className="w-full flex-row flex-wrap"
+                  style={{ gap: TODO_GRID_GAP }}
+                  testID="link-detail-todo-grid"
+                  onLayout={todoGrid.onLayout}
+                >
+                  {todos.map((todo) => {
+                    const done = getTodoDone(todo);
+                    const reminderAt = todo.reminderAt ?? todo.dueAt ?? null;
+                    const reminderMs = reminderAt ? new Date(reminderAt).getTime() : Number.NaN;
+                    const overdue = !done && !Number.isNaN(reminderMs) && reminderMs < Date.now();
+                    const reminderLabel = formatReminderLabel(reminderAt, {
+                      withOverdueSuffix: overdue,
+                    });
+
+                    return (
+                      <View
+                        key={todo.id}
+                        style={todoGrid.itemStyle}
+                      >
+                        <TodoItem
+                          className="h-full"
+                          variant="display"
+                          text={getTodoTitle(todo)}
+                          done={done}
+                          overdue={overdue}
+                          reminderLabel={reminderLabel}
+                          linkUrl={detail.url}
+                          linkTitle={detail.title}
+                          linkThumbnailUrl={detail.thumbnailUrl}
+                          linkFaviconUrl={detail.faviconUrl}
+                          onToggle={(nextChecked) =>
+                            handleTodoCompletedChange(todo.id, nextChecked)
+                          }
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
               ) : (
-                <ActionButton
-                  icon={FolderPlus}
-                  label="개인 폴더로 추가"
-                  loading={copyLinkMutation.isPending}
-                  onPress={() => setIsCopyFolderOpen(true)}
-                />
+                <View className="items-center rounded-[14px] border border-dashed border-border px-4 py-3.5">
+                  <Text className="text-xs font-medium text-muted-foreground">
+                    아직 연결된 할 일이 없어요
+                  </Text>
+                </View>
               )}
-              <ActionButton
-                icon={Trash2}
-                label="링크 삭제"
-                onPress={() => setIsDeleteDialogOpen(true)}
-              />
+              <Pressable
+                accessibilityRole="button"
+                className="items-center rounded-[14px] border border-dashed border-border px-4 py-3.5 web:transition-colors web:hover:border-primary"
+                testID="link-detail-todo-edit"
+                onPress={handleTodoEditorOpen}
+              >
+                <Text className="text-[13px] font-semibold text-muted-foreground">
+                  + 할 일 추가 / 수정
+                </Text>
+              </Pressable>
             </View>
-          </View>
+          </DetailSection>
         </View>
       </ScrollView>
 

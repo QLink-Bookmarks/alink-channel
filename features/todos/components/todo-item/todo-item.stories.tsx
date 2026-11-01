@@ -42,6 +42,40 @@ export const Basic: Story = {
   name: "기본",
 };
 
+export const Display: Story = {
+  name: "할 일 카드",
+  render: (args) => (
+    <>
+      <TodoItem
+        {...args}
+        variant="display"
+        text="useInfiniteQuery 적용 범위 정리"
+        reminderLabel="10/29 23:00"
+        linkUrl="https://velog.io/@devkim/tanstack-query-v5"
+        linkTitle="TanStack Query v5 마이그레이션 정리"
+        linkThumbnailUrl="https://picsum.photos/seed/alink-todo/64/64"
+      />
+      <TodoItem
+        {...args}
+        variant="display"
+        overdue
+        text="토요일 2시 방문"
+        reminderLabel="10/25 14:00 (지남)"
+        linkUrl="https://www.instagram.com/reel/C9seongsu"
+        linkTitle="성수동 카페 투어 5곳"
+      />
+      <TodoItem
+        {...args}
+        variant="display"
+        done
+        text="queryKey 규칙 팀에 공유"
+        linkUrl="https://velog.io/@devkim/tanstack-query-v5"
+        linkTitle="TanStack Query v5 마이그레이션 정리"
+      />
+    </>
+  ),
+};
+
 export const States: Story = {
   name: "상태",
   render: (args) => (

@@ -4,22 +4,6 @@ type TodoFilter = "all" | "incomplete" | "upcoming" | "overdue" | "noReminder" |
 
 type TodoBucket = "overdue" | "upcoming" | "noReminder" | "completed";
 
-function getDomainFromUrl(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
-function getFaviconUrl(url: string): string | undefined {
-  const domain = getDomainFromUrl(url);
-  if (!domain || domain === url) {
-    return undefined;
-  }
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-}
-
 function getTodoBucket(todo: TodoListItem, nowMs: number): TodoBucket {
   if (todo.completedAt) {
     return "completed";
@@ -130,8 +114,6 @@ export {
   countTodosByFilter,
   filterTodos,
   formatReminderLabel,
-  getDomainFromUrl,
-  getFaviconUrl,
   getTodoBucket,
   groupTodosByLink,
   isOverdue,

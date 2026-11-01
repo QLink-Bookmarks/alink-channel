@@ -9,7 +9,7 @@ import { useChromeStore } from "@/stores/chrome";
 
 import type { LucideIcon } from "lucide-react-native";
 
-// View scope: 모바일 전용. md >= 768px에서는 사용하지 않는다.
+// View scope: 모바일 전용. md >= 769px에서는 사용하지 않는다.
 
 type BottomTabItem = {
   key: string;

@@ -1,7 +1,7 @@
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Icon } from "@/components/ui/icon";
+import { IconButton } from "@/components/ui/icon-button";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
@@ -48,12 +48,13 @@ function AppHeader({
     >
       <View className="min-w-10 flex-row items-center">
         {back ? (
-          <Pressable
-            className="size-10 items-center justify-center rounded-full active:bg-accent"
+          <IconButton
+            accessibilityLabel="뒤로"
+            icon={ChevronLeft}
+            size="sm"
+            variant="ghost"
             onPress={onBack}
-          >
-            <Icon as={ChevronLeft} />
-          </Pressable>
+          />
         ) : (
           leftSlot
         )}

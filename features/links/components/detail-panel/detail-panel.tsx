@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 import { LinkDetailView } from "../link-detail-view";
 
-// View scope: 와이드뷰 전용. md >= 768px에서 사용한다.
+// View scope: 와이드뷰 전용. md >= 769px에서 사용한다.
 
 const FullWindowOverlay = Platform.OS === "ios" ? RNFullWindowOverlay : React.Fragment;
 
@@ -31,12 +31,25 @@ function DetailPanelBody({
   onOpenChange?: (open: boolean) => void;
 }) {
   return (
-    <View className={cn("h-full w-[clamp(420px,34vw,560px)] max-w-[560px] bg-surface", className)}>
+    <View
+      className={cn(
+        "h-full w-[clamp(420px,34vw,560px)] max-w-[560px] border-l border-border bg-surface",
+        className,
+      )}
+    >
       {isLoading ? (
         <EmptyState
           className="h-full"
           description="링크 상세 정보를 불러오는 중이다."
           title="불러오는 중"
+        />
+      ) : detail && !notFound ? (
+        // A failed refresh keeps the detail on screen; the view shows the failure itself.
+        <LinkDetailView
+          detail={detail}
+          mode="panel"
+          onClose={() => onOpenChange?.(false)}
+          onDeleted={onDeleted}
         />
       ) : notFound ? (
         <EmptyState
@@ -51,13 +64,6 @@ function DetailPanelBody({
           description="잠시 후 다시 시도해주세요."
           title="링크 상세를 불러오지 못했어요"
         />
-      ) : detail ? (
-        <LinkDetailView
-          detail={detail}
-          mode="panel"
-          onClose={() => onOpenChange?.(false)}
-          onDeleted={onDeleted}
-        />
       ) : (
         <EmptyState
           className="h-full"
@@ -67,6 +73,29 @@ function DetailPanelBody({
       )}
     </View>
   );
+}
+
+/**
+ * Web: Esc closes the overlay, unless a dialog opened from the panel (folder move, edit,
+ * delete confirmation, ...) is on top; that dialog handles its own Esc first.
+ */
+function useCloseOnEscape(enabled: boolean, onClose: () => void) {
+  React.useEffect(() => {
+    if (!enabled || process.env.EXPO_OS !== "web" || typeof document === "undefined") {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) {
+        return;
+      }
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) {
+        return;
+      }
+      onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [enabled, onClose]);
 }
 
 function DetailPanel({
@@ -90,6 +119,9 @@ function DetailPanel({
   onDeleted?: () => void;
   onOpenChange?: (open: boolean) => void;
 }) {
+  const handleClose = React.useCallback(() => onOpenChange?.(false), [onOpenChange]);
+  useCloseOnEscape(open && mode === "overlay", handleClose);
+
   if (!open) {
     return null;
   }
@@ -118,8 +150,9 @@ function DetailPanel({
               entering={SlideInRight.duration(220)}
               exiting={SlideOutRight.duration(180)}
             >
+              {/* The dimmed backdrop separates the layer, so the panel has no shadow. */}
               <DetailPanelBody
-                className={cn("shadow-qlink-lg", className)}
+                className={className}
                 detail={detail}
                 error={error}
                 notFound={notFound}

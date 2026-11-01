@@ -45,6 +45,10 @@ const meta = {
       id: 1,
       url: "https://qlink.app/reference",
       title: "ALINK 컴포넌트 시스템",
+      thumbnailUrl: "https://picsum.photos/seed/alink-detail/640/360",
+      faviconUrl: null,
+      isVideo: false,
+      isFavorite: false,
       summary: "저장한 링크의 요약, 태그, 액션을 확인하는 상세 미리보기다.",
       tags: ["레퍼런스", "디자인"],
       memo: "와이드 상세 패널 스토리북용 메모다.",
@@ -52,7 +56,10 @@ const meta = {
       createdAt: "2026-05-24T00:00:00.000Z",
       folderId: 1,
       folderName: "레퍼런스",
-      todos: [],
+      todos: [
+        { id: 1, title: "레퍼런스 정리", reminderAt: "2026-05-20T09:00:00.000Z" },
+        { id: 2, title: "팀에 공유", completedAt: "2026-05-21T09:00:00.000Z" },
+      ],
     },
   },
   render: function Render(args) {
@@ -89,6 +96,26 @@ export const MaxWidthInline: Story = {
   name: "최대 너비 인라인",
   args: {
     mode: "inline",
+  },
+};
+
+export const NoImage: Story = {
+  name: "대표 이미지 없음",
+  args: {
+    mode: "overlay",
+    detail: {
+      id: 2,
+      url: "https://www.notion.so/team/onboarding",
+      title: "2026 하반기 팀 온보딩 문서",
+      thumbnailUrl: null,
+      faviconUrl: null,
+      isVideo: false,
+      isFavorite: true,
+      tags: [],
+      sourceType: "INPUT",
+      createdAt: "2026-05-24T00:00:00.000Z",
+      todos: [],
+    },
   },
 };
 

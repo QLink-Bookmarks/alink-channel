@@ -52,3 +52,11 @@ export const Gallery: Story = {
     </>
   ),
 };
+
+export const Broken: Story = {
+  name: "깨진 이미지 (글자로 대체)",
+  args: {
+    url: "https://example.invalid/favicon.png",
+    fallback: "N",
+  },
+};

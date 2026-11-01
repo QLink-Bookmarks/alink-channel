@@ -10,7 +10,7 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { Text } from "@/components/ui/text";
-import { getDomainFromUrl, getFaviconUrl } from "@/features/home/lib/link-card-mapper";
+import { getDomainFromUrl } from "@/features/home/lib/link-card-mapper";
 import type { LinkListItem } from "@/features/links/types";
 import { cn } from "@/lib/utils";
 import { useRecentSearches } from "@/stores/recent-searches";
@@ -32,20 +32,6 @@ function openExternalUrl(url: string) {
   if (Platform.OS === "web" && typeof window !== "undefined") {
     window.open(url, "_blank", "noopener,noreferrer");
   }
-}
-
-function formatDueLabel(link: LinkListItem): string | undefined {
-  const reminders = link.todos
-    .map((todo) => todo.reminderAt)
-    .filter((value): value is string => Boolean(value))
-    .map((value) => new Date(value).getTime())
-    .filter((value) => !Number.isNaN(value));
-
-  if (reminders.length === 0) {
-    return undefined;
-  }
-  const earliest = new Date(Math.min(...reminders));
-  return `${earliest.getMonth() + 1}/${earliest.getDate()} 마감`;
 }
 
 function HighlightedText({
@@ -324,7 +310,6 @@ function SearchDialog({
                     ) : (
                       linkResults.map((link, index) => {
                         const domain = getDomainFromUrl(link.url);
-                        const dueLabel = formatDueLabel(link);
                         return (
                           <ResultRow
                             key={link.id}
@@ -334,7 +319,7 @@ function SearchDialog({
                             <Favicon
                               size="sm"
                               shape="circle"
-                              url={getFaviconUrl(link.url)}
+                              url={link.faviconUrl ?? undefined}
                               fallback={domain.slice(0, 1).toUpperCase()}
                             />
                             <Text
@@ -346,9 +331,6 @@ function SearchDialog({
                                 text={link.title}
                                 query={debouncedQuery}
                               />
-                              {dueLabel ? (
-                                <Text className="text-muted-foreground"> — {dueLabel}</Text>
-                              ) : null}
                             </Text>
                           </ResultRow>
                         );
