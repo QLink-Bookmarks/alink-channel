@@ -12,6 +12,8 @@ const folderLabels: Record<string, string> = {
   product: "Product",
 };
 
+const MOBILE_TAB_ROOT_PATHS = ["/home", "/folders", "/todos", "/settings"];
+
 function normalizePathname(pathname: string) {
   if (!pathname || pathname === "/") {
     return pathname;
@@ -31,8 +33,6 @@ function readParamValue(value: RouteParamValue) {
 function isFolderDetailPath(pathname: string) {
   return /^\/folders\/[^/]+$/.test(pathname);
 }
-
-const MOBILE_TAB_ROOT_PATHS = ["/home", "/folders", "/todos", "/settings"];
 
 function isMobileTabRootPath(pathname: string) {
   return MOBILE_TAB_ROOT_PATHS.includes(normalizePathname(pathname));

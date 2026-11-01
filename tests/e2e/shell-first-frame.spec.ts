@@ -1,6 +1,6 @@
+import { SETTINGS_STORAGE_KEY } from "@/lib/theme-storage";
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTINGS_STORAGE_KEY } from "../../lib/theme-storage";
 import { isWideProject } from "./support/helpers";
 import { makeDetail, makeLink, mockApi } from "./support/mock-api";
 
@@ -91,7 +91,7 @@ const backButton = (page: Page) => page.getByRole("button", { name: "뒤로", ex
 
 const TAB_LABELS = ["홈", "폴더", "할일", "설정"];
 const TODOS_TITLE = "투두";
-const mobileHeader = (page: Page) => page.locator("#root .min-h-14.border-b").first();
+const mobileHeader = (page: Page) => page.getByTestId("app-header").first();
 const bottomTab = (page: Page, label: string) => page.getByText(label, { exact: true }).last();
 
 /**
@@ -421,13 +421,13 @@ test.describe("mobile tab roots have no back button", () => {
       await page.goto(root.path);
       await expect(bottomTab(page, "홈")).toBeVisible();
       const header = mobileHeader(page);
-      await expect(header.locator('[dir="auto"].text-center')).toHaveText(
+      await expect(header.getByTestId("app-header-title")).toHaveText(
         root.title ? [root.title] : [],
       );
       await expect
         .poll(() =>
           header
-            .locator("> .justify-end")
+            .getByTestId("app-header-right")
             .getByRole("button")
             .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("aria-label"))),
         )
