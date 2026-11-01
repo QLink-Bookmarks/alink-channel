@@ -6,6 +6,14 @@ import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import type { AiProviderWithModels } from "@/features/ai/types";
 import type { Folder } from "@/features/folders/types";
+import {
+  getThumbnailCandidatesFromMeta,
+  parseLinkPreviewHtml,
+} from "@/features/links/lib/link-preview/parse-link-preview-html";
+import {
+  LINK_PREVIEW_TIME_LIMIT_MS,
+  storeLinkPreviewImages,
+} from "@/features/links/lib/link-preview/store-link-preview-images";
 
 import {
   createSharedLink,
@@ -14,6 +22,7 @@ import {
   fetchProviderModels,
   hasAuth,
   requestSharedAiSummary,
+  uploadSharedPreviewImage,
 } from "./share-api";
 
 import { close, openHostApp } from "expo-share-extension";
@@ -126,10 +135,21 @@ function extractTitleFromHtml(html: string): string | null {
   return title || null;
 }
 
-// Fallback when the share preprocessing didn't surface a title (e.g. a bare URL
-// shared from a non-browser app): fetch the page and read its OG/<title>.
-// Bounded and best-effort — returns null on any failure.
-async function fetchPageTitle(url: string): Promise<string | null> {
+function getPreprocessedMeta(preprocessingResults: unknown): Record<string, unknown> | null {
+  if (!preprocessingResults || typeof preprocessingResults !== "object") return null;
+  const meta = (preprocessingResults as { meta?: unknown }).meta;
+  return meta && typeof meta === "object" ? (meta as Record<string, unknown>) : null;
+}
+
+type FetchedPage = {
+  title: string | null;
+  thumbnailCandidates: string[];
+};
+
+// Fallback when the share preprocessing didn't surface a title or meta tags (e.g. a
+// bare URL shared from a non-browser app): fetch the page and read its OG/<title>
+// and main image candidates. Bounded and best-effort — returns null on any failure.
+async function fetchPage(url: string): Promise<FetchedPage | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
@@ -139,7 +159,28 @@ async function fetchPageTitle(url: string): Promise<string | null> {
     });
     clearTimeout(timer);
     const html = await response.text();
-    return extractTitleFromHtml(html);
+    return {
+      title: extractTitleFromHtml(html),
+      thumbnailCandidates: parseLinkPreviewHtml(html, response.url || url).thumbnailCandidates,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Uploads the first main image candidate that works and returns its URL. Never
+// throws: without a stored image the link is saved without one. Favicons are not
+// handled in the share sheet.
+async function storeSharedThumbnail(pageUrl: string, candidates: string[]): Promise<string | null> {
+  if (candidates.length === 0) return null;
+  try {
+    const images = await storeLinkPreviewImages({
+      pageUrl,
+      thumbnailCandidates: candidates,
+      uploadThumbnail: uploadSharedPreviewImage,
+      deadlineAt: Date.now() + LINK_PREVIEW_TIME_LIMIT_MS,
+    });
+    return images.thumbnailUrl;
   } catch {
     return null;
   }
@@ -171,23 +212,41 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
   // Title from the in-page preprocessing if present; otherwise fetch the page
   // <title>. URL is only the last-resort fallback.
   const preprocessedTitle = getSharedTitle(preprocessingResults, "");
+  // Main image candidates come from the preprocessing meta tags when there are
+  // any; otherwise from the page HTML fetched below.
+  const preprocessedMeta = getPreprocessedMeta(preprocessingResults);
+  const hasPreprocessedMeta = preprocessedMeta !== null;
+  const metaThumbnailCandidates = React.useMemo(
+    () => getThumbnailCandidatesFromMeta(preprocessedMeta, sharedUrl),
+    [preprocessedMeta, sharedUrl],
+  );
   const [fetchedTitle, setFetchedTitle] = React.useState<string | null>(null);
+  const fetchedPageRef = React.useRef<Promise<FetchedPage | null> | null>(null);
   const title = preprocessedTitle || fetchedTitle || sharedUrl;
 
   React.useEffect(() => {
-    if (preprocessedTitle || !isHttpUrl(sharedUrl)) {
+    fetchedPageRef.current = null;
+    if ((preprocessedTitle && hasPreprocessedMeta) || !isHttpUrl(sharedUrl)) {
       return;
     }
     let active = true;
-    void fetchPageTitle(sharedUrl).then((resolved) => {
-      if (active && resolved) {
-        setFetchedTitle(resolved);
+    const pagePromise = fetchPage(sharedUrl);
+    fetchedPageRef.current = pagePromise;
+    void pagePromise.then((page) => {
+      if (active && page?.title) {
+        setFetchedTitle(page.title);
       }
     });
     return () => {
       active = false;
     };
-  }, [preprocessedTitle, sharedUrl]);
+  }, [hasPreprocessedMeta, preprocessedTitle, sharedUrl]);
+
+  const getThumbnailCandidates = React.useCallback(async () => {
+    if (hasPreprocessedMeta) return metaThumbnailCandidates;
+    const page = await fetchedPageRef.current;
+    return page?.thumbnailCandidates ?? [];
+  }, [hasPreprocessedMeta, metaThumbnailCandidates]);
 
   const [phase, setPhase] = React.useState<Phase>("loading");
   const [folders, setFolders] = React.useState<Folder[]>([]);
@@ -229,13 +288,14 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
     setErrorMessage(null);
     setSubmitting("save");
     try {
-      await createSharedLink({ url: sharedUrl, title, folderId });
+      const thumbnailUrl = await storeSharedThumbnail(sharedUrl, await getThumbnailCandidates());
+      await createSharedLink({ url: sharedUrl, title, folderId, thumbnailUrl });
       close();
     } catch (error) {
       setErrorMessage(extractErrorMessage(error));
       setSubmitting(null);
     }
-  }, [folderId, sharedUrl, title]);
+  }, [folderId, getThumbnailCandidates, sharedUrl, title]);
 
   const handleAiSave = React.useCallback(async () => {
     if (!model) {
@@ -245,6 +305,7 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
     setErrorMessage(null);
     setSubmitting("ai");
     try {
+      const thumbnailUrl = await storeSharedThumbnail(sharedUrl, await getThumbnailCandidates());
       await requestSharedAiSummary({
         url: sharedUrl,
         // Drop a URL-shaped title so the AI generates a real one; keep a genuine
@@ -254,13 +315,14 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
         userProviderId: model.userProviderId,
         modelId: model.modelId,
         generateTodo,
+        thumbnailUrl,
       });
       close();
     } catch (error) {
       setErrorMessage(extractErrorMessage(error));
       setSubmitting(null);
     }
-  }, [folderId, generateTodo, model, sharedUrl, title]);
+  }, [folderId, generateTodo, getThumbnailCandidates, model, sharedUrl, title]);
 
   const handleGoToLogin = React.useCallback(() => {
     // Deep-link straight to /login. An empty path crashes the extension's URL
