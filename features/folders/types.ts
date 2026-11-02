@@ -11,6 +11,14 @@ type Folder = {
   linkCounts: number;
 };
 
+type FolderListStatus = {
+  isInitialLoading: boolean;
+  isInitialError: boolean;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  isFetchNextPageError: boolean;
+};
+
 type FolderScrollResponse = {
   isEmpty: boolean;
   contents: Folder[];
@@ -84,6 +92,7 @@ export type {
   CreateFolderResponse,
   DeleteFolderMemberResponse,
   Folder,
+  FolderListStatus,
   FolderMember,
   FolderOrder,
   FolderScrollResponse,

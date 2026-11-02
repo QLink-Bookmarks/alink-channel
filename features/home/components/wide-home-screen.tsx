@@ -14,6 +14,7 @@ import { useMyProfileQuery } from "@/features/account/queries";
 import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
 import { ShortcutTile } from "@/features/links/components/shortcut-tile/shortcut-tile";
 import { useLinksQuery } from "@/features/links/queries";
+import { useNewLinkShortcutLabel } from "@/features/navigation/hooks/use-new-link-shortcut-label";
 import { TodoItem } from "@/features/todos/components/todo-item/todo-item";
 import { formatReminderLabel, isOverdue } from "@/features/todos/lib/todo-list-helpers";
 import { useToggleTodoCompletedMutation } from "@/features/todos/mutations";
@@ -50,7 +51,7 @@ function dispatchWideShortcut(key: "search" | "new-link") {
   const event =
     key === "search"
       ? new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true })
-      : new KeyboardEvent("keydown", { key: "n", bubbles: true });
+      : new KeyboardEvent("keydown", { code: "KeyN", key: "n", altKey: true, bubbles: true });
   window.dispatchEvent(event);
 }
 
@@ -108,6 +109,7 @@ function openExternalUrl(url: string) {
 
 function WideHomeScreen() {
   const router = useRouter();
+  const shortcutLabel = useNewLinkShortcutLabel();
   const queryClient = useQueryClient();
   const accent = useDisplaySettings((state) => state.display.accent);
   const theme = useDisplaySettings((state) => state.display.theme);
@@ -244,7 +246,7 @@ function WideHomeScreen() {
         <View className="flex-row flex-wrap items-center justify-center gap-4">
           <ActionPill onPress={() => dispatchWideShortcut("new-link")}>
             <Text className="text-sm font-medium text-foreground">새 링크</Text>
-            <Kbd size="sm">N</Kbd>
+            {shortcutLabel ? <Kbd size="sm">{shortcutLabel}</Kbd> : null}
           </ActionPill>
           <ActionPill onPress={() => router.push("/todos" as Href)}>
             <Text className="text-sm font-medium text-foreground">✅ 할일 {todos.length}</Text>
@@ -324,12 +326,14 @@ function WideHomeScreen() {
         </View>
 
         <View className="flex-row flex-wrap items-center justify-center gap-5 pt-2">
-          <Kbd
-            label="새 링크"
-            labelPosition="right"
-          >
-            N
-          </Kbd>
+          {shortcutLabel ? (
+            <Kbd
+              label="새 링크"
+              labelPosition="right"
+            >
+              {shortcutLabel}
+            </Kbd>
+          ) : null}
           <Kbd
             label="검색"
             labelPosition="right"

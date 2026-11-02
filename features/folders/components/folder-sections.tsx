@@ -15,8 +15,7 @@ import {
   useFolderNavigation,
 } from "@/stores/folder-navigation";
 
-import { splitFoldersBySection } from "../lib/folder-pages";
-import { useFolderPagesQuery } from "../queries";
+import { useFolderSectionData } from "../hooks/use-folder-section-data";
 import type { Folder } from "../types";
 import {
   FOLDER_SECTION_HEADER_HEIGHT,
@@ -28,7 +27,6 @@ import {
   FOLDER_LIST_PADDING,
   FOLDER_LIST_ROW_GAP,
   type FolderListEdges,
-  type FolderListStatus,
   FolderSectionList,
 } from "./folder-section-list";
 
@@ -70,26 +68,12 @@ function FolderSections({
   const storedOpenSection = useFolderNavigation((state) => state.openSection[surface]);
   const hasHydrated = useFolderNavigation((state) => state.hasHydrated);
   const toggleSection = useFolderNavigation((state) => state.toggleSection);
-  const pagesQuery = useFolderPagesQuery();
-  const { fetchNextPage, refetch } = pagesQuery;
+  const { sections, status, fetchMore, retry } = useFolderSectionData();
   const [edges, setEdges] = React.useState<FolderListEdges>({ atTop: true, atBottom: true });
 
   const openSection =
     storedOpenSection && visibleSections.includes(storedOpenSection) ? storedOpenSection : null;
-  const sections = React.useMemo(
-    () => splitFoldersBySection(pagesQuery.data?.pages),
-    [pagesQuery.data?.pages],
-  );
-
-  const hasPages = Boolean(pagesQuery.data);
-  const isInitialError = !hasPages && pagesQuery.isError && !pagesQuery.isFetching;
-  const status: FolderListStatus = {
-    isInitialLoading: !hasPages && !isInitialError,
-    isInitialError,
-    hasNextPage: pagesQuery.hasNextPage,
-    isFetchingNextPage: pagesQuery.isFetchingNextPage,
-    isFetchNextPageError: pagesQuery.isFetchNextPageError && !pagesQuery.isFetchingNextPage,
-  };
+  const isInitialError = status.isInitialError;
 
   React.useEffect(() => {
     setEdges({ atTop: true, atBottom: true });
@@ -104,18 +88,6 @@ function FolderSections({
     (folder: Folder) => renderRow(folder, folder.isShared ? "shared" : "mine"),
     [renderRow],
   );
-
-  const handleFetchMore = React.useCallback(() => {
-    void fetchNextPage({ cancelRefetch: false });
-  }, [fetchNextPage]);
-
-  const handleRetry = React.useCallback(() => {
-    if (isInitialError) {
-      void refetch({ cancelRefetch: false });
-      return;
-    }
-    void fetchNextPage({ cancelRefetch: false });
-  }, [fetchNextPage, isInitialError, refetch]);
 
   const openIndex = openSection ? visibleSections.indexOf(openSection) : -1;
   const minHeight = React.useMemo(() => {
@@ -206,8 +178,8 @@ function FolderSections({
                   status={status}
                   renderRow={renderSectionRow}
                   onEdgesChange={setEdges}
-                  onFetchMore={handleFetchMore}
-                  onRetry={handleRetry}
+                  onFetchMore={fetchMore}
+                  onRetry={retry}
                 />
               </Animated.View>
             ) : null}

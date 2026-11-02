@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Kbd } from "@/components/ui/kbd";
 import { Text } from "@/components/ui/text";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import type { LucideIcon } from "lucide-react-native";
@@ -13,6 +14,17 @@ import type { LucideIcon } from "lucide-react-native";
 // View scope: 와이드뷰 전용. md >= 769px에서 사용한다.
 
 const SIDEBAR_ITEM_HEIGHT = 40;
+const isWeb = process.env.EXPO_OS === "web";
+
+function getSelectionProps(active?: boolean) {
+  return (
+    isWeb
+      ? active
+        ? { "aria-current": "page" }
+        : {}
+      : { accessibilityState: { selected: Boolean(active) } }
+  ) as React.ComponentProps<typeof Pressable>;
+}
 
 function Sidebar({
   className,
@@ -59,13 +71,7 @@ function SidebarItem({
   accessibilityLabel?: string;
   onPress?: () => void;
 }) {
-  const selectionProps = (
-    process.env.EXPO_OS === "web"
-      ? active
-        ? { "aria-current": "page" }
-        : {}
-      : { accessibilityState: { selected: Boolean(active) } }
-  ) as React.ComponentProps<typeof Pressable>;
+  const selectionProps = getSelectionProps(active);
 
   return (
     <Pressable
@@ -236,4 +242,162 @@ function SidebarCTA({
   );
 }
 
-export { Sidebar, SidebarCTA, SidebarItem, SidebarProfile, SidebarSection, SIDEBAR_ITEM_HEIGHT };
+function SidebarRail({ className, children, ...props }: React.ComponentProps<typeof View>) {
+  return (
+    <Sidebar
+      collapsed
+      className={cn("h-full w-full p-0", className)}
+      {...props}
+    >
+      {children}
+    </Sidebar>
+  );
+}
+
+type SidebarRailButtonProps = React.ComponentProps<typeof Pressable> & {
+  icon?: LucideIcon;
+  emoji?: string;
+  active?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+};
+
+function SidebarRailButton({
+  icon,
+  emoji,
+  active,
+  className,
+  children,
+  ...props
+}: SidebarRailButtonProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      {...getSelectionProps(active)}
+      className={cn(
+        "group relative size-11 items-center justify-center rounded-xl active:bg-sidebar-surface-2 web:transition-colors web:hover:bg-sidebar-surface-2 web:motion-reduce:transition-none",
+        active && "bg-sidebar-surface-2 shadow-qlink-sm",
+        className,
+      )}
+      {...props}
+    >
+      {active ? (
+        <View className="absolute bottom-2.5 left-0 top-2.5 w-1 rounded-full bg-primary" />
+      ) : null}
+      {children ??
+        (icon ? (
+          <Icon
+            as={icon}
+            className={cn(
+              "size-[18px]",
+              active ? "text-primary" : "text-sidebar-muted web:group-hover:text-sidebar-hover",
+            )}
+          />
+        ) : emoji ? (
+          <Text
+            className="text-lg leading-none"
+            aria-hidden
+          >
+            {emoji}
+          </Text>
+        ) : null)}
+    </Pressable>
+  );
+}
+
+function SidebarRailCTA({
+  icon,
+  className,
+  ...props
+}: React.ComponentProps<typeof Button> & { icon: LucideIcon }) {
+  return (
+    <Button
+      className={cn("size-11 min-w-0 rounded-2xl p-0 shadow-qlink-md sm:h-11", className)}
+      size="icon"
+      variant="gradient"
+      {...props}
+    >
+      <View className="relative z-10 items-center justify-center">
+        <Icon
+          as={icon}
+          className="size-[18px] text-primary-foreground"
+        />
+      </View>
+    </Button>
+  );
+}
+
+function SidebarRailTooltip({
+  label,
+  shortcut,
+  children,
+}: {
+  label: string;
+  shortcut?: string;
+  children: React.ReactElement;
+}) {
+  if (!isWeb) {
+    return children;
+  }
+  return (
+    <Tooltip delayDuration={150}>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent
+        className="max-w-80 bg-foreground"
+        side="right"
+        sideOffset={10}
+      >
+        <View className="flex-row items-center gap-1.5">
+          <Text className="text-sm font-semibold text-background">{label}</Text>
+          {shortcut ? (
+            <Kbd
+              size="xs"
+              variant="inverse"
+            >
+              {shortcut}
+            </Kbd>
+          ) : null}
+        </View>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function SidebarRailItem({
+  label,
+  shortcut,
+  accessibilityLabel,
+  ...props
+}: SidebarRailButtonProps & { label: string; shortcut?: string }) {
+  return (
+    <SidebarRailTooltip
+      label={label}
+      shortcut={shortcut}
+    >
+      <SidebarRailButton
+        accessibilityLabel={accessibilityLabel ?? label}
+        {...props}
+      />
+    </SidebarRailTooltip>
+  );
+}
+
+function SidebarRailSeparator({ className }: { className?: string }) {
+  return <View className={cn("my-1 h-px w-8 shrink-0 bg-sidebar-border", className)} />;
+}
+
+export {
+  Sidebar,
+  SidebarCTA,
+  SidebarItem,
+  SidebarProfile,
+  SidebarRail,
+  SidebarRailButton,
+  SidebarRailCTA,
+  SidebarRailItem,
+  SidebarRailSeparator,
+  SidebarRailTooltip,
+  SidebarSection,
+  SIDEBAR_ITEM_HEIGHT,
+};
+export type { SidebarRailButtonProps };
