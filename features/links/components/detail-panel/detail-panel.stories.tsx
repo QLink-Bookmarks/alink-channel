@@ -11,12 +11,14 @@ type DetailPanelStoryArgs = {
   open: boolean;
   detail: LinkDetail;
   mode?: "inline" | "overlay";
+  notFound?: boolean;
 };
 
 function DetailPanelStory({
   open,
   detail,
   mode,
+  notFound,
   onOpenChange,
 }: DetailPanelStoryArgs & { onOpenChange: (open: boolean) => void }) {
   return (
@@ -24,6 +26,7 @@ function DetailPanelStory({
       detail={detail}
       open={open}
       mode={mode}
+      notFound={notFound}
       className="flex"
       onOpenChange={onOpenChange}
     />
@@ -123,5 +126,13 @@ export const Overlay: Story = {
   name: "오버레이",
   args: {
     mode: "overlay",
+  },
+};
+
+export const NotFound: Story = {
+  name: "없는 링크 (닫기 버튼)",
+  args: {
+    mode: "overlay",
+    notFound: true,
   },
 };

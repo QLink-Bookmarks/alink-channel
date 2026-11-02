@@ -85,7 +85,7 @@ const isStorybookVite = typeof process !== "undefined" && process.env.STORYBOOK_
 - Use Jest for unit tests of pure logic, hooks, and shared components. Keep tests colocated as `*.test.ts` or `*.test.tsx` next to the code, and add or update them for new or changed pure logic. Playwright stays the tool for user flows.
 - Run unit tests with `bun run test:unit`. Do not use `bun test`; it runs Bun's own test runner instead of Jest.
 - NativeWind classes are not compiled to styles under Jest. Assert text, roles, and behavior in component tests, not styles.
-- Run durable web tests with `bun test:e2e`; Playwright starts the Expo web server through `bun web`. Assert observable behavior after user actions; a screenshot alone does not establish that a Test Criterion passed.
+- Run durable web tests with `bun test:e2e`; Playwright starts the Expo web server through `bun web` with `EXPO_WEB_DEV_HYDRATE=1`, so pages hydrate like the static export, and reuses any server already on port 8081 (`reuseExistingServer`), so stop a plain `bun web` there first. Assert observable behavior after user actions; a screenshot alone does not establish that a Test Criterion passed.
 - Make loading, empty, error, and retry cases repeatable with controlled API responses. Also exercise the real server for server-dependent success paths when relevant.
 - Test web wide and web mobile for affected flows. When a responsive breakpoint changes, check both `768px` and `769px` viewport widths.
 - For each UI change, inspect and capture the affected screens on web wide, web mobile, and iOS when those platforms are in scope. Verify relevant iOS interactions in a simulator; Playwright browser tests do not verify native iOS behavior.

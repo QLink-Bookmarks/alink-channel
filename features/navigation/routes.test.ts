@@ -53,6 +53,11 @@ describe("getRedirectHref on wide", () => {
     expect(redirect(true, "/folders")).toBe("/home");
   });
 
+  it("moves /folders?linkId to all links with the overlay", () => {
+    expect(redirect(true, "/folders", { linkId: "5" })).toBe("/links?linkId=5");
+    expect(redirect(true, "/folders/", { linkId: "a b" })).toBe("/links?linkId=a%20b");
+  });
+
   it("keeps /links with or without a linkId", () => {
     expect(redirect(true, "/links")).toBeUndefined();
     expect(redirect(true, "/links", { linkId: "5" })).toBeUndefined();

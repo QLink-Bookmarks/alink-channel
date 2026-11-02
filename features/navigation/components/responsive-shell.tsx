@@ -26,6 +26,7 @@ import { LinkCreateForm } from "@/features/links/components/link-create-form";
 import { useLinkDetailQuery } from "@/features/links/queries";
 import { NotificationBellButton } from "@/features/notifications/components/notification-bell-button";
 import { SearchDialog } from "@/features/search/components/search-dialog";
+import { cn } from "@/lib/utils";
 import { useCreateFolderSheet } from "@/stores/create-folder-sheet";
 import {
   type FolderSection,
@@ -299,133 +300,146 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     setPendingMobileLinkId(null);
   }, [isAddLinkSheetOpen, pendingMobileLinkId, routeState.isWideView, router]);
 
-  if (routeState.redirectHref) {
-    return <Redirect href={routeState.redirectHref as Href} />;
-  }
+  // While redirecting, the shell root stays in the same fragment slot (hidden, not unmounted) so the
+  // route Slot is never remounted and keeps its navigation state. {redirect} renders last so its
+  // replace runs after the hidden route screens' own Redirects (route-screens.tsx); rendering it
+  // first lets those win and lands on /home again.
+  const { redirectHref } = routeState;
+  const redirectCover = redirectHref ? <View className="flex-1 bg-background" /> : null;
+  const redirect = redirectHref ? (
+    <Redirect
+      key={redirectHref}
+      href={redirectHref as Href}
+    />
+  ) : null;
 
   if (routeState.isWideView) {
     return (
-      <View className="flex-1 flex-row bg-background">
-        <WideSidebarColumn
-          activeKey={routeState.wideSidebarKey}
-          folderListKey={sidebarFolderListKey}
-          isOverlayOpen={isOpen}
-          pathname={routeState.pathname}
-          onAddFolderPress={handleWideAddFolderPress}
-          onAddLinkPress={handleWideAddLinkPress}
-          onNavigate={handleWideNavigate}
-          onOverlayDismiss={() => handleOpenChange(false)}
-          onProfilePress={handleProfilePress}
-        />
-
-        <View className="flex-1 bg-background">
-          <Topbar
-            className="flex"
-            placeholder="링크 · 요약 · 태그 검색…"
-            variant="default"
-            searchReadOnly
-            searchLeftSlot={<Emoji className="text-xl">🔍</Emoji>}
-            searchRightSlot={<Kbd size="sm">⌘/Ctrl + K</Kbd>}
-            onSearchPress={handleWideSearchPress}
-            actions={
-              <>
-                {isAnnouncementsListRoute ? <AnnouncementsHeaderAction mode="wide" /> : null}
-                <NotificationBellButton
-                  size="sm"
-                  onPress={handleNotificationsPress}
-                />
-                <IconButton
-                  accessibilityLabel="설정"
-                  icon={Settings}
-                  size="sm"
-                  variant="ghost"
-                  active={isSettingsRoute}
-                  onPress={() => router.replace("/settings" as Href)}
-                />
-              </>
-            }
+      <>
+        {redirectCover}
+        <View className={cn("flex-1 flex-row bg-background", redirectHref && "hidden")}>
+          <WideSidebarColumn
+            activeKey={routeState.wideSidebarKey}
+            folderListKey={sidebarFolderListKey}
+            isOverlayOpen={isOpen}
+            pathname={routeState.pathname}
+            onAddFolderPress={handleWideAddFolderPress}
+            onAddLinkPress={handleWideAddLinkPress}
+            onNavigate={handleWideNavigate}
+            onOverlayDismiss={() => handleOpenChange(false)}
+            onProfilePress={handleProfilePress}
           />
-          <View
-            className="relative flex-1"
-            role="main"
-          >
-            <RouteErrorBoundary resetKeys={[routeState.pathname]}>{children}</RouteErrorBoundary>
-            <WideKbdHelper />
-          </View>
-        </View>
 
-        {detail ? (
-          <DetailPanel
-            detail={detail}
-            error={error}
-            isLoading={isLoading}
-            mode="overlay"
-            open={isOpen}
-            onDeleted={() => handleOpenChange(false)}
-            onOpenChange={handleOpenChange}
-          />
-        ) : isOpen ? (
-          <DetailPanel
-            error={error}
-            notFound={notFound}
-            isLoading={isLoading}
-            mode="overlay"
-            open={isOpen}
-            onDeleted={() => handleOpenChange(false)}
-            onOpenChange={handleOpenChange}
-          />
-        ) : null}
-
-        <SearchDialog
-          open={isSearchDialogOpen}
-          mode={searchDialogMode}
-          initialQuery={searchDialogInitialQuery}
-          onOpenChange={setSearchDialogOpen}
-          onSelectLink={handleSearchSelectLink}
-        />
-
-        <CreateFolderDialog
-          mode="wide"
-          open={isCreateFolderOpen}
-          defaultShared={createFolderSection === "shared"}
-          onCreated={handleWideFolderCreated}
-          onOpenChange={setIsCreateFolderOpen}
-        />
-
-        <Dialog
-          open={isAddLinkDialogOpen}
-          onOpenChange={handleWideAddLinkDialogOpenChange}
-        >
-          <DialogContent className="max-h-[80vh] w-[42rem] max-w-[90vw] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[42rem]">
-            <DialogHeader className="flex-row items-center gap-3 border-b border-border px-8 py-6">
-              <Text className="text-2xl font-normal text-muted-foreground">+</Text>
-              <DialogTitle className="text-xl">새 링크 추가</DialogTitle>
-            </DialogHeader>
-            <ScrollView
-              className="flex-1"
-              contentInsetAdjustmentBehavior="automatic"
-              showsVerticalScrollIndicator={false}
-            >
-              <View className="px-8 py-6">
-                <RouteErrorBoundary
-                  description="링크 추가 시트를 다시 열어 시도해주세요."
-                  resetKeys={[isAddLinkDialogOpen]}
-                  title="링크 추가 화면을 불러오지 못했어요"
-                  onClose={() => setIsAddLinkDialogOpen(false)}
-                >
-                  <LinkCreateForm
-                    mode="wide"
-                    open={isAddLinkDialogOpen}
-                    initialUrl={sharedLinkUrl ?? undefined}
-                    onCancel={() => setIsAddLinkDialogOpen(false)}
-                    onSaved={handleWideLinkSaved}
+          <View className="flex-1 bg-background">
+            <Topbar
+              className="flex"
+              placeholder="링크 · 요약 · 태그 검색…"
+              variant="default"
+              searchReadOnly
+              searchLeftSlot={<Emoji className="text-xl">🔍</Emoji>}
+              searchRightSlot={<Kbd size="sm">⌘/Ctrl + K</Kbd>}
+              onSearchPress={handleWideSearchPress}
+              actions={
+                <>
+                  {isAnnouncementsListRoute ? <AnnouncementsHeaderAction mode="wide" /> : null}
+                  <NotificationBellButton
+                    size="sm"
+                    onPress={handleNotificationsPress}
                   />
-                </RouteErrorBoundary>
-              </View>
-            </ScrollView>
-          </DialogContent>
-        </Dialog>
-      </View>
+                  <IconButton
+                    accessibilityLabel="설정"
+                    icon={Settings}
+                    size="sm"
+                    variant="ghost"
+                    active={isSettingsRoute}
+                    onPress={() => router.replace("/settings" as Href)}
+                  />
+                </>
+              }
+            />
+            <View
+              className="relative flex-1"
+              role="main"
+            >
+              <RouteErrorBoundary resetKeys={[routeState.pathname]}>{children}</RouteErrorBoundary>
+              <WideKbdHelper />
+            </View>
+          </View>
+
+          {detail ? (
+            <DetailPanel
+              detail={detail}
+              error={error}
+              isLoading={isLoading}
+              mode="overlay"
+              open={isOpen}
+              onDeleted={() => handleOpenChange(false)}
+              onOpenChange={handleOpenChange}
+            />
+          ) : isOpen ? (
+            <DetailPanel
+              error={error}
+              notFound={notFound}
+              isLoading={isLoading}
+              mode="overlay"
+              open={isOpen}
+              onDeleted={() => handleOpenChange(false)}
+              onOpenChange={handleOpenChange}
+            />
+          ) : null}
+
+          <SearchDialog
+            open={isSearchDialogOpen}
+            mode={searchDialogMode}
+            initialQuery={searchDialogInitialQuery}
+            onOpenChange={setSearchDialogOpen}
+            onSelectLink={handleSearchSelectLink}
+          />
+
+          <CreateFolderDialog
+            mode="wide"
+            open={isCreateFolderOpen}
+            defaultShared={createFolderSection === "shared"}
+            onCreated={handleWideFolderCreated}
+            onOpenChange={setIsCreateFolderOpen}
+          />
+
+          <Dialog
+            open={isAddLinkDialogOpen}
+            onOpenChange={handleWideAddLinkDialogOpenChange}
+          >
+            <DialogContent className="max-h-[80vh] w-[42rem] max-w-[90vw] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[42rem]">
+              <DialogHeader className="flex-row items-center gap-3 border-b border-border px-8 py-6">
+                <Text className="text-2xl font-normal text-muted-foreground">+</Text>
+                <DialogTitle className="text-xl">새 링크 추가</DialogTitle>
+              </DialogHeader>
+              <ScrollView
+                className="flex-1"
+                contentInsetAdjustmentBehavior="automatic"
+                showsVerticalScrollIndicator={false}
+              >
+                <View className="px-8 py-6">
+                  <RouteErrorBoundary
+                    description="링크 추가 시트를 다시 열어 시도해주세요."
+                    resetKeys={[isAddLinkDialogOpen]}
+                    title="링크 추가 화면을 불러오지 못했어요"
+                    onClose={() => setIsAddLinkDialogOpen(false)}
+                  >
+                    <LinkCreateForm
+                      mode="wide"
+                      open={isAddLinkDialogOpen}
+                      initialUrl={sharedLinkUrl ?? undefined}
+                      onCancel={() => setIsAddLinkDialogOpen(false)}
+                      onSaved={handleWideLinkSaved}
+                    />
+                  </RouteErrorBoundary>
+                </View>
+              </ScrollView>
+            </DialogContent>
+          </Dialog>
+        </View>
+        {redirect}
+      </>
     );
   }
 
@@ -443,81 +457,85 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     routeState.pathname.startsWith("/folders/");
 
   return (
-    <View className="flex-1 bg-background">
-      <AppHeader
-        back={!isMobileHome && routeState.showBackButton}
-        onBack={handleBack}
-        leftSlot={isMobileHome ? <BrandHeader className="px-0 pt-0" /> : undefined}
-        rightSlot={
-          isMobileHome ? (
-            <View className="flex-row items-center gap-1">
-              <IconButton
-                accessibilityLabel="검색"
-                icon={Search}
-                size="sm"
-                variant="ghost"
-                onPress={handleMobileSearchPress}
+    <>
+      {redirectCover}
+      <View className={cn("flex-1 bg-background", redirectHref && "hidden")}>
+        <AppHeader
+          back={!isMobileHome && routeState.showBackButton}
+          onBack={handleBack}
+          leftSlot={isMobileHome ? <BrandHeader className="px-0 pt-0" /> : undefined}
+          rightSlot={
+            isMobileHome ? (
+              <View className="flex-row items-center gap-1">
+                <IconButton
+                  accessibilityLabel="검색"
+                  icon={Search}
+                  size="sm"
+                  variant="ghost"
+                  onPress={handleMobileSearchPress}
+                />
+                <NotificationBellButton
+                  size="sm"
+                  onPress={handleNotificationsPress}
+                />
+              </View>
+            ) : mobileFolder ? (
+              <FolderHeaderActions
+                folder={mobileFolder}
+                mode="mobile"
               />
-              <NotificationBellButton
-                size="sm"
-                onPress={handleNotificationsPress}
-              />
-            </View>
-          ) : mobileFolder ? (
-            <FolderHeaderActions
-              folder={mobileFolder}
-              mode="mobile"
-            />
-          ) : isAnnouncementsListRoute ? (
-            <AnnouncementsHeaderAction mode="mobile" />
-          ) : undefined
-        }
-        title={isMobileHome ? undefined : mobileHeaderTitle}
-      />
-      <View
-        className="flex-1"
-        role="main"
-      >
-        <ShellActionsContext value={shellActions}>
-          <RouteErrorBoundary resetKeys={[routeState.pathname]}>{children}</RouteErrorBoundary>
-        </ShellActionsContext>
-      </View>
-      {showMobileFab && !isAnySheetOpen && !isAddLinkSheetOpen && !isCreateFolderSheetOpen ? (
-        <Fab
-          bottomOffset={96}
-          icon={Plus}
-          label="새 링크"
-          onPress={handleFabPress}
+            ) : isAnnouncementsListRoute ? (
+              <AnnouncementsHeaderAction mode="mobile" />
+            ) : undefined
+          }
+          title={isMobileHome ? undefined : mobileHeaderTitle}
         />
-      ) : null}
-      <BottomTabs
-        items={mobileTabItems}
-        value={routeState.mobileTabKey ?? ""}
-        onValueChange={handleMobileTabChange}
-      />
-      {hasOpenedAddLinkSheet && isAddLinkSheetOpen ? (
-        <Sheet
-          open={isAddLinkSheetOpen}
-          fitContent
-          onOpenChange={handleAddLinkSheetOpenChange}
+        <View
+          className="flex-1"
+          role="main"
         >
-          <RouteErrorBoundary
-            description="시트를 닫고 다시 열어 시도해주세요."
-            resetKeys={[isAddLinkSheetOpen]}
-            title="링크 추가 시트를 불러오지 못했어요"
-            onClose={closeAddLinkSheet}
+          <ShellActionsContext value={shellActions}>
+            <RouteErrorBoundary resetKeys={[routeState.pathname]}>{children}</RouteErrorBoundary>
+          </ShellActionsContext>
+        </View>
+        {showMobileFab && !isAnySheetOpen && !isAddLinkSheetOpen && !isCreateFolderSheetOpen ? (
+          <Fab
+            bottomOffset={96}
+            icon={Plus}
+            label="새 링크"
+            onPress={handleFabPress}
+          />
+        ) : null}
+        <BottomTabs
+          items={mobileTabItems}
+          value={routeState.mobileTabKey ?? ""}
+          onValueChange={handleMobileTabChange}
+        />
+        {hasOpenedAddLinkSheet && isAddLinkSheetOpen ? (
+          <Sheet
+            open={isAddLinkSheetOpen}
+            fitContent
+            onOpenChange={handleAddLinkSheetOpenChange}
           >
-            <LinkCreateForm
-              mode="mobile"
-              open={isAddLinkSheetOpen}
-              initialUrl={sharedLinkUrl ?? undefined}
-              onCancel={closeAddLinkSheet}
-              onSaved={handleMobileLinkSaved}
-            />
-          </RouteErrorBoundary>
-        </Sheet>
-      ) : null}
-    </View>
+            <RouteErrorBoundary
+              description="시트를 닫고 다시 열어 시도해주세요."
+              resetKeys={[isAddLinkSheetOpen]}
+              title="링크 추가 시트를 불러오지 못했어요"
+              onClose={closeAddLinkSheet}
+            >
+              <LinkCreateForm
+                mode="mobile"
+                open={isAddLinkSheetOpen}
+                initialUrl={sharedLinkUrl ?? undefined}
+                onCancel={closeAddLinkSheet}
+                onSaved={handleMobileLinkSaved}
+              />
+            </RouteErrorBoundary>
+          </Sheet>
+        ) : null}
+      </View>
+      {redirect}
+    </>
   );
 }
 
