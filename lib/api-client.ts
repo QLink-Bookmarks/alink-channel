@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 
+import { REQUESTER_HEADERS } from "@/lib/requester-header";
 import {
   getAccessTokenFromStore,
   getRefreshTokenFromStore,
@@ -36,6 +37,7 @@ export const apiClient = create({
   baseURL: process.env.EXPO_PUBLIC_API_BASE_URL,
   headers: {
     Accept: "application/json",
+    ...REQUESTER_HEADERS,
   },
   withCredentials: true,
 });

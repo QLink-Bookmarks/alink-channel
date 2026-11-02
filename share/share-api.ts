@@ -7,6 +7,7 @@ import type {
 import type { Folder, GetFoldersResponse } from "@/features/folders/types";
 import type { NativeImageFile, UploadImageResponse } from "@/features/images/types";
 import type { CreateLinkRequest, CreateLinkResponse } from "@/features/links/types";
+import { REQUESTER_HEADERS } from "@/lib/requester-header";
 import { KEYCHAIN_OPTIONS } from "@/lib/session-storage";
 
 import { type AxiosRequestConfig, create, isAxiosError } from "axios";
@@ -38,7 +39,7 @@ async function saveTokens(tokens: Tokens): Promise<void> {
 
 const client = create({
   baseURL: process.env.EXPO_PUBLIC_API_BASE_URL,
-  headers: { Accept: "application/json" },
+  headers: { Accept: "application/json", ...REQUESTER_HEADERS },
 });
 
 function randomUuid(): string {
