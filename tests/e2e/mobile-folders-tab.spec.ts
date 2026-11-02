@@ -397,6 +397,37 @@ test.describe("mobile folder tab", () => {
   });
 });
 
+test.describe("mobile folder tab uncategorized row (#27)", () => {
+  test.beforeEach(() => {
+    test.skip(isWideProject(), "mobile folder tab only");
+  });
+
+  test("the 미분류 icon and name start on the same lines as the folder rows, with at least 12px before the new link button", async ({
+    page,
+  }) => {
+    await mockApi(page, { folders: makeFolders(30, 0), links: [makeLink({ id: 1 })] });
+    await page.goto("/folders");
+    const row = folderRow(sectionList(page, "내 폴더"), 30);
+    await expect(row).toBeVisible();
+    await settle(page);
+
+    const rowTile = await boxOf(row.locator(":scope > div").first());
+    const rowName = await boxOf(row.getByText("폴더 30", { exact: true }));
+    const uncategorizedRow = uncategorized(page);
+    const tile = await boxOf(uncategorizedRow.locator(":scope > div").first());
+    const name = await boxOf(uncategorizedRow.getByText("미분류", { exact: true }));
+    expect(Math.round(tile.x)).toBe(Math.round(rowTile.x));
+    expect(Math.round(tile.width)).toBe(Math.round(rowTile.width));
+    expect(Math.round(name.x)).toBe(Math.round(rowName.x));
+
+    const count = await boxOf(uncategorizedRow.getByText("1개", { exact: true }));
+    const fab = await boxOf(page.getByRole("button", { name: "새 링크" }));
+    expect(fab.x - (count.x + count.width)).toBeGreaterThanOrEqual(12);
+    const viewport = page.viewportSize()?.width ?? 0;
+    expect(Math.round(viewport - (fab.x + fab.width))).toBe(24);
+  });
+});
+
 test.describe("mobile folder tab states", () => {
   test.beforeEach(() => {
     test.skip(isWideProject(), "mobile folder tab only");

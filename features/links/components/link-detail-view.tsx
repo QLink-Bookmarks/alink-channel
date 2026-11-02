@@ -294,6 +294,7 @@ function LinkDetailView({
   const copyLinkMutation = useCopyLinkMutation(detail.id);
   const patchLinkMutation = usePatchLinkMutation(detail.id);
   const showToast = useToastStore((state) => state.showToast);
+  const dismissToast = useToastStore((state) => state.dismissToast);
   const deleteLinkMutation = useDeleteLinkMutation(detail.id);
   const createTodoMutation = useCreateTodoMutation();
   const updateTodoMutation = useUpdateTodoMutation();
@@ -302,6 +303,7 @@ function LinkDetailView({
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [hasRefreshFailed, setHasRefreshFailed] = React.useState(false);
   const isRefreshingRef = React.useRef(false);
+  const isSavingEditRef = React.useRef(false);
   const todoGrid = useGridColumns({
     gap: TODO_GRID_GAP,
     // The wide panel is 380–520px inside its padding: 180px keeps it at two columns.
@@ -318,6 +320,12 @@ function LinkDetailView({
   const [isFolderMoveOpen, setIsFolderMoveOpen] = React.useState(false);
   const [isCopyFolderOpen, setIsCopyFolderOpen] = React.useState(false);
   const [isEditOpen, setIsEditOpen] = React.useState(false);
+  // TODO: isEditOpenRef lets handleRequestCloseEdit ignore close requests after the sheet is already closed, guarding against sheet.tsx echoing code-driven closes; redundant once #32 lands.
+  const isEditOpenRef = React.useRef(false);
+  const setEditSheetOpen = React.useCallback((open: boolean) => {
+    isEditOpenRef.current = open;
+    setIsEditOpen(open);
+  }, []);
   const [titleDraft, setTitleDraft] = React.useState("");
   const [summaryDraft, setSummaryDraft] = React.useState("");
   const [isUnsavedEditOpen, setIsUnsavedEditOpen] = React.useState(false);
@@ -724,14 +732,35 @@ function LinkDetailView({
   const openEditSheet = React.useCallback(() => {
     setTitleDraft(detail.title);
     setSummaryDraft(detail.summary ?? "");
-    setIsEditOpen(true);
-  }, [detail.summary, detail.title]);
+    setEditSheetOpen(true);
+  }, [detail.summary, detail.title, setEditSheetOpen]);
+
+  const dismissLinkDetailToasts = React.useCallback(() => {
+    for (const item of useToastStore.getState().items) {
+      if (item.sourceKey?.startsWith("link-detail-")) {
+        dismissToast(item.id);
+      }
+    }
+  }, [dismissToast]);
+
+  const handleOpenFolderMove = React.useCallback(() => {
+    dismissLinkDetailToasts();
+    setIsFolderMoveOpen(true);
+  }, [dismissLinkDetailToasts]);
+
+  const handleOpenCopyFolder = React.useCallback(() => {
+    dismissLinkDetailToasts();
+    setIsCopyFolderOpen(true);
+  }, [dismissLinkDetailToasts]);
 
   const isEditDirty =
     titleDraft.trim() !== detail.title.trim() ||
     summaryDraft.trim() !== (detail.summary ?? "").trim();
 
   const handleSaveEdit = React.useCallback(async () => {
+    if (isSavingEditRef.current) {
+      return;
+    }
     const nextTitle = titleDraft.trim();
     if (!nextTitle) {
       showToast({
@@ -743,6 +772,7 @@ function LinkDetailView({
       });
       return;
     }
+    isSavingEditRef.current = true;
     try {
       const response = await updateLinkMutation.mutateAsync(
         buildUpdateLinkPayload(detail, {
@@ -752,7 +782,7 @@ function LinkDetailView({
       );
       handleDetailUpdated(response);
       setIsUnsavedEditOpen(false);
-      setIsEditOpen(false);
+      setEditSheetOpen(false);
       showToast({
         title: "수정했어요.",
         variant: "success",
@@ -770,23 +800,49 @@ function LinkDetailView({
         durationMs: 3000,
         sourceKey: "link-detail-edit",
       });
+    } finally {
+      isSavingEditRef.current = false;
     }
-  }, [detail, handleDetailUpdated, showToast, summaryDraft, titleDraft, updateLinkMutation]);
+  }, [
+    detail,
+    handleDetailUpdated,
+    setEditSheetOpen,
+    showToast,
+    summaryDraft,
+    titleDraft,
+    updateLinkMutation,
+  ]);
 
   // Edits live in a modal, so the user can't scroll away and lose the save
   // action. If they try to dismiss with unsaved changes, confirm first.
   const handleRequestCloseEdit = React.useCallback(() => {
+    if (!isEditOpenRef.current) {
+      return;
+    }
     if (isEditDirty) {
+      if (mode !== "panel") {
+        setEditSheetOpen(false);
+      }
       setIsUnsavedEditOpen(true);
       return;
     }
-    setIsEditOpen(false);
-  }, [isEditDirty]);
+    setEditSheetOpen(false);
+  }, [isEditDirty, mode, setEditSheetOpen]);
+
+  const handleUnsavedEditOpenChange = React.useCallback(
+    (open: boolean) => {
+      setIsUnsavedEditOpen(open);
+      if (!open) {
+        setEditSheetOpen(true);
+      }
+    },
+    [setEditSheetOpen],
+  );
 
   const handleDiscardEdit = React.useCallback(() => {
     setIsUnsavedEditOpen(false);
-    setIsEditOpen(false);
-  }, []);
+    setEditSheetOpen(false);
+  }, [setEditSheetOpen]);
 
   const handleDeleteLink = React.useCallback(async () => {
     if (deleteLinkMutation.isPending) {
@@ -1226,7 +1282,7 @@ function LinkDetailView({
                 // folder name shrinks the chip and the buttons stay on one line.
                 style={{ flexShrink: 1 }}
                 testID="link-detail-folder"
-                onPress={() => setIsFolderMoveOpen(true)}
+                onPress={handleOpenFolderMove}
               >
                 <Text
                   className="min-w-0 shrink text-[13px] font-semibold text-foreground"
@@ -1262,7 +1318,7 @@ function LinkDetailView({
                 icon={FolderPlus}
                 label="개인 폴더로 추가"
                 testID="link-detail-copy"
-                onPress={() => setIsCopyFolderOpen(true)}
+                onPress={handleOpenCopyFolder}
               />
             )}
             <View className="min-w-0 flex-1" />
@@ -1397,7 +1453,7 @@ function LinkDetailView({
                         style={todoGrid.itemStyle}
                       >
                         <TodoItem
-                          className="h-full"
+                          className="grow"
                           variant="display"
                           text={getTodoTitle(todo)}
                           done={done}
@@ -1545,7 +1601,7 @@ function LinkDetailView({
       {mode === "panel" ? (
         <Dialog
           open={isEditOpen}
-          onOpenChange={(next) => (next ? setIsEditOpen(true) : handleRequestCloseEdit())}
+          onOpenChange={(next) => (next ? setEditSheetOpen(true) : handleRequestCloseEdit())}
         >
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -1568,7 +1624,7 @@ function LinkDetailView({
         <Sheet
           open={isEditOpen}
           fitContent
-          onOpenChange={(next) => (next ? setIsEditOpen(true) : handleRequestCloseEdit())}
+          onOpenChange={(next) => (next ? setEditSheetOpen(true) : handleRequestCloseEdit())}
         >
           <View className="gap-3">
             <Text className="text-lg font-semibold text-foreground">수정하기</Text>
@@ -1588,7 +1644,7 @@ function LinkDetailView({
 
       <AlertDialog
         open={isUnsavedEditOpen}
-        onOpenChange={setIsUnsavedEditOpen}
+        onOpenChange={handleUnsavedEditOpenChange}
       >
         <AlertDialogContent>
           <AlertDialogHeader>

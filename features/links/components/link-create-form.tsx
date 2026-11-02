@@ -630,7 +630,7 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
 
             <MobileOptionCard
               eyebrow="폴더"
-              icon="✨"
+              icon={folder.id ? undefined : "✨"}
               label={folder.id ? folder.label : "AI 자동 분류"}
               onPress={() => setMobileSheetStep("folder-picker")}
             />
@@ -880,10 +880,11 @@ function FolderPickerPopoverContent({
     <PopoverContent
       align="start"
       side="bottom"
-      className="w-80 p-3"
+      className="w-80 p-3 web:max-h-[calc(var(--radix-popover-content-available-height)-16px)]"
       onInteractOutside={handleInteractOutside}
     >
       <FolderPickerList
+        className="min-h-0 shrink"
         listMaxHeight={POPOVER_FOLDER_LIST_MAX_HEIGHT}
         selectedFolderId={selectedFolderId}
         onAddDialogOpenChange={handleAddDialogOpenChange}
@@ -1037,7 +1038,7 @@ function MobileOptionCard({
   onPress,
 }: {
   eyebrow: string;
-  icon: string;
+  icon?: string;
   label: string;
   onPress: () => void;
 }) {
@@ -1046,7 +1047,7 @@ function MobileOptionCard({
       <View className="min-w-0 flex-1 gap-1.5">
         <Text className="text-sm font-semibold text-muted-foreground">{eyebrow}</Text>
         <View className="min-w-0 flex-row items-center gap-1.5">
-          <Text>{icon}</Text>
+          {icon ? <Text>{icon}</Text> : null}
           <Text
             className="min-w-0 flex-1 text-base font-bold text-foreground"
             numberOfLines={1}

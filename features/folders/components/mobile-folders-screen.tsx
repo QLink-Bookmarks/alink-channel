@@ -136,11 +136,11 @@ function MobileFoldersScreen() {
             uncategorizedCount == null ? "미분류" : `미분류, 링크 ${uncategorizedCount}개`
           }
           accessibilityRole="button"
-          className="min-w-0 flex-1 flex-row items-center gap-3 pl-5 pr-1 active:bg-muted web:hover:bg-muted"
+          className="min-w-0 flex-1 flex-row items-center gap-3 pl-5 pr-3 active:bg-muted web:hover:bg-muted"
           onPress={handleUncategorizedPress}
         >
-          <View className="size-9 items-center justify-center rounded-2xl bg-muted">
-            <Emoji className="text-lg">🗂️</Emoji>
+          <View className="size-10 items-center justify-center rounded-2xl bg-muted">
+            <Emoji className="text-xl">🗂️</Emoji>
           </View>
           <Text className="min-w-0 flex-1 text-base font-semibold text-foreground">미분류</Text>
           {uncategorizedCount == null ? null : (
@@ -149,9 +149,10 @@ function MobileFoldersScreen() {
             </Text>
           )}
         </Pressable>
-        <View className="w-[88px] shrink-0 items-center justify-center">
+        <View className="w-[88px] shrink-0 justify-center pr-6">
           {shellActions ? (
             <Fab
+              className="self-end"
               icon={Plus}
               label="새 링크"
               placement="inline"

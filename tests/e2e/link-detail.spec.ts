@@ -86,6 +86,34 @@ async function openDetail(page: Page, id: number) {
   }
 }
 
+function editSheet(page: Page) {
+  return page.getByRole("slider", { name: "Bottom Sheet" });
+}
+
+async function settledSheetBox(page: Page) {
+  let previous = await editSheet(page).boundingBox();
+  let steadyReads = 0;
+  await expect
+    .poll(
+      async () => {
+        const current = await editSheet(page).boundingBox();
+        const viewportHeight = page.viewportSize()?.height ?? 0;
+        const isSteady =
+          current !== null &&
+          previous !== null &&
+          current.y < viewportHeight - 40 &&
+          current.y === previous.y;
+        steadyReads = isSteady ? steadyReads + 1 : 0;
+        previous = current;
+        return steadyReads >= 2;
+      },
+      { intervals: [250] },
+    )
+    .toBe(true);
+  if (!previous) throw new Error("the sheet is not on screen");
+  return previous;
+}
+
 test.describe("layout", () => {
   test("top to bottom: address and refresh, image, title, actions, summary, tags, memo, todos; no folder section or open button", async ({
     page,
@@ -537,5 +565,110 @@ test.describe("open and close", () => {
     await page.getByRole("button", { name: "뒤로" }).click();
     await expect(page).toHaveURL(/\/home$/);
     await expect(page.getByTestId("link-card").first()).toBeVisible();
+  });
+});
+
+test.describe("todo cards and saving edits (#27)", () => {
+  test("todo cards in one row of the wide panel share one height and fill their cell", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "two columns only in the wide panel");
+    const { links, details } = buildFixtures();
+    const link = links[0];
+    const longTodos = [
+      {
+        id: 21,
+        title: "토요일 2시 방문 전에 예약 확인하고 주차 가능 여부와 대기 시간까지 미리 알아보기",
+        reminderAt: iso(-2 * HOUR_MS),
+        completedAt: null,
+      },
+      { id: 22, title: "예약 확인", reminderAt: null, completedAt: null },
+    ];
+    await mockApi(page, {
+      links,
+      details: { ...details, [link.id]: { ...details[link.id], todos: longTodos } },
+    });
+    await openDetail(page, 1);
+    const grid = page.getByTestId("link-detail-todo-grid");
+    const cards = grid.getByTestId(/^todo-item(-overdue)?$/);
+    await expect(cards).toHaveCount(2);
+    const [first, second] = await cards.evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const card = node.getBoundingClientRect();
+        const cell = (node.parentElement as HTMLElement).getBoundingClientRect();
+        return { top: card.top, height: card.height, cellHeight: cell.height };
+      }),
+    );
+    expect(Math.round(first.top)).toBe(Math.round(second.top));
+    expect(Math.round(first.height)).toBe(Math.round(second.height));
+    expect(Math.round(second.height)).toBe(Math.round(second.cellHeight));
+  });
+
+  test("after a keyboard press, the hover name comes back when focus returns to the button", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "hover names on the wide panel");
+    const { links, details } = buildFixtures();
+    await mockApi(page, { links, details });
+    await openDetail(page, 1);
+    const favorite = page.getByTestId("link-detail-favorite");
+    const share = page.getByTestId("link-detail-share");
+    await favorite.focus();
+    await expect(page.getByRole("tooltip", { name: "바로가기 추가" })).toHaveCount(1);
+    await page.keyboard.press("Enter");
+    await expect(favorite).toHaveAttribute("aria-label", "바로가기 해제");
+    await share.focus();
+    await expect(page.getByRole("tooltip", { name: "공유" })).toHaveCount(1);
+    await favorite.focus();
+    await expect(page.getByRole("tooltip", { name: "바로가기 해제" })).toHaveCount(1);
+  });
+
+  test("after discarding the unsaved-changes prompt, 수정하기 opens the sheet again with the saved text", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "the edit sheet on mobile");
+    const { links, details } = buildFixtures();
+    await mockApi(page, { links, details });
+    await openDetail(page, 1);
+    const prompt = page.getByRole("dialog", { name: "저장하지 않은 변경사항이 있어요" });
+    const title = page.getByPlaceholder("링크 제목");
+
+    await page.getByTestId("link-detail-edit").click();
+    await title.fill("고친 제목");
+    await settledSheetBox(page);
+    await page
+      .getByRole("button", { name: "Bottom sheet backdrop" })
+      .click({ position: { x: 195, y: 40 } });
+    await expect(prompt).toBeVisible();
+    await page.getByRole("button", { name: "저장 안 함" }).click();
+    await expect(title).toHaveCount(0);
+
+    await page.getByTestId("link-detail-edit").click();
+    await settledSheetBox(page);
+    await expect(title).toHaveValue(details[1].title);
+    await page.waitForTimeout(1000);
+    await expect(title).toBeInViewport();
+  });
+
+  test("pressing save twice quickly saves once and shows one message", async ({ page }) => {
+    const { links, details } = buildFixtures();
+    const state = await mockApi(page, { links, details });
+    await page.route("**/api/links/1", async (route) => {
+      if (route.request().method() === "PUT") {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      await route.fallback();
+    });
+    await openDetail(page, 1);
+    await page.getByTestId("link-detail-edit").click();
+    const title = page.getByPlaceholder("링크 제목");
+    await title.fill("새 제목");
+    await page.getByRole("button", { name: "저장", exact: true }).dblclick();
+    await expect(page.getByText("수정했어요.").first()).toBeVisible();
+    await page.waitForTimeout(800);
+    expect(
+      state.requests.filter((r) => r.method === "PUT" && r.path === "/api/links/1"),
+    ).toHaveLength(1);
+    await expect(page.getByText("수정했어요.")).toHaveCount(1);
   });
 });
