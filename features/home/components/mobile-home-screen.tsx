@@ -9,6 +9,12 @@ import { useFoldersQuery } from "@/features/folders/queries";
 import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
 import { useLinksQuery } from "@/features/links/queries";
 import type { LinkOrder } from "@/features/links/types";
+import {
+  useListMemoryKey,
+  useListScrollMemory,
+  useRememberedState,
+} from "@/lib/hooks/use-list-scroll-memory";
+import { usePullToRefresh } from "@/lib/hooks/use-pull-to-refresh";
 import { useHomeSearchFocus } from "@/stores/home-search-focus";
 
 import { OrderFilter } from "./order-filter";
@@ -22,9 +28,14 @@ const UNCATEGORIZED_FOLDER_VALUE = "0";
 function MobileHomeScreen() {
   const router = useRouter();
   const foldersQuery = useFoldersQuery({ size: 15 });
-  const [selectedFolder, setSelectedFolder] = React.useState<string>(ALL_VALUE);
-  const [order, setOrder] = React.useState<LinkOrder>("latest");
-  const [favoriteOnly, setFavoriteOnly] = React.useState(false);
+  const memoryKey = useListMemoryKey("mobile");
+  const [selectedFolder, setSelectedFolder] = useRememberedState<string>(
+    memoryKey,
+    "folder",
+    ALL_VALUE,
+  );
+  const [order, setOrder] = useRememberedState<LinkOrder>(memoryKey, "order", "latest");
+  const [favoriteOnly, setFavoriteOnly] = useRememberedState(memoryKey, "favoriteOnly", false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState("");
   const searchInputRef = React.useRef<TextInput>(null);
@@ -77,15 +88,21 @@ function MobileHomeScreen() {
   const links = linksQuery.data?.contents ?? [];
   const isLoading = linksQuery.isLoading;
   const isEmpty = !isLoading && links.length === 0;
-  const isRefreshing =
-    (linksQuery.isFetching && !linksQuery.isLoading) ||
-    (foldersQuery.isFetching && !foldersQuery.isLoading);
-  const handleRefresh = React.useCallback(() => {
-    void Promise.all([linksQuery.refetch(), foldersQuery.refetch()]);
-  }, [foldersQuery, linksQuery]);
+  const { isRefreshing, handleRefresh } = usePullToRefresh(() =>
+    Promise.allSettled([linksQuery.refetch(), foldersQuery.refetch()]),
+  );
+  const { scrollViewRef, scrollViewProps } = useListScrollMemory({
+    memoryKey,
+    contentKey: [selectedFolder, order, favoriteOnly, debouncedSearchQuery].join("|"),
+    isLoading,
+    hasContent: links.length > 0,
+    isEnabled: !searchQuery.trim() && !debouncedSearchQuery,
+  });
 
   return (
     <ScrollView
+      ref={scrollViewRef}
+      {...scrollViewProps}
       className="flex-1"
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}

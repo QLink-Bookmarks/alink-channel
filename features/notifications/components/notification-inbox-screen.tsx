@@ -8,6 +8,12 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { getTodos } from "@/features/todos/api";
 import { todoQueryKeys } from "@/features/todos/queries";
 import { reportError } from "@/lib/error-reporting";
+import {
+  useListMemoryKey,
+  useListScrollMemory,
+  useRememberedState,
+} from "@/lib/hooks/use-list-scroll-memory";
+import { usePullToRefresh } from "@/lib/hooks/use-pull-to-refresh";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useReadNotificationMutation } from "../mutations";
@@ -31,7 +37,8 @@ const NOTIFICATION_SEGMENTS = [
 function NotificationInboxScreen({ mode }: { mode: NotificationInboxScreenMode }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [filter, setFilter] = React.useState<NotificationFilter>("all");
+  const memoryKey = useListMemoryKey(mode);
+  const [filter, setFilter] = useRememberedState<NotificationFilter>(memoryKey, "filter", "all");
   // Filter server-side so each tab gets its own full page (a client-side filter
   // would leave uneven page sizes as items of other types are dropped).
   const notificationsQuery = useNotificationsQuery({
@@ -41,7 +48,13 @@ function NotificationInboxScreen({ mode }: { mode: NotificationInboxScreenMode }
   const readNotificationMutation = useReadNotificationMutation();
   const notifications = notificationsQuery.data?.contents ?? [];
   const unreadCount = notifications.filter((notification) => !notification.readAt).length;
-  const isRefreshing = notificationsQuery.isFetching && !notificationsQuery.isLoading;
+  const { isRefreshing, handleRefresh } = usePullToRefresh(notificationsQuery.refetch);
+  const { scrollViewRef, scrollViewProps } = useListScrollMemory({
+    memoryKey,
+    contentKey: filter,
+    isLoading: notificationsQuery.isLoading,
+    hasContent: notifications.length > 0,
+  });
 
   const navigateToTodoContext = React.useCallback(
     async (notification: NotificationListItem) => {
@@ -94,15 +107,15 @@ function NotificationInboxScreen({ mode }: { mode: NotificationInboxScreenMode }
   if (mode === "wide") {
     return (
       <ScrollView
+        ref={scrollViewRef}
+        {...scrollViewProps}
         className="flex-1"
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={() => {
-              void notificationsQuery.refetch();
-            }}
+            onRefresh={handleRefresh}
           />
         }
       >
@@ -149,15 +162,15 @@ function NotificationInboxScreen({ mode }: { mode: NotificationInboxScreenMode }
 
   return (
     <ScrollView
+      ref={scrollViewRef}
+      {...scrollViewProps}
       className="flex-1"
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
-          onRefresh={() => {
-            void notificationsQuery.refetch();
-          }}
+          onRefresh={handleRefresh}
         />
       }
     >

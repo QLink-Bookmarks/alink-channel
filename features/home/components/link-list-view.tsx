@@ -6,6 +6,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
 import { useLinksQuery } from "@/features/links/queries";
 import type { LinkListItem, LinkOrder } from "@/features/links/types";
+import {
+  useListMemoryKey,
+  useListScrollMemory,
+  useRememberedState,
+  useViewportListVariant,
+} from "@/lib/hooks/use-list-scroll-memory";
+import { usePullToRefresh } from "@/lib/hooks/use-pull-to-refresh";
 
 import { OrderFilter } from "./order-filter";
 
@@ -34,8 +41,10 @@ function LinkListView({
   headerActions,
 }: LinkListViewProps) {
   const router = useRouter();
-  const [order, setOrder] = React.useState<LinkOrder>("latest");
-  const [favoriteOnly, setFavoriteOnly] = React.useState(false);
+  const listVariant = useViewportListVariant();
+  const memoryKey = useListMemoryKey(listVariant);
+  const [order, setOrder] = useRememberedState<LinkOrder>(memoryKey, "order", "latest");
+  const [favoriteOnly, setFavoriteOnly] = useRememberedState(memoryKey, "favoriteOnly", false);
   const linksQuery = useLinksQuery({
     folderId,
     order,
@@ -46,25 +55,36 @@ function LinkListView({
   const links = linksQuery.data?.contents ?? [];
   const isEmpty = !linksQuery.isLoading && links.length === 0;
   const totalLabel = meta ?? `${links.length}개 링크`;
+  const { isRefreshing, handleRefresh } = usePullToRefresh(linksQuery.refetch);
+  const { scrollViewRef, scrollViewProps } = useListScrollMemory({
+    memoryKey,
+    contentKey: `${order}|${favoriteOnly}`,
+    isLoading: linksQuery.isLoading,
+    hasContent: links.length > 0,
+  });
 
   const handleCardPress = React.useCallback(
     (item: LinkListItem) => {
-      router.replace(`${basePath}?linkId=${item.id}` as Href);
+      if (listVariant === "wide") {
+        router.replace(`${basePath}?linkId=${item.id}` as Href);
+        return;
+      }
+      router.push(`/links/${item.id}` as Href);
     },
-    [basePath, router],
+    [basePath, listVariant, router],
   );
 
   return (
     <ScrollView
+      ref={scrollViewRef}
+      {...scrollViewProps}
       className="flex-1"
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
-          refreshing={linksQuery.isFetching && !linksQuery.isLoading}
-          onRefresh={() => {
-            void linksQuery.refetch();
-          }}
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
         />
       }
     >
