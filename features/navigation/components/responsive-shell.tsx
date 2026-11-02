@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Platform, Pressable, ScrollView, View } from "react-native";
+import { Platform, ScrollView, View } from "react-native";
 
 import { RouteErrorBoundary } from "@/components/error/route-error-boundary";
 import { AppHeader } from "@/components/layout/app-header";
@@ -7,34 +7,31 @@ import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { BrandHeader } from "@/components/layout/brand-header";
 import { Fab } from "@/components/layout/fab";
 import { Sheet } from "@/components/layout/sheet";
-import { Sidebar, SidebarCTA, SidebarItem, SidebarSection } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
-import { ActivityIndicator } from "@/components/ui/activity-indicator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Emoji } from "@/components/ui/emoji";
 import { IconButton } from "@/components/ui/icon-button";
 import { Kbd } from "@/components/ui/kbd";
 import { Text } from "@/components/ui/text";
-import { ThemeSwitcher } from "@/components/ui/theme-switcher";
-import { useMyProfileQuery } from "@/features/account/queries";
 import { AnnouncementsHeaderAction } from "@/features/announcements/components/announcements-header-action";
-import { CreateFolderDialog } from "@/features/folders/components/create-folder-dialog";
-import { FolderHeaderActions } from "@/features/folders/components/folder-header-actions";
-import { useUncategorizedCount } from "@/features/folders/hooks/use-uncategorized-count";
 import {
-  UNCATEGORIZED_FOLDER_ID,
-  splitFoldersBySection,
-} from "@/features/folders/lib/folder-pages";
-import { useFolderPagesQuery, useFolderQuery } from "@/features/folders/queries";
+  CreateFolderDialog,
+  type CreatedFolder,
+} from "@/features/folders/components/create-folder-dialog";
+import { FolderHeaderActions } from "@/features/folders/components/folder-header-actions";
+import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
+import { useFolderQuery } from "@/features/folders/queries";
 import { DetailPanel } from "@/features/links/components/detail-panel/detail-panel";
 import { LinkCreateForm } from "@/features/links/components/link-create-form";
 import { useLinkDetailQuery } from "@/features/links/queries";
 import { NotificationBellButton } from "@/features/notifications/components/notification-bell-button";
 import { SearchDialog } from "@/features/search/components/search-dialog";
 import { useCreateFolderSheet } from "@/stores/create-folder-sheet";
-import { useDisplaySettings } from "@/stores/display-settings";
+import {
+  type FolderSection,
+  setFolderScrollOffset,
+  useFolderNavigation,
+} from "@/stores/folder-navigation";
 import { useHomeSearchFocus } from "@/stores/home-search-focus";
 import { useSearchDialog } from "@/stores/search-dialog";
 import { useAnySheetOpen } from "@/stores/sheet-tracker";
@@ -43,22 +40,12 @@ import { useAddLinkSheet } from "../hooks/use-add-link-sheet";
 import { useLinkOverlayState } from "../hooks/use-link-overlay-state";
 import { useShellRouteState } from "../hooks/use-shell-route-state";
 import { canOpenWideOverlayInPlace } from "../routes";
-import type { MobileTabKey, WideSidebarKey } from "../types";
+import type { MobileTabKey } from "../types";
 import { WideKbdHelper } from "./wide-kbd-helper";
+import { WideSidebar } from "./wide-sidebar";
 
 import { type Href, Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import {
-  BookCopyIcon,
-  CheckSquare,
-  Folder,
-  House,
-  ListTodo,
-  LucideHome,
-  type LucideIcon,
-  Plus,
-  Search,
-  Settings,
-} from "lucide-react-native";
+import { Folder, House, ListTodo, Plus, Search, Settings } from "lucide-react-native";
 
 const mobileTabItems = [
   { key: "home", label: "홈", icon: House },
@@ -66,18 +53,6 @@ const mobileTabItems = [
   { key: "todos", label: "할일", icon: ListTodo },
   { key: "settings", label: "설정", icon: Settings },
 ] satisfies React.ComponentProps<typeof BottomTabs>["items"];
-
-const widePrimaryItems: {
-  href: string;
-  key: WideSidebarKey;
-  label: string;
-  icon: LucideIcon;
-}[] = [
-  { href: "/home", key: "home", label: "홈", icon: LucideHome },
-  { href: "/links", key: "links", label: "전체", icon: BookCopyIcon },
-  { href: "/todos", key: "todos", label: "할일", icon: CheckSquare },
-];
-const WIDE_SIDEBAR_FOLDER_LIMIT = 15;
 
 function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -88,12 +63,8 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     isOpen: isAddLinkSheetOpen,
     open: openAddLinkSheet,
   } = useAddLinkSheet();
-  const accent = useDisplaySettings((state) => state.display.accent);
-  const theme = useDisplaySettings((state) => state.display.theme);
   const isCreateFolderSheetOpen = useCreateFolderSheet((state) => state.isOpen);
   const isAnySheetOpen = useAnySheetOpen();
-  const setAccent = useDisplaySettings((state) => state.setAccent);
-  const setTheme = useDisplaySettings((state) => state.setTheme);
   const isSearchDialogOpen = useSearchDialog((state) => state.isOpen);
   const searchDialogMode = useSearchDialog((state) => state.mode);
   const searchDialogInitialQuery = useSearchDialog((state) => state.initialQuery);
@@ -101,21 +72,15 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const setSearchDialogOpen = useSearchDialog((state) => state.setOpen);
   const [isAddLinkDialogOpen, setIsAddLinkDialogOpen] = React.useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = React.useState(false);
-  const [createFolderShared, setCreateFolderShared] = React.useState(false);
+  const [createFolderSection, setCreateFolderSection] = React.useState<FolderSection>("mine");
+  const [sidebarFolderListKey, setSidebarFolderListKey] = React.useState(0);
   const [hasOpenedAddLinkSheet, setHasOpenedAddLinkSheet] = React.useState(false);
   const [pendingMobileLinkId, setPendingMobileLinkId] = React.useState<number | null>(null);
   const [sharedLinkUrl, setSharedLinkUrl] = React.useState<string | null>(null);
   const wasAddLinkOpenRef = React.useRef(false);
   const { linkUrl: linkUrlParam } = useLocalSearchParams<{ linkUrl?: string }>();
-  const folderPagesQuery = useFolderPagesQuery({ enabled: routeState.isWideView });
-  const myProfileQuery = useMyProfileQuery();
+  const openFolderSection = useFolderNavigation((state) => state.openSectionOn);
   const isAnnouncementsListRoute = routeState.pathname === "/announcements";
-  const avatarEmojiOverride = useDisplaySettings((state) => state.profile.avatarEmoji);
-  const profileAvatarEmoji = avatarEmojiOverride ?? myProfileQuery.data?.avatarEmoji ?? "🌸";
-  const profileNickname = myProfileQuery.data?.nickname ?? "사용자";
-  const profileUsername = myProfileQuery.data?.username ?? "";
-  const profileAvatarUrl = myProfileQuery.data?.avatarUrl ?? null;
-  const uncategorizedCount = useUncategorizedCount();
   const mobileFolderIdMatch = /^\/folders\/(\d+)$/.exec(routeState.pathname);
   const mobileFolderId = mobileFolderIdMatch ? Number(mobileFolderIdMatch[1]) : Number.NaN;
   const mobileFolderQuery = useFolderQuery(mobileFolderId, {
@@ -215,6 +180,28 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     router.push("/notifications" as Href);
   }, [router]);
 
+  const handleWideNavigate = React.useCallback(
+    (href: string) => {
+      router.replace(href as Href);
+    },
+    [router],
+  );
+
+  const handleWideAddFolderPress = React.useCallback((section: FolderSection) => {
+    setCreateFolderSection(section);
+    setIsCreateFolderOpen(true);
+  }, []);
+
+  const handleWideFolderCreated = React.useCallback(
+    (folder: CreatedFolder) => {
+      const section: FolderSection = folder.isShared ? "shared" : "mine";
+      setFolderScrollOffset("sidebar", section, 0);
+      openFolderSection("sidebar", section);
+      setSidebarFolderListKey((key) => key + 1);
+    },
+    [openFolderSection],
+  );
+
   const handleProfilePress = React.useCallback(() => {
     router.push("/settings" as Href);
   }, [router]);
@@ -309,171 +296,18 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   }
 
   if (routeState.isWideView) {
-    const { mine: myFolders, shared: sharedFolders } = splitFoldersBySection(
-      folderPagesQuery.data?.pages.slice(0, 1),
-      { limit: WIDE_SIDEBAR_FOLDER_LIMIT },
-    );
-    const isFoldersLoading = folderPagesQuery.isLoading;
-
     return (
       <View className="flex-1 flex-row bg-background">
         <View className="w-[15%] min-w-56 max-w-80">
-          <Sidebar className="h-full w-full min-w-0 max-w-none">
-            <View className="flex-1 justify-between gap-6">
-              <View className="gap-6">
-                <BrandHeader
-                  accent={accent}
-                  mode={theme}
-                />
-
-                <SidebarCTA
-                  label={
-                    <>
-                      <Text className="text-2xl font-semibold leading-none text-primary-foreground">
-                        +
-                      </Text>
-                      <Kbd
-                        keyClassName="border-white/20 bg-white/20"
-                        keyTextClassName="text-primary-foreground"
-                        label="새 링크"
-                        labelClassName="text-base font-semibold text-primary-foreground"
-                        labelPosition="left"
-                      >
-                        N
-                      </Kbd>
-                    </>
-                  }
-                  onPress={handleWideAddLinkPress}
-                />
-
-                <View className="gap-1">
-                  {widePrimaryItems.map((item) => (
-                    <SidebarItem
-                      key={item.key}
-                      active={routeState.wideSidebarKey === item.key}
-                      icon={item.icon}
-                      label={item.label}
-                      labelClassName="text-base"
-                      onPress={() => router.replace(item.href as Href)}
-                    />
-                  ))}
-                </View>
-
-                <SidebarSection title="내 폴더">
-                  <View className="gap-1">
-                    {isFoldersLoading ? (
-                      <ActivityIndicator
-                        size="small"
-                        className="py-3"
-                      />
-                    ) : (
-                      <>
-                        {myFolders.map((folder) => {
-                          const href = `/folders/${folder.id}`;
-                          return (
-                            <SidebarItem
-                              key={folder.id}
-                              active={routeState.pathname === href}
-                              count={folder.linkCounts}
-                              label={folder.emoji ? `${folder.emoji} ${folder.name}` : folder.name}
-                              labelClassName="text-base"
-                              onPress={() => router.replace(href as Href)}
-                            />
-                          );
-                        })}
-                        <SidebarItem
-                          active={routeState.pathname === `/folders/${UNCATEGORIZED_FOLDER_ID}`}
-                          count={uncategorizedCount}
-                          label="🗂️ 미분류"
-                          labelClassName="text-base"
-                          onPress={() =>
-                            router.replace(`/folders/${UNCATEGORIZED_FOLDER_ID}` as Href)
-                          }
-                        />
-                        <SidebarAddItem
-                          label="+  폴더 추가"
-                          onPress={() => {
-                            setCreateFolderShared(false);
-                            setIsCreateFolderOpen(true);
-                          }}
-                        />
-                      </>
-                    )}
-                  </View>
-                </SidebarSection>
-
-                <SidebarSection title="공유 폴더">
-                  <View className="gap-1">
-                    {isFoldersLoading ? null : (
-                      <>
-                        {sharedFolders.map((folder) => {
-                          const href = `/folders/${folder.id}`;
-                          return (
-                            <SidebarItem
-                              key={folder.id}
-                              active={routeState.pathname === href}
-                              count={folder.linkCounts}
-                              meta={`${folder.shareCounts}명 참여`}
-                              label={folder.emoji ? `${folder.emoji} ${folder.name}` : folder.name}
-                              labelClassName="text-base"
-                              onPress={() => router.replace(href as Href)}
-                            />
-                          );
-                        })}
-                        <SidebarAddItem
-                          label="+  공유폴더 추가"
-                          onPress={() => {
-                            setCreateFolderShared(true);
-                            setIsCreateFolderOpen(true);
-                          }}
-                        />
-                      </>
-                    )}
-                  </View>
-                </SidebarSection>
-              </View>
-
-              <View className="gap-3 border-t border-sidebar-border pt-3">
-                <ThemeSwitcher
-                  accent={accent}
-                  mode={theme}
-                  variant="switch"
-                  onAccentChange={setAccent}
-                  onModeChange={setTheme}
-                />
-
-                <Button
-                  className="h-auto min-h-0 w-full items-center justify-start gap-3 bg-transparent px-5 py-2 shadow-none web:hover:bg-sidebar-surface-2 sm:h-auto"
-                  variant="ghost"
-                  onPress={handleProfilePress}
-                >
-                  <Avatar
-                    alt={`${profileNickname} avatar`}
-                    size="xs"
-                  >
-                    {profileAvatarUrl ? <AvatarImage source={{ uri: profileAvatarUrl }} /> : null}
-                    <AvatarFallback>
-                      <Emoji className="text-xl">{profileAvatarEmoji}</Emoji>
-                    </AvatarFallback>
-                  </Avatar>
-                  <View className="min-w-0 flex-1 items-start">
-                    <Text
-                      numberOfLines={1}
-                      className="text-left text-base font-semibold text-sidebar-hover"
-                    >
-                      {profileNickname}
-                    </Text>
-                    <Text
-                      numberOfLines={1}
-                      className="text-left text-sm text-sidebar-muted"
-                    >
-                      {profileUsername}
-                    </Text>
-                  </View>
-                </Button>
-              </View>
-            </View>
-          </Sidebar>
+          <WideSidebar
+            activeKey={routeState.wideSidebarKey}
+            folderListKey={sidebarFolderListKey}
+            pathname={routeState.pathname}
+            onAddFolderPress={handleWideAddFolderPress}
+            onAddLinkPress={handleWideAddLinkPress}
+            onNavigate={handleWideNavigate}
+            onProfilePress={handleProfilePress}
+          />
         </View>
 
         <View className="flex-1 bg-background">
@@ -503,7 +337,10 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
               </>
             }
           />
-          <View className="relative flex-1">
+          <View
+            className="relative flex-1"
+            role="main"
+          >
             <RouteErrorBoundary resetKeys={[routeState.pathname]}>{children}</RouteErrorBoundary>
             <WideKbdHelper />
           </View>
@@ -542,7 +379,8 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
         <CreateFolderDialog
           mode="wide"
           open={isCreateFolderOpen}
-          defaultShared={createFolderShared}
+          defaultShared={createFolderSection === "shared"}
+          onCreated={handleWideFolderCreated}
           onOpenChange={setIsCreateFolderOpen}
         />
 
@@ -629,7 +467,10 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
         }
         title={isMobileHome ? undefined : mobileHeaderTitle}
       />
-      <View className="flex-1">
+      <View
+        className="flex-1"
+        role="main"
+      >
         <RouteErrorBoundary resetKeys={[routeState.pathname]}>{children}</RouteErrorBoundary>
       </View>
       {showMobileFab && !isAnySheetOpen && !isAddLinkSheetOpen && !isCreateFolderSheetOpen ? (
@@ -668,19 +509,6 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
         </Sheet>
       ) : null}
     </View>
-  );
-}
-
-function SidebarAddItem({ label, onPress }: { label: string; onPress?: () => void }) {
-  return (
-    <Pressable
-      className="group min-h-8 flex-row items-center rounded-xl border border-dashed border-border px-4 active:bg-sidebar-surface-2 web:transition-colors web:hover:bg-sidebar-surface-2"
-      onPress={onPress}
-    >
-      <Text className="text-sm font-medium text-sidebar-muted web:group-hover:text-primary">
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 

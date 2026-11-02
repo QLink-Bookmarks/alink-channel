@@ -12,6 +12,8 @@ import type { LucideIcon } from "lucide-react-native";
 
 // View scope: 와이드뷰 전용. md >= 769px에서 사용한다.
 
+const SIDEBAR_ITEM_HEIGHT = 40;
+
 function Sidebar({
   className,
   collapsed,
@@ -35,26 +37,41 @@ function Sidebar({
 function SidebarItem({
   className,
   icon,
+  emoji,
   label,
   labelClassName,
   count,
   meta,
   kbd,
   active,
+  accessibilityLabel,
   onPress,
 }: {
   className?: string;
   icon?: LucideIcon;
+  emoji?: string;
   label: string;
   labelClassName?: string;
   count?: number | string;
   meta?: string;
   kbd?: string;
   active?: boolean;
+  accessibilityLabel?: string;
   onPress?: () => void;
 }) {
+  const selectionProps = (
+    process.env.EXPO_OS === "web"
+      ? active
+        ? { "aria-current": "page" }
+        : {}
+      : { accessibilityState: { selected: Boolean(active) } }
+  ) as React.ComponentProps<typeof Pressable>;
+
   return (
     <Pressable
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      {...selectionProps}
       className={cn(
         "group relative min-h-10 flex-row items-center gap-3 overflow-hidden rounded-xl px-3 active:bg-sidebar-surface-2 web:transition-colors web:hover:bg-sidebar-surface-2",
         active && "bg-sidebar-surface-2 shadow-qlink-sm",
@@ -74,19 +91,28 @@ function SidebarItem({
           )}
         />
       ) : null}
+      {emoji ? (
+        <Text
+          className="w-[18px] shrink-0 text-center text-sm"
+          aria-hidden
+        >
+          {emoji}
+        </Text>
+      ) : null}
       <Text
         className={cn(
-          "flex-1 text-sm font-medium",
+          "min-w-0 flex-1 text-sm font-medium",
           active ? "text-primary" : "text-sidebar-muted web:group-hover:text-sidebar-hover",
           labelClassName,
         )}
+        numberOfLines={1}
       >
         {label}
       </Text>
       {meta ? (
         <Text
           className={cn(
-            "text-xs",
+            "shrink-0 text-xs",
             active ? "text-primary/70" : "text-sidebar-muted/70 web:group-hover:text-sidebar-hover",
           )}
         >
@@ -96,7 +122,7 @@ function SidebarItem({
       {count != null ? (
         <Text
           className={cn(
-            "text-xs",
+            "shrink-0 text-xs tabular-nums",
             active ? "text-primary" : "text-sidebar-muted web:group-hover:text-sidebar-hover",
           )}
         >
@@ -210,4 +236,4 @@ function SidebarCTA({
   );
 }
 
-export { Sidebar, SidebarCTA, SidebarItem, SidebarProfile, SidebarSection };
+export { Sidebar, SidebarCTA, SidebarItem, SidebarProfile, SidebarSection, SIDEBAR_ITEM_HEIGHT };

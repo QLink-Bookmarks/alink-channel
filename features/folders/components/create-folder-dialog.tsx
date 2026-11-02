@@ -14,12 +14,17 @@ import type { Folder } from "../types";
 
 type CreateFolderDialogMode = "wide" | "mobile";
 
+type CreatedFolder = {
+  id: number;
+  isShared: boolean;
+};
+
 type CreateFolderDialogProps = {
   mode: CreateFolderDialogMode;
   open: boolean;
   defaultShared?: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated?: (folderId: number) => void;
+  onCreated?: (folder: CreatedFolder) => void;
 };
 
 function CreateFolderDialog({
@@ -58,7 +63,7 @@ function CreateFolderDialog({
     try {
       const response = await mutation.mutateAsync({ name: trimmed, emoji, isShared });
       onOpenChange(false);
-      onCreated?.(response.data.id);
+      onCreated?.({ id: response.data.id, isShared });
     } catch (error) {
       console.log("folders:create:failed", error);
     }
@@ -310,4 +315,9 @@ function FolderFormBody({
 }
 
 export { CreateFolderDialog, EditFolderDialog };
-export type { CreateFolderDialogMode, CreateFolderDialogProps, EditFolderDialogProps };
+export type {
+  CreatedFolder,
+  CreateFolderDialogMode,
+  CreateFolderDialogProps,
+  EditFolderDialogProps,
+};

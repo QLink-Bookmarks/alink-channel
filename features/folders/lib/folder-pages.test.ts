@@ -4,6 +4,8 @@ import {
   flattenFolderPages,
   getNextFolderCursor,
   isFolderId,
+  resolveScrollRestore,
+  shouldFetchMoreFolders,
   splitFoldersBySection,
 } from "./folder-pages";
 
@@ -72,5 +74,95 @@ describe("isFolderId", () => {
     expect(isFolderId(-3)).toBe(false);
     expect(isFolderId(1.5)).toBe(false);
     expect(isFolderId(Number.NaN)).toBe(false);
+  });
+});
+
+describe("shouldFetchMoreFolders", () => {
+  const ready = {
+    hasOpenSection: true,
+    hasNextPage: true,
+    isFetchingNextPage: false,
+    isFetchNextPageError: false,
+  };
+
+  it("fetches when the open list reaches its end or does not fill its area", () => {
+    expect(shouldFetchMoreFolders(ready, { endReached: true })).toBe(true);
+    expect(
+      shouldFetchMoreFolders(ready, { endReached: false, contentHeight: 120, viewportHeight: 300 }),
+    ).toBe(true);
+    expect(
+      shouldFetchMoreFolders(ready, { endReached: false, contentHeight: 900, viewportHeight: 300 }),
+    ).toBe(false);
+  });
+
+  it("does not fetch with both sections closed, without a next page, while fetching or after a failure", () => {
+    expect(shouldFetchMoreFolders({ ...ready, hasOpenSection: false }, { endReached: true })).toBe(
+      false,
+    );
+    expect(shouldFetchMoreFolders({ ...ready, hasNextPage: false }, { endReached: true })).toBe(
+      false,
+    );
+    expect(
+      shouldFetchMoreFolders({ ...ready, isFetchingNextPage: true }, { endReached: true }),
+    ).toBe(false);
+    expect(
+      shouldFetchMoreFolders({ ...ready, isFetchNextPageError: true }, { endReached: true }),
+    ).toBe(false);
+  });
+
+  it("waits for a measured area before treating the list as short", () => {
+    expect(
+      shouldFetchMoreFolders(ready, { endReached: false, contentHeight: 0, viewportHeight: 0 }),
+    ).toBe(false);
+  });
+});
+
+describe("resolveScrollRestore", () => {
+  const base = {
+    viewportHeight: 300,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    isFetchNextPageError: false,
+  };
+
+  it("does nothing without a saved position", () => {
+    expect(resolveScrollRestore({ ...base, savedOffset: 0, contentHeight: 900 })).toEqual({
+      type: "none",
+    });
+  });
+
+  it("scrolls to the saved position once the content reaches it", () => {
+    expect(resolveScrollRestore({ ...base, savedOffset: 400, contentHeight: 900 })).toEqual({
+      type: "scroll",
+      offset: 400,
+    });
+  });
+
+  it("fetches more when the content is too short and another page exists", () => {
+    expect(
+      resolveScrollRestore({ ...base, savedOffset: 800, contentHeight: 900, hasNextPage: true }),
+    ).toEqual({ type: "fetchMore" });
+    expect(
+      resolveScrollRestore({
+        ...base,
+        savedOffset: 800,
+        contentHeight: 900,
+        hasNextPage: true,
+        isFetchingNextPage: true,
+      }),
+    ).toEqual({ type: "wait" });
+  });
+
+  it("goes to the last possible position when the list got shorter", () => {
+    expect(resolveScrollRestore({ ...base, savedOffset: 800, contentHeight: 700 })).toEqual({
+      type: "scroll",
+      offset: 400,
+    });
+  });
+
+  it("waits until the list is measured", () => {
+    expect(resolveScrollRestore({ ...base, savedOffset: 400, contentHeight: 0 })).toEqual({
+      type: "wait",
+    });
   });
 });

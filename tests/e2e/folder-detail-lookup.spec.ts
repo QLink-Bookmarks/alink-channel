@@ -128,11 +128,13 @@ test.describe("folder detail lookup", () => {
 
     await page.goto(`/folders/${LATE_ID}`);
 
-    await expect(page.getByText("폴더를 불러오지 못했어요")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("main").getByText("폴더를 불러오지 못했어요")).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByText("폴더를 찾을 수 없어요")).toHaveCount(0);
 
     state.folderPages.failAll = false;
-    await page.getByRole("button", { name: "다시 시도" }).click();
+    await page.getByRole("main").getByRole("button", { name: "다시 시도" }).click();
 
     await expectFolderOpened(page, `폴더 ${LATE_ID}`);
   });
@@ -148,11 +150,13 @@ test.describe("folder detail lookup", () => {
 
     await page.goto(`/folders/${LATE_ID}`);
 
-    await expect(page.getByText("폴더를 불러오지 못했어요")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("main").getByText("폴더를 불러오지 못했어요")).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByText("폴더를 찾을 수 없어요")).toHaveCount(0);
 
     state.folderPages.failPages.clear();
-    await page.getByRole("button", { name: "다시 시도" }).click();
+    await page.getByRole("main").getByRole("button", { name: "다시 시도" }).click();
 
     await expectFolderOpened(page, `폴더 ${LATE_ID}`);
   });
