@@ -103,7 +103,8 @@ function TodoItem({
         testID={isOverdue ? "todo-item-overdue" : "todo-item"}
         onPress={onPress}
       >
-        <View className="flex-1 flex-row items-start gap-3 px-4 py-3.5">
+        {/* grow, not flex-1: native flex:1 uses basis 0, which collapses this content-sized card on relayout (#15). */}
+        <View className="grow flex-row items-start gap-3 px-4 py-3.5">
           <View
             className="pt-px"
             {...(stopPropagationProps ?? null)}
