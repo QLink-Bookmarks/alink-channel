@@ -5,10 +5,11 @@ import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
-import { useLinksQuery } from "@/features/links/queries";
 import { useCreateFolderSheet } from "@/stores/create-folder-sheet";
 
-import { useFoldersQuery } from "../queries";
+import { useUncategorizedCount } from "../hooks/use-uncategorized-count";
+import { UNCATEGORIZED_FOLDER_ID, splitFoldersBySection } from "../lib/folder-pages";
+import { useFolderPagesQuery } from "../queries";
 import type { Folder, FolderOrder } from "../types";
 import { CreateFolderDialog } from "./create-folder-dialog";
 import { FolderTile } from "./folder-tile";
@@ -16,7 +17,6 @@ import { FolderTile } from "./folder-tile";
 import { type Href, useRouter } from "expo-router";
 
 type FilterValue = "all" | "mine" | "shared";
-const UNCATEGORIZED_FOLDER_ID = 0;
 
 const FILTER_OPTIONS = [
   { label: "전체", value: "all" },
@@ -33,8 +33,8 @@ const ORDER_OPTIONS: { label: string; value: FolderOrder }[] = [
 function MobileFoldersScreen() {
   const router = useRouter();
   const [order, setOrder] = React.useState<FolderOrder>("latest");
-  const foldersQuery = useFoldersQuery({ size: 15, order });
-  const uncategorizedLinksQuery = useLinksQuery({ folderId: UNCATEGORIZED_FOLDER_ID, size: 100 });
+  const folderPagesQuery = useFolderPagesQuery({ order });
+  const uncategorizedCount = useUncategorizedCount();
   const [filter, setFilter] = React.useState<FilterValue>("all");
   const isCreateOpen = useCreateFolderSheet((state) => state.isOpen);
   const openCreateSheet = useCreateFolderSheet((state) => state.open);
@@ -51,10 +51,9 @@ function MobileFoldersScreen() {
     openCreateSheet();
   }, [openCreateSheet]);
 
-  const folders = foldersQuery.data?.contents ?? [];
-  const myFolders = folders.filter((folder) => !folder.isShared);
-  const sharedFolders = folders.filter((folder) => folder.isShared);
-  const uncategorizedCount = uncategorizedLinksQuery.data?.contents.length ?? 0;
+  const { mine: myFolders, shared: sharedFolders } = splitFoldersBySection(
+    folderPagesQuery.data?.pages.slice(0, 1),
+  );
 
   const showMine = filter !== "shared";
   const showShared = filter !== "mine";
@@ -107,7 +106,7 @@ function MobileFoldersScreen() {
             />
           </View>
 
-          {foldersQuery.isLoading ? (
+          {folderPagesQuery.isLoading ? (
             <ActivityIndicator
               size="large"
               className="py-16"
@@ -165,7 +164,7 @@ type FolderSectionProps = {
   folders: Folder[];
   addLabel: string;
   showUncategorized?: boolean;
-  uncategorizedCount?: number;
+  uncategorizedCount?: string;
   onAddPress: () => void;
   onFolderPress: (folder: Folder) => void;
   onUncategorizedPress?: () => void;

@@ -8,7 +8,7 @@ type FolderTileProps = {
   className?: string;
   emoji?: string | null;
   name: string;
-  count?: number;
+  count?: number | string;
   add?: boolean;
   onPress?: () => void;
 };
@@ -46,9 +46,7 @@ function FolderTile({ className, emoji, name, count, add, onPress }: FolderTileP
         >
           {name}
         </Text>
-        {typeof count === "number" ? (
-          <Text className="text-xs text-muted-foreground">{count}개</Text>
-        ) : null}
+        {count != null ? <Text className="text-xs text-muted-foreground">{count}개</Text> : null}
       </View>
     </Pressable>
   );

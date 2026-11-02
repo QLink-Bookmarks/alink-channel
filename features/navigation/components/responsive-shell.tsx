@@ -22,10 +22,15 @@ import { useMyProfileQuery } from "@/features/account/queries";
 import { AnnouncementsHeaderAction } from "@/features/announcements/components/announcements-header-action";
 import { CreateFolderDialog } from "@/features/folders/components/create-folder-dialog";
 import { FolderHeaderActions } from "@/features/folders/components/folder-header-actions";
-import { useFoldersQuery } from "@/features/folders/queries";
+import { useUncategorizedCount } from "@/features/folders/hooks/use-uncategorized-count";
+import {
+  UNCATEGORIZED_FOLDER_ID,
+  splitFoldersBySection,
+} from "@/features/folders/lib/folder-pages";
+import { useFolderPagesQuery, useFolderQuery } from "@/features/folders/queries";
 import { DetailPanel } from "@/features/links/components/detail-panel/detail-panel";
 import { LinkCreateForm } from "@/features/links/components/link-create-form";
-import { useLinkDetailQuery, useLinksQuery } from "@/features/links/queries";
+import { useLinkDetailQuery } from "@/features/links/queries";
 import { NotificationBellButton } from "@/features/notifications/components/notification-bell-button";
 import { SearchDialog } from "@/features/search/components/search-dialog";
 import { useCreateFolderSheet } from "@/stores/create-folder-sheet";
@@ -72,7 +77,7 @@ const widePrimaryItems: {
   { href: "/links", key: "links", label: "전체", icon: BookCopyIcon },
   { href: "/todos", key: "todos", label: "할일", icon: CheckSquare },
 ];
-const UNCATEGORIZED_FOLDER_ID = 0;
+const WIDE_SIDEBAR_FOLDER_LIMIT = 15;
 
 function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -102,7 +107,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const [sharedLinkUrl, setSharedLinkUrl] = React.useState<string | null>(null);
   const wasAddLinkOpenRef = React.useRef(false);
   const { linkUrl: linkUrlParam } = useLocalSearchParams<{ linkUrl?: string }>();
-  const foldersQuery = useFoldersQuery({ size: 15 });
+  const folderPagesQuery = useFolderPagesQuery({ enabled: routeState.isWideView });
   const myProfileQuery = useMyProfileQuery();
   const isAnnouncementsListRoute = routeState.pathname === "/announcements";
   const avatarEmojiOverride = useDisplaySettings((state) => state.profile.avatarEmoji);
@@ -110,7 +115,12 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const profileNickname = myProfileQuery.data?.nickname ?? "사용자";
   const profileUsername = myProfileQuery.data?.username ?? "";
   const profileAvatarUrl = myProfileQuery.data?.avatarUrl ?? null;
-  const uncategorizedLinksQuery = useLinksQuery({ folderId: UNCATEGORIZED_FOLDER_ID, size: 100 });
+  const uncategorizedCount = useUncategorizedCount();
+  const mobileFolderIdMatch = /^\/folders\/(\d+)$/.exec(routeState.pathname);
+  const mobileFolderId = mobileFolderIdMatch ? Number(mobileFolderIdMatch[1]) : Number.NaN;
+  const mobileFolderQuery = useFolderQuery(mobileFolderId, {
+    enabled: !routeState.isWideView && mobileFolderId !== UNCATEGORIZED_FOLDER_ID,
+  });
   // Link title for the mobile detail header (enabled only on /links/[id]).
   const mobileLinkDetailId = /^\/links\/([^/]+)$/.exec(routeState.pathname)?.[1];
   const mobileLinkDetailQuery = useLinkDetailQuery(mobileLinkDetailId);
@@ -299,11 +309,11 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   }
 
   if (routeState.isWideView) {
-    const allFolders = foldersQuery.data?.contents ?? [];
-    const myFolders = allFolders.filter((folder) => !folder.isShared);
-    const sharedFolders = allFolders.filter((folder) => folder.isShared);
-    const isFoldersLoading = foldersQuery.isLoading;
-    const uncategorizedCount = uncategorizedLinksQuery.data?.contents.length ?? 0;
+    const { mine: myFolders, shared: sharedFolders } = splitFoldersBySection(
+      folderPagesQuery.data?.pages.slice(0, 1),
+      { limit: WIDE_SIDEBAR_FOLDER_LIMIT },
+    );
+    const isFoldersLoading = folderPagesQuery.isLoading;
 
     return (
       <View className="flex-1 flex-row bg-background">
@@ -574,14 +584,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   }
 
   const isMobileHome = routeState.pathname === "/home";
-  const mobileFolderIdMatch = /^\/folders\/(\d+)$/.exec(routeState.pathname);
-  const mobileFolderId = mobileFolderIdMatch ? Number(mobileFolderIdMatch[1]) : Number.NaN;
-  const allMobileFolders = foldersQuery.data?.contents ?? [];
-  // TODO: Replace this list lookup with useFolderQuery(folderId) when the server exposes GET /api/folders/{id}.
-  const mobileFolder =
-    Number.isFinite(mobileFolderId) && mobileFolderId !== UNCATEGORIZED_FOLDER_ID
-      ? allMobileFolders.find((folder) => folder.id === mobileFolderId)
-      : undefined;
+  const mobileFolder = mobileFolderQuery.folder;
   const mobileLinkTitle = mobileLinkDetailId
     ? mobileLinkDetailQuery.data?.title?.trim()
     : undefined;
