@@ -38,6 +38,7 @@ import { useAnySheetOpen } from "@/stores/sheet-tracker";
 
 import { useAddLinkSheet } from "../hooks/use-add-link-sheet";
 import { useLinkOverlayState } from "../hooks/use-link-overlay-state";
+import { type ShellActions, ShellActionsContext } from "../hooks/use-shell-actions";
 import { useShellRouteState } from "../hooks/use-shell-route-state";
 import { getFolderIdFromPath } from "../lib/folder-path";
 import { isNewLinkShortcut, suppressNextTextInput } from "../lib/new-link-shortcut";
@@ -211,6 +212,11 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     setHasOpenedAddLinkSheet(true);
     openAddLinkSheet();
   }, [openAddLinkSheet]);
+
+  const shellActions = React.useMemo<ShellActions>(
+    () => ({ openNewLink: handleFabPress }),
+    [handleFabPress],
+  );
 
   const handleWideLinkSaved = React.useCallback(
     (id: number) => {
@@ -433,7 +439,6 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     : mobileLinkTitle || routeState.routeTitle;
   const showMobileFab =
     routeState.pathname === "/home" ||
-    routeState.pathname === "/folders" ||
     routeState.pathname === "/todos" ||
     routeState.pathname.startsWith("/folders/");
 
@@ -473,7 +478,9 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
         className="flex-1"
         role="main"
       >
-        <RouteErrorBoundary resetKeys={[routeState.pathname]}>{children}</RouteErrorBoundary>
+        <ShellActionsContext value={shellActions}>
+          <RouteErrorBoundary resetKeys={[routeState.pathname]}>{children}</RouteErrorBoundary>
+        </ShellActionsContext>
       </View>
       {showMobileFab && !isAnySheetOpen && !isAddLinkSheetOpen && !isCreateFolderSheetOpen ? (
         <Fab

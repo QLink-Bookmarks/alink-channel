@@ -741,7 +741,7 @@ test.describe("wide sidebar folder states", () => {
     await mockApi(page, { folders: makeFolders(5, 0) });
     await page.setViewportSize({ width: 768, height: 900 });
     await page.goto("/folders");
-    await page.getByText("+ 새 폴더").click();
+    await page.getByRole("button", { name: "내 폴더에 폴더 추가" }).click();
     await page.getByPlaceholder("예: 디자인 레퍼런스").fill("탭에서 만든 폴더");
     await page.getByRole("button", { name: "저장" }).click();
     await expect(page.getByText("탭에서 만든 폴더").first()).toBeVisible();

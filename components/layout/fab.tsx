@@ -15,6 +15,7 @@ function Fab({
   icon,
   label,
   onPress,
+  placement = "floating",
   bottomOffset = 24,
   rightOffset = 24,
 }: {
@@ -22,21 +23,31 @@ function Fab({
   icon: LucideIcon;
   label?: string;
   onPress?: () => void;
+  placement?: "floating" | "inline";
   bottomOffset?: number;
   rightOffset?: number;
 }) {
   const insets = useSafeAreaInsets();
+  const isFloating = placement === "floating";
 
   return (
     <Button
       accessibilityLabel={label}
-      className={cn("absolute z-fixed size-14 rounded-full shadow-qlink-fab", className)}
+      className={cn(
+        "size-14 rounded-full shadow-qlink-fab",
+        isFloating && "absolute z-fixed",
+        className,
+      )}
       onPress={onPress}
       size="icon"
-      style={{
-        bottom: insets.bottom + bottomOffset,
-        right: rightOffset,
-      }}
+      style={
+        isFloating
+          ? {
+              bottom: insets.bottom + bottomOffset,
+              right: rightOffset,
+            }
+          : undefined
+      }
       variant="gradient"
     >
       <Icon

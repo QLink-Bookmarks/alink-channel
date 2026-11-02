@@ -230,12 +230,12 @@ function FolderListSkeleton({ rows, size }: { rows: number; size: FolderSectionS
       accessibilityRole="progressbar"
       accessibilityState={{ busy: true }}
     >
-      {SKELETON_WIDTHS.slice(0, rows).map((width) => (
+      {SKELETON_WIDTHS.slice(0, rows).map((width, index) => (
         <View
-          key={width + rows}
+          key={`skeleton-${index}`}
           className={cn(
             "flex-row items-center",
-            isLarge ? "h-[60px] gap-3 px-5" : "h-10 gap-2.5 px-3",
+            isLarge ? "h-[60px] gap-3 px-2" : "h-10 gap-2.5 px-3",
           )}
         >
           <Skeleton className={isLarge ? "size-10 rounded-2xl" : "size-[18px]"} />
@@ -251,21 +251,29 @@ function FolderListError({ size, onRetry }: { size: FolderSectionSize; onRetry: 
   return (
     <View
       accessibilityRole="alert"
-      className={cn("items-start gap-2 pb-3 pt-2.5", isLarge ? "px-5" : "px-3")}
+      className={cn("items-start gap-2 pb-3 pt-2.5", isLarge ? "px-2" : "px-3")}
     >
       <View className="flex-row items-center gap-1.5">
         <Icon
           as={CircleAlert}
           className="size-[15px] text-destructive"
         />
-        <Text className={cn("font-semibold text-sidebar-hover", isLarge ? "text-lg" : "text-sm")}>
+        <Text
+          className={cn(
+            "font-semibold",
+            isLarge ? "text-lg text-foreground" : "text-sm text-sidebar-hover",
+          )}
+        >
           폴더를 불러오지 못했어요
         </Text>
       </View>
-      <Text className={cn("text-sidebar-muted", isLarge ? "text-sm" : "text-xs")}>
+      <Text
+        className={cn(isLarge ? "text-sm text-muted-foreground" : "text-xs text-sidebar-muted")}
+      >
         연결 상태를 확인하고 다시 시도해 주세요.
       </Text>
       <Button
+        className={isLarge ? "h-11 px-4" : undefined}
         size="sm"
         variant="outline"
         onPress={onRetry}
@@ -284,11 +292,18 @@ function FolderListEmpty({ section, size }: { section: FolderSection; size: Fold
   const isLarge = size === "large";
   const copy = EMPTY_COPY[section];
   return (
-    <View className={cn("gap-0.5 pb-2 pt-1.5", isLarge ? "px-5" : "px-3")}>
-      <Text className={cn("font-semibold text-sidebar-hover", isLarge ? "text-lg" : "text-sm")}>
+    <View className={cn("gap-0.5 pb-2 pt-1.5", isLarge ? "px-2" : "px-3")}>
+      <Text
+        className={cn(
+          "font-semibold",
+          isLarge ? "text-lg text-foreground" : "text-sm text-sidebar-hover",
+        )}
+      >
         {copy.title}
       </Text>
-      <Text className={cn("text-sidebar-muted", isLarge ? "text-sm" : "text-xs")}>
+      <Text
+        className={cn(isLarge ? "text-sm text-muted-foreground" : "text-xs text-sidebar-muted")}
+      >
         {copy.description}
       </Text>
     </View>
@@ -324,22 +339,27 @@ function FolderListFooter({
         accessibilityRole="alert"
         className={cn(
           "flex-row items-center justify-between gap-1",
-          isLarge ? "h-[52px] pl-5 pr-2" : "h-10 pl-3",
+          isLarge ? "h-[52px] pl-2" : "h-10 pl-3",
         )}
       >
-        <Text className={cn("text-sidebar-muted", isLarge ? "text-sm" : "text-xs")}>
+        <Text
+          className={cn(isLarge ? "text-sm text-muted-foreground" : "text-xs text-sidebar-muted")}
+        >
           더 불러오지 못했어요
         </Text>
         <Button
-          size="xs"
+          className={isLarge ? "h-11" : undefined}
+          size={isLarge ? "sm" : "xs"}
           variant="ghost"
           onPress={onRetry}
         >
           <Icon
             as={RotateCw}
-            className="size-3 text-primary"
+            className={cn("text-primary", isLarge ? "size-3.5" : "size-3")}
           />
-          <Text className="text-xs font-semibold text-primary">다시 시도</Text>
+          <Text className={cn("font-semibold text-primary", isLarge ? "text-sm" : "text-xs")}>
+            다시 시도
+          </Text>
         </Button>
       </View>
     );

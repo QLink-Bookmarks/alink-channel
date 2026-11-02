@@ -46,12 +46,14 @@ function FolderSectionHeader({
 
   return (
     <View
+      // shadow-section-rest: NativeWind가 transform/shadow 클래스가 처음 붙을 때 컴포넌트를 바꿔 끼워 iOS에서 Couldn't find a navigation context 오류가 난다. 기본값을 늘 붙여 둔다. 지우지 말 것.
       className={cn(
-        "relative z-10 flex-row items-center bg-sidebar",
-        isLarge ? "h-[52px]" : "h-11",
-        hasDivider && "shadow-section-divider",
-        shadow === "top" && "shadow-section-pin-top",
-        shadow === "bottom" && "shadow-section-pin-bottom",
+        "relative z-10 flex-row items-center shadow-section-rest",
+        isLarge ? "h-[52px] bg-background pl-2 pr-1" : "h-11 bg-sidebar",
+        hasDivider && (isLarge ? "shadow-section-divider-strong" : "shadow-section-divider"),
+        shadow === "top" && (isLarge ? "shadow-section-pin-top-strong" : "shadow-section-pin-top"),
+        shadow === "bottom" &&
+          (isLarge ? "shadow-section-pin-bottom-strong" : "shadow-section-pin-bottom"),
         className,
       )}
     >
@@ -60,23 +62,35 @@ function FolderSectionHeader({
         accessibilityRole="button"
         aria-expanded={isOpen}
         className={cn(
-          "group min-w-0 flex-1 flex-row items-center gap-1.5 rounded-xl px-2 active:bg-sidebar-surface-2 web:transition-colors web:hover:bg-sidebar-surface-2 web:motion-reduce:transition-none",
-          isLarge ? "h-[52px]" : "h-11",
+          "group min-w-0 flex-1 flex-row items-center rounded-xl px-2 web:transition-colors web:motion-reduce:transition-none",
+          isLarge
+            ? "h-[52px] gap-2 active:bg-muted web:hover:bg-muted"
+            : "h-11 gap-1.5 active:bg-sidebar-surface-2 web:hover:bg-sidebar-surface-2",
         )}
         onPress={() => onToggle(section)}
       >
-        <Icon
-          as={ChevronDown}
+        <View
+          // rotate-0: NativeWind가 transform/shadow 클래스가 처음 붙을 때 컴포넌트를 바꿔 끼워 iOS에서 Couldn't find a navigation context 오류가 난다. 기본값을 늘 붙여 둔다. 지우지 말 것.
           className={cn(
-            "text-sidebar-muted web:transition-transform web:duration-200 web:group-hover:text-sidebar-hover web:motion-reduce:transition-none",
-            isLarge ? "size-[18px]" : "size-3.5",
-            !isOpen && "-rotate-90",
+            "items-center justify-center web:transition-transform web:duration-200 web:motion-reduce:transition-none",
+            isOpen ? "rotate-0" : "-rotate-90",
           )}
-        />
+        >
+          <Icon
+            as={ChevronDown}
+            className={cn(
+              isLarge
+                ? "size-[18px] text-muted-foreground"
+                : "size-3.5 text-sidebar-muted web:group-hover:text-sidebar-hover",
+            )}
+          />
+        </View>
         <Text
           className={cn(
-            "font-semibold text-sidebar-muted web:group-hover:text-sidebar-hover",
-            isLarge ? "text-base" : "text-sm",
+            "font-semibold",
+            isLarge
+              ? "text-base text-foreground"
+              : "text-sm text-sidebar-muted web:group-hover:text-sidebar-hover",
           )}
           numberOfLines={1}
         >
@@ -91,15 +105,18 @@ function FolderSectionHeader({
       >
         <View
           className={cn(
-            "items-center justify-center text-sidebar-muted group-active:bg-sidebar-surface-2 web:transition-colors web:group-hover:bg-sidebar-surface-2 web:motion-reduce:transition-none",
-            isLarge ? "size-8 rounded-full bg-muted" : "size-6 rounded-md",
+            "items-center justify-center web:transition-colors web:motion-reduce:transition-none",
+            isLarge
+              ? "size-8 rounded-full bg-muted group-active:bg-accent"
+              : "size-6 rounded-md group-active:bg-sidebar-surface-2 web:group-hover:bg-sidebar-surface-2",
           )}
         >
           <Icon
             as={Plus}
             className={cn(
-              "text-sidebar-muted web:group-hover:text-primary",
-              isLarge ? "size-4" : "size-3.5",
+              isLarge
+                ? "size-4 text-foreground"
+                : "size-3.5 text-sidebar-muted web:group-hover:text-primary",
             )}
           />
         </View>

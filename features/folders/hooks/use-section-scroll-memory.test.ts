@@ -45,6 +45,43 @@ describe("useSectionScrollMemory", () => {
     expect(scrollTo).toHaveBeenCalledWith(180);
   });
 
+  it("keeps restoring while the list renders more rows, and stops at the saved position", () => {
+    setFolderScrollOffset("sidebar", "mine", 1200);
+    const scrollTo = jest.fn();
+    const { result, rerender } = renderMemory(scrollTo, {
+      contentHeight: 1240,
+      viewportHeight: 480,
+    });
+    expect(scrollTo).toHaveBeenLastCalledWith(760);
+
+    act(() => result.current.recordScrollOffset(760));
+    expect(getFolderScrollOffset("sidebar", "mine")).toBe(1200);
+
+    rerender({ contentHeight: 2000, viewportHeight: 480 });
+    expect(scrollTo).toHaveBeenLastCalledWith(1200);
+
+    rerender({ contentHeight: 2600, viewportHeight: 480 });
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops restoring when the user scrolls after a partial restore", () => {
+    setFolderScrollOffset("sidebar", "mine", 1200);
+    const scrollTo = jest.fn();
+    const { result, rerender } = renderMemory(scrollTo, {
+      contentHeight: 1240,
+      viewportHeight: 480,
+    });
+    expect(scrollTo).toHaveBeenLastCalledWith(760);
+
+    act(() => result.current.recordScrollOffset(500));
+    expect(getFolderScrollOffset("sidebar", "mine")).toBe(500);
+
+    rerender({ contentHeight: 2000, viewportHeight: 480 });
+    rerender({ contentHeight: 2600, viewportHeight: 480 });
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(getFolderScrollOffset("sidebar", "mine")).toBe(500);
+  });
+
   it("ignores a late scroll event after the list unmounts", () => {
     const { result, unmount } = renderMemory(jest.fn(), {
       contentHeight: 900,

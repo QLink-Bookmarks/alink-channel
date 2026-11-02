@@ -36,3 +36,16 @@ type Story = StoryObj<typeof meta>;
 export const Basic: Story = {
   name: "기본",
 };
+
+export const Inline: Story = {
+  name: "줄 안에 놓기",
+  args: { placement: "inline", label: "새 링크" },
+  render: (args) => (
+    <View className="h-[72px] flex-row items-center border-t border-border bg-background">
+      <View className="flex-1 px-5" />
+      <View className="w-[88px] items-center justify-center">
+        <Fab {...args} />
+      </View>
+    </View>
+  ),
+};

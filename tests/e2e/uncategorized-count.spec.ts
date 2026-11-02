@@ -12,13 +12,11 @@ async function openFolderList(page: Page) {
 }
 
 function uncategorizedEntry(page: Page) {
-  return isWideProject()
-    ? page.getByRole("button", { name: /^미분류/ })
-    : page.getByText("미분류", { exact: true }).first();
+  return page.getByRole("button", { name: /^미분류/ });
 }
 
 function uncategorizedCountArea(page: Page) {
-  return isWideProject() ? uncategorizedEntry(page) : uncategorizedEntry(page).locator("xpath=..");
+  return uncategorizedEntry(page);
 }
 
 test.describe("uncategorized count", () => {
