@@ -222,7 +222,10 @@ async function pressBottomTab(page: Page, label: string) {
 }
 
 async function pressSidebar(page: Page, label: string) {
-  await page.getByText(label, { exact: true }).first().click();
+  await page
+    .getByText(new RegExp(`^(?:[^\\p{L}\\p{N}\\s]+\\s?)?${label}$`, "u"))
+    .first()
+    .click();
 }
 
 async function openMobileFolder(page: Page, label: string) {
@@ -421,12 +424,12 @@ test.describe("wide sidebar", () => {
     await expect(linkCards(page)).toHaveCount(30);
     await scrollListTo(page, linkCards(page), 900);
 
-    await pressSidebar(page, "📚 공부");
+    await pressSidebar(page, "공부");
     await expect(page).toHaveURL(/\/folders\/1$/);
     await expect(linkCards(page)).toHaveCount(30);
     await scrollListTo(page, linkCards(page), 700);
 
-    await pressSidebar(page, "🗂️ 미분류");
+    await pressSidebar(page, "미분류");
     await expect(page).toHaveURL(/\/folders\/0$/);
     await expect(linkCards(page)).toHaveCount(30);
     await scrollListTo(page, linkCards(page), 500);
@@ -436,9 +439,9 @@ test.describe("wide sidebar", () => {
 
     await pressSidebar(page, "전체");
     await expectScrollTop(linkCards(page), 900);
-    await pressSidebar(page, "📚 공부");
+    await pressSidebar(page, "공부");
     await expectScrollTop(linkCards(page), 700);
-    await pressSidebar(page, "🗂️ 미분류");
+    await pressSidebar(page, "미분류");
     await expectScrollTop(linkCards(page), 500);
   });
 
@@ -450,12 +453,12 @@ test.describe("wide sidebar", () => {
     await expect(linkCards(page)).toHaveCount(30);
     await scrollListTo(page, linkCards(page), 800);
 
-    await pressSidebar(page, "☕ 가볼 곳");
+    await pressSidebar(page, "가볼 곳");
     await expect(page).toHaveURL(/\/folders\/2$/);
     await expect(linkCards(page).filter({ hasText: "가볼 곳 링크" })).toHaveCount(30);
     await expectScrollTop(linkCards(page), 0);
 
-    await pressSidebar(page, "📚 공부");
+    await pressSidebar(page, "공부");
     await expect(linkCards(page).filter({ hasText: "공부 링크" })).toHaveCount(30);
     await expectScrollTop(linkCards(page), 800);
   });
@@ -507,7 +510,7 @@ test.describe("wide sidebar", () => {
 
     await pressSidebar(page, "홈");
     await expect(page).toHaveURL(/\/home$/);
-    await pressSidebar(page, "📚 공부");
+    await pressSidebar(page, "공부");
 
     await expect(linkCards(page)).toHaveCount(10);
     expect(await isChipSelected(page, "오래된순", "최신순")).toBe(true);
@@ -526,7 +529,7 @@ test.describe("wide sidebar", () => {
 
     await pressSidebar(page, "홈");
     await expect(page).toHaveURL(/\/home$/);
-    await pressSidebar(page, "☕ 가볼 곳");
+    await pressSidebar(page, "가볼 곳");
 
     await expect(page.getByText("아직 링크가 없어요")).toBeInViewport();
     await expect(linkCards(page)).toHaveCount(0);
