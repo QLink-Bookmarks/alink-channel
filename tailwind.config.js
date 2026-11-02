@@ -117,6 +117,11 @@ module.exports = {
         "qlink-glow": "0 0 20px rgba(var(--glow-rgb), 0.35)",
         "qlink-fab": "0 8px 24px rgba(var(--glow-rgb), 0.35), 0 0 0 4px rgba(255, 255, 255, 0.4)",
         "qlink-modal": "0 24px 60px rgba(0, 0, 0, 0.30)",
+        "section-divider": "0 -1px 0 hsl(var(--sidebar-border))",
+        "section-pin-top":
+          "0 1px 0 hsl(var(--sidebar-border)), 0 6px 10px -8px rgba(var(--glow-rgb), 0.45)",
+        "section-pin-bottom":
+          "0 -1px 0 hsl(var(--sidebar-border)), 0 -6px 10px -8px rgba(var(--glow-rgb), 0.45)",
       },
       fontFamily: {
         sans: ["Pretendard", "SF Pro KR", "Apple SD Gothic Neo", "Noto Sans KR", "sans-serif"],

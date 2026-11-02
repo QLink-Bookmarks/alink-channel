@@ -54,12 +54,86 @@ function isFolderId(id: number) {
   return Number.isInteger(id) && id > 0;
 }
 
+type FolderFetchState = {
+  hasOpenSection: boolean;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  isFetchNextPageError: boolean;
+};
+
+type FolderListMetrics = {
+  contentHeight: number;
+  viewportHeight: number;
+};
+
+function isFolderListShort({ contentHeight, viewportHeight }: FolderListMetrics) {
+  return viewportHeight > 0 && contentHeight <= viewportHeight + 1;
+}
+
+function shouldFetchMoreFolders(
+  state: FolderFetchState,
+  trigger: { endReached: boolean } & Partial<FolderListMetrics>,
+) {
+  if (!state.hasOpenSection || !state.hasNextPage) {
+    return false;
+  }
+  if (state.isFetchingNextPage || state.isFetchNextPageError) {
+    return false;
+  }
+  const isShort =
+    trigger.contentHeight != null &&
+    trigger.viewportHeight != null &&
+    isFolderListShort({
+      contentHeight: trigger.contentHeight,
+      viewportHeight: trigger.viewportHeight,
+    });
+  return trigger.endReached || isShort;
+}
+
+type ScrollRestoreDecision =
+  | { type: "none" }
+  | { type: "scroll"; offset: number }
+  | { type: "fetchMore" }
+  | { type: "wait" };
+
+function resolveScrollRestore({
+  savedOffset,
+  contentHeight,
+  viewportHeight,
+  hasNextPage,
+  isFetchingNextPage,
+  isFetchNextPageError,
+}: FolderListMetrics & {
+  savedOffset: number;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  isFetchNextPageError: boolean;
+}): ScrollRestoreDecision {
+  if (savedOffset <= 0) {
+    return { type: "none" };
+  }
+  if (viewportHeight <= 0 || contentHeight <= 0) {
+    return { type: "wait" };
+  }
+  const maxOffset = Math.max(0, contentHeight - viewportHeight);
+  if (maxOffset >= savedOffset) {
+    return { type: "scroll", offset: savedOffset };
+  }
+  if (hasNextPage && !isFetchNextPageError) {
+    return isFetchingNextPage ? { type: "wait" } : { type: "fetchMore" };
+  }
+  return { type: "scroll", offset: maxOffset };
+}
+
 export {
   UNCATEGORIZED_FOLDER_ID,
   findFolderInPages,
   flattenFolderPages,
   getNextFolderCursor,
   isFolderId,
+  isFolderListShort,
+  resolveScrollRestore,
+  shouldFetchMoreFolders,
   splitFoldersBySection,
 };
-export type { FolderPage, FolderSections };
+export type { FolderFetchState, FolderPage, FolderSections, ScrollRestoreDecision };

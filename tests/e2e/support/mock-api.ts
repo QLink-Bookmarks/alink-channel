@@ -351,6 +351,27 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
         }
         return json(scroll(page.contents, page.nextCursor));
       }
+      if (method === "POST" && path === "/api/folders") {
+        const payload = (body ?? {}) as {
+          name?: string;
+          emoji?: string | null;
+          isShared?: boolean;
+        };
+        const id = Math.max(0, ...state.folders.map((folder) => folder.id)) + 1;
+        state.folders = [
+          {
+            id,
+            ownerId: 1,
+            name: payload.name ?? `폴더 ${id}`,
+            emoji: payload.emoji ?? null,
+            isShared: Boolean(payload.isShared),
+            shareCounts: payload.isShared ? 1 : 0,
+            linkCounts: 0,
+          },
+          ...state.folders,
+        ];
+        return json(envelope({ id }), 201);
+      }
       if (method === "GET" && path === "/api/notifications/unread") {
         return json(envelope({ unreadCount: 0 }));
       }

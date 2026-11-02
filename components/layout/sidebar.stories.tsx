@@ -111,3 +111,37 @@ type Story = StoryObj<typeof meta>;
 export const Basic: Story = {
   name: "기본",
 };
+
+export const FolderRows: Story = {
+  name: "폴더 행",
+  render: () => (
+    <Sidebar className="flex gap-1">
+      <SidebarItem
+        accessibilityLabel="읽을거리, 링크 12개"
+        count={12}
+        emoji="📚"
+        label="읽을거리"
+      />
+      <SidebarItem
+        active
+        accessibilityLabel="2027 교토·오사카 여행 준비 체크리스트와 숙소 후보, 링크 8개"
+        count={8}
+        emoji="✈️"
+        label="2027 교토·오사카 여행 준비 체크리스트와 숙소 후보"
+      />
+      <SidebarItem
+        accessibilityLabel="가족 여행 2026 여름 제주 일정과 맛집 지도, 링크 31개, 6명 참여"
+        count={31}
+        emoji="🏖️"
+        label="가족 여행 2026 여름 제주 일정과 맛집 지도"
+        meta="6명 참여"
+      />
+      <SidebarItem
+        accessibilityLabel="미분류, 링크 100+개"
+        count="100+"
+        emoji="🗂️"
+        label="미분류"
+      />
+    </Sidebar>
+  ),
+};
