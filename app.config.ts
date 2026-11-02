@@ -18,11 +18,14 @@ const webAppHost =
       : "");
 const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? "";
 
-// Firebase native config files. Local builds read them from ./ga; EAS cloud builds
+// Firebase native config files. Local builds read them from ./ga: production uses the
+// qlink-73a09 files, every other variant the alink-dev-3faac `.dev` files. EAS cloud builds
 // override the path via file env vars (eas secret:create --type file).
+const firebaseFileSuffix = appVariant === "production" ? "" : ".dev";
 const iosGoogleServicesFile =
-  process.env.GOOGLE_SERVICES_INFO_PLIST ?? "./ga/GoogleService-Info.plist";
-const androidGoogleServicesFile = process.env.GOOGLE_SERVICES_JSON ?? "./ga/google-services.json";
+  process.env.GOOGLE_SERVICES_INFO_PLIST ?? `./ga/GoogleService-Info${firebaseFileSuffix}.plist`;
+const androidGoogleServicesFile =
+  process.env.GOOGLE_SERVICES_JSON ?? `./ga/google-services${firebaseFileSuffix}.json`;
 // Google's iOS redirect scheme is the client id reversed (REVERSED_CLIENT_ID in the plist).
 const googleIosUrlScheme = googleIosClientId
   ? `com.googleusercontent.apps.${googleIosClientId.replace(".apps.googleusercontent.com", "")}`

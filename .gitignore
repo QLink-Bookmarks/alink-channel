@@ -36,6 +36,8 @@ expo-env.d.ts
 # Firebase native config (client keys — kept out of git like .env; supply via EAS file secrets for cloud builds)
 /ga/GoogleService-Info.plist
 /ga/google-services.json
+/ga/GoogleService-Info.dev.plist
+/ga/google-services.dev.json
 output/
 storybook-static/
 docs/
