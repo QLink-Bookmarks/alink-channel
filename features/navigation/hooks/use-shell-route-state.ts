@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { useWideView } from "@/lib/hooks/use-wide-view";
+import { useWideViewState } from "@/lib/hooks/use-wide-view";
 
 import {
   getBackHref,
@@ -11,6 +11,7 @@ import {
   getRouteTitle,
   getWideSidebarActiveItem,
   isKnownShellPath,
+  isMobileTabRootPath,
   normalizePathname,
 } from "../routes";
 import type { RouteParams } from "../types";
@@ -20,21 +21,24 @@ import { useGlobalSearchParams, usePathname } from "expo-router";
 function useShellRouteState() {
   const pathname = normalizePathname(usePathname());
   const searchParams = useGlobalSearchParams() as RouteParams;
-  const isWideView = useWideView();
+  const { isResolved: isWideViewResolved, isWideView } = useWideViewState();
 
   return React.useMemo(() => {
     const routeTitle = getRouteTitle(pathname, searchParams, isWideView);
     const overlayLinkId = getOverlayLinkId(pathname, searchParams, isWideView);
-    const redirectHref = getRedirectHref({
-      isWideView,
-      pathname,
-      searchParams,
-    });
+    const redirectHref = isWideViewResolved
+      ? getRedirectHref({
+          isWideView,
+          pathname,
+          searchParams,
+        })
+      : undefined;
     const wideSidebarKey = getWideSidebarActiveItem(pathname);
     const mobileTabKey = getMobileTabActiveItem(pathname);
     const backHref = getBackHref(pathname);
     const showBackButton =
       !isWideView &&
+      !isMobileTabRootPath(pathname) &&
       (pathname.startsWith("/folders") ||
         pathname.startsWith("/links") ||
         pathname.startsWith("/announcements") ||
@@ -57,7 +61,7 @@ function useShellRouteState() {
       showBackButton,
       isKnownShellPath: isKnownShellPath(pathname),
     };
-  }, [isWideView, pathname, searchParams]);
+  }, [isWideView, isWideViewResolved, pathname, searchParams]);
 }
 
 export { useShellRouteState };

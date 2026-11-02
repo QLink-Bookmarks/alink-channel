@@ -32,6 +32,7 @@ function AppHeader({
 
   return (
     <View
+      testID="app-header"
       className={cn(
         "min-h-14 flex-row items-center justify-between gap-3 border-b border-border px-4",
         transparent ? "bg-transparent" : "bg-background",
@@ -61,6 +62,7 @@ function AppHeader({
       </View>
       {title ? (
         <Text
+          testID="app-header-title"
           className="flex-1 text-center text-base font-semibold"
           numberOfLines={1}
         >
@@ -69,7 +71,12 @@ function AppHeader({
       ) : (
         <View className="flex-1" />
       )}
-      <View className="min-w-10 flex-row items-center justify-end">{rightSlot}</View>
+      <View
+        testID="app-header-right"
+        className="min-w-10 flex-row items-center justify-end"
+      >
+        {rightSlot}
+      </View>
     </View>
   );
 }

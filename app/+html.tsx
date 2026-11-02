@@ -1,6 +1,21 @@
 import * as React from "react";
 
+import { ACCENT_VALUES, SETTINGS_STORAGE_KEY } from "@/lib/theme-storage";
+
 import { ScrollViewStyleReset } from "expo-router/html";
+
+const STORED_THEME_SCRIPT = `(function () {
+  try {
+    var raw = window.sessionStorage.getItem(${JSON.stringify(SETTINGS_STORAGE_KEY)});
+    if (!raw) return;
+    var display = JSON.parse(raw).display || {};
+    var root = document.documentElement;
+    if (display.theme === "dark") root.classList.add("dark");
+    if (${JSON.stringify(ACCENT_VALUES)}.indexOf(display.accent) !== -1) {
+      root.setAttribute("data-accent", display.accent);
+    }
+  } catch (error) {}
+})();`;
 
 export default function Root({ children }: { children: React.ReactNode }) {
   // OG tags must be absolute URLs (KakaoTalk/Facebook won't resolve relative
@@ -21,6 +36,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
+        <script dangerouslySetInnerHTML={{ __html: STORED_THEME_SCRIPT }} />
         <title>에이링크 ALink — AI가 도와주는 북마크 아카이브</title>
         <meta
           name="description"
