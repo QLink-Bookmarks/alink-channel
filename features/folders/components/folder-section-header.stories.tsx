@@ -71,6 +71,38 @@ export const Accordion: Story = {
   render: () => <AccordionPreview />,
 };
 
+function CurrentFolderPathPreview() {
+  const [openSection, setOpenSection] = React.useState<FolderSection | null>("shared");
+  const handleToggle = (section: FolderSection) =>
+    setOpenSection((current) => (current === section ? null : section));
+  return (
+    <View>
+      <FolderSectionHeader
+        currentFolder={{
+          name: "2027 교토·오사카 여행 준비 체크리스트와 숙소 후보",
+          emoji: "🧳",
+        }}
+        isOpen={openSection === "mine"}
+        section="mine"
+        onAddPress={() => {}}
+        onToggle={handleToggle}
+      />
+      <FolderSectionHeader
+        hasDivider
+        isOpen={openSection === "shared"}
+        section="shared"
+        onAddPress={() => {}}
+        onToggle={handleToggle}
+      />
+    </View>
+  );
+}
+
+export const CurrentFolderPath: Story = {
+  name: "접힌 섹션의 현재 폴더 경로",
+  render: () => <CurrentFolderPathPreview />,
+};
+
 export const Large: Story = {
   name: "모바일 크기",
   args: { size: "large", section: "shared", isOpen: false },

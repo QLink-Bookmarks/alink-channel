@@ -12,9 +12,6 @@ import {
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Emoji } from "@/components/ui/emoji";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Text } from "@/components/ui/text";
-import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { useMyProfileQuery } from "@/features/account/queries";
 import { FolderRailFlyout } from "@/features/folders/components/folder-rail-flyout";
 import { useUncategorizedCount } from "@/features/folders/hooks/use-uncategorized-count";
@@ -28,12 +25,9 @@ import { useNewLinkShortcutLabel } from "../hooks/use-new-link-shortcut-label";
 import { getFolderIdFromPath } from "../lib/folder-path";
 import { WIDE_PRIMARY_ITEMS } from "../lib/wide-sidebar-items";
 import type { WideSidebarKey } from "../types";
+import { ThemePopoverButton } from "./theme-popover-button";
 
-import { CircleAlert, Folder as FolderIcon, Menu, Palette, Plus, Users } from "lucide-react-native";
-
-type PopoverSide = React.ComponentProps<typeof PopoverContent>["side"];
-
-const RAIL_POPOVER_SIDE = (process.env.EXPO_OS === "web" ? "right" : "top") as PopoverSide;
+import { CircleAlert, Folder as FolderIcon, Menu, Plus, Users } from "lucide-react-native";
 
 type WideSidebarRailProps = {
   pathname: string;
@@ -92,42 +86,6 @@ function SelectedFolderRailItem({
   }
 
   return null;
-}
-
-function ThemeRailPopover() {
-  const accent = useDisplaySettings((state) => state.display.accent);
-  const theme = useDisplaySettings((state) => state.display.theme);
-  const setAccent = useDisplaySettings((state) => state.setAccent);
-  const setTheme = useDisplaySettings((state) => state.setTheme);
-
-  return (
-    <Popover>
-      <SidebarRailTooltip label="모드 · 강조색">
-        <PopoverTrigger asChild>
-          <SidebarRailButton
-            accessibilityLabel="모드와 강조색"
-            icon={Palette}
-          />
-        </PopoverTrigger>
-      </SidebarRailTooltip>
-      <PopoverContent
-        accessibilityLabel="모드와 강조색"
-        align="end"
-        className="w-60 gap-2 rounded-2xl p-2.5 shadow-qlink-lg"
-        side={RAIL_POPOVER_SIDE}
-        sideOffset={8}
-      >
-        <Text className="px-0.5 text-sm font-semibold text-muted-foreground">모드 · 강조색</Text>
-        <ThemeSwitcher
-          accent={accent}
-          mode={theme}
-          variant="switch"
-          onAccentChange={setAccent}
-          onModeChange={setTheme}
-        />
-      </PopoverContent>
-    </Popover>
-  );
 }
 
 function WideSidebarRail({
@@ -223,7 +181,7 @@ function WideSidebarRail({
         ) : null}
         <View className="min-h-3 flex-1" />
         <View className="w-14 shrink-0 items-center gap-1.5 border-t border-sidebar-border pt-2.5">
-          <ThemeRailPopover />
+          <ThemePopoverButton />
           <SidebarRailItem
             accessibilityLabel={`프로필 ${profileNickname}`}
             label={profileNickname}

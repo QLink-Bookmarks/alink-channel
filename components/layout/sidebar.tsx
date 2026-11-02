@@ -54,6 +54,7 @@ function SidebarItem({
   labelClassName,
   count,
   meta,
+  metaIcon,
   kbd,
   active,
   accessibilityLabel,
@@ -66,12 +67,16 @@ function SidebarItem({
   labelClassName?: string;
   count?: number | string;
   meta?: string;
+  metaIcon?: LucideIcon;
   kbd?: string;
   active?: boolean;
   accessibilityLabel?: string;
   onPress?: () => void;
 }) {
   const selectionProps = getSelectionProps(active);
+  const metaTextClassName = active
+    ? "text-primary"
+    : "text-sidebar-muted web:group-hover:text-sidebar-hover";
 
   return (
     <Pressable
@@ -116,14 +121,15 @@ function SidebarItem({
         {label}
       </Text>
       {meta ? (
-        <Text
-          className={cn(
-            "shrink-0 text-xs",
-            active ? "text-primary/70" : "text-sidebar-muted/70 web:group-hover:text-sidebar-hover",
-          )}
-        >
-          {meta}
-        </Text>
+        <View className="shrink-0 flex-row items-center gap-[3px]">
+          {metaIcon ? (
+            <Icon
+              as={metaIcon}
+              className={cn("size-3", metaTextClassName)}
+            />
+          ) : null}
+          <Text className={cn("text-xs tabular-nums", metaTextClassName)}>{meta}</Text>
+        </View>
       ) : null}
       {count != null ? (
         <Text
@@ -327,6 +333,60 @@ function SidebarRailCTA({
   );
 }
 
+function SidebarTooltipRoot({ children }: { children: React.ReactElement }) {
+  if (!isWeb) {
+    return children;
+  }
+  return (
+    <Tooltip
+      asChild
+      delayDuration={150}
+    >
+      {children}
+    </Tooltip>
+  );
+}
+
+function SidebarTooltipTrigger({ children }: { children: React.ReactElement }) {
+  if (!isWeb) {
+    return children;
+  }
+  return <TooltipTrigger asChild>{children}</TooltipTrigger>;
+}
+
+function SidebarTooltipContent({
+  label,
+  shortcut,
+  sideOffset = 10,
+}: {
+  label?: string;
+  shortcut?: string;
+  sideOffset?: number;
+}) {
+  if (!isWeb || !label) {
+    return null;
+  }
+  return (
+    <TooltipContent
+      className="max-w-80 bg-foreground"
+      side="right"
+      sideOffset={sideOffset}
+    >
+      <View className="flex-row items-center gap-1.5">
+        <Text className="shrink text-sm font-semibold text-background">{label}</Text>
+        {shortcut ? (
+          <Kbd
+            size="xs"
+            variant="inverse"
+          >
+            {shortcut}
+          </Kbd>
+        ) : null}
+      </View>
+    </TooltipContent>
+  );
+}
+
 function SidebarRailTooltip({
   label,
   shortcut,
@@ -342,23 +402,10 @@ function SidebarRailTooltip({
   return (
     <Tooltip delayDuration={150}>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent
-        className="max-w-80 bg-foreground"
-        side="right"
-        sideOffset={10}
-      >
-        <View className="flex-row items-center gap-1.5">
-          <Text className="text-sm font-semibold text-background">{label}</Text>
-          {shortcut ? (
-            <Kbd
-              size="xs"
-              variant="inverse"
-            >
-              {shortcut}
-            </Kbd>
-          ) : null}
-        </View>
-      </TooltipContent>
+      <SidebarTooltipContent
+        label={label}
+        shortcut={shortcut}
+      />
     </Tooltip>
   );
 }
@@ -398,6 +445,9 @@ export {
   SidebarRailSeparator,
   SidebarRailTooltip,
   SidebarSection,
+  SidebarTooltipContent,
+  SidebarTooltipRoot,
+  SidebarTooltipTrigger,
   SIDEBAR_ITEM_HEIGHT,
 };
 export type { SidebarRailButtonProps };

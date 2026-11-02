@@ -14,23 +14,28 @@ import { Button } from "@/components/ui/button";
 import { Emoji } from "@/components/ui/emoji";
 import { Kbd } from "@/components/ui/kbd";
 import { Text } from "@/components/ui/text";
-import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { useMyProfileQuery } from "@/features/account/queries";
 import { FolderSections } from "@/features/folders/components/folder-sections";
 import { useUncategorizedCount } from "@/features/folders/hooks/use-uncategorized-count";
 import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
+import { useFolderQuery } from "@/features/folders/queries";
 import type { Folder } from "@/features/folders/types";
 import { useDisplaySettings } from "@/stores/display-settings";
 import type { FolderSection } from "@/stores/folder-navigation";
 
 import { useNewLinkShortcutLabel } from "../hooks/use-new-link-shortcut-label";
+import { getFolderIdFromPath } from "../lib/folder-path";
 import { WIDE_PRIMARY_ITEMS } from "../lib/wide-sidebar-items";
 import type { WideSidebarKey } from "../types";
+import { ThemePopoverButton } from "./theme-popover-button";
 
-import { Menu } from "lucide-react-native";
+import { Menu, Users } from "lucide-react-native";
 
 const SIDEBAR_PADDING = 12;
 const MIN_VISIBLE_FOLDER_ROWS = 2;
+const SIDEBAR_BORDER_WIDTH = 1;
+const THEME_POPOVER_GAP = 8;
+const THEME_POPOVER_SIDEBAR_CLEARANCE = SIDEBAR_PADDING + SIDEBAR_BORDER_WIDTH + THEME_POPOVER_GAP;
 
 type BlockHeights = {
   viewport: number;
@@ -72,12 +77,14 @@ function WideSidebar({
 }: WideSidebarProps) {
   const accent = useDisplaySettings((state) => state.display.accent);
   const theme = useDisplaySettings((state) => state.display.theme);
-  const setAccent = useDisplaySettings((state) => state.setAccent);
-  const setTheme = useDisplaySettings((state) => state.setTheme);
   const avatarEmojiOverride = useDisplaySettings((state) => state.profile.avatarEmoji);
   const myProfileQuery = useMyProfileQuery();
   const uncategorizedCount = useUncategorizedCount();
   const shortcutLabel = useNewLinkShortcutLabel();
+  const currentFolderId = getFolderIdFromPath(pathname);
+  const currentFolderQuery = useFolderQuery(currentFolderId ?? UNCATEGORIZED_FOLDER_ID, {
+    enabled: currentFolderId != null,
+  });
   const [heights, setHeights] = React.useState<BlockHeights>({
     viewport: 0,
     top: 0,
@@ -130,7 +137,8 @@ function WideSidebar({
           emoji={folder.emoji ?? "📁"}
           label={folder.name}
           labelClassName="text-base"
-          meta={folder.isShared ? `${folder.shareCounts}명 참여` : undefined}
+          meta={folder.isShared ? String(folder.shareCounts) : undefined}
+          metaIcon={folder.isShared ? Users : undefined}
           onPress={() => onNavigate(href)}
         />
       );
@@ -148,7 +156,7 @@ function WideSidebar({
         onLayout={handleBlockLayout("viewport")}
       >
         <View
-          className="shrink-0 gap-6 pb-2.5"
+          className="shrink-0 gap-4 pb-2.5"
           onLayout={handleBlockLayout("top")}
         >
           <View className="flex-row items-center gap-0.5">
@@ -212,6 +220,7 @@ function WideSidebar({
             onLayout={handleBlockLayout("folderSections")}
           >
             <FolderSections
+              currentFolder={currentFolderQuery.folder}
               listKey={folderListKey}
               minVisibleRows={MIN_VISIBLE_FOLDER_ROWS}
               rowHeight={SIDEBAR_ITEM_HEIGHT}
@@ -243,19 +252,11 @@ function WideSidebar({
         <View className="min-h-0 flex-1" />
 
         <View
-          className="shrink-0 gap-3 border-t border-sidebar-border pt-3"
+          className="shrink-0 flex-row items-center gap-1 border-t border-sidebar-border pt-3"
           onLayout={handleBlockLayout("bottom")}
         >
-          <ThemeSwitcher
-            accent={accent}
-            mode={theme}
-            variant="switch"
-            onAccentChange={setAccent}
-            onModeChange={setTheme}
-          />
-
           <Button
-            className="h-auto min-h-0 w-full items-center justify-start gap-3 bg-transparent px-5 py-2 shadow-none web:hover:bg-sidebar-surface-2 sm:h-auto"
+            className="h-auto min-h-0 min-w-0 flex-1 items-center justify-start gap-3 bg-transparent py-2 pl-5 pr-3 shadow-none web:hover:bg-sidebar-surface-2 sm:h-auto"
             variant="ghost"
             onPress={onProfilePress}
           >
@@ -283,6 +284,7 @@ function WideSidebar({
               </Text>
             </View>
           </Button>
+          <ThemePopoverButton sideOffset={THEME_POPOVER_SIDEBAR_CLEARANCE} />
         </View>
       </ScrollView>
     </Sidebar>

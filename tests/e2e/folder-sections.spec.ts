@@ -11,7 +11,34 @@ test.beforeEach(() => {
 });
 
 function toggle(page: Page, label: "내 폴더" | "공유 폴더") {
-  return page.getByRole("button", { name: new RegExp(`^${label} (접기|펼치기)$`) });
+  return page.getByRole("button", {
+    name: new RegExp(`^${label} (접기|펼치기)(, 현재 폴더 .+ 포함)?$`),
+  });
+}
+
+function paletteButton(page: Page) {
+  return page.getByRole("button", { name: "모드와 강조색", exact: true });
+}
+
+async function sidebarRightEdge(page: Page) {
+  const box = await boxOf(page.getByTestId("wide-sidebar-column"));
+  return box.x + box.width;
+}
+
+async function fullyVisibleRows(list: Locator) {
+  return list.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    return Array.from(node.querySelectorAll('[role="button"]')).filter((row) => {
+      const rect = row.getBoundingClientRect();
+      return rect.top >= box.top - 1 && rect.bottom <= box.bottom + 1;
+    }).length;
+  });
+}
+
+async function sidebarOverflow(page: Page) {
+  return (await sidebarScroller(page)).evaluate((node) =>
+    node ? node.scrollHeight - node.clientHeight : 0,
+  );
 }
 
 function addButton(page: Page, label: "내 폴더" | "공유 폴더") {
@@ -193,7 +220,7 @@ test.describe("wide sidebar folder sections", () => {
       toggle(page, "내 폴더"),
       toggle(page, "공유 폴더"),
       uncategorized(page),
-      page.getByRole("switch").first(),
+      paletteButton(page),
       page.getByText("테스터", { exact: true }),
     ];
     await settle(page);
@@ -258,7 +285,7 @@ test.describe("wide sidebar folder sections", () => {
     await expect(sectionList(page, "내 폴더")).toHaveCount(0);
     await settle(page);
     const sharedList = sectionList(page, "공유 폴더");
-    await expect(folderRow(sharedList, 12)).toContainText("2명 참여");
+    await expect(folderRow(sharedList, 12)).toHaveAccessibleName("폴더 12, 링크 2개, 2명 참여");
     const mineHeader = await boxOf(toggle(page, "내 폴더"));
     const sharedHeader = await boxOf(toggle(page, "공유 폴더"));
     const sharedBox = await boxOf(sharedList);
@@ -716,9 +743,10 @@ test.describe("wide sidebar folder states", () => {
     await page.goto("/home");
     await toggle(page, "공유 폴더").click();
 
-    const label = page.getByText(longName, { exact: true });
-    const meta = page.getByText("6명 참여", { exact: true });
-    const count = page.getByText("31", { exact: true });
+    const row = page.getByRole("button", { name: `${longName}, 링크 31개, 6명 참여` });
+    const label = row.getByText(longName, { exact: true });
+    const meta = row.getByText("6", { exact: true });
+    const count = row.getByText("31", { exact: true });
     await expect(label).toBeVisible();
     const sizes = await label.evaluate((node) => ({
       scroll: node.scrollWidth,
@@ -733,6 +761,7 @@ test.describe("wide sidebar folder states", () => {
     const countBox = await boxOf(count);
     expect(labelBox.x + labelBox.width).toBeLessThanOrEqual(metaBox.x + 1);
     expect(metaBox.x + metaBox.width).toBeLessThanOrEqual(countBox.x + 1);
+    expect(labelBox.width).toBeGreaterThan(75);
   });
 
   test("a folder created on the mobile folder tab shows in the wide sidebar right away", async ({
@@ -774,5 +803,246 @@ test.describe("wide sidebar folder states", () => {
 
     await toggle(page, "공유 폴더").click();
     await expect(folderRow(page, 6)).toHaveAccessibleName("폴더 6, 링크 1개, 2명 참여");
+  });
+});
+
+test.describe("wide sidebar at low heights", () => {
+  test("at 1280×620 the folder list shows 3 rows without scrolling the whole sidebar, and the palette sits in the profile row", async ({
+    page,
+  }) => {
+    await mockApi(page, { folders: makeFolders(45, 3) });
+    await page.setViewportSize({ width: 1280, height: 620 });
+    await page.goto("/home");
+    const mine = sectionList(page, "내 폴더");
+    await expect(folderRow(mine, 44)).toBeVisible();
+    await settle(page);
+
+    await expect.poll(() => sidebarOverflow(page)).toBeLessThanOrEqual(1);
+    await expect.poll(() => fullyVisibleRows(mine)).toBe(3);
+    await expect(page.getByRole("switch")).toHaveCount(0);
+
+    const palette = await boxOf(paletteButton(page));
+    const nickname = await boxOf(page.getByText("테스터", { exact: true }));
+    expect(palette.height).toBeGreaterThanOrEqual(44);
+    expect(palette.x).toBeGreaterThan(nickname.x + nickname.width);
+    expect(Math.abs(palette.y + palette.height / 2 - (nickname.y + nickname.height))).toBeLessThan(
+      16,
+    );
+    await expect(uncategorized(page)).toBeInViewport({ ratio: 1 });
+  });
+
+  test("at 1280×800 the folder list shows 7 rows", async ({ page }) => {
+    await mockApi(page, { folders: makeFolders(45, 3) });
+    await page.goto("/home");
+    const mine = sectionList(page, "내 폴더");
+    await expect(folderRow(mine, 44)).toBeVisible();
+    await settle(page);
+
+    await expect.poll(() => sidebarOverflow(page)).toBeLessThanOrEqual(1);
+    await expect.poll(() => fullyVisibleRows(mine)).toBe(7);
+  });
+
+  test("at 769×620 the sidebar keeps the same layout, and at 768 it is gone", async ({ page }) => {
+    await mockApi(page, { folders: makeFolders(45, 3) });
+    await page.setViewportSize({ width: 769, height: 620 });
+    await page.goto("/home");
+    const mine = sectionList(page, "내 폴더");
+    await expect(folderRow(mine, 44)).toBeVisible();
+    await settle(page);
+
+    await expect.poll(() => sidebarOverflow(page)).toBeLessThanOrEqual(1);
+    await expect.poll(() => fullyVisibleRows(mine)).toBe(3);
+    await expect(paletteButton(page)).toBeVisible();
+
+    await page.setViewportSize({ width: 768, height: 620 });
+    await expect(toggle(page, "내 폴더")).toBeHidden();
+    await expect(paletteButton(page)).toBeHidden();
+  });
+
+  test("the palette opens 모드 · 강조색 next to the sidebar, applies choices, and closes on Esc or an outside click", async ({
+    page,
+  }) => {
+    await mockApi(page, { folders: makeFolders(3, 0) });
+    await page.setViewportSize({ width: 1280, height: 620 });
+    await page.goto("/home");
+
+    await paletteButton(page).click();
+    const popover = page.getByLabel("모드와 강조색", { exact: true }).last();
+    await expect(popover.getByText("모드 · 강조색")).toBeVisible();
+    const popoverBox = await boxOf(popover);
+    const buttonBox = await boxOf(paletteButton(page));
+    expect(popoverBox.x).toBeGreaterThanOrEqual(buttonBox.x + buttonBox.width);
+    expect(popoverBox.x).toBeGreaterThanOrEqual(await sidebarRightEdge(page));
+    expect(popoverBox.y + popoverBox.height).toBeCloseTo(buttonBox.y + buttonBox.height, -1);
+    expect(popoverBox.y + popoverBox.height).toBeLessThanOrEqual(620);
+
+    await popover.getByRole("switch", { name: "다크 모드" }).click();
+    await expect(page.locator("html")).toHaveClass(/dark/);
+    await popover.getByRole("radio", { name: "강조색 분홍" }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-accent", "pink");
+    await expect(popover.getByRole("radio", { name: "강조색 분홍" })).toBeChecked();
+
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("switch")).toHaveCount(0);
+    await expect(paletteButton(page)).toBeFocused();
+
+    await paletteButton(page).click();
+    await expect(page.getByLabel("모드와 강조색", { exact: true }).last()).toBeVisible();
+    await expect(page.getByRole("switch")).toHaveCount(1);
+    const searchBox = await boxOf(page.getByText("⌘/Ctrl + K").first());
+    await page.mouse.click(1200, searchBox.y + searchBox.height / 2);
+    await expect(page.getByRole("switch")).toHaveCount(0);
+    await expect(page).toHaveURL(/\/home$/);
+  });
+
+  test("shared rows show members as an icon and a number but still read N명 참여", async ({
+    page,
+  }) => {
+    await mockApi(page, { folders: makeFolders(10, 3) });
+    await page.goto("/home");
+    await toggle(page, "공유 폴더").click();
+
+    const row = folderRow(sectionList(page, "공유 폴더"), 9);
+    await expect(row).toHaveAccessibleName("폴더 9, 링크 4개, 2명 참여");
+    await expect(row).not.toContainText("명 참여");
+    await expect(row.getByText("2", { exact: true })).toBeVisible();
+    await expect(row.locator("svg")).toHaveCount(1);
+    const members = await boxOf(row.getByText("2", { exact: true }));
+    const count = await boxOf(row.getByText("4", { exact: true }));
+    expect(count.x - (members.x + members.width)).toBeGreaterThanOrEqual(11);
+  });
+
+  test("a collapsed 내 폴더 shows the current folder path while 공유 폴더 is open, and drops it when reopened", async ({
+    page,
+  }) => {
+    await mockApi(page, { folders: makeFolders(10, 3) });
+    await page.goto("/folders/8");
+    await expect(folderRow(sectionList(page, "내 폴더"), 8)).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(toggle(page, "내 폴더")).toHaveAccessibleName("내 폴더 접기");
+
+    await toggle(page, "공유 폴더").click();
+    await expect(toggle(page, "내 폴더")).toHaveAccessibleName(
+      "내 폴더 펼치기, 현재 폴더 폴더 8 포함",
+    );
+    await expect(toggle(page, "내 폴더")).toHaveText("내 폴더/📁");
+    await expect(toggle(page, "공유 폴더")).toHaveAccessibleName("공유 폴더 접기");
+
+    await toggle(page, "내 폴더").click();
+    await expect(toggle(page, "내 폴더")).toHaveAccessibleName("내 폴더 접기");
+    await expect(toggle(page, "내 폴더")).toHaveText("내 폴더");
+    await expect(folderRow(sectionList(page, "내 폴더"), 8)).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  test("a shared current folder marks 공유 폴더, also with both sections closed", async ({
+    page,
+  }) => {
+    await mockApi(page, { folders: makeFolders(10, 3) });
+    await page.goto("/folders/9");
+
+    await expect(toggle(page, "공유 폴더")).toHaveAccessibleName(
+      "공유 폴더 펼치기, 현재 폴더 폴더 9 포함",
+    );
+    await expect(toggle(page, "공유 폴더")).toHaveText("공유 폴더/📁");
+    await expect(toggle(page, "내 폴더")).toHaveAccessibleName("내 폴더 접기");
+
+    await toggle(page, "내 폴더").click();
+    await expect(toggle(page, "내 폴더")).toHaveAccessibleName("내 폴더 펼치기");
+    await expect(toggle(page, "내 폴더")).toHaveText("내 폴더");
+    await expect(toggle(page, "공유 폴더")).toHaveAccessibleName(
+      "공유 폴더 펼치기, 현재 폴더 폴더 9 포함",
+    );
+  });
+
+  test("the path shows only the folder icon even at 769px, hovering or focusing it shows the full name beside the add button, and pressing the title only opens the section", async ({
+    page,
+  }) => {
+    const longName =
+      "2027 교토·오사카 여행 준비 체크리스트와 숙소 후보, 맛집 지도까지 모아 둔 폴더";
+    await mockApi(page, {
+      folders: [
+        {
+          id: 7,
+          ownerId: 1,
+          name: longName,
+          emoji: "🧳",
+          isShared: false,
+          shareCounts: 0,
+          linkCounts: 11,
+        },
+        ...makeFolders(5, 3),
+      ],
+    });
+    await page.goto("/folders/7");
+    await toggle(page, "공유 폴더").click();
+    const mineToggle = toggle(page, "내 폴더");
+    await expect(mineToggle).toHaveAccessibleName(`내 폴더 펼치기, 현재 폴더 ${longName} 포함`);
+
+    await expect(mineToggle).toHaveText("내 폴더/🧳");
+    await page.setViewportSize({ width: 769, height: 800 });
+    const icon = mineToggle.getByText("🧳", { exact: true });
+    await expect(icon).toBeVisible();
+    const iconSizes = await icon.evaluate((node) => ({
+      scroll: node.scrollWidth,
+      client: node.clientWidth,
+    }));
+    expect(iconSizes.scroll).toBeLessThanOrEqual(iconSizes.client);
+    const iconBox = await boxOf(icon);
+    const toggleBox = await boxOf(mineToggle);
+    expect(iconBox.x + iconBox.width).toBeLessThanOrEqual(toggleBox.x + toggleBox.width);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await mineToggle.hover();
+    const tooltip = page.getByRole("tooltip");
+    await expect(tooltip).toHaveText(`현재 폴더: ${longName}`);
+    const tooltipBox = await boxOf(page.locator("[data-radix-popper-content-wrapper]").last());
+    const addBox = await boxOf(addButton(page, "내 폴더"));
+    expect(tooltipBox.x).toBeGreaterThanOrEqual(addBox.x + addBox.width - 2);
+    expect(tooltipBox.x).toBeGreaterThanOrEqual(await sidebarRightEdge(page));
+
+    await page.mouse.move(900, 500, { steps: 5 });
+    await expect(tooltip).toHaveCount(0);
+    await addButton(page, "내 폴더").focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect(mineToggle).toBeFocused();
+    await expect(page.getByRole("tooltip")).toHaveText(`현재 폴더: ${longName}`);
+
+    await page.keyboard.press("Enter");
+    await expect(mineToggle).toHaveAccessibleName("내 폴더 접기");
+    await expect(mineToggle).toBeFocused();
+    await expect(page).toHaveURL(/\/folders\/7$/);
+  });
+
+  test("no path shows on 홈, 전체, 할일 or 미분류, nor while folders first load", async ({
+    page,
+  }) => {
+    await mockApi(page, { folders: makeFolders(10, 3), folderPages: { delayMs: { 0: 3000 } } });
+    await page.goto("/folders/9");
+    await expect(
+      sectionList(page, "내 폴더").getByRole("progressbar", { name: "폴더를 불러오는 중" }),
+    ).toBeVisible();
+    await expect(toggle(page, "공유 폴더")).toHaveAccessibleName("공유 폴더 펼치기");
+    await expect(toggle(page, "공유 폴더")).toHaveText("공유 폴더");
+    await expect(toggle(page, "공유 폴더")).toHaveAccessibleName(
+      "공유 폴더 펼치기, 현재 폴더 폴더 9 포함",
+      { timeout: 10_000 },
+    );
+
+    for (const [name, url] of [
+      [/^홈$/, /\/home$/],
+      [/^전체$/, /\/links/],
+      [/^할일$/, /\/todos$/],
+      [/^미분류/, /\/folders\/0$/],
+    ] as const) {
+      await page.getByRole("button", { name }).click();
+      await expect(page).toHaveURL(url);
+      await expect(toggle(page, "내 폴더")).toHaveAccessibleName("내 폴더 접기");
+      await expect(toggle(page, "공유 폴더")).toHaveAccessibleName("공유 폴더 펼치기");
+    }
   });
 });

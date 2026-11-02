@@ -10,6 +10,12 @@ import { cn } from "@/lib/utils";
 
 type ThemeSwitcherVariant = "icon-buttons" | "switch";
 
+const ACCENT_LABELS: Record<AccentName, string> = {
+  gray: "회색",
+  pink: "분홍",
+  blue: "파랑",
+};
+
 function ThemeSwitcher({
   className,
   accent,
@@ -38,10 +44,17 @@ function ThemeSwitcher({
       {...props}
     >
       <View className="flex-row items-center justify-between gap-3">
-        <View className="flex-row gap-2">
+        <View
+          accessibilityLabel="강조색"
+          accessibilityRole="radiogroup"
+          className="flex-row gap-2"
+        >
           {ACCENT_OPTIONS.map((option) => (
             <Pressable
               key={option}
+              accessibilityLabel={`강조색 ${ACCENT_LABELS[option]}`}
+              accessibilityRole="radio"
+              aria-checked={option === resolvedAccent}
               className={cn(
                 "size-5 items-center justify-center rounded-full",
                 option === resolvedAccent
@@ -89,6 +102,7 @@ function ThemeSwitcher({
 
         {variant === "switch" ? (
           <Switch
+            accessibilityLabel="다크 모드"
             checked={isDark}
             thumbContent={<Emoji className="text-2xs">{isDark ? "🌙" : "☀️"}</Emoji>}
             onCheckedChange={(checked) => onModeChange?.(checked ? "dark" : "light")}
