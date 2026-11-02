@@ -308,6 +308,7 @@ test.describe("mobile folder tab", () => {
   test("after folders were deleted elsewhere, returning shows the last possible position without errors", async ({
     page,
   }) => {
+    await page.clock.install();
     const state = await mockApi(page, { folders: makeFolders(45, 0) });
     await page.goto("/folders");
     const mine = sectionList(page, "내 폴더");
@@ -319,9 +320,19 @@ test.describe("mobile folder tab", () => {
     await page.getByText("홈", { exact: true }).last().click();
     await expect(page).toHaveURL(/\/home$/);
     state.folders = state.folders.slice(0, 12);
+    await page.clock.fastForward(31_000);
+    const requestsBeforeReturn = state.requests.length;
     await page.getByText("폴더", { exact: true }).last().click();
 
     const list = sectionList(page, "내 폴더");
+    await expect
+      .poll(() =>
+        state.requests
+          .slice(requestsBeforeReturn)
+          .some((r) => r.path === "/api/folders" && !r.search.includes("cursor=")),
+      )
+      .toBe(true);
+    await expect(list.getByRole("button", { name: /^폴더 \d+, 링크/ })).toHaveCount(12);
     await expect(folderRow(list, 34)).toBeVisible();
     await expect(folderRow(list, 1)).toHaveCount(0);
     await expect(page.getByText("폴더를 불러오지 못했어요")).toHaveCount(0);
@@ -330,7 +341,8 @@ test.describe("mobile folder tab", () => {
         list.evaluate((node) => node.scrollTop >= node.scrollHeight - node.clientHeight - 1),
       )
       .toBe(true);
-    expect(await scrollTop(list)).toBeLessThan(deepOffset);
+    // The browser clamps scrollTop after the shorter list lays out; wait for it.
+    await expect.poll(() => scrollTop(list)).toBeLessThan(deepOffset);
   });
 
   test("restoring the tab leaves the folder picker section and the home and todo scroll positions alone", async ({
