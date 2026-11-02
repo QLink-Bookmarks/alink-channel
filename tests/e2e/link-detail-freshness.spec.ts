@@ -210,7 +210,13 @@ test.describe("mobile", () => {
         response.request().method() === "PATCH" &&
         new URL(response.url()).pathname === "/api/links/3",
     );
-    await page.getByText("☕ 가볼 곳", { exact: true }).filter({ visible: true }).first().click();
+    // The move dialog applies a choice only after 확인 (#10).
+    await page
+      .getByRole("radio", { name: /가볼 곳/ })
+      .filter({ visible: true })
+      .first()
+      .click();
+    await page.getByRole("button", { name: "확인", exact: true }).filter({ visible: true }).click();
     await moved;
 
     await page.getByRole("button", { name: "뒤로" }).click();
