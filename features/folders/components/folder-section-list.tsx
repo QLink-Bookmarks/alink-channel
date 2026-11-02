@@ -18,7 +18,11 @@ import type { FolderScrollSurface, FolderSection } from "@/stores/folder-navigat
 import { useSectionScrollMemory } from "../hooks/use-section-scroll-memory";
 import { shouldFetchMoreFolders } from "../lib/folder-pages";
 import type { Folder, FolderListStatus } from "../types";
-import { FOLDER_SECTION_LABELS, type FolderSectionSize } from "./folder-section-header";
+import {
+  FOLDER_SECTION_LABELS,
+  type FolderSectionSize,
+  type FolderSectionTone,
+} from "./folder-section-header";
 
 import { CircleAlert, RotateCw } from "lucide-react-native/icons";
 
@@ -43,6 +47,7 @@ type FolderSectionListProps = {
   folders: Folder[];
   status: FolderListStatus;
   size?: FolderSectionSize;
+  tone?: FolderSectionTone;
   scrollSurface?: FolderScrollSurface;
   className?: string;
   style?: React.ComponentProps<typeof FlatList>["style"];
@@ -57,6 +62,7 @@ function FolderSectionList({
   folders,
   status,
   size = "compact",
+  tone = "sidebar",
   scrollSurface,
   className,
   style,
@@ -184,6 +190,7 @@ function FolderSectionList({
       style={style}
       showsVerticalScrollIndicator={false}
       initialNumToRender={20}
+      nestedScrollEnabled
       onContentSizeChange={handleContentSizeChange}
       onEndReached={handleEndReached}
       onEndReachedThreshold={0.5}
@@ -199,12 +206,14 @@ function FolderSectionList({
         ) : isInitialError ? (
           <FolderListError
             size={size}
+            tone={tone}
             onRetry={onRetry}
           />
         ) : hasNextPage || isFetchNextPageError ? null : (
           <FolderListEmpty
             section={section}
             size={size}
+            tone={tone}
           />
         )
       }
@@ -214,6 +223,7 @@ function FolderSectionList({
             isFetchingNextPage={isFetchingNextPage}
             isFetchNextPageError={isFetchNextPageError}
             size={size}
+            tone={tone}
             onRetry={onRetry}
           />
         ) : null
@@ -246,8 +256,27 @@ function FolderListSkeleton({ rows, size }: { rows: number; size: FolderSectionS
   );
 }
 
-function FolderListError({ size, onRetry }: { size: FolderSectionSize; onRetry: () => void }) {
+function getToneText(size: FolderSectionSize, tone: FolderSectionTone) {
+  if (size === "large") {
+    return { strong: "text-lg text-foreground", muted: "text-sm text-muted-foreground" };
+  }
+  if (tone === "surface") {
+    return { strong: "text-sm text-foreground", muted: "text-xs text-muted-foreground" };
+  }
+  return { strong: "text-sm text-sidebar-hover", muted: "text-xs text-sidebar-muted" };
+}
+
+function FolderListError({
+  size,
+  tone,
+  onRetry,
+}: {
+  size: FolderSectionSize;
+  tone: FolderSectionTone;
+  onRetry: () => void;
+}) {
   const isLarge = size === "large";
+  const text = getToneText(size, tone);
   return (
     <View
       accessibilityRole="alert"
@@ -258,20 +287,9 @@ function FolderListError({ size, onRetry }: { size: FolderSectionSize; onRetry: 
           as={CircleAlert}
           className="size-[15px] text-destructive"
         />
-        <Text
-          className={cn(
-            "font-semibold",
-            isLarge ? "text-lg text-foreground" : "text-sm text-sidebar-hover",
-          )}
-        >
-          폴더를 불러오지 못했어요
-        </Text>
+        <Text className={cn("font-semibold", text.strong)}>폴더를 불러오지 못했어요</Text>
       </View>
-      <Text
-        className={cn(isLarge ? "text-sm text-muted-foreground" : "text-xs text-sidebar-muted")}
-      >
-        연결 상태를 확인하고 다시 시도해 주세요.
-      </Text>
+      <Text className={text.muted}>연결 상태를 확인하고 다시 시도해 주세요.</Text>
       <Button
         className={isLarge ? "h-11 px-4" : undefined}
         size="sm"
@@ -288,24 +306,22 @@ function FolderListError({ size, onRetry }: { size: FolderSectionSize; onRetry: 
   );
 }
 
-function FolderListEmpty({ section, size }: { section: FolderSection; size: FolderSectionSize }) {
+function FolderListEmpty({
+  section,
+  size,
+  tone,
+}: {
+  section: FolderSection;
+  size: FolderSectionSize;
+  tone: FolderSectionTone;
+}) {
   const isLarge = size === "large";
+  const text = getToneText(size, tone);
   const copy = EMPTY_COPY[section];
   return (
     <View className={cn("gap-0.5 pb-2 pt-1.5", isLarge ? "px-2" : "px-3")}>
-      <Text
-        className={cn(
-          "font-semibold",
-          isLarge ? "text-lg text-foreground" : "text-sm text-sidebar-hover",
-        )}
-      >
-        {copy.title}
-      </Text>
-      <Text
-        className={cn(isLarge ? "text-sm text-muted-foreground" : "text-xs text-sidebar-muted")}
-      >
-        {copy.description}
-      </Text>
+      <Text className={cn("font-semibold", text.strong)}>{copy.title}</Text>
+      <Text className={text.muted}>{copy.description}</Text>
     </View>
   );
 }
@@ -314,14 +330,17 @@ function FolderListFooter({
   isFetchingNextPage,
   isFetchNextPageError,
   size,
+  tone,
   onRetry,
 }: {
   isFetchingNextPage: boolean;
   isFetchNextPageError: boolean;
   size: FolderSectionSize;
+  tone: FolderSectionTone;
   onRetry: () => void;
 }) {
   const isLarge = size === "large";
+  const text = getToneText(size, tone);
   if (isFetchingNextPage) {
     return (
       <View
@@ -342,11 +361,7 @@ function FolderListFooter({
           isLarge ? "h-[52px] pl-2" : "h-10 pl-3",
         )}
       >
-        <Text
-          className={cn(isLarge ? "text-sm text-muted-foreground" : "text-xs text-sidebar-muted")}
-        >
-          더 불러오지 못했어요
-        </Text>
+        <Text className={text.muted}>더 불러오지 못했어요</Text>
         <Button
           className={isLarge ? "h-11" : undefined}
           size={isLarge ? "sm" : "xs"}

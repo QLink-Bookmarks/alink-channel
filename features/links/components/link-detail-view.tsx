@@ -29,7 +29,12 @@ import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
 import { type TimeValue } from "@/components/ui/time-picker";
 import { useMyProfileQuery } from "@/features/account/queries";
-import { FolderPickerList } from "@/features/folders/components/folder-picker-list";
+import { FolderPickerDialog } from "@/features/folders/components/folder-picker-dialog";
+import {
+  type FolderPickerSelection,
+  UNCATEGORIZED_PICKER_OPTION,
+} from "@/features/folders/components/folder-picker-list";
+import { getMoveTargetFolderId } from "@/features/folders/lib/folder-pages";
 import { useFoldersQuery } from "@/features/folders/queries";
 import {
   formatLinkStatus,
@@ -76,6 +81,7 @@ import {
 import { reportError } from "@/lib/error-reporting";
 import { useGridColumns } from "@/lib/hooks/use-grid-columns";
 import { cn } from "@/lib/utils";
+import type { FolderSection } from "@/stores/folder-navigation";
 import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -86,6 +92,7 @@ import { type Href, useRouter } from "expo-router";
 import { Ellipsis, FolderPlus, Pencil, Share2, Star, Trash2, X } from "lucide-react-native/icons";
 
 const TODO_GRID_GAP = 10;
+const PERSONAL_FOLDER_SECTIONS: FolderSection[] = ["mine"];
 
 const defaultWeekdays: WeekdayValue[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
@@ -430,31 +437,19 @@ function LinkDetailView({
     }
   }, [detail.id, queryClient, showToast]);
 
-  const handleFolderMoveSelect = React.useCallback(
-    async (selection: { id: number | null; label: string; emoji?: string | null }) => {
-      setIsFolderMoveOpen(false);
-
-      if (selection.id === (detail.folderId ?? null)) {
-        return;
-      }
-
+  const handleFolderMoveConfirm = React.useCallback(
+    async (selection: FolderPickerSelection) => {
       try {
-        const response = await patchLinkMutation.mutateAsync({ folderId: selection.id });
+        const response = await patchLinkMutation.mutateAsync({
+          folderId: getMoveTargetFolderId(selection.id),
+        });
         handleDetailUpdated(response);
       } catch (error: unknown) {
-        showToast({
-          description: "잠시 후 다시 시도해주세요.",
-          dismissible: true,
-          durationMs: 4000,
-          sourceKey: "link-detail-folder-move",
-          title: "폴더 이동에 실패했어요.",
-          variant: "error",
-        });
         reportError(error, {
           area: "link-detail-view:folder-move",
           extra: { folderId: selection.id, linkId: detail.id },
         });
-        return;
+        throw error;
       }
 
       showToast({
@@ -471,7 +466,7 @@ function LinkDetailView({
       // instead of keeping the merged-in previous value.
       void queryClient.invalidateQueries({ queryKey: getLinkDetailQueryKey(detail.id) });
     },
-    [detail.folderId, detail.id, handleDetailUpdated, patchLinkMutation, queryClient, showToast],
+    [detail.id, handleDetailUpdated, patchLinkMutation, queryClient, showToast],
   );
 
   const handleTodoCompletedChange = React.useCallback(
@@ -687,11 +682,9 @@ function LinkDetailView({
     [mode, router],
   );
 
-  const handleCopyToPersonalSelect = React.useCallback(
-    async (folderId: number | null) => {
-      setIsCopyFolderOpen(false);
-
-      // folderId null = "없음" (uncategorized / AI auto-classify), mirroring link creation.
+  const handleCopyToPersonalConfirm = React.useCallback(
+    async (selection: FolderPickerSelection) => {
+      const folderId = selection.id;
       if (detail.folderId == null) {
         return;
       }
@@ -704,19 +697,11 @@ function LinkDetailView({
         });
         copiedLinkId = response.data?.id;
       } catch (error: unknown) {
-        showToast({
-          description: "잠시 후 다시 시도해주세요.",
-          dismissible: true,
-          durationMs: 4000,
-          sourceKey: "link-detail-copy",
-          title: "링크 복사에 실패했어요.",
-          variant: "error",
-        });
         reportError(error, {
           area: "link-detail-view:copy-link",
           extra: { fromFolderId: detail.folderId, linkId: detail.id, toFolderId: folderId },
         });
-        return;
+        throw error;
       }
 
       const nextLinkId = copiedLinkId;
@@ -1452,99 +1437,33 @@ function LinkDetailView({
         </View>
       </ScrollView>
 
-      {mode === "panel" ? (
-        <Dialog
-          open={isFolderMoveOpen}
-          onOpenChange={setIsFolderMoveOpen}
-        >
-          <DialogContent className="max-h-[80vh] min-h-[24rem] min-w-[24rem] max-w-xl">
-            <DialogHeader>
-              <DialogTitle>폴더 이동</DialogTitle>
-              <DialogDescription>이동할 폴더를 선택해주세요.</DialogDescription>
-            </DialogHeader>
-            <ScrollView
-              className="flex-1"
-              contentInsetAdjustmentBehavior="automatic"
-              showsVerticalScrollIndicator={false}
-            >
-              <FolderPickerList
-                selectedFolderId={detail.folderId ?? null}
-                onSelect={handleFolderMoveSelect}
-              />
-            </ScrollView>
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <Sheet
-          open={isFolderMoveOpen}
-          fitContent
-          onOpenChange={setIsFolderMoveOpen}
-        >
-          <View className="gap-3">
-            <Text className="text-lg font-semibold text-foreground">폴더 이동</Text>
-            <FolderPickerList
-              selectedFolderId={detail.folderId ?? null}
-              onSelect={handleFolderMoveSelect}
-            />
-            <Button
-              className="h-10 self-stretch"
-              variant="outline"
-              onPress={() => setIsFolderMoveOpen(false)}
-            >
-              <Text>닫기</Text>
-            </Button>
-          </View>
-        </Sheet>
-      )}
+      <FolderPickerDialog
+        confirmLabel="확인"
+        description="이동할 폴더를 선택해주세요."
+        errorMessage="폴더를 옮기지 못했어요. 다시 시도해 주세요."
+        initialFolderId={detail.folderId ?? null}
+        noneOption={UNCATEGORIZED_PICKER_OPTION}
+        open={isFolderMoveOpen}
+        pendingLabel="옮기는 중"
+        presentation={mode === "panel" ? "dialog" : "sheet"}
+        title="폴더 이동"
+        onConfirm={handleFolderMoveConfirm}
+        onOpenChange={setIsFolderMoveOpen}
+      />
 
-      {mode === "panel" ? (
-        <Dialog
-          open={isCopyFolderOpen}
-          onOpenChange={setIsCopyFolderOpen}
-        >
-          <DialogContent className="max-h-[80vh] min-h-[24rem] min-w-[24rem] max-w-xl">
-            <DialogHeader>
-              <DialogTitle>개인 폴더로 추가</DialogTitle>
-              <DialogDescription>복사할 개인 폴더를 선택해주세요.</DialogDescription>
-            </DialogHeader>
-            <ScrollView
-              className="flex-1"
-              contentInsetAdjustmentBehavior="automatic"
-              showsVerticalScrollIndicator={false}
-            >
-              <FolderPickerList
-                noneOption={null}
-                filterFolder={(folder) => !folder.isShared}
-                selectedFolderId={null}
-                onSelect={(selection) => handleCopyToPersonalSelect(selection.id)}
-              />
-            </ScrollView>
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <Sheet
-          open={isCopyFolderOpen}
-          fitContent
-          onOpenChange={setIsCopyFolderOpen}
-        >
-          <View className="gap-3">
-            <Text className="text-lg font-semibold text-foreground">개인 폴더로 추가</Text>
-            <FolderPickerList
-              noneOption={null}
-              filterFolder={(folder) => !folder.isShared}
-              selectedFolderId={null}
-              onSelect={(selection) => handleCopyToPersonalSelect(selection.id)}
-            />
-            <Button
-              className="h-10 self-stretch"
-              variant="outline"
-              onPress={() => setIsCopyFolderOpen(false)}
-            >
-              <Text>닫기</Text>
-            </Button>
-          </View>
-        </Sheet>
-      )}
+      <FolderPickerDialog
+        confirmLabel="추가"
+        description="추가할 폴더를 선택해주세요."
+        errorMessage="폴더에 추가하지 못했어요. 다시 시도해 주세요."
+        noneOption={null}
+        open={isCopyFolderOpen}
+        pendingLabel="추가하는 중"
+        presentation={mode === "panel" ? "dialog" : "sheet"}
+        title="개인 폴더로 추가"
+        visibleSections={PERSONAL_FOLDER_SECTIONS}
+        onConfirm={handleCopyToPersonalConfirm}
+        onOpenChange={setIsCopyFolderOpen}
+      />
 
       {mode === "panel" ? (
         <Dialog

@@ -125,10 +125,15 @@ function resolveScrollRestore({
   return { type: "scroll", offset: maxOffset };
 }
 
+function getMoveTargetFolderId(folderId: number | null) {
+  return folderId ?? UNCATEGORIZED_FOLDER_ID;
+}
+
 export {
   UNCATEGORIZED_FOLDER_ID,
   findFolderInPages,
   flattenFolderPages,
+  getMoveTargetFolderId,
   getNextFolderCursor,
   isFolderId,
   isFolderListShort,
