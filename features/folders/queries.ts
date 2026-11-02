@@ -52,9 +52,9 @@ function useFoldersQuery(params: GetFoldersParams = {}, options?: { enabled?: bo
   });
 }
 
-function useFolderPagesQuery(options?: { order?: FolderOrder; enabled?: boolean }) {
-  const order = options?.order ?? "latest";
+const FOLDER_PAGES_ORDER: FolderOrder = "latest";
 
+function useFolderPagesQuery(options?: { enabled?: boolean }) {
   return useInfiniteQuery({
     enabled: options?.enabled ?? true,
     getNextPageParam: (lastPage: FolderScrollResponse, _allPages, lastPageParam) => {
@@ -63,10 +63,14 @@ function useFolderPagesQuery(options?: { order?: FolderOrder; enabled?: boolean 
     },
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
-      const response = await getFolders({ order, cursor: pageParam, size: FOLDER_PAGE_SIZE });
+      const response = await getFolders({
+        order: FOLDER_PAGES_ORDER,
+        cursor: pageParam,
+        size: FOLDER_PAGE_SIZE,
+      });
       return response.data;
     },
-    queryKey: folderQueryKeys.infinite({ order, size: FOLDER_PAGE_SIZE }),
+    queryKey: folderQueryKeys.infinite({ order: FOLDER_PAGES_ORDER, size: FOLDER_PAGE_SIZE }),
   });
 }
 

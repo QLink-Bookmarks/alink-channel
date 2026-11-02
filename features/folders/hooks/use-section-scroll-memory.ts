@@ -59,7 +59,10 @@ function useSectionScrollMemory({
       isFetchNextPageError,
     });
     if (decision.type === "scroll") {
-      isRestoringRef.current = false;
+      // 저장 위치보다 덜 옮긴 부분 복원이면 복원 상태를 유지한다. iOS FlatList는 처음에 일부 행만 그려 콘텐츠가 짧으므로, 행이 더 그려져 높이가 늘면 다음 실행에서 저장 위치까지 이어서 옮긴다. 그 사이 사용자가 스크롤하면 recordScrollOffset이 복원을 끝낸다.
+      if (decision.offset >= savedOffsetRef.current) {
+        isRestoringRef.current = false;
+      }
       restoredOffsetRef.current = decision.offset;
       scrollTo(decision.offset);
       return;
