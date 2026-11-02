@@ -12,13 +12,6 @@ import {
   PopoverTrigger,
   usePopoverContext,
 } from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,8 +24,10 @@ import {
 import { resolveProviderRequest } from "@/features/ai/lib/resolve-provider-request";
 import { useRequestAiSummaryMutation } from "@/features/ai/mutations";
 import { useAiProviderCatalogQuery, useMyAiProvidersQuery } from "@/features/ai/queries";
-import { FolderPickerList } from "@/features/folders/components/folder-picker-list";
-import { useFoldersQuery } from "@/features/folders/queries";
+import {
+  FolderPickerList,
+  type FolderPickerSelection,
+} from "@/features/folders/components/folder-picker-list";
 import {
   type TodoDraftEditorItem,
   TodoDraftListEditor,
@@ -89,18 +84,23 @@ const defaultFolder: FolderDraft = {
   label: "없음 - ✨ AI 생성으로 자동 분류해보세요",
 };
 
-const defaultFolderOptionValue = "__default-folder__";
-
 const defaultWeekdays: WeekdayValue[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 const TITLE_MAX_LENGTH = 300;
+const POPOVER_FOLDER_LIST_MAX_HEIGHT = 200;
 
 function createInitialTodos(): TodoDraftEditorItem[] {
   return [];
 }
 
-function getFolderOptionValue(folderId: string | null) {
-  return folderId ?? defaultFolderOptionValue;
+function getFolderDraft(selection: FolderPickerSelection): FolderDraft {
+  if (selection.id == null) {
+    return defaultFolder;
+  }
+  return {
+    id: String(selection.id),
+    label: selection.emoji ? `${selection.emoji} ${selection.label}` : selection.label,
+  };
 }
 
 // A change that adds more than one character at once is a paste or an autofill,
@@ -120,15 +120,6 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
     void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["folders"] });
   }, [queryClient]);
-  const foldersQuery = useFoldersQuery({ size: 15 });
-  const folderContents = foldersQuery.data?.contents;
-  const folderOptions: FolderDraft[] = React.useMemo(() => {
-    const apiFolders: FolderDraft[] = (folderContents ?? []).map((entry) => ({
-      id: String(entry.id),
-      label: entry.emoji ? `${entry.emoji} ${entry.name}` : entry.name,
-    }));
-    return [defaultFolder, ...apiFolders];
-  }, [folderContents]);
   const clipboardFeedback = useClipboardFailureFeedback();
   const showToast = useToastStore((state) => state.showToast);
   const aiProvidersQuery = useAiProviderCatalogQuery();
@@ -150,6 +141,9 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
   const appliedPreviewUrlRef = React.useRef<string | null>(null);
   const [memo, setMemo] = React.useState("");
   const [folder, setFolder] = React.useState<FolderDraft>(defaultFolder);
+  const handleFolderSelect = React.useCallback((selection: FolderPickerSelection) => {
+    setFolder(getFolderDraft(selection));
+  }, []);
   const [aiProvider, setAiProvider] = React.useState<AiProviderSelection | null>(null);
   const [todos, setTodos] = React.useState<TodoDraftEditorItem[]>(createInitialTodos);
   const [generateTodo, setGenerateTodo] = React.useState(false);
@@ -669,15 +663,7 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
           <FolderPickerList
             selectedFolderId={folder.id ? Number(folder.id) : null}
             onSelect={(selection) => {
-              setFolder({
-                id: selection.id == null ? null : String(selection.id),
-                label:
-                  selection.id == null
-                    ? defaultFolder.label
-                    : selection.emoji
-                      ? `${selection.emoji} ${selection.label}`
-                      : selection.label,
-              });
+              handleFolderSelect(selection);
               setMobileSheetStep("form");
             }}
           />
@@ -738,46 +724,38 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
       <View className="flex-row gap-4">
         <View className="min-w-0 flex-1 gap-2">
           <Text className="text-sm font-semibold text-muted-foreground">폴더</Text>
-          <Select
-            value={{
-              label: folder.label,
-              value: getFolderOptionValue(folder.id),
-            }}
-            onValueChange={(nextOption) => {
-              const nextFolder =
-                folderOptions.find(
-                  (option) => getFolderOptionValue(option.id) === nextOption?.value,
-                ) ?? defaultFolder;
-              setFolder(nextFolder);
-            }}
-          >
-            <SelectTrigger className="h-10 w-full rounded-xl px-4">
-              <View className="min-w-0 flex-1 flex-row items-center gap-2">
-                <Icon
-                  as={FolderOpen}
-                  size={18}
-                  className="text-primary"
-                />
-                <Text
-                  className="min-w-0 flex-1 text-sm font-medium leading-5"
-                  numberOfLines={1}
-                >
-                  {folder.label}
-                </Text>
-              </View>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {folderOptions.map((option) => (
-                  <SelectItem
-                    key={getFolderOptionValue(option.id)}
-                    value={getFolderOptionValue(option.id)}
-                    label={option.label}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                accessibilityLabel={`폴더, ${folder.label}`}
+                className="h-10 w-full flex-row justify-start rounded-xl px-4"
+                variant="outline"
+              >
+                <View className="min-w-0 flex-1 flex-row items-center gap-2">
+                  <Icon
+                    as={FolderOpen}
+                    size={18}
+                    className="text-primary"
                   />
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+                  <Text
+                    className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground"
+                    numberOfLines={1}
+                  >
+                    {folder.label}
+                  </Text>
+                  <Icon
+                    as={ChevronDown}
+                    size={14}
+                    className="text-muted-foreground"
+                  />
+                </View>
+              </Button>
+            </PopoverTrigger>
+            <FolderPickerPopoverContent
+              selectedFolderId={folder.id ? Number(folder.id) : null}
+              onSelect={handleFolderSelect}
+            />
+          </Popover>
         </View>
         <View className="min-w-0 flex-1 gap-2">
           <Text className="text-sm font-semibold text-muted-foreground">메모 (선택)</Text>
@@ -875,6 +853,46 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
         </Popover>
       </View>
     </View>
+  );
+}
+
+function FolderPickerPopoverContent({
+  selectedFolderId,
+  onSelect,
+}: {
+  selectedFolderId: number | null;
+  onSelect: (selection: FolderPickerSelection) => void;
+}) {
+  const popoverContext = usePopoverContext();
+  const isAddingFolderRef = React.useRef(false);
+
+  const handleAddDialogOpenChange = React.useCallback((open: boolean) => {
+    isAddingFolderRef.current = open;
+  }, []);
+
+  const handleInteractOutside = React.useCallback((event: { preventDefault: () => void }) => {
+    if (isAddingFolderRef.current) {
+      event.preventDefault();
+    }
+  }, []);
+
+  return (
+    <PopoverContent
+      align="start"
+      side="bottom"
+      className="w-80 p-3"
+      onInteractOutside={handleInteractOutside}
+    >
+      <FolderPickerList
+        listMaxHeight={POPOVER_FOLDER_LIST_MAX_HEIGHT}
+        selectedFolderId={selectedFolderId}
+        onAddDialogOpenChange={handleAddDialogOpenChange}
+        onSelect={(selection) => {
+          onSelect(selection);
+          popoverContext.onOpenChange(false);
+        }}
+      />
+    </PopoverContent>
   );
 }
 

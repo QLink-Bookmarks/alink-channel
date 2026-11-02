@@ -1,15 +1,24 @@
-import { Pressable, View } from "react-native";
+import * as React from "react";
+import { Pressable, View, useWindowDimensions } from "react-native";
 
-import { ActivityIndicator } from "@/components/ui/activity-indicator";
-import { EmptyState } from "@/components/ui/empty-state";
+import { useIsInsideSheet } from "@/components/layout/sheet";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
+import { type FolderSection, useFolderNavigation } from "@/stores/folder-navigation";
 
-import { useFoldersQuery } from "../queries";
 import type { Folder } from "../types";
+import { CreateFolderDialog, type CreatedFolder } from "./create-folder-dialog";
+import { FolderSections } from "./folder-sections";
+import { NestedListBoundary } from "./nested-list-boundary";
 
 import { Sparkles } from "lucide-react-native/icons";
+
+const ALL_SECTIONS: FolderSection[] = ["mine", "shared"];
+const WIDE_LIST_MAX_HEIGHT = 340;
+const SHEET_LIST_HEIGHT_RATIO = 0.4;
+const DEFAULT_NONE_OPTION = { label: "없음 - ✨ AI 자동 분류", icon: "✨" };
+const UNCATEGORIZED_PICKER_OPTION = { label: "미분류", icon: "🗂️" };
 
 type FolderPickerSelection = { id: number | null; label: string; emoji?: string | null };
 
@@ -17,7 +26,11 @@ type FolderPickerListProps = {
   selectedFolderId: number | null;
   noneOption?: { label: string; icon?: string } | null;
   filterFolder?: (folder: Folder) => boolean;
+  visibleSections?: FolderSection[];
+  listMaxHeight?: number;
+  isAddDisabled?: boolean;
   onSelect: (selection: FolderPickerSelection) => void;
+  onAddDialogOpenChange?: (open: boolean) => void;
   className?: string;
 };
 
@@ -27,55 +40,102 @@ function getFolderLabel(folder: Folder): string {
 
 function FolderPickerList({
   selectedFolderId,
-  noneOption = { label: "없음 - ✨ AI 자동 분류", icon: "✨" },
+  noneOption = DEFAULT_NONE_OPTION,
   filterFolder,
+  visibleSections = ALL_SECTIONS,
+  listMaxHeight,
+  isAddDisabled = false,
   onSelect,
+  onAddDialogOpenChange,
   className,
 }: FolderPickerListProps) {
-  const foldersQuery = useFoldersQuery({ size: 15 });
-  const folders = (foldersQuery.data?.contents ?? []).filter(
-    (folder) => filterFolder?.(folder) ?? true,
+  const isInsideSheet = useIsInsideSheet();
+  const { height } = useWindowDimensions();
+  const openSectionOn = useFolderNavigation((state) => state.openSectionOn);
+  const [createSection, setCreateSection] = React.useState<FolderSection | null>(null);
+  const [listKey, setListKey] = React.useState(0);
+  const isLarge = isInsideSheet;
+  const maxHeight =
+    listMaxHeight ??
+    (isInsideSheet ? Math.round(height * SHEET_LIST_HEIGHT_RATIO) : WIDE_LIST_MAX_HEIGHT);
+
+  const handleAddPress = React.useCallback(
+    (section: FolderSection | null) => {
+      setCreateSection(section);
+      onAddDialogOpenChange?.(section != null);
+    },
+    [onAddDialogOpenChange],
   );
 
-  if (foldersQuery.isLoading) {
-    return (
-      <ActivityIndicator
-        size="large"
-        className={cn("py-10", className)}
-      />
-    );
-  }
+  const handleCreateOpenChange = React.useCallback(
+    (open: boolean) => {
+      if (!open) {
+        handleAddPress(null);
+      }
+    },
+    [handleAddPress],
+  );
 
-  if (!noneOption && folders.length === 0) {
-    return (
-      <EmptyState
-        emoji="📁"
-        title="폴더가 없어요"
-        description="먼저 폴더를 만들어주세요."
-      />
-    );
-  }
+  const handleCreated = React.useCallback(
+    (folder: CreatedFolder) => {
+      const section: FolderSection = folder.isShared ? "shared" : "mine";
+      if (visibleSections.includes(section)) {
+        openSectionOn("picker", section);
+      }
+      setListKey((key) => key + 1);
+    },
+    [openSectionOn, visibleSections],
+  );
 
-  return (
-    <View className={cn("gap-2", className)}>
-      {noneOption ? (
+  const renderRow = React.useCallback(
+    (folder: Folder) => (
+      <View className="py-[3px]">
         <FolderPickerRow
-          label={noneOption.label}
-          icon={noneOption.icon}
-          selected={selectedFolderId === null}
-          onPress={() => onSelect({ id: null, label: noneOption.label })}
-        />
-      ) : null}
-      {folders.map((folder) => (
-        <FolderPickerRow
-          key={folder.id}
+          isLarge={isLarge}
           label={getFolderLabel(folder)}
           selected={selectedFolderId === folder.id}
           onPress={() =>
             onSelect({ id: folder.id, label: folder.name, emoji: folder.emoji ?? null })
           }
         />
-      ))}
+      </View>
+    ),
+    [isLarge, onSelect, selectedFolderId],
+  );
+
+  return (
+    <View className={cn("gap-1.5", className)}>
+      {noneOption ? (
+        <FolderPickerRow
+          icon={noneOption.icon}
+          isLarge={isLarge}
+          label={noneOption.label}
+          selected={selectedFolderId === null}
+          onPress={() => onSelect({ id: null, label: noneOption.label })}
+        />
+      ) : null}
+      <NestedListBoundary>
+        <FolderSections
+          filterFolder={filterFolder}
+          isAddDisabled={isAddDisabled}
+          listKey={listKey}
+          listMaxHeight={maxHeight}
+          size={isLarge ? "large" : "compact"}
+          surface="picker"
+          tone="surface"
+          visibleSections={visibleSections}
+          renderRow={renderRow}
+          onAddPress={handleAddPress}
+        />
+      </NestedListBoundary>
+      <CreateFolderDialog
+        defaultShared={createSection === "shared"}
+        mode={isInsideSheet ? "mobile" : "wide"}
+        open={createSection != null}
+        stackBehavior="push"
+        onCreated={handleCreated}
+        onOpenChange={handleCreateOpenChange}
+      />
     </View>
   );
 }
@@ -84,40 +144,52 @@ function FolderPickerRow({
   label,
   icon,
   selected,
+  isLarge,
   onPress,
 }: {
   label: string;
   icon?: string;
   selected: boolean;
+  isLarge: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="radio"
+      aria-checked={selected}
       className={cn(
-        "flex-row items-center justify-between rounded-xl border border-border bg-card px-4 py-3",
-        selected && "border-primary bg-accent",
+        "flex-row items-center gap-2 rounded-xl border px-4 web:transition-colors web:hover:border-primary/60 web:motion-reduce:transition-none",
+        isLarge ? "min-h-[52px] py-3" : "py-[11px]",
+        selected ? "border-primary bg-accent" : "border-border bg-card",
       )}
       onPress={onPress}
     >
       <View className="min-w-0 flex-1 flex-row items-center gap-2">
-        {icon ? <Text>{icon}</Text> : null}
+        {icon ? <Text aria-hidden>{icon}</Text> : null}
         <Text
-          className={cn("font-semibold", selected && "text-accent-foreground")}
+          className={cn(
+            "min-w-0 flex-1 font-semibold",
+            isLarge ? "text-sm" : "text-[13px]",
+            selected ? "text-accent-foreground" : "text-foreground",
+          )}
           numberOfLines={1}
         >
           {label}
         </Text>
       </View>
-      {selected ? (
-        <Icon
-          as={Sparkles}
-          size={18}
-          className="text-primary"
-        />
-      ) : null}
+      <View className="size-[18px] shrink-0 items-center justify-center">
+        {selected ? (
+          <Icon
+            as={Sparkles}
+            size={18}
+            className="text-primary"
+          />
+        ) : null}
+      </View>
     </Pressable>
   );
 }
 
-export { FolderPickerList, getFolderLabel };
+export { FolderPickerList, UNCATEGORIZED_PICKER_OPTION, getFolderLabel };
 export type { FolderPickerListProps, FolderPickerSelection };

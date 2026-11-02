@@ -13,6 +13,8 @@ import {
   BottomSheetBackdrop,
   type BottomSheetBackdropProps,
   type BottomSheetBackgroundProps,
+  BottomSheetFooter,
+  type BottomSheetFooterProps,
   BottomSheetModal,
   BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
@@ -69,6 +71,7 @@ type SheetProps = {
   open: boolean;
   title?: string;
   dismissible?: boolean;
+  hideCloseButton?: boolean;
   /** fitContent=false일 때 기본 스냅 포인트. 기본값 "35%" */
   defaultSize?: string | number;
   /** fitContent=false일 때 최대 스냅 포인트. 기본값 "80%" */
@@ -81,6 +84,8 @@ type SheetProps = {
   mode?: ThemeMode;
   backgroundStyle?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
+  /** 시트 아래에 고정되는 영역. 키보드가 올라오면 키보드 바로 위에 붙는다. */
+  footer?: React.ReactNode;
   onOpenChange?: (open: boolean) => void;
   /**
    * BottomSheet stack behaviour. Default 'switch' dismisses any other open sheet
@@ -95,6 +100,7 @@ function Sheet({
   open,
   title,
   dismissible = true,
+  hideCloseButton = false,
   defaultSize = "35%",
   maxSize = "80%",
   fitContent = false,
@@ -103,9 +109,11 @@ function Sheet({
   mode,
   backgroundStyle,
   children,
+  footer,
   onOpenChange,
   stackBehavior = "switch",
 }: SheetProps) {
+  const [footerHeight, setFooterHeight] = React.useState(0);
   const sheetRef = React.useRef<BottomSheetModal>(null);
   const insets = useSafeAreaInsets();
   // Default to the active app theme so sheets follow dark mode even when the
@@ -213,7 +221,7 @@ function Sheet({
         <View className="items-center">
           <View className="h-1.5 w-10 rounded-full bg-border" />
         </View>
-        {dismissible ? (
+        {dismissible && !hideCloseButton ? (
           <Pressable
             className="absolute right-3 top-2 size-9 items-center justify-center rounded-full active:bg-accent web:hover:bg-accent"
             hitSlop={8}
@@ -228,20 +236,36 @@ function Sheet({
         ) : null}
       </View>
     ),
-    [dismissible, handleBackdropPress],
+    [dismissible, handleBackdropPress, hideCloseButton],
   );
 
   const safeBottomInset = Math.max(insets.bottom, 16);
+  const hasFooter = footer != null;
+  const renderFooter = React.useCallback(
+    (props: BottomSheetFooterProps) => (
+      <BottomSheetFooter {...props}>
+        <View
+          className="border-t border-border-soft bg-background px-4 pt-3"
+          style={{ paddingBottom: safeBottomInset }}
+          onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
+        >
+          {footer}
+        </View>
+      </BottomSheetFooter>
+    ),
+    [footer, safeBottomInset],
+  );
   const content = (
     <View
       className={cn("gap-4 p-4", className)}
-      style={{ paddingBottom: safeBottomInset }}
+      style={{
+        paddingBottom: hasFooter ? footerHeight + 16 : safeBottomInset,
+      }}
     >
       {title ? <Text className="text-lg font-semibold">{title}</Text> : null}
       {children}
     </View>
   );
-
   return (
     <BottomSheetModal
       ref={sheetRef}
@@ -254,6 +278,7 @@ function Sheet({
       stackBehavior={stackBehavior}
       backdropComponent={renderBackdrop}
       backgroundComponent={renderBackground}
+      footerComponent={hasFooter ? renderFooter : undefined}
       handleComponent={renderHandle}
       style={sheetStyle}
       onChange={handleChange}

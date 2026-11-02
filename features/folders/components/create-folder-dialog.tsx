@@ -23,6 +23,7 @@ type CreateFolderDialogProps = {
   mode: CreateFolderDialogMode;
   open: boolean;
   defaultShared?: boolean;
+  stackBehavior?: "switch" | "push";
   onOpenChange: (open: boolean) => void;
   onCreated?: (folder: CreatedFolder) => void;
 };
@@ -31,6 +32,7 @@ function CreateFolderDialog({
   mode,
   open,
   defaultShared = false,
+  stackBehavior = "switch",
   onOpenChange,
   onCreated,
 }: CreateFolderDialogProps) {
@@ -69,6 +71,7 @@ function CreateFolderDialog({
     }
   }, [emoji, isShared, mutation, name, onCreated, onOpenChange]);
 
+  const isMobile = mode === "mobile";
   const body = (
     <FolderFormBody
       emoji={emoji}
@@ -78,6 +81,7 @@ function CreateFolderDialog({
       isPending={mutation.isPending}
       isShared={isShared}
       name={name}
+      showActions={!isMobile}
       validationError={validationError}
       onCancel={() => onOpenChange(false)}
       onEmojiChange={setEmoji}
@@ -116,6 +120,14 @@ function CreateFolderDialog({
     <Sheet
       open={open}
       fitContent
+      footer={
+        <FolderFormActions
+          isPending={mutation.isPending}
+          onCancel={() => onOpenChange(false)}
+          onSave={handleSave}
+        />
+      }
+      stackBehavior={stackBehavior}
       onOpenChange={onOpenChange}
     >
       <View className="gap-3">
@@ -235,6 +247,7 @@ function FolderFormBody({
   validationError,
   errorMessage,
   isPending,
+  showActions = true,
   onNameChange,
   onEmojiChange,
   onSharedChange,
@@ -247,6 +260,7 @@ function FolderFormBody({
   validationError?: string;
   errorMessage?: string;
   isPending: boolean;
+  showActions?: boolean;
   onNameChange: (name: string) => void;
   onEmojiChange: (emoji: string | null) => void;
   onSharedChange: (isShared: boolean) => void;
@@ -292,24 +306,44 @@ function FolderFormBody({
           maxHeight={220}
         />
       </View>
-      <View className="flex-row justify-end gap-2">
-        <Button
-          className="h-10"
-          disabled={isPending}
-          variant="outline"
-          onPress={onCancel}
-        >
-          <Text>취소</Text>
-        </Button>
-        <Button
-          className="h-10"
-          disabled={isPending}
-          onPress={onSave}
-        >
-          {isPending ? <ActivityIndicator size="small" /> : null}
-          <Text>저장</Text>
-        </Button>
-      </View>
+      {showActions ? (
+        <FolderFormActions
+          isPending={isPending}
+          onCancel={onCancel}
+          onSave={onSave}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function FolderFormActions({
+  isPending,
+  onCancel,
+  onSave,
+}: {
+  isPending: boolean;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <View className="flex-row justify-end gap-2">
+      <Button
+        className="h-10"
+        disabled={isPending}
+        variant="outline"
+        onPress={onCancel}
+      >
+        <Text>취소</Text>
+      </Button>
+      <Button
+        className="h-10"
+        disabled={isPending}
+        onPress={onSave}
+      >
+        {isPending ? <ActivityIndicator size="small" /> : null}
+        <Text>저장</Text>
+      </Button>
     </View>
   );
 }

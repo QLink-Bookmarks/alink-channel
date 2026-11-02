@@ -2,6 +2,7 @@ import type { Folder } from "../types";
 import {
   findFolderInPages,
   flattenFolderPages,
+  getMoveTargetFolderId,
   getNextFolderCursor,
   isFolderId,
   resolveScrollRestore,
@@ -164,5 +165,15 @@ describe("resolveScrollRestore", () => {
     expect(resolveScrollRestore({ ...base, savedOffset: 400, contentHeight: 0 })).toEqual({
       type: "wait",
     });
+  });
+});
+
+describe("getMoveTargetFolderId", () => {
+  it("sends 0 for none so the server moves the link out of its folder", () => {
+    expect(getMoveTargetFolderId(null)).toBe(0);
+  });
+
+  it("keeps a folder id as it is", () => {
+    expect(getMoveTargetFolderId(43)).toBe(43);
   });
 });

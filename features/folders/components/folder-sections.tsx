@@ -22,6 +22,7 @@ import {
   FolderSectionHeader,
   type FolderSectionHeaderShadow,
   type FolderSectionSize,
+  type FolderSectionTone,
 } from "./folder-section-header";
 import {
   FOLDER_LIST_PADDING,
@@ -37,11 +38,14 @@ type FolderSectionsProps = {
   surface: FolderSectionSurface;
   visibleSections?: FolderSection[];
   size?: FolderSectionSize;
+  tone?: FolderSectionTone;
   minVisibleRows?: number;
   rowHeight?: number;
   listMaxHeight?: number;
   listKey?: React.Key;
   className?: string;
+  isAddDisabled?: boolean;
+  filterFolder?: (folder: Folder) => boolean;
   renderRow: (folder: Folder, section: FolderSection) => React.ReactElement;
   onAddPress: (section: FolderSection) => void;
   onMinHeightChange?: (minHeight: number) => void;
@@ -55,11 +59,14 @@ function FolderSections({
   surface,
   visibleSections = ALL_SECTIONS,
   size = "compact",
+  tone = "sidebar",
   minVisibleRows,
   rowHeight,
   listMaxHeight,
   listKey,
   className,
+  isAddDisabled = false,
+  filterFolder,
   renderRow,
   onAddPress,
   onMinHeightChange,
@@ -68,11 +75,25 @@ function FolderSections({
   const storedOpenSection = useFolderNavigation((state) => state.openSection[surface]);
   const hasHydrated = useFolderNavigation((state) => state.hasHydrated);
   const toggleSection = useFolderNavigation((state) => state.toggleSection);
-  const { sections, status, fetchMore, retry } = useFolderSectionData();
+  const { sections: allSections, status, fetchMore, retry } = useFolderSectionData();
+  const sections = React.useMemo(
+    () =>
+      filterFolder
+        ? {
+            mine: allSections.mine.filter(filterFolder),
+            shared: allSections.shared.filter(filterFolder),
+          }
+        : allSections,
+    [allSections, filterFolder],
+  );
   const [edges, setEdges] = React.useState<FolderListEdges>({ atTop: true, atBottom: true });
 
-  const openSection =
-    storedOpenSection && visibleSections.includes(storedOpenSection) ? storedOpenSection : null;
+  const isSingleSection = visibleSections.length === 1;
+  const openSection = isSingleSection
+    ? visibleSections[0]
+    : storedOpenSection && visibleSections.includes(storedOpenSection)
+      ? storedOpenSection
+      : null;
   const isInitialError = status.isInitialError;
 
   React.useEffect(() => {
@@ -80,8 +101,13 @@ function FolderSections({
   }, [openSection]);
 
   const handleToggle = React.useCallback(
-    (section: FolderSection) => toggleSection(surface, section),
-    [surface, toggleSection],
+    (section: FolderSection) => {
+      if (isSingleSection) {
+        return;
+      }
+      toggleSection(surface, section);
+    },
+    [isSingleSection, surface, toggleSection],
   );
 
   const renderSectionRow = React.useCallback(
@@ -155,6 +181,9 @@ function FolderSections({
                 section={section}
                 shadow={getHeaderShadow(index)}
                 size={size}
+                tone={tone}
+                isAddDisabled={isAddDisabled}
+                isToggleDisabled={isSingleSection}
                 onAddPress={onAddPress}
                 onToggle={handleToggle}
               />
@@ -176,6 +205,7 @@ function FolderSections({
                   section={section}
                   size={size}
                   status={status}
+                  tone={tone}
                   renderRow={renderSectionRow}
                   onEdgesChange={setEdges}
                   onFetchMore={fetchMore}

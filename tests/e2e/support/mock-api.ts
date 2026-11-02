@@ -96,8 +96,16 @@ type FolderPageControl = {
   delayMs: Record<number, number>;
 };
 
+/** Controls for moving a link (PATCH folderId) and copying it to a personal folder. */
+type LinkMutationControl = {
+  failMove: boolean;
+  failCopy: boolean;
+  delayMs: number;
+};
+
 type MockApiOptions = {
   links?: MockLink[];
+  linkMutations?: Partial<LinkMutationControl>;
   folders?: MockFolder[];
   folderPages?: Partial<FolderPageControl>;
   details?: Record<number, MockDetail>;
@@ -282,7 +290,27 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
       delayMs: {},
       ...options.folderPages,
     } as FolderPageControl,
+    linkMutations: {
+      failMove: false,
+      failCopy: false,
+      delayMs: 0,
+      ...options.linkMutations,
+    } as LinkMutationControl,
     requests: [] as { method: string; path: string; search: string; body: unknown }[],
+  };
+
+  const shiftFolderCount = (folderId: number | null | undefined, delta: number) => {
+    if (folderId == null) return;
+    state.folders = state.folders.map((folder) =>
+      folder.id === folderId
+        ? { ...folder, linkCounts: Math.max(0, folder.linkCounts + delta) }
+        : folder,
+    );
+  };
+  const waitForLinkMutation = async () => {
+    if (state.linkMutations.delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, state.linkMutations.delayMs));
+    }
   };
 
   await page.addInitScript(() => {
@@ -404,21 +432,33 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
           state.links = state.links.filter((link) => link.id !== id);
           return json(envelope(null));
         }
-        if (method === "PATCH" && detail) {
+        if (method === "PATCH") {
           const payload = body as { folderId?: number | null };
-          if (payload && "folderId" in payload) {
-            const folder = state.folders.find((item) => item.id === payload.folderId);
+          const current = detail ?? state.links.find((link) => link.id === id);
+          if (payload && payload.folderId != null) {
+            await waitForLinkMutation();
+            if (state.linkMutations.failMove) {
+              return json({ success: false, data: null, error: { message: "SERVER_ERROR" } }, 500);
+            }
+            const targetId = payload.folderId === 0 ? null : payload.folderId;
+            const folder = state.folders.find((item) => item.id === targetId);
             const moved = {
-              folderId: payload.folderId ?? null,
+              folderId: targetId,
               folderName: folder?.name ?? null,
               folderEmoji: folder?.emoji ?? null,
             };
-            state.details[id] = { ...detail, ...moved };
+            if (current && current.folderId !== moved.folderId) {
+              shiftFolderCount(current.folderId, -1);
+              shiftFolderCount(moved.folderId, 1);
+            }
+            if (detail) {
+              state.details[id] = { ...detail, ...moved };
+            }
             state.links = state.links.map((link) =>
               link.id === id ? { ...link, ...moved } : link,
             );
           }
-          return json(envelope(state.details[id]));
+          return json(envelope(state.details[id] ?? null));
         }
         if (method === "PUT" && detail) {
           const payload = body as Partial<MockDetail>;
@@ -447,6 +487,32 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
           const { thumbnailUrl: _t, faviconUrl: _f, isVideo: _v, ...echo } = next;
           return json(envelope(echo));
         }
+      }
+      const copyMatch = path.match(/^\/api\/links\/(\d+)\/copy$/);
+      if (copyMatch && method === "POST") {
+        await waitForLinkMutation();
+        if (state.linkMutations.failCopy) {
+          return json({ success: false, data: null, error: { message: "SERVER_ERROR" } }, 500);
+        }
+        const sourceId = Number(copyMatch[1]);
+        const source = state.links.find((link) => link.id === sourceId);
+        const toFolderId = (body as { toFolderId?: number | null })?.toFolderId ?? null;
+        const folder = state.folders.find((item) => item.id === toFolderId);
+        const newId = Math.max(0, ...state.links.map((link) => link.id)) + 1;
+        if (source) {
+          state.links = [
+            {
+              ...source,
+              id: newId,
+              folderId: toFolderId,
+              folderName: folder?.name ?? null,
+              folderEmoji: folder?.emoji ?? null,
+            },
+            ...state.links,
+          ];
+        }
+        shiftFolderCount(toFolderId, 1);
+        return json(envelope({ id: newId }), 201);
       }
       const favoriteMatch = path.match(/^\/api\/links\/(\d+)\/favorite$/);
       if (favoriteMatch && method === "PUT") {
@@ -508,4 +574,12 @@ export {
   mockApi,
   scroll,
 };
-export type { FolderPageControl, MockDetail, MockFolder, MockLink, MockTodo, TodoCounts };
+export type {
+  FolderPageControl,
+  LinkMutationControl,
+  MockDetail,
+  MockFolder,
+  MockLink,
+  MockTodo,
+  TodoCounts,
+};

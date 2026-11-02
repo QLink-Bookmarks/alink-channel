@@ -58,10 +58,12 @@ function DialogOverlay({
 function DialogContent({
   className,
   portalHost,
+  hideCloseButton = false,
   children,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   portalHost?: string;
+  hideCloseButton?: boolean;
 }) {
   return (
     <DialogPortal hostName={portalHost}>
@@ -77,23 +79,25 @@ function DialogContent({
           {...props}
         >
           <>{children}</>
-          <DialogPrimitive.Close
-            className={cn(
-              "absolute right-4 top-4 rounded opacity-70 active:opacity-100",
-              Platform.select({
-                web: "ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 data-[state=open]:bg-accent",
-              }),
-            )}
-            hitSlop={12}
-          >
-            <View>
-              <Icon
-                as={X}
-                className={cn("size-4 shrink-0 text-accent-foreground web:pointer-events-none")}
-              />
-              <Text className="sr-only">닫기</Text>
-            </View>
-          </DialogPrimitive.Close>
+          {hideCloseButton ? null : (
+            <DialogPrimitive.Close
+              className={cn(
+                "absolute right-4 top-4 rounded opacity-70 active:opacity-100",
+                Platform.select({
+                  web: "ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 data-[state=open]:bg-accent",
+                }),
+              )}
+              hitSlop={12}
+            >
+              <View>
+                <Icon
+                  as={X}
+                  className={cn("size-4 shrink-0 text-accent-foreground web:pointer-events-none")}
+                />
+                <Text className="sr-only">닫기</Text>
+              </View>
+            </DialogPrimitive.Close>
+          )}
         </DialogPrimitive.Content>
       </DialogOverlay>
     </DialogPortal>

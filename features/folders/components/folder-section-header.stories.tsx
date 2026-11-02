@@ -21,6 +21,7 @@ const meta = {
   argTypes: {
     section: { control: "select", options: ["mine", "shared"] },
     size: { control: "select", options: ["compact", "large"] },
+    tone: { control: "select", options: ["sidebar", "surface"] },
     shadow: { control: "select", options: [null, "top", "bottom"] },
   },
   decorators: [
@@ -73,4 +74,16 @@ export const Accordion: Story = {
 export const Large: Story = {
   name: "모바일 크기",
   args: { size: "large", section: "shared", isOpen: false },
+};
+
+export const Surface: Story = {
+  name: "폴더 선택 목록",
+  args: { tone: "surface", section: "mine", isOpen: true },
+  decorators: [
+    (Story) => (
+      <View className="w-80 rounded-2xl bg-popover p-3">
+        <Story />
+      </View>
+    ),
+  ],
 };

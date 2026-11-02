@@ -1,7 +1,6 @@
 import * as React from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 
-import { Sheet } from "@/components/layout/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,17 +11,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
-import { FolderPickerList } from "@/features/folders/components/folder-picker-list";
+import { FolderPickerDialog } from "@/features/folders/components/folder-picker-dialog";
+import {
+  type FolderPickerSelection,
+  UNCATEGORIZED_PICKER_OPTION,
+} from "@/features/folders/components/folder-picker-list";
+import { getMoveTargetFolderId } from "@/features/folders/lib/folder-pages";
 import { mapLinkListItem } from "@/features/home/lib/link-card-mapper";
 import { deleteLink, patchLink } from "@/features/links/api";
 import { LinkCard } from "@/features/links/components/link-card/link-card";
@@ -171,28 +167,35 @@ function LinkCardGrid({
     }
   }, [deleteMutation, deleteTargetLink, queryClient]);
 
-  const handleFolderMoveSelect = React.useCallback(
-    async (selection: { id: number | null }) => {
+  const handleFolderMoveConfirm = React.useCallback(
+    async (selection: FolderPickerSelection) => {
       const target = folderMoveLink;
-      setFolderMoveLink(null);
-      if (!target || selection.id === (target.folderId ?? null)) {
+      if (!target) {
         return;
       }
       try {
-        await folderMoveMutation.mutateAsync({ id: target.id, folderId: selection.id });
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["links", "list"] }),
-          queryClient.invalidateQueries({ queryKey: ["folders"] }),
-        ]);
+        await folderMoveMutation.mutateAsync({
+          id: target.id,
+          folderId: getMoveTargetFolderId(selection.id),
+        });
       } catch (error: unknown) {
         reportError(error, {
           area: "link-card-grid:folder-move",
           extra: { folderId: selection.id, linkId: target.id },
         });
+        throw error;
       }
+      void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
+      void queryClient.invalidateQueries({ queryKey: ["folders"] });
     },
     [folderMoveLink, folderMoveMutation, queryClient],
   );
+
+  const handleFolderMoveOpenChange = React.useCallback((open: boolean) => {
+    if (!open) {
+      setFolderMoveLink(null);
+    }
+  }, []);
 
   return (
     <>
@@ -267,54 +270,19 @@ function LinkCardGrid({
             })}
       </View>
 
-      {isWideView ? (
-        <Dialog
-          open={Boolean(folderMoveLink)}
-          onOpenChange={(open) => {
-            if (!open) setFolderMoveLink(null);
-          }}
-        >
-          <DialogContent className="max-h-[80vh] min-h-[24rem] min-w-[24rem] max-w-xl">
-            <DialogHeader>
-              <DialogTitle>폴더 이동</DialogTitle>
-              <DialogDescription>이동할 폴더를 선택해주세요.</DialogDescription>
-            </DialogHeader>
-            <ScrollView
-              className="flex-1"
-              contentInsetAdjustmentBehavior="automatic"
-              showsVerticalScrollIndicator={false}
-            >
-              <FolderPickerList
-                selectedFolderId={folderMoveLink?.folderId ?? null}
-                onSelect={handleFolderMoveSelect}
-              />
-            </ScrollView>
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <Sheet
-          open={Boolean(folderMoveLink)}
-          fitContent
-          onOpenChange={(open) => {
-            if (!open) setFolderMoveLink(null);
-          }}
-        >
-          <View className="gap-3">
-            <Text className="text-lg font-semibold text-foreground">폴더 이동</Text>
-            <FolderPickerList
-              selectedFolderId={folderMoveLink?.folderId ?? null}
-              onSelect={handleFolderMoveSelect}
-            />
-            <Button
-              className="h-10 self-stretch"
-              variant="outline"
-              onPress={() => setFolderMoveLink(null)}
-            >
-              <Text>닫기</Text>
-            </Button>
-          </View>
-        </Sheet>
-      )}
+      <FolderPickerDialog
+        confirmLabel="확인"
+        description="이동할 폴더를 선택해주세요."
+        errorMessage="폴더를 옮기지 못했어요. 다시 시도해 주세요."
+        initialFolderId={folderMoveLink?.folderId ?? null}
+        noneOption={UNCATEGORIZED_PICKER_OPTION}
+        open={Boolean(folderMoveLink)}
+        pendingLabel="옮기는 중"
+        presentation={isWideView ? "dialog" : "sheet"}
+        title="폴더 이동"
+        onConfirm={handleFolderMoveConfirm}
+        onOpenChange={handleFolderMoveOpenChange}
+      />
 
       <AlertDialog
         open={Boolean(deleteTargetLink)}

@@ -1,5 +1,6 @@
 import { View } from "react-native";
 
+import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { type AccentName, type ThemeMode } from "@/lib/theme";
 import type { Meta, StoryObj } from "@storybook/react-native";
@@ -199,6 +200,61 @@ export const NotDismissible: Story = {
       onOpenChange={() => {}}
     >
       <Text className="text-muted-foreground">이 상태에서는 배경을 눌러도 닫히지 않는다.</Text>
+    </Sheet>
+  ),
+};
+
+export const WithoutCloseButton: Story = {
+  name: "닫기 버튼 없이",
+  args: {
+    fitContent: true,
+    title: "아래 버튼으로 닫는 시트",
+  },
+  render: ({ open, title }, context) => (
+    <Sheet
+      open={open}
+      title={title}
+      fitContent
+      hideCloseButton
+      accent={(context.globals.accent ?? "gray") as AccentName}
+      mode={(context.globals.mode ?? "light") as ThemeMode}
+      onOpenChange={() => {}}
+    >
+      <ShortContent />
+    </Sheet>
+  ),
+};
+
+export const WithFooter: Story = {
+  name: "아래 고정 버튼 줄",
+  args: {
+    fitContent: true,
+    title: "버튼 줄이 늘 보이는 시트",
+  },
+  render: ({ open, title }, context) => (
+    <Sheet
+      open={open}
+      title={title}
+      fitContent
+      hideCloseButton
+      accent={(context.globals.accent ?? "gray") as AccentName}
+      mode={(context.globals.mode ?? "light") as ThemeMode}
+      footer={
+        <View className="flex-row gap-2">
+          <Button
+            className="h-12 flex-1"
+            variant="outline"
+          >
+            <Text>취소</Text>
+          </Button>
+          <Button className="h-12 flex-1">
+            <Text>확인</Text>
+          </Button>
+        </View>
+      }
+      onOpenChange={() => {}}
+    >
+      <LongContent />
     </Sheet>
   ),
 };
