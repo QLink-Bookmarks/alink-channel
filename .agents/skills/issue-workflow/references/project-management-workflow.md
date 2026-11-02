@@ -72,7 +72,7 @@ Check the server only when the requirement depends on server behavior, and recor
 
 The spec is large (~400KB); never read it whole. Fetch it and grep for the paths and schema names the feature needs. State plainly which endpoints exist, which are missing, and what has to be stubbed. A requirement that depends on a missing endpoint must say so before the user confirms it.
 
-Once the requirement is confirmed, set the Issue's Project `Start date` and `Target date` fields with the GraphQL `updateProjectV2ItemFieldValue` mutation (`date`). `Start date` is the confirmation day. `Target date` is a reasonable estimate of when the last PR lands, judged from the confirmed scope and the stages still ahead. Report both dates when closing the stage; the user may adjust them.
+Once the requirement is confirmed, set the Issue's `Start date` and `Target date`. They are organization issue fields, not Project fields, so `updateProjectV2ItemFieldValue` rejects them. Get the field ids from `organization(login:"QLink-Bookmarks"){issueFields(first:20){nodes{... on IssueFieldDate{id name}}}}`, then set each date with the GraphQL `updateIssueFieldValue` mutation: `input:{issueId:<issue node id>, issueField:{fieldId:<field id>, dateValue:"YYYY-MM-DD"}}`. `Start date` is the confirmation day. `Target date` is a reasonable estimate of when the last PR lands, judged from the confirmed scope and the stages still ahead. Report both dates when closing the stage; the user may adjust them.
 
 ### 3. Design
 
