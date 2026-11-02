@@ -4,9 +4,30 @@ import { BrandHeader } from "@/components/layout/brand-header";
 import { Text } from "@/components/ui/text";
 import type { Meta, StoryObj } from "@storybook/react-native";
 
-import { Sidebar, SidebarCTA, SidebarItem, SidebarProfile, SidebarSection } from "./sidebar";
+import {
+  Sidebar,
+  SidebarCTA,
+  SidebarItem,
+  SidebarProfile,
+  SidebarRail,
+  SidebarRailCTA,
+  SidebarRailItem,
+  SidebarRailSeparator,
+  SidebarRailTooltip,
+  SidebarSection,
+} from "./sidebar";
 
-import { Folder, House, Link } from "lucide-react-native/icons";
+import {
+  BookCopy,
+  Folder,
+  House,
+  Link,
+  Menu,
+  Palette,
+  Plus,
+  SquareCheck,
+  Users,
+} from "lucide-react-native/icons";
 import { useArgs } from "storybook/preview-api";
 
 type SidebarStoryArgs = {
@@ -143,5 +164,74 @@ export const FolderRows: Story = {
         label="미분류"
       />
     </Sidebar>
+  ),
+};
+
+export const Rail: Story = {
+  name: "줄인 상태",
+  render: () => (
+    <View className="h-[640px]">
+      <SidebarRail className="flex">
+        <View className="flex-1 items-center gap-1.5 px-2 py-3">
+          <SidebarRailItem
+            aria-expanded={false}
+            icon={Menu}
+            label="사이드바 펼치기"
+          />
+          <SidebarRailTooltip
+            label="새 링크"
+            shortcut="⌥N"
+          >
+            <SidebarRailCTA
+              accessibilityLabel="새 링크, 단축키 ⌥N"
+              icon={Plus}
+            />
+          </SidebarRailTooltip>
+          <SidebarRailItem
+            active
+            icon={House}
+            label="홈"
+          />
+          <SidebarRailItem
+            icon={BookCopy}
+            label="전체"
+          />
+          <SidebarRailItem
+            icon={SquareCheck}
+            label="할일"
+          />
+          <SidebarRailSeparator />
+          <SidebarRailItem
+            accessibilityLabel="내 폴더 목록"
+            icon={Folder}
+            label="내 폴더"
+          />
+          <SidebarRailItem
+            accessibilityLabel="공유 폴더 목록"
+            icon={Users}
+            label="공유 폴더"
+          />
+          <SidebarRailSeparator />
+          <SidebarRailItem
+            accessibilityLabel="미분류, 링크 12개"
+            emoji="🗂️"
+            label="미분류"
+            shortcut="12"
+          />
+          <SidebarRailItem
+            active
+            accessibilityLabel="2027 교토·오사카 여행 준비 체크리스트와 숙소 후보, 선택된 폴더"
+            emoji="✈️"
+            label="2027 교토·오사카 여행 준비 체크리스트와 숙소 후보"
+          />
+          <View className="flex-1" />
+          <SidebarRailItem
+            accessibilityLabel="모드와 강조색"
+            icon={Palette}
+            label="모드 · 강조색"
+          />
+        </View>
+      </SidebarRail>
+    </View>
   ),
 };

@@ -39,10 +39,12 @@ import { useAnySheetOpen } from "@/stores/sheet-tracker";
 import { useAddLinkSheet } from "../hooks/use-add-link-sheet";
 import { useLinkOverlayState } from "../hooks/use-link-overlay-state";
 import { useShellRouteState } from "../hooks/use-shell-route-state";
+import { getFolderIdFromPath } from "../lib/folder-path";
+import { isNewLinkShortcut, suppressNextTextInput } from "../lib/new-link-shortcut";
 import { canOpenWideOverlayInPlace } from "../routes";
 import type { MobileTabKey } from "../types";
 import { WideKbdHelper } from "./wide-kbd-helper";
-import { WideSidebar } from "./wide-sidebar";
+import { WideSidebarColumn } from "./wide-sidebar-column";
 
 import { type Href, Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { Folder, House, ListTodo, Plus, Search, Settings } from "lucide-react-native";
@@ -81,8 +83,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const { linkUrl: linkUrlParam } = useLocalSearchParams<{ linkUrl?: string }>();
   const openFolderSection = useFolderNavigation((state) => state.openSectionOn);
   const isAnnouncementsListRoute = routeState.pathname === "/announcements";
-  const mobileFolderIdMatch = /^\/folders\/(\d+)$/.exec(routeState.pathname);
-  const mobileFolderId = mobileFolderIdMatch ? Number(mobileFolderIdMatch[1]) : Number.NaN;
+  const mobileFolderId = getFolderIdFromPath(routeState.pathname) ?? Number.NaN;
   const mobileFolderQuery = useFolderQuery(mobileFolderId, {
     enabled: !routeState.isWideView && mobileFolderId !== UNCATEGORIZED_FOLDER_ID,
   });
@@ -241,28 +242,29 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     }
 
     const handleWideKeyboardShortcut = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
+      const key = event.key?.toLowerCase();
       const isMetaOrCtrlK = (event.metaKey || event.ctrlKey) && key === "k";
 
       if (isMetaOrCtrlK) {
         event.preventDefault();
-        console.log("shortcut:search");
         openSearchDialog({ mode: "link" });
         return;
       }
 
-      if (key === "n" && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        console.log("shortcut:new-link");
+      if (isNewLinkShortcut(event)) {
+        event.preventDefault();
+        suppressNextTextInput(window);
+        setSearchDialogOpen(false);
         setIsAddLinkDialogOpen(true);
       }
     };
 
-    window.addEventListener("keydown", handleWideKeyboardShortcut);
+    window.addEventListener("keydown", handleWideKeyboardShortcut, true);
 
     return () => {
-      window.removeEventListener("keydown", handleWideKeyboardShortcut);
+      window.removeEventListener("keydown", handleWideKeyboardShortcut, true);
     };
-  }, [openSearchDialog, routeState.isWideView]);
+  }, [openSearchDialog, routeState.isWideView, setSearchDialogOpen]);
 
   React.useEffect(() => {
     if (routeState.isWideView) {
@@ -298,17 +300,17 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   if (routeState.isWideView) {
     return (
       <View className="flex-1 flex-row bg-background">
-        <View className="w-[15%] min-w-56 max-w-80">
-          <WideSidebar
-            activeKey={routeState.wideSidebarKey}
-            folderListKey={sidebarFolderListKey}
-            pathname={routeState.pathname}
-            onAddFolderPress={handleWideAddFolderPress}
-            onAddLinkPress={handleWideAddLinkPress}
-            onNavigate={handleWideNavigate}
-            onProfilePress={handleProfilePress}
-          />
-        </View>
+        <WideSidebarColumn
+          activeKey={routeState.wideSidebarKey}
+          folderListKey={sidebarFolderListKey}
+          isOverlayOpen={isOpen}
+          pathname={routeState.pathname}
+          onAddFolderPress={handleWideAddFolderPress}
+          onAddLinkPress={handleWideAddLinkPress}
+          onNavigate={handleWideNavigate}
+          onOverlayDismiss={() => handleOpenChange(false)}
+          onProfilePress={handleProfilePress}
+        />
 
         <View className="flex-1 bg-background">
           <Topbar

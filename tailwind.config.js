@@ -109,6 +109,9 @@ module.exports = {
         "3xl": "20px",
         "4xl": "28px",
       },
+      transitionDuration: {
+        220: "220ms",
+      },
       boxShadow: {
         "qlink-sm": "0 1px 3px rgba(var(--glow-rgb), 0.08)",
         "qlink-md": "0 4px 16px rgba(var(--glow-rgb), 0.15)",

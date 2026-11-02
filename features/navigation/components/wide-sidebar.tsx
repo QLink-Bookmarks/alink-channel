@@ -2,7 +2,13 @@ import * as React from "react";
 import { type LayoutChangeEvent, ScrollView, View } from "react-native";
 
 import { BrandHeader } from "@/components/layout/brand-header";
-import { SIDEBAR_ITEM_HEIGHT, Sidebar, SidebarCTA, SidebarItem } from "@/components/layout/sidebar";
+import {
+  SIDEBAR_ITEM_HEIGHT,
+  Sidebar,
+  SidebarCTA,
+  SidebarItem,
+  SidebarRailItem,
+} from "@/components/layout/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Emoji } from "@/components/ui/emoji";
@@ -17,23 +23,14 @@ import type { Folder } from "@/features/folders/types";
 import { useDisplaySettings } from "@/stores/display-settings";
 import type { FolderSection } from "@/stores/folder-navigation";
 
+import { useNewLinkShortcutLabel } from "../hooks/use-new-link-shortcut-label";
+import { WIDE_PRIMARY_ITEMS } from "../lib/wide-sidebar-items";
 import type { WideSidebarKey } from "../types";
 
-import { BookCopyIcon, CheckSquare, LucideHome, type LucideIcon } from "lucide-react-native";
+import { Menu } from "lucide-react-native";
 
 const SIDEBAR_PADDING = 12;
 const MIN_VISIBLE_FOLDER_ROWS = 2;
-
-const widePrimaryItems: {
-  href: string;
-  key: WideSidebarKey;
-  label: string;
-  icon: LucideIcon;
-}[] = [
-  { href: "/home", key: "home", label: "홈", icon: LucideHome },
-  { href: "/links", key: "links", label: "전체", icon: BookCopyIcon },
-  { href: "/todos", key: "todos", label: "할일", icon: CheckSquare },
-];
 
 type BlockHeights = {
   viewport: number;
@@ -48,6 +45,7 @@ type WideSidebarProps = {
   pathname: string;
   activeKey: WideSidebarKey | null;
   folderListKey?: React.Key;
+  onCollapse: () => void;
   onNavigate: (href: string) => void;
   onAddLinkPress: () => void;
   onAddFolderPress: (section: FolderSection) => void;
@@ -66,6 +64,7 @@ function WideSidebar({
   pathname,
   activeKey,
   folderListKey,
+  onCollapse,
   onNavigate,
   onAddLinkPress,
   onAddFolderPress,
@@ -78,6 +77,7 @@ function WideSidebar({
   const avatarEmojiOverride = useDisplaySettings((state) => state.profile.avatarEmoji);
   const myProfileQuery = useMyProfileQuery();
   const uncategorizedCount = useUncategorizedCount();
+  const shortcutLabel = useNewLinkShortcutLabel();
   const [heights, setHeights] = React.useState<BlockHeights>({
     viewport: 0,
     top: 0,
@@ -142,7 +142,7 @@ function WideSidebar({
     <Sidebar className="h-full w-full min-w-0 max-w-none p-0">
       <ScrollView
         className="flex-1"
-        contentContainerClassName={contentHeight == null ? "flex-grow p-3" : "p-3"}
+        contentContainerClassName={contentHeight == null ? "h-full p-3" : "p-3"}
         contentContainerStyle={contentHeight == null ? undefined : { height: contentHeight }}
         showsVerticalScrollIndicator={false}
         onLayout={handleBlockLayout("viewport")}
@@ -151,10 +151,19 @@ function WideSidebar({
           className="shrink-0 gap-6 pb-2.5"
           onLayout={handleBlockLayout("top")}
         >
-          <BrandHeader
-            accent={accent}
-            mode={theme}
-          />
+          <View className="flex-row items-center gap-0.5">
+            <SidebarRailItem
+              aria-expanded
+              icon={Menu}
+              label="사이드바 줄이기"
+              onPress={onCollapse}
+            />
+            <BrandHeader
+              accent={accent}
+              className="pt-0"
+              mode={theme}
+            />
+          </View>
 
           <SidebarCTA
             label={
@@ -162,22 +171,26 @@ function WideSidebar({
                 <Text className="text-2xl font-semibold leading-none text-primary-foreground">
                   +
                 </Text>
-                <Kbd
-                  keyClassName="border-white/20 bg-white/20"
-                  keyTextClassName="text-primary-foreground"
-                  label="새 링크"
-                  labelClassName="text-base font-semibold text-primary-foreground"
-                  labelPosition="left"
-                >
-                  N
-                </Kbd>
+                {shortcutLabel ? (
+                  <Kbd
+                    keyClassName="border-white/20 bg-white/20"
+                    keyTextClassName="text-primary-foreground"
+                    label="새 링크"
+                    labelClassName="text-base font-semibold text-primary-foreground"
+                    labelPosition="left"
+                  >
+                    {shortcutLabel}
+                  </Kbd>
+                ) : (
+                  <Text className="text-base font-semibold text-primary-foreground">새 링크</Text>
+                )}
               </>
             }
             onPress={onAddLinkPress}
           />
 
           <View className="gap-1">
-            {widePrimaryItems.map((item) => (
+            {WIDE_PRIMARY_ITEMS.map((item) => (
               <SidebarItem
                 key={item.key}
                 active={activeKey === item.key}

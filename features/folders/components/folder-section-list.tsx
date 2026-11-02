@@ -17,7 +17,7 @@ import type { FolderScrollSurface, FolderSection } from "@/stores/folder-navigat
 
 import { useSectionScrollMemory } from "../hooks/use-section-scroll-memory";
 import { shouldFetchMoreFolders } from "../lib/folder-pages";
-import type { Folder } from "../types";
+import type { Folder, FolderListStatus } from "../types";
 import { FOLDER_SECTION_LABELS, type FolderSectionSize } from "./folder-section-header";
 
 import { CircleAlert, RotateCw } from "lucide-react-native/icons";
@@ -33,14 +33,6 @@ const EMPTY_COPY: Record<FolderSection, { title: string; description: string }> 
   shared: { title: "아직 공유 폴더가 없어요", description: "+로 함께 쓸 폴더를 만들어요." },
 };
 
-type FolderListStatus = {
-  isInitialLoading: boolean;
-  isInitialError: boolean;
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-  isFetchNextPageError: boolean;
-};
-
 type FolderListEdges = {
   atTop: boolean;
   atBottom: boolean;
@@ -53,6 +45,7 @@ type FolderSectionListProps = {
   size?: FolderSectionSize;
   scrollSurface?: FolderScrollSurface;
   className?: string;
+  style?: React.ComponentProps<typeof FlatList>["style"];
   renderRow: (folder: Folder) => React.ReactElement;
   onFetchMore: () => void;
   onRetry: () => void;
@@ -66,6 +59,7 @@ function FolderSectionList({
   size = "compact",
   scrollSurface,
   className,
+  style,
   renderRow,
   onFetchMore,
   onRetry,
@@ -187,6 +181,7 @@ function FolderSectionList({
       keyExtractor={(folder) => String(folder.id)}
       renderItem={renderItem}
       scrollEventThrottle={16}
+      style={style}
       showsVerticalScrollIndicator={false}
       initialNumToRender={20}
       onContentSizeChange={handleContentSizeChange}
@@ -353,4 +348,4 @@ function FolderListFooter({
 }
 
 export { FOLDER_LIST_PADDING, FOLDER_LIST_ROW_GAP, FolderSectionList };
-export type { FolderListEdges, FolderListStatus, FolderSectionListProps };
+export type { FolderListEdges, FolderSectionListProps };
