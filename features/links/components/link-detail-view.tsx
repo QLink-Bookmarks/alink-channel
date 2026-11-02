@@ -320,7 +320,7 @@ function LinkDetailView({
   const [isFolderMoveOpen, setIsFolderMoveOpen] = React.useState(false);
   const [isCopyFolderOpen, setIsCopyFolderOpen] = React.useState(false);
   const [isEditOpen, setIsEditOpen] = React.useState(false);
-  // TODO: isEditOpenRef lets handleRequestCloseEdit ignore close requests after the sheet is already closed, guarding against sheet.tsx echoing code-driven closes; redundant once #32 lands.
+  // isEditOpenRef lets handleRequestCloseEdit ignore close requests that arrive after the sheet is already closed; a backstop now that sheet.tsx (#32) no longer echoes code-driven closes.
   const isEditOpenRef = React.useRef(false);
   const setEditSheetOpen = React.useCallback((open: boolean) => {
     isEditOpenRef.current = open;

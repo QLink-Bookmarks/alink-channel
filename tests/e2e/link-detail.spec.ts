@@ -114,6 +114,25 @@ async function settledSheetBox(page: Page) {
   return previous;
 }
 
+async function dragSheetDown(page: Page) {
+  const box = await settledSheetBox(page);
+  const x = box.x + box.width / 2;
+  const y = box.y - 14;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let step = 1; step <= 12; step += 1) {
+    await page.mouse.move(x, y + step * 40);
+  }
+  await page.mouse.up();
+}
+
+async function tapAboveSheet(page: Page) {
+  await settledSheetBox(page);
+  await page
+    .getByRole("button", { name: "Bottom sheet backdrop" })
+    .click({ position: { x: 195, y: 40 } });
+}
+
 test.describe("layout", () => {
   test("top to bottom: address and refresh, image, title, actions, summary, tags, memo, todos; no folder section or open button", async ({
     page,
@@ -643,6 +662,68 @@ test.describe("todo cards and saving edits (#27)", () => {
     await page.getByRole("button", { name: "저장 안 함" }).click();
     await expect(title).toHaveCount(0);
 
+    await page.getByTestId("link-detail-edit").click();
+    await settledSheetBox(page);
+    await expect(title).toHaveValue(details[1].title);
+    await page.waitForTimeout(1000);
+    await expect(title).toBeInViewport();
+  });
+
+  test("tapping outside the dirty edit sheet asks first, Escape keeps editing on screen, and 수정하기 opens the sheet again after discarding", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "the edit sheet on mobile");
+    const { links, details } = buildFixtures();
+    await mockApi(page, { links, details });
+    await openDetail(page, 1);
+    const prompt = page.getByRole("dialog", { name: "저장하지 않은 변경사항이 있어요" });
+    const title = page.getByPlaceholder("링크 제목");
+
+    await page.getByTestId("link-detail-edit").click();
+    await title.fill("고친 제목");
+    await tapAboveSheet(page);
+    await expect(prompt).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(prompt).toHaveCount(0);
+    await settledSheetBox(page);
+    await expect(title).toHaveValue("고친 제목");
+    await expect(title).toBeInViewport();
+
+    await tapAboveSheet(page);
+    await expect(prompt).toBeVisible();
+    await page.getByRole("button", { name: "저장 안 함" }).click();
+    await expect(title).toHaveCount(0);
+    await page.getByTestId("link-detail-edit").click();
+    await settledSheetBox(page);
+    await expect(title).toHaveValue(details[1].title);
+    await page.waitForTimeout(1000);
+    await expect(title).toBeInViewport();
+  });
+
+  test("dragging down the dirty edit sheet asks first, Escape keeps editing on screen, and 수정하기 opens the sheet again after discarding", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "the edit sheet on mobile");
+    const { links, details } = buildFixtures();
+    await mockApi(page, { links, details });
+    await openDetail(page, 1);
+    const prompt = page.getByRole("dialog", { name: "저장하지 않은 변경사항이 있어요" });
+    const title = page.getByPlaceholder("링크 제목");
+
+    await page.getByTestId("link-detail-edit").click();
+    await title.fill("고친 제목");
+    await dragSheetDown(page);
+    await expect(prompt).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(prompt).toHaveCount(0);
+    await settledSheetBox(page);
+    await expect(title).toHaveValue("고친 제목");
+    await expect(title).toBeInViewport();
+
+    await dragSheetDown(page);
+    await expect(prompt).toBeVisible();
+    await page.getByRole("button", { name: "저장 안 함" }).click();
+    await expect(title).toHaveCount(0);
     await page.getByTestId("link-detail-edit").click();
     await settledSheetBox(page);
     await expect(title).toHaveValue(details[1].title);
