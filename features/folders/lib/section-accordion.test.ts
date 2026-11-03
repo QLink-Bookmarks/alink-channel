@@ -2,6 +2,7 @@ import {
   getAvailableListHeight,
   getOpenTarget,
   getPlanTargets,
+  getReservedHeight,
   getTransitionMinHeight,
   interpolateSectionHeight,
 } from "./section-accordion";
@@ -84,5 +85,13 @@ describe("getTransitionMinHeight", () => {
     expect(getTransitionMinHeight(254, 170)).toBe(254);
     expect(getTransitionMinHeight(undefined, 120)).toBe(120);
     expect(getTransitionMinHeight(undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe("getReservedHeight", () => {
+  it("keeps room for the taller of the closing lists and the opening list", () => {
+    expect(getReservedHeight(104, [286], 120)).toBe(390);
+    expect(getReservedHeight(104, [], 286)).toBe(390);
+    expect(getReservedHeight(104, [100, 60], 120)).toBe(264);
   });
 });

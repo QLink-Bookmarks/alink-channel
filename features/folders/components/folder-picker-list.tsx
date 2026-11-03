@@ -139,6 +139,7 @@ function FolderPickerList({
           isAddDisabled={isAddDisabled}
           listKey={listKey}
           listMaxHeight={maxHeight}
+          reservesTransitionHeight={isInsideSheet}
           size={isLarge ? "large" : "compact"}
           surface="picker"
           tone="surface"

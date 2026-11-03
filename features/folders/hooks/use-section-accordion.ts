@@ -9,6 +9,7 @@ import {
   getAvailableListHeight,
   getOpenTarget,
   getPlanTargets,
+  getReservedHeight,
   getTransitionMinHeight,
   interpolateSectionHeight,
 } from "../lib/section-accordion";
@@ -16,6 +17,7 @@ import {
 const MODE_SETTLED = 0;
 const MODE_MOVING = 1;
 const SECTION_EASING = Easing.bezier(0.2, 0, 0, 1);
+const MIN_RETARGET_MS = 80;
 
 type SectionMotion = {
   mode: SharedValue<number>;
@@ -28,7 +30,8 @@ type AccordionState<K extends string> = {
   settledKey: K | null;
   mounted: K[];
   frozen: Partial<Record<K, number>>;
-  measuring: K | null;
+  opening: K | null;
+  openingCap: number | undefined;
   isMoving: boolean;
   transitionMinHeight: number | undefined;
   settleToken: number;
@@ -40,6 +43,8 @@ type SectionAccordionOptions<K extends string> = {
   isReducedMotion: boolean;
   minHeight: number | undefined;
   headersHeight: number;
+  listMaxHeight: number | undefined;
+  reservesHeight: boolean;
   getAvailableHeight: () => number | undefined;
 };
 
@@ -48,7 +53,8 @@ function settledState<K extends string>(key: K | null, token: number): Accordion
     settledKey: key,
     mounted: key == null ? [] : [key],
     frozen: {},
-    measuring: null,
+    opening: null,
+    openingCap: undefined,
     isMoving: false,
     transitionMinHeight: undefined,
     settleToken: token,
@@ -61,6 +67,8 @@ function useSectionAccordion<K extends string>({
   isReducedMotion,
   minHeight,
   headersHeight,
+  listMaxHeight,
+  reservesHeight,
   getAvailableHeight,
 }: SectionAccordionOptions<K>) {
   const mode = useSharedValue(MODE_SETTLED);
@@ -80,11 +88,25 @@ function useSectionAccordion<K extends string>({
   const visibleRef = React.useRef<SectionHeights>({});
   const targetRef = React.useRef<SectionHeights>({});
   const settledMinRef = React.useRef(minHeight);
-  const latestRef = React.useRef({ openKey, minHeight, headersHeight, getAvailableHeight });
+  const latestRef = React.useRef({
+    openKey,
+    minHeight,
+    headersHeight,
+    listMaxHeight,
+    reservesHeight,
+    getAvailableHeight,
+  });
 
   React.useLayoutEffect(() => {
     stateRef.current = state;
-    latestRef.current = { openKey, minHeight, headersHeight, getAvailableHeight };
+    latestRef.current = {
+      openKey,
+      minHeight,
+      headersHeight,
+      listMaxHeight,
+      reservesHeight,
+      getAvailableHeight,
+    };
   });
 
   const finishTransition = React.useCallback((token: number) => {
@@ -102,6 +124,31 @@ function useSectionAccordion<K extends string>({
     }
     setState(settledState(key, token));
   }, []);
+
+  const getAvailableList = React.useCallback(() => {
+    const {
+      minHeight: nextMin,
+      headersHeight: headers,
+      getAvailableHeight: getAvailable,
+    } = latestRef.current;
+    return getAvailableListHeight({
+      availableTotal: getAvailable(),
+      minHeight: nextMin,
+      headersHeight: headers,
+    });
+  }, []);
+
+  const getReserved = React.useCallback(
+    (frozen: Partial<Record<K, number>>, target: number, previous: number | undefined) => {
+      const { reservesHeight: reserves, headersHeight: headers } = latestRef.current;
+      if (!reserves) {
+        return previous;
+      }
+      const closing = Object.values(frozen) as number[];
+      return getTransitionMinHeight(previous, getReservedHeight(headers, closing, target));
+    },
+    [],
+  );
 
   const startTransition = React.useCallback(
     (key: K | null, target: number, token: number) => {
@@ -147,19 +194,38 @@ function useSectionAccordion<K extends string>({
     [finishTransition, mode, plan, progress],
   );
 
-  const getTarget = React.useCallback((natural: number) => {
-    const {
-      minHeight: nextMin,
-      headersHeight: headers,
-      getAvailableHeight: getAvailable,
-    } = latestRef.current;
-    const available = getAvailableListHeight({
-      availableTotal: getAvailable(),
-      minHeight: nextMin,
-      headersHeight: headers,
-    });
-    return getOpenTarget(natural, available);
-  }, []);
+  const retarget = React.useCallback(
+    (key: K, target: number, token: number) => {
+      targetRef.current[key] = target;
+      scheduleOnUI(() => {
+        "worklet";
+        if (mode.value !== MODE_MOVING) {
+          return;
+        }
+        const running = plan.value;
+        const at = progress.value;
+        const from: SectionHeights = {};
+        for (const name of Object.keys(running.to)) {
+          from[name] = interpolateSectionHeight(running, name, at);
+        }
+        plan.value = { from, to: { ...running.to, [key]: target } };
+        progress.value = 0;
+        progress.value = withTiming(
+          1,
+          {
+            duration: Math.max(MIN_RETARGET_MS, (1 - at) * SECTION_TRANSITION_MS),
+            easing: SECTION_EASING,
+          },
+          (finished) => {
+            if (finished) {
+              scheduleOnRN(finishTransition, token);
+            }
+          },
+        );
+      });
+    },
+    [finishTransition, mode, plan, progress],
+  );
 
   React.useLayoutEffect(() => {
     const previous = previousRef.current;
@@ -184,6 +250,9 @@ function useSectionAccordion<K extends string>({
     const transitionMinHeight = current.isMoving
       ? current.transitionMinHeight
       : getTransitionMinHeight(settledMinRef.current, latestRef.current.minHeight);
+    const availableList = getAvailableList();
+    const cap = Math.min(latestRef.current.listMaxHeight ?? Infinity, availableList);
+    const openingCap = Number.isFinite(cap) ? cap : undefined;
 
     const knownNatural =
       openKey == null
@@ -193,16 +262,14 @@ function useSectionAccordion<K extends string>({
           : undefined;
 
     if (openKey == null || knownNatural != null) {
-      const target = openKey == null ? 0 : getTarget(knownNatural ?? 0);
-      if (openKey != null) {
-        frozen[openKey] = target;
-      }
+      const target = openKey == null ? 0 : getOpenTarget(knownNatural ?? 0, availableList);
       setState({
         ...current,
         frozen,
-        measuring: null,
+        opening: openKey,
+        openingCap,
         isMoving: true,
-        transitionMinHeight,
+        transitionMinHeight: getReserved(frozen, target, transitionMinHeight),
       });
       startTransition(openKey, target, token);
       return;
@@ -213,11 +280,12 @@ function useSectionAccordion<K extends string>({
       ...current,
       mounted: [...current.mounted, openKey],
       frozen,
-      measuring: openKey,
+      opening: openKey,
+      openingCap,
       isMoving: true,
       transitionMinHeight,
     });
-  }, [getTarget, isReady, isReducedMotion, openKey, startTransition]);
+  }, [getAvailableList, getReserved, isReady, isReducedMotion, openKey, startTransition]);
 
   React.useLayoutEffect(() => {
     if (state.isMoving || state.settleToken !== tokenRef.current) {
@@ -236,20 +304,31 @@ function useSectionAccordion<K extends string>({
 
   const handleMeasure = React.useCallback(
     (key: K, natural: number) => {
-      const pending = pendingRef.current;
-      if (!pending || pending.key !== key || pending.token !== tokenRef.current) {
+      const current = stateRef.current;
+      if (!current.isMoving || current.opening !== key) {
         return;
       }
-      pendingRef.current = null;
-      const target = getTarget(natural);
-      setState((current) => ({
-        ...current,
-        measuring: null,
-        frozen: { ...current.frozen, [key]: target },
+      const target = getOpenTarget(natural, getAvailableList());
+      const pending = pendingRef.current;
+      if (pending && pending.key === key && pending.token === tokenRef.current) {
+        pendingRef.current = null;
+        setState((value) => ({
+          ...value,
+          transitionMinHeight: getReserved(value.frozen, target, value.transitionMinHeight),
+        }));
+        startTransition(key, target, pending.token);
+        return;
+      }
+      if (pendingRef.current || Math.abs((targetRef.current[key] ?? 0) - target) <= 0.5) {
+        return;
+      }
+      setState((value) => ({
+        ...value,
+        transitionMinHeight: getReserved(value.frozen, target, value.transitionMinHeight),
       }));
-      startTransition(key, target, pending.token);
+      retarget(key, target, tokenRef.current);
     },
-    [getTarget, startTransition],
+    [getAvailableList, getReserved, retarget, startTransition],
   );
 
   const handleVisibleLayout = React.useCallback((key: K, height: number) => {
@@ -264,10 +343,10 @@ function useSectionAccordion<K extends string>({
 
   return {
     motion,
-    settledKey: state.settledKey,
     mounted: state.mounted,
     frozen: state.frozen,
-    measuring: state.measuring,
+    opening: state.opening,
+    openingCap: state.openingCap,
     displayMinHeight,
     handleMeasure,
     handleVisibleLayout,

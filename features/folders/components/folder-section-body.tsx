@@ -11,7 +11,8 @@ type FolderSectionBodyProps<K extends string> = {
   sectionKey: K;
   motion: SectionMotion;
   isOpen: boolean;
-  isMeasuring: boolean;
+  isOpening: boolean;
+  openingCap: number | undefined;
   frozenHeight: number | undefined;
   listMaxHeight?: number;
   children: React.ReactNode;
@@ -23,7 +24,8 @@ function FolderSectionBody<K extends string>({
   sectionKey,
   motion,
   isOpen,
-  isMeasuring,
+  isOpening,
+  openingCap,
   frozenHeight,
   listMaxHeight,
   children,
@@ -42,8 +44,8 @@ function FolderSectionBody<K extends string>({
   const innerStyle =
     frozenHeight != null
       ? { height: frozenHeight, flexShrink: 0 }
-      : isMeasuring
-        ? { flexShrink: 0, maxHeight: listMaxHeight }
+      : isOpening
+        ? { flexShrink: 0, maxHeight: openingCap }
         : { flexShrink: 1, maxHeight: listMaxHeight };
 
   const handleBodyLayout = React.useCallback(
@@ -53,11 +55,11 @@ function FolderSectionBody<K extends string>({
 
   const handleInnerLayout = React.useCallback(
     (event: LayoutChangeEvent) => {
-      if (isMeasuring) {
+      if (isOpening) {
         onMeasure(sectionKey, event.nativeEvent.layout.height);
       }
     },
-    [isMeasuring, onMeasure, sectionKey],
+    [isOpening, onMeasure, sectionKey],
   );
 
   return (

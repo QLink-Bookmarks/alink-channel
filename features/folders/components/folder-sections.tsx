@@ -72,6 +72,7 @@ type FolderSectionsViewProps<K extends string, T> = FolderSectionsViewListProps<
   listKey?: React.Key;
   className?: string;
   availableHeight?: FolderSectionsAvailableHeight;
+  reservesTransitionHeight?: boolean;
   isAddDisabled?: boolean;
   isToggleDisabled?: boolean;
   hasLeadingDivider?: boolean;
@@ -97,6 +98,7 @@ type FolderSectionsProps = {
   currentFolder?: Folder | null;
   className?: string;
   availableHeight?: FolderSectionsAvailableHeight;
+  reservesTransitionHeight?: boolean;
   isAddDisabled?: boolean;
   hasLeadingDivider?: boolean;
   extraData?: unknown;
@@ -122,6 +124,7 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
     listKey,
     className,
     availableHeight,
+    reservesTransitionHeight = false,
     isAddDisabled = false,
     isToggleDisabled = false,
     hasLeadingDivider = false,
@@ -182,6 +185,8 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
     isReducedMotion,
     minHeight,
     headersHeight,
+    listMaxHeight,
+    reservesHeight: reservesTransitionHeight,
     getAvailableHeight,
   });
   const displayMinHeight = accordion.displayMinHeight;
@@ -267,7 +272,8 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
             {isMounted ? (
               <FolderSectionBody
                 frozenHeight={accordion.frozen[section.key]}
-                isMeasuring={accordion.measuring === section.key}
+                isOpening={accordion.opening === section.key}
+                openingCap={accordion.openingCap}
                 isOpen={isOpen}
                 listMaxHeight={listMaxHeight}
                 motion={accordion.motion}
@@ -299,6 +305,7 @@ function FolderSections({
   currentFolder = null,
   className,
   availableHeight,
+  reservesTransitionHeight = false,
   isAddDisabled = false,
   hasLeadingDivider = false,
   extraData,
@@ -387,6 +394,7 @@ function FolderSections({
     <FolderSectionsView
       availableHeight={availableHeight}
       className={className}
+      reservesTransitionHeight={reservesTransitionHeight}
       hasLeadingDivider={hasLeadingDivider}
       isAddDisabled={isAddDisabled}
       isListDeferred={!hasHydrated}

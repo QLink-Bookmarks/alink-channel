@@ -45,6 +45,11 @@ function interpolateSectionHeight(plan: SectionPlan, key: string, progress: numb
   return from + (to - from) * progress;
 }
 
+function getReservedHeight(headersHeight: number, closing: readonly number[], target: number) {
+  const closingTotal = closing.reduce((sum, height) => sum + height, 0);
+  return headersHeight + Math.max(closingTotal, target);
+}
+
 function getTransitionMinHeight(settled: number | undefined, next: number | undefined) {
   if (settled == null && next == null) {
     return undefined;
@@ -58,6 +63,7 @@ export {
   getAvailableListHeight,
   getOpenTarget,
   getPlanTargets,
+  getReservedHeight,
   getTransitionMinHeight,
   interpolateSectionHeight,
 };
