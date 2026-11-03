@@ -2,7 +2,7 @@ import * as React from "react";
 import { type LayoutChangeEvent, View } from "react-native";
 import { useAnimatedStyle, useReducedMotion } from "react-native-reanimated";
 
-import { useIsInsideSheet } from "@/components/layout/sheet";
+import { useIsInsideSheet, useSheetPosition } from "@/components/layout/sheet";
 import { cn } from "@/lib/utils";
 import {
   type FolderScrollSurface,
@@ -184,6 +184,7 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
   );
 
   const isInsideSheet = useIsInsideSheet();
+  const sheetPosition = useSheetPosition();
   const accordion = useSectionAccordion<K>({
     openKey,
     isReady: !isListDeferred,
@@ -191,15 +192,17 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
     minHeight,
     headersHeight,
     listMaxHeight,
+    sheetPosition,
     getAvailableHeight,
   });
   const displayMinHeight = accordion.displayMinHeight;
+  const reportedMinHeight = accordion.reportedMinHeight;
 
   React.useEffect(() => {
-    if (displayMinHeight != null) {
-      onMinHeightChange?.(displayMinHeight);
+    if (reportedMinHeight != null) {
+      onMinHeightChange?.(reportedMinHeight);
     }
-  }, [displayMinHeight, onMinHeightChange]);
+  }, [onMinHeightChange, reportedMinHeight]);
 
   const handleContainerLayout = React.useCallback((event: LayoutChangeEvent) => {
     containerHeightRef.current = event.nativeEvent.layout.height;

@@ -88,9 +88,9 @@ describe("interpolateSectionHeight", () => {
 });
 
 describe("getTransitionMinHeight", () => {
-  it("holds the larger of the old and new minimum while the sections move", () => {
-    expect(getTransitionMinHeight(170, 254)).toBe(254);
-    expect(getTransitionMinHeight(254, 170)).toBe(254);
+  it("lets the sections take the smaller of the old and new minimum while they move", () => {
+    expect(getTransitionMinHeight(170, 254)).toBe(170);
+    expect(getTransitionMinHeight(254, 170)).toBe(170);
     expect(getTransitionMinHeight(undefined, 120)).toBe(120);
     expect(getTransitionMinHeight(undefined, undefined)).toBeUndefined();
   });

@@ -60,10 +60,10 @@ function getChevronRotation(openness: number) {
 }
 
 function getTransitionMinHeight(settled: number | undefined, next: number | undefined) {
-  if (settled == null && next == null) {
-    return undefined;
+  if (settled == null || next == null) {
+    return settled ?? next;
   }
-  return Math.max(settled ?? 0, next ?? 0);
+  return Math.min(settled, next);
 }
 
 export {

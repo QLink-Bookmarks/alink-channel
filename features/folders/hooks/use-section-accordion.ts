@@ -1,5 +1,12 @@
 import * as React from "react";
-import { Easing, type SharedValue, useSharedValue, withTiming } from "react-native-reanimated";
+import {
+  Easing,
+  type SharedValue,
+  useAnimatedReaction,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from "react-native-reanimated";
 import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
 
 import {
@@ -18,6 +25,8 @@ const MODE_SETTLED = 0;
 const MODE_MOVING = 1;
 const SECTION_EASING = Easing.bezier(0.4, 0, 0.2, 1);
 const MIN_RETARGET_MS = 80;
+const SHEET_WAIT_MS = 80;
+const SHEET_MOVE_THRESHOLD = 0.5;
 const FOLDER_SECTIONS_SHEET_TIMING = { duration: SECTION_TRANSITION_MS, easing: SECTION_EASING };
 
 type SectionMotion = {
@@ -45,6 +54,7 @@ type AccordionState<K extends string> = {
   isMoving: boolean;
   isStarted: boolean;
   transitionMinHeight: number | undefined;
+  reportedMinHeight: number | undefined;
   request: MotionRequest<K> | null;
   settleToken: number;
 };
@@ -56,6 +66,7 @@ type SectionAccordionOptions<K extends string> = {
   minHeight: number | undefined;
   headersHeight: number;
   listMaxHeight: number | undefined;
+  sheetPosition: SharedValue<number> | null;
   getAvailableHeight: () => number | undefined;
 };
 
@@ -70,6 +81,7 @@ function settledState<K extends string>(key: K | null, token: number): Accordion
     isMoving: false,
     isStarted: false,
     transitionMinHeight: undefined,
+    reportedMinHeight: undefined,
     request: null,
     settleToken: token,
   };
@@ -82,12 +94,14 @@ function useSectionAccordion<K extends string>({
   minHeight,
   headersHeight,
   listMaxHeight,
+  sheetPosition,
   getAvailableHeight,
 }: SectionAccordionOptions<K>) {
   const mode = useSharedValue(MODE_SETTLED);
   const progress = useSharedValue(1);
   const plan = useSharedValue<SectionPlan>({ from: {}, to: {}, openFrom: {}, openTo: {} });
   const settledKeyValue = useSharedValue<string | null>(openKey);
+  const sheetWait = useSharedValue({ isWaiting: false, startPosition: 0, token: 0 });
   const motion = React.useMemo<SectionMotion>(
     () => ({ mode, progress, plan, settledKey: settledKeyValue }),
     [mode, plan, progress, settledKeyValue],
@@ -202,7 +216,7 @@ function useSectionAccordion<K extends string>({
         plan.value = { from, to, openFrom, openTo };
         mode.value = MODE_MOVING;
         progress.value = 0;
-        progress.value = withTiming(
+        const timing = withTiming(
           1,
           { duration: SECTION_TRANSITION_MS, easing: SECTION_EASING },
           (finished) => {
@@ -211,9 +225,46 @@ function useSectionAccordion<K extends string>({
             }
           },
         );
+        let fromTotal = 0;
+        let toTotal = 0;
+        for (const name of names) {
+          fromTotal += from[name] ?? 0;
+          toTotal += to[name] ?? 0;
+        }
+        if (sheetPosition && Math.abs(toTotal - fromTotal) > 1) {
+          sheetWait.value = { isWaiting: true, startPosition: sheetPosition.value, token };
+          progress.value = withDelay(SHEET_WAIT_MS, timing);
+        } else {
+          sheetWait.value = { isWaiting: false, startPosition: 0, token };
+          progress.value = timing;
+        }
       });
     },
-    [finishTransition, mode, plan, progress],
+    [finishTransition, mode, plan, progress, sheetPosition, sheetWait],
+  );
+
+  useAnimatedReaction(
+    () => (sheetPosition ? sheetPosition.value : 0),
+    (position) => {
+      const wait = sheetWait.value;
+      if (!wait.isWaiting || mode.value !== MODE_MOVING) {
+        return;
+      }
+      if (Math.abs(position - wait.startPosition) <= SHEET_MOVE_THRESHOLD) {
+        return;
+      }
+      sheetWait.value = { ...wait, isWaiting: false };
+      progress.value = withTiming(
+        1,
+        { duration: SECTION_TRANSITION_MS, easing: SECTION_EASING },
+        (finished) => {
+          if (finished) {
+            scheduleOnRN(finishTransition, wait.token);
+          }
+        },
+      );
+    },
+    [sheetPosition],
   );
 
   const runRetarget = React.useCallback(
@@ -224,6 +275,7 @@ function useSectionAccordion<K extends string>({
         if (mode.value !== MODE_MOVING) {
           return;
         }
+        sheetWait.value = { ...sheetWait.value, isWaiting: false };
         const running = plan.value;
         const at = progress.value;
         const from: SectionHeights = {};
@@ -255,7 +307,7 @@ function useSectionAccordion<K extends string>({
         );
       });
     },
-    [finishTransition, mode, plan, progress],
+    [finishTransition, mode, plan, progress, sheetWait],
   );
 
   React.useLayoutEffect(() => {
@@ -281,6 +333,7 @@ function useSectionAccordion<K extends string>({
     const transitionMinHeight = current.isMoving
       ? current.transitionMinHeight
       : getTransitionMinHeight(settledMinRef.current, latestRef.current.minHeight);
+    const reportedMinHeight = current.isMoving ? current.reportedMinHeight : settledMinRef.current;
     const availableList = getAvailableList();
     const cap = Math.min(latestRef.current.listMaxHeight ?? Infinity, availableList);
     const openingCap = Number.isFinite(cap) ? cap : undefined;
@@ -303,6 +356,7 @@ function useSectionAccordion<K extends string>({
         isMoving: true,
         isStarted: true,
         transitionMinHeight,
+        reportedMinHeight,
         request: nextRequest("start", openKey, target, token),
       });
       return;
@@ -319,6 +373,7 @@ function useSectionAccordion<K extends string>({
       isMoving: true,
       isStarted: false,
       transitionMinHeight,
+      reportedMinHeight,
       request: null,
     });
   }, [getAvailableList, isReady, isReducedMotion, nextRequest, openKey]);
@@ -406,6 +461,7 @@ function useSectionAccordion<K extends string>({
   }, []);
 
   const displayMinHeight = state.isMoving ? (state.transitionMinHeight ?? minHeight) : minHeight;
+  const reportedMinHeight = state.isMoving ? (state.reportedMinHeight ?? minHeight) : minHeight;
   const transitionHeight =
     state.isMoving && state.isStarted
       ? headersHeight + (state.opening == null ? 0 : state.openingTarget)
@@ -420,6 +476,7 @@ function useSectionAccordion<K extends string>({
     openingTarget: state.openingTarget,
     isMoving: state.isMoving,
     displayMinHeight,
+    reportedMinHeight,
     transitionHeight,
     handleMeasure,
     handleVisibleLayout,

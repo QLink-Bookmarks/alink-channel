@@ -1,6 +1,10 @@
 import * as React from "react";
 import { Pressable, type StyleProp, View, type ViewStyle } from "react-native";
-import Animated, { type EasingFunctionFactory } from "react-native-reanimated";
+import Animated, {
+  type EasingFunctionFactory,
+  type SharedValue,
+  useSharedValue,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/icon";
@@ -32,6 +36,12 @@ const SheetContext = React.createContext<boolean>(false);
 
 function useIsInsideSheet() {
   return React.useContext(SheetContext);
+}
+
+const SheetPositionContext = React.createContext<SharedValue<number> | null>(null);
+
+function useSheetPosition() {
+  return React.use(SheetPositionContext);
 }
 
 type SheetResizeTiming = { duration: number; easing: EasingFunctionFactory };
@@ -128,6 +138,7 @@ function Sheet({
     easing: resizeTiming?.easing,
   });
   const sheetRef = React.useRef<BottomSheetModal>(null);
+  const sheetPosition = useSharedValue(0);
   const insets = useSafeAreaInsets();
   // Default to the active app theme so sheets follow dark mode even when the
   // caller doesn't pass mode/accent explicitly.
@@ -360,6 +371,7 @@ function Sheet({
   return (
     <BottomSheetModal
       ref={sheetRef}
+      animatedPosition={sheetPosition}
       snapPoints={snapPoints}
       topInset={safeTopInset}
       enableDynamicSizing={fitContent}
@@ -377,16 +389,18 @@ function Sheet({
       onDismiss={handleDismiss}
     >
       <SheetContext.Provider value={true}>
-        <BottomSheetScrollView
-          className="scrollbar-none"
-          showsVerticalScrollIndicator={false}
-        >
-          {content}
-        </BottomSheetScrollView>
+        <SheetPositionContext.Provider value={sheetPosition}>
+          <BottomSheetScrollView
+            className="scrollbar-none"
+            showsVerticalScrollIndicator={false}
+          >
+            {content}
+          </BottomSheetScrollView>
+        </SheetPositionContext.Provider>
       </SheetContext.Provider>
     </BottomSheetModal>
   );
 }
 
-export { Sheet, useIsInsideSheet };
+export { Sheet, useIsInsideSheet, useSheetPosition };
 export type { SheetProps, SheetResizeTiming };
