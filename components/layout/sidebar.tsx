@@ -320,7 +320,10 @@ function SidebarRailCTA({
 }: React.ComponentProps<typeof Button> & { icon: LucideIcon }) {
   return (
     <Button
-      className={cn("size-11 min-w-0 rounded-2xl p-0 shadow-qlink-md sm:h-11", className)}
+      className={cn(
+        "size-11 min-w-0 self-center rounded-2xl p-0 shadow-qlink-md sm:h-11",
+        className,
+      )}
       size="icon"
       variant="gradient"
       {...props}
@@ -332,60 +335,6 @@ function SidebarRailCTA({
         />
       </View>
     </Button>
-  );
-}
-
-function SidebarTooltipRoot({ children }: { children: React.ReactElement }) {
-  if (!isWeb) {
-    return children;
-  }
-  return (
-    <Tooltip
-      asChild
-      delayDuration={150}
-    >
-      {children}
-    </Tooltip>
-  );
-}
-
-function SidebarTooltipTrigger({ children }: { children: React.ReactElement }) {
-  if (!isWeb) {
-    return children;
-  }
-  return <TooltipTrigger asChild>{children}</TooltipTrigger>;
-}
-
-function SidebarTooltipContent({
-  label,
-  shortcut,
-  sideOffset = 10,
-}: {
-  label?: string;
-  shortcut?: string;
-  sideOffset?: number;
-}) {
-  if (!isWeb || !label) {
-    return null;
-  }
-  return (
-    <TooltipContent
-      className="max-w-80 bg-foreground"
-      side="right"
-      sideOffset={sideOffset}
-    >
-      <View className="flex-row items-center gap-1.5">
-        <Text className="shrink text-sm font-semibold text-background">{label}</Text>
-        {shortcut ? (
-          <Kbd
-            size="xs"
-            variant="inverse"
-          >
-            {shortcut}
-          </Kbd>
-        ) : null}
-      </View>
-    </TooltipContent>
   );
 }
 
@@ -404,10 +353,23 @@ function SidebarRailTooltip({
   return (
     <Tooltip delayDuration={150}>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <SidebarTooltipContent
-        label={label}
-        shortcut={shortcut}
-      />
+      <TooltipContent
+        className="max-w-80 bg-foreground"
+        side="right"
+        sideOffset={10}
+      >
+        <View className="flex-row items-center gap-1.5">
+          <Text className="text-sm font-semibold text-background">{label}</Text>
+          {shortcut ? (
+            <Kbd
+              size="xs"
+              variant="inverse"
+            >
+              {shortcut}
+            </Kbd>
+          ) : null}
+        </View>
+      </TooltipContent>
     </Tooltip>
   );
 }
@@ -447,9 +409,6 @@ export {
   SidebarRailSeparator,
   SidebarRailTooltip,
   SidebarSection,
-  SidebarTooltipContent,
-  SidebarTooltipRoot,
-  SidebarTooltipTrigger,
   SIDEBAR_ITEM_HEIGHT,
 };
 export type { SidebarRailButtonProps };

@@ -1,14 +1,6 @@
-import type * as React from "react";
-
 import { fireEvent, render, screen } from "@testing-library/react-native";
 
 import { FolderSectionHeader } from "./folder-section-header";
-
-jest.mock("@/components/ui/tooltip", () => ({
-  Tooltip: ({ children }: { children: React.ReactNode }) => children,
-  TooltipContent: () => null,
-  TooltipTrigger: ({ children }: { children: React.ReactNode }) => children,
-}));
 
 describe("FolderSectionHeader", () => {
   it("names the toggle by the action it takes and reports the expanded state", () => {

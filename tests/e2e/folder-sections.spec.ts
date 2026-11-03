@@ -967,7 +967,7 @@ test.describe("wide sidebar at low heights", () => {
     );
   });
 
-  test("the path shows only the folder icon even at 769px, hovering or focusing it shows the full name beside the add button, and pressing the title only opens the section", async ({
+  test("the path shows only the folder icon even at 769px, hovering or focusing it shows no tooltip, and pressing the title only opens the section", async ({
     page,
   }) => {
     const longName =
@@ -1006,19 +1006,15 @@ test.describe("wide sidebar at low heights", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
 
     await mineToggle.hover();
-    const tooltip = page.getByRole("tooltip");
-    await expect(tooltip).toHaveText(`현재 폴더: ${longName}`);
-    const tooltipBox = await boxOf(page.locator("[data-radix-popper-content-wrapper]").last());
-    const addBox = await boxOf(addButton(page, "내 폴더"));
-    expect(tooltipBox.x).toBeGreaterThanOrEqual(addBox.x + addBox.width - 2);
-    expect(tooltipBox.x).toBeGreaterThanOrEqual(await sidebarRightEdge(page));
+    await page.waitForTimeout(600);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
 
     await page.mouse.move(900, 500, { steps: 5 });
-    await expect(tooltip).toHaveCount(0);
     await addButton(page, "내 폴더").focus();
     await page.keyboard.press("Shift+Tab");
     await expect(mineToggle).toBeFocused();
-    await expect(page.getByRole("tooltip")).toHaveText(`현재 폴더: ${longName}`);
+    await page.waitForTimeout(600);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
 
     await page.keyboard.press("Enter");
     await expect(mineToggle).toHaveAccessibleName("내 폴더 접기");
