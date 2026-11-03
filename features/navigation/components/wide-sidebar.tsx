@@ -43,6 +43,7 @@ type BlockHeights = {
   folderArea: number;
   folderSections: number;
   uncategorized: number;
+  spacer: number;
   bottom: number;
 };
 
@@ -91,7 +92,12 @@ function WideSidebar({
     folderArea: 0,
     folderSections: 0,
     uncategorized: 0,
+    spacer: 0,
     bottom: 0,
+  });
+  const heightsRef = React.useRef(heights);
+  React.useLayoutEffect(() => {
+    heightsRef.current = heights;
   });
   const [folderAreaMinHeight, setFolderAreaMinHeight] = React.useState(0);
 
@@ -113,6 +119,11 @@ function WideSidebar({
 
   const handleFolderMinHeightChange = React.useCallback((minHeight: number) => {
     setFolderAreaMinHeight(minHeight);
+  }, []);
+
+  const getFolderSectionsAvailableHeight = React.useCallback(() => {
+    const current = heightsRef.current;
+    return current.folderSections > 0 ? current.folderSections + current.spacer : undefined;
   }, []);
 
   const isMeasured = heights.viewport > 0 && heights.top > 0 && heights.bottom > 0;
@@ -220,6 +231,7 @@ function WideSidebar({
             onLayout={handleBlockLayout("folderSections")}
           >
             <FolderSections
+              availableHeight={getFolderSectionsAvailableHeight}
               currentFolder={currentFolderQuery.folder}
               listKey={folderListKey}
               minVisibleRows={MIN_VISIBLE_FOLDER_ROWS}
@@ -249,7 +261,10 @@ function WideSidebar({
           />
         </View>
 
-        <View className="min-h-0 flex-1" />
+        <View
+          className="min-h-0 flex-1"
+          onLayout={handleBlockLayout("spacer")}
+        />
 
         <View
           className="shrink-0 flex-row items-center gap-1 border-t border-sidebar-border pt-3"

@@ -3,15 +3,16 @@ import { Pressable } from "react-native";
 
 import { Text } from "@/components/ui/text";
 import { useFolderNavigation } from "@/stores/folder-navigation";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 
 import { type FolderSectionDefinition, FolderSectionsView } from "./folder-sections";
 
 /* eslint-disable @typescript-eslint/no-require-imports -- jest.mock factories must require */
 jest.mock("react-native-worklets", () => require("react-native-worklets/src/mock"));
+let mockReducedMotion = false;
 jest.mock("react-native-reanimated", () => ({
   ...require("react-native-reanimated/mock"),
-  useReducedMotion: () => false,
+  useReducedMotion: () => mockReducedMotion,
 }));
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -64,10 +65,14 @@ function getRowKey(row: Row) {
 function Harness({
   sections = SECTIONS,
   initialOpen = "existing",
+  isListDeferred = false,
+  renderSectionRow,
   onAddPress,
 }: {
   sections?: FolderSectionDefinition<SectionKey, Row>[];
   initialOpen?: SectionKey | null;
+  isListDeferred?: boolean;
+  renderSectionRow?: (row: Row, section: SectionKey) => React.ReactElement;
   onAddPress?: (section: SectionKey) => void;
 }) {
   const [openSection, setOpenSection] = React.useState<SectionKey | null>(initialOpen);
@@ -90,10 +95,11 @@ function Harness({
   return (
     <FolderSectionsView
       getRowKey={getRowKey}
+      isListDeferred={isListDeferred}
       openSection={openSection}
       sections={sections}
       tone="surface"
-      renderRow={renderRow}
+      renderRow={renderSectionRow ?? renderRow}
       onAddPress={onAddPress}
       onToggle={handleToggle}
     />
@@ -102,11 +108,28 @@ function Harness({
 
 const initialHasHydrated = useFolderNavigation.getState().hasHydrated;
 
+const SETTLED_OPEN = { maxHeight: 100_000 };
+const HIDDEN = { includeHiddenElements: true };
+
+async function finishMotion() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  });
+}
+
+function measureOpening(section: SectionKey, height: number) {
+  fireEvent(screen.getByTestId(`folder-section-body-inner-${section}`, HIDDEN), "layout", {
+    nativeEvent: { layout: { x: 0, y: 0, width: 300, height } },
+  });
+}
+
 beforeEach(() => {
   mounts.clear();
+  mockReducedMotion = false;
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await finishMotion();
   useFolderNavigation.setState({ hasHydrated: initialHasHydrated });
 });
 
@@ -186,5 +209,78 @@ describe("FolderSectionsView", () => {
 
     expect(screen.getByLabelText("새 폴더 목록")).toBeTruthy();
     expect(screen.getByText("+로 새 폴더를 만들어요.")).toBeTruthy();
+  });
+
+  it("keeps the closing list on screen, hidden from touch and screen readers, until it has collapsed", async () => {
+    render(<Harness />);
+
+    fireEvent.press(screen.getByRole("button", { name: "새 폴더 펼치기" }));
+    expect(screen.queryByLabelText("내 폴더 목록")).toBeNull();
+    expect(screen.getByLabelText("내 폴더 목록", HIDDEN)).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
+    expect(screen.getByTestId("folder-section-body-new")).toHaveStyle({ maxHeight: 0 });
+
+    measureOpening("new", 48);
+    await finishMotion();
+
+    expect(screen.queryByLabelText("내 폴더 목록", HIDDEN)).toBeNull();
+    expect(screen.getByTestId("folder-section-body-new")).toHaveStyle(SETTLED_OPEN);
+    expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
+  });
+
+  it("removes the list after collapsing all sections", async () => {
+    render(<Harness />);
+
+    fireEvent.press(screen.getByRole("button", { name: "내 폴더 접기" }));
+    expect(screen.getByLabelText("내 폴더 목록", HIDDEN)).toBeTruthy();
+    await finishMotion();
+
+    expect(screen.queryByLabelText(/폴더 목록$/, HIDDEN)).toBeNull();
+  });
+
+  it("ends with the last tapped section when taps come in quick succession", async () => {
+    render(<Harness />);
+
+    fireEvent.press(screen.getByRole("button", { name: "새 폴더 펼치기" }));
+    fireEvent.press(screen.getByRole("button", { name: "내 폴더 펼치기" }));
+    fireEvent.press(screen.getByRole("button", { name: "새 폴더 펼치기" }));
+    measureOpening("new", 48);
+    await finishMotion();
+
+    expect(screen.getByRole("button", { name: "새 폴더 접기", expanded: true })).toBeTruthy();
+    expect(screen.queryByLabelText("내 폴더 목록", HIDDEN)).toBeNull();
+    expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
+    expect(screen.getByTestId("folder-section-body-new")).toHaveStyle(SETTLED_OPEN);
+  });
+
+  it("switches at once with reduced motion", () => {
+    mockReducedMotion = true;
+    render(<Harness />);
+
+    fireEvent.press(screen.getByRole("button", { name: "새 폴더 펼치기" }));
+
+    expect(screen.queryByLabelText("내 폴더 목록", HIDDEN)).toBeNull();
+    expect(screen.getByTestId("folder-section-body-new")).toHaveStyle(SETTLED_OPEN);
+  });
+
+  it("shows the open section at full height on the first render and when the list stops being deferred", () => {
+    const { rerender } = render(<Harness isListDeferred />);
+    expect(screen.queryByLabelText(/폴더 목록$/, HIDDEN)).toBeNull();
+
+    rerender(<Harness />);
+
+    expect(screen.getByTestId("folder-section-body-existing")).toHaveStyle(SETTLED_OPEN);
+    expect(screen.getByRole("radio", { name: "여행" })).toBeTruthy();
+  });
+
+  it("renders the rows of a collapsing list for their own section", () => {
+    render(
+      <Harness renderSectionRow={(row, section) => <Text>{`${section}:${row.name}`}</Text>} />,
+    );
+
+    fireEvent.press(screen.getByRole("button", { name: "새 폴더 펼치기" }));
+
+    expect(screen.getByText("existing:여행", HIDDEN)).toBeTruthy();
+    expect(screen.getByText("new:읽을거리")).toBeTruthy();
   });
 });
