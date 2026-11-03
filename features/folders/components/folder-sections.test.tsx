@@ -108,7 +108,6 @@ function Harness({
 
 const initialHasHydrated = useFolderNavigation.getState().hasHydrated;
 
-const SETTLED_OPEN = { maxHeight: 100_000 };
 const HIDDEN = { includeHiddenElements: true };
 
 async function finishMotion() {
@@ -218,13 +217,11 @@ describe("FolderSectionsView", () => {
     expect(screen.queryByLabelText("내 폴더 목록")).toBeNull();
     expect(screen.getByLabelText("내 폴더 목록", HIDDEN)).toBeTruthy();
     expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
-    expect(screen.getByTestId("folder-section-body-new")).toHaveStyle({ maxHeight: 0 });
 
     measureOpening("new", 48);
     await finishMotion();
 
     expect(screen.queryByLabelText("내 폴더 목록", HIDDEN)).toBeNull();
-    expect(screen.getByTestId("folder-section-body-new")).toHaveStyle(SETTLED_OPEN);
     expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
   });
 
@@ -250,7 +247,6 @@ describe("FolderSectionsView", () => {
     expect(screen.getByRole("button", { name: "새 폴더 접기", expanded: true })).toBeTruthy();
     expect(screen.queryByLabelText("내 폴더 목록", HIDDEN)).toBeNull();
     expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
-    expect(screen.getByTestId("folder-section-body-new")).toHaveStyle(SETTLED_OPEN);
   });
 
   it("switches at once with reduced motion", () => {
@@ -260,17 +256,17 @@ describe("FolderSectionsView", () => {
     fireEvent.press(screen.getByRole("button", { name: "새 폴더 펼치기" }));
 
     expect(screen.queryByLabelText("내 폴더 목록", HIDDEN)).toBeNull();
-    expect(screen.getByTestId("folder-section-body-new")).toHaveStyle(SETTLED_OPEN);
+    expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
   });
 
-  it("shows the open section at full height on the first render and when the list stops being deferred", () => {
+  it("shows the open section without a collapsing list on the first render and when the list stops being deferred", () => {
     const { rerender } = render(<Harness isListDeferred />);
     expect(screen.queryByLabelText(/폴더 목록$/, HIDDEN)).toBeNull();
 
     rerender(<Harness />);
 
-    expect(screen.getByTestId("folder-section-body-existing")).toHaveStyle(SETTLED_OPEN);
     expect(screen.getByRole("radio", { name: "여행" })).toBeTruthy();
+    expect(screen.getAllByLabelText(/폴더 목록$/, HIDDEN)).toHaveLength(1);
   });
 
   it("renders the rows of a collapsing list for their own section", () => {

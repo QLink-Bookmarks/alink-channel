@@ -269,7 +269,6 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
                 frozenHeight={accordion.frozen[section.key]}
                 isMeasuring={accordion.measuring === section.key}
                 isOpen={isOpen}
-                isSettledOpen={accordion.settledKey === section.key}
                 listMaxHeight={listMaxHeight}
                 motion={accordion.motion}
                 sectionKey={section.key}

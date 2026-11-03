@@ -21,6 +21,7 @@ type SectionMotion = {
   mode: SharedValue<number>;
   progress: SharedValue<number>;
   plan: SharedValue<SectionPlan>;
+  settledKey: SharedValue<string | null>;
 };
 
 type AccordionState<K extends string> = {
@@ -65,9 +66,10 @@ function useSectionAccordion<K extends string>({
   const mode = useSharedValue(MODE_SETTLED);
   const progress = useSharedValue(1);
   const plan = useSharedValue<SectionPlan>({ from: {}, to: {} });
+  const settledKeyValue = useSharedValue<string | null>(openKey);
   const motion = React.useMemo<SectionMotion>(
-    () => ({ mode, progress, plan }),
-    [mode, plan, progress],
+    () => ({ mode, progress, plan, settledKey: settledKeyValue }),
+    [mode, plan, progress, settledKeyValue],
   );
 
   const [state, setState] = React.useState<AccordionState<K>>(() => settledState(openKey, 0));
@@ -221,9 +223,10 @@ function useSectionAccordion<K extends string>({
     if (state.isMoving || state.settleToken !== tokenRef.current) {
       return;
     }
+    settledKeyValue.value = state.settledKey;
     mode.value = MODE_SETTLED;
     progress.value = 1;
-  }, [mode, progress, state.isMoving, state.settleToken]);
+  }, [mode, progress, settledKeyValue, state.isMoving, state.settledKey, state.settleToken]);
 
   React.useEffect(() => {
     if (!state.isMoving) {
