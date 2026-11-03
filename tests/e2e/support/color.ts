@@ -1,4 +1,4 @@
-import type { Locator } from "@playwright/test";
+import { type Locator, expect } from "@playwright/test";
 
 type Rgba = { r: number; g: number; b: number; a: number };
 
@@ -30,7 +30,43 @@ function contrast(first: Rgba, second: Rgba) {
   return (light + 0.05) / (dark + 0.05);
 }
 
+async function readColors(target: Locator) {
+  return target.evaluate((node) => {
+    const ancestors: Element[] = [];
+    for (let element = node.parentElement; element; element = element.parentElement) {
+      ancestors.push(element);
+    }
+    const isRunning = (animation: Animation) => animation.playState === "running";
+    const running =
+      node.getAnimations({ subtree: true }).some(isRunning) ||
+      ancestors.some((element) => element.getAnimations().some(isRunning));
+    const colors = [node, ...Array.from(node.querySelectorAll("*")), ...ancestors]
+      .map((element) => {
+        const style = getComputedStyle(element);
+        return `${style.color}|${style.backgroundColor}`;
+      })
+      .join(";");
+    return { colors, running };
+  });
+}
+
+async function waitForSettledColors(target: Locator) {
+  let previous = "";
+  await expect
+    .poll(
+      async () => {
+        const { colors, running } = await readColors(target);
+        const isSettled = !running && colors === previous;
+        previous = colors;
+        return isSettled;
+      },
+      { intervals: [50], timeout: 5_000 },
+    )
+    .toBe(true);
+}
+
 async function textContrast(text: Locator) {
+  await waitForSettledColors(text);
   const [color, background] = await text.evaluate((node) => {
     let element: Element | null = node;
     let background = "rgba(0, 0, 0, 0)";
@@ -47,5 +83,5 @@ async function textContrast(text: Locator) {
   return contrast(parseColor(color), parseColor(background));
 }
 
-export { contrast, luminance, over, parseColor, textContrast };
+export { contrast, luminance, over, parseColor, textContrast, waitForSettledColors };
 export type { Rgba };
