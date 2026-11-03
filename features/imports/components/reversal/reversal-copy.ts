@@ -5,7 +5,7 @@ import type { ReversalCounts, ReversalFolderItem } from "../../lib/reversal-sele
 type FolderBadgeTone = "danger" | "muted" | "shared";
 
 function getReversalFolderLabel(folder: ReversalFolderItem) {
-  if (folder.kind === "UNFILED") {
+  if (folder.kind === "UNFILED" || folder.name == null) {
     return { name: UNFILED_FOLDER_LABEL, emoji: UNFILED_FOLDER_EMOJI };
   }
   return { name: folder.name, emoji: folder.emoji };

@@ -75,7 +75,7 @@ function makeRecord(): MockImportRecord {
         kind: "UNFILED",
         state: "ACTIVE",
         folderId: null,
-        name: "미분류",
+        name: null,
         emoji: null,
         links: [
           { linkId: 531, title: "미분류에 넣은 링크", url: "https://u.test/1", state: "IMPORTED" },

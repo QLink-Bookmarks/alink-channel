@@ -19,7 +19,7 @@ type ReversalFolderItem = {
   kind: ImportFolderKind;
   state: ReversalFolderState;
   folderId: number | null;
-  name: string;
+  name: string | null;
   emoji: string | null;
   isRemovable: boolean;
   isDone: boolean;

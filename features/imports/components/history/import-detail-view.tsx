@@ -288,7 +288,7 @@ function DetailFailures({ detail }: { detail: ImportDetail }) {
 }
 
 function getFolderLabel(folder: ImportDetailFolder) {
-  if (folder.kind === "UNFILED") {
+  if (folder.kind === "UNFILED" || folder.name == null) {
     return { name: UNFILED_FOLDER_LABEL, emoji: UNFILED_FOLDER_EMOJI };
   }
   return { name: folder.name, emoji: folder.emoji ?? null };

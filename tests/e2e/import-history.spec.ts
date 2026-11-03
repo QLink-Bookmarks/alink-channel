@@ -74,7 +74,7 @@ const PARTIAL = makeImportRecord({
       kind: "UNFILED",
       state: "ACTIVE",
       folderId: null,
-      name: "서버가 보낸 이름",
+      name: null,
       emoji: null,
       links: [{ linkId: 321, title: "미분류 링크", url: "https://u.test/1", state: "IMPORTED" }],
     },
@@ -189,7 +189,6 @@ test.describe("bookmark import history", () => {
 
     const unfiled = detail.getByRole("button", { name: /^미분류 링크 1개 펼치기$/ });
     await expect(unfiled).toBeVisible();
-    await expect(detail.getByText("서버가 보낸 이름")).toHaveCount(0);
     await unfiled.click();
     await expect(detail.getByText("미분류 링크", { exact: true })).toBeVisible();
   });

@@ -128,7 +128,7 @@ type ImportDetailLink = {
 type ImportDetailFolder = {
   kind: ImportFolderKind;
   folderId?: number | null;
-  name: string;
+  name: string | null;
   emoji?: string | null;
   links: ImportDetailLink[];
 };
@@ -157,7 +157,7 @@ type ImportReversalFolder = {
   kind: ImportFolderKind;
   state: ReversalFolderState;
   folderId?: number | null;
-  name: string;
+  name: string | null;
   emoji?: string | null;
   links: ImportReversalLink[];
 };

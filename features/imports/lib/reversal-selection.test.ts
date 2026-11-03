@@ -48,7 +48,7 @@ const BASE = preview(
     links: [link(1), link(2, "EDITED"), link(3, "ADDED_LATER")],
   }),
   folder({ kind: "EXISTING", folderId: 20, name: "aws", emoji: "☁️", links: [link(4), link(5)] }),
-  folder({ kind: "UNFILED", folderId: null, name: "미분류", links: [link(6)] }),
+  folder({ kind: "UNFILED", folderId: null, name: null, links: [link(6)] }),
   folder({ folderId: 30, state: "SHARED", name: "취업 2", links: [link(7)] }),
 );
 
