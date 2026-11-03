@@ -16,7 +16,7 @@ import { FolderSectionList } from "./folder-section-list";
 import type { LucideIcon } from "lucide-react-native";
 import { Plus } from "lucide-react-native/icons";
 
-const HOVER_CLOSE_DELAY_MS = 150;
+const HOVER_CLOSE_DELAY_MS = 250;
 const FLYOUT_MAX_LIST_HEIGHT = 420;
 const FLYOUT_VERTICAL_MARGIN = 160;
 
@@ -24,6 +24,11 @@ type OpenMode = "hover" | "press";
 type PopoverSide = React.ComponentProps<typeof PopoverContent>["side"];
 
 const FLYOUT_SIDE = (process.env.EXPO_OS === "web" ? "right" : "bottom") as PopoverSide;
+const RAIL_WIDTH = 80;
+const RAIL_BUTTON_SIZE = 44;
+const FLYOUT_GAP = 8;
+const FLYOUT_SIDE_OFFSET =
+  process.env.EXPO_OS === "web" ? (RAIL_WIDTH - RAIL_BUTTON_SIZE) / 2 + FLYOUT_GAP : FLYOUT_GAP;
 
 type FolderRailFlyoutProps = {
   section: FolderSection;
@@ -180,14 +185,14 @@ function FolderRailFlyout({
         align="start"
         className="w-[264px] overflow-hidden rounded-2xl p-0 shadow-qlink-lg"
         side={FLYOUT_SIDE}
-        sideOffset={8}
+        sideOffset={FLYOUT_SIDE_OFFSET}
         onCloseAutoFocus={handleCloseAutoFocus}
         onOpenAutoFocus={handleOpenAutoFocus}
       >
         <View
           ref={contentRef}
           accessibilityLabel={`${label} 펼친 목록`}
-          className="bg-popover"
+          className="bg-popover pb-1.5"
           onPointerEnter={cancelClose}
           onPointerLeave={scheduleHoverClose}
         >

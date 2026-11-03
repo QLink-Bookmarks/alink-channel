@@ -826,3 +826,185 @@ test("pressing the oldest folder of more than 40 opens its detail instead of not
   await expect(page.getByText("폴더를 찾을 수 없어요")).toHaveCount(0);
   await expect.poll(() => page.title()).toContain("폴더 1");
 });
+
+test.describe("window fit, width and marks (#27)", () => {
+  test("in a low window the new link folder popover stays 16px inside the screen and only the folder list shrinks", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "wide popover");
+    await mockApi(page, { folders: makeFolders(45, 3) });
+    for (const height of [620, 800]) {
+      await page.setViewportSize({ width: 1280, height });
+      const scope = await openNewLinkPicker(page);
+      await settle(page);
+      const popover = await boxOf(scope as Locator);
+      const trigger = await boxOf(page.getByRole("button", { name: /^폴더, / }));
+      expect(popover.y).toBeGreaterThanOrEqual(trigger.y + trigger.height);
+      expect(popover.y + popover.height).toBeLessThanOrEqual(height - 16 + 1);
+      await expect(scope.getByRole("radio", { name: NONE_LABEL })).toBeInViewport({ ratio: 1 });
+      await expect(toggle(scope, "내 폴더")).toBeInViewport({ ratio: 1 });
+      await expect(toggle(scope, "공유 폴더")).toBeInViewport({ ratio: 1 });
+      const mine = sectionList(scope, "내 폴더");
+      expect(await mine.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+      const listHeight = (await boxOf(mine)).height;
+      if (height === 620) {
+        expect(listHeight).toBeLessThan(200);
+      }
+    }
+  });
+
+  test("in a low window a failed folder load keeps both titles in the popover", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "wide popover");
+    await page.setViewportSize({ width: 1280, height: 620 });
+    await mockApi(page, { folders: makeFolders(45, 3), folderPages: { failAll: true } });
+    const scope = await openNewLinkPicker(page);
+    await expect(scope.getByText("폴더를 불러오지 못했어요")).toBeVisible({ timeout: 20_000 });
+    await settle(page);
+    const popover = await boxOf(scope as Locator);
+    expect(popover.y + popover.height).toBeLessThanOrEqual(620 - 16 + 1);
+    await expect(toggle(scope, "내 폴더")).toBeInViewport({ ratio: 1 });
+    await expect(toggle(scope, "공유 폴더")).toBeInViewport({ ratio: 1 });
+  });
+
+  test("the mobile form shows a picked folder without the AI sparkle", async ({ page }) => {
+    test.skip(isWideProject(), "mobile new link sheet");
+    await mockApi(page, { folders: makeFolders(45, 3) });
+    await page.goto("/home");
+    await page.getByLabel("새 링크").click();
+    const sheet = page.getByLabel("Bottom Sheet", { exact: true });
+    await expect(sheet.getByText("AI 자동 분류", { exact: true })).toBeVisible();
+    await expect(sheet.getByText("✨", { exact: true })).toHaveCount(1);
+    await page.getByRole("button", { name: "변경" }).first().click();
+    await radio(page, 43).click();
+    await expect(sheet.getByText("📁 폴더 43", { exact: true })).toBeVisible();
+    await expect(sheet.getByText("✨", { exact: true })).toHaveCount(0);
+  });
+
+  test("the move window keeps one 420px width across sections, a long name and the failure message", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "wide window");
+    const folders: MockFolder[] = [
+      {
+        id: 46,
+        ownerId: 1,
+        name: LONG_NAME,
+        emoji: "📁",
+        isShared: false,
+        shareCounts: 0,
+        linkCounts: 0,
+      },
+      ...makeFolders(45, 3),
+    ];
+    await mockWithLink(page, linkIn(44), { folders, linkMutations: { failMove: true } });
+    await openDetail(page);
+    const scope = (await openMoveWindow(page)) as Locator;
+    await settle(page);
+    const widths: number[] = [];
+    const measure = async () => {
+      await settle(page);
+      widths.push(Math.round((await boxOf(scope)).width));
+    };
+    await measure();
+    await toggle(scope, "공유 폴더").click();
+    await measure();
+    await toggle(scope, "공유 폴더").click();
+    await measure();
+    await toggle(scope, "내 폴더").click();
+    await radio(scope, 43).click();
+    await scope.getByRole("button", { name: "확인", exact: true }).click();
+    await expect(scope.getByRole("alert").filter({ hasText: MOVE_ERROR })).toBeVisible();
+    await measure();
+    expect(widths).toEqual([420, 420, 420, 420]);
+    const longRow = scope.getByRole("radio", { name: `📁 ${LONG_NAME}` });
+    expect((await boxOf(longRow.getByText(`📁 ${LONG_NAME}`))).height).toBeLessThan(24);
+  });
+
+  test("the add to personal folder window opens at the same 420px width", async ({ page }) => {
+    test.skip(!isWideProject(), "wide window");
+    await mockWithLink(page, linkIn(45));
+    await openDetail(page);
+    const scope = (await openAddWindow(page)) as Locator;
+    await settle(page);
+    expect(Math.round((await boxOf(scope)).width)).toBe(420);
+  });
+
+  test("the chosen row shows a check mark instead of the sparkle, and the none row keeps its AI wording", async ({
+    page,
+  }) => {
+    await mockWithLink(page, linkIn(44));
+    await openDetail(page);
+    const move = await openMoveWindow(page);
+    await radio(move, 43).click();
+    await expect(move.getByTestId("folder-picker-selected-mark")).toHaveCount(1);
+    await expect(radio(move, 43).getByTestId("folder-picker-selected-mark")).toBeVisible();
+    await move.getByRole("button", { name: "취소", exact: true }).click();
+
+    const picker = await openNewLinkPicker(page);
+    const none = picker.getByRole("radio", { name: NONE_LABEL });
+    await expect(none).toBeChecked();
+    await expect(picker.getByTestId("folder-picker-selected-mark")).toHaveCount(1);
+    await expect(none.getByTestId("folder-picker-selected-mark")).toBeVisible();
+  });
+
+  test("the add to personal folder window marks the chosen folder with the same check", async ({
+    page,
+  }) => {
+    await mockWithLink(page, linkIn(45));
+    await openDetail(page);
+    const add = await openAddWindow(page);
+    await expect(add.getByTestId("folder-picker-selected-mark")).toHaveCount(0);
+    await radio(add, 44).click();
+    await expect(add.getByTestId("folder-picker-selected-mark")).toHaveCount(1);
+    await expect(radio(add, 44).getByTestId("folder-picker-selected-mark")).toBeVisible();
+  });
+
+  test("reopening the move or add window right after a move hides the previous success message", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "the message covers the mobile sheet");
+    await mockWithLink(page, linkIn(45));
+    await openDetail(page);
+    const moved = page.getByText(/\(으\)로 옮겼어요\.$/);
+
+    let scope = await openMoveWindow(page);
+    await toggle(scope, "공유 폴더").click();
+    await radio(scope, 42).click();
+    await scope.getByRole("button", { name: "확인", exact: true }).click();
+    await expect(moved.first()).toBeVisible();
+    scope = await openMoveWindow(page);
+    await expect(moved).toHaveCount(0, { timeout: 1000 });
+
+    await radio(scope, 39).click();
+    await scope.getByRole("button", { name: "확인", exact: true }).click();
+    await expect(moved.first()).toBeVisible();
+    await openAddWindow(page);
+    await expect(moved).toHaveCount(0, { timeout: 1000 });
+  });
+
+  test("with a mouse in a narrow window, pressing the folder chip hides its hover name as the sheet opens", async ({
+    browser,
+  }) => {
+    test.skip(isWideProject(), "narrow window");
+    const context = await browser.newContext({
+      baseURL: test.info().project.use.baseURL,
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const page = await context.newPage();
+      await mockWithLink(page, linkIn(44));
+      await openDetail(page);
+      const chip = page.getByTestId("link-detail-folder");
+      await chip.hover();
+      await expect(page.getByRole("tooltip")).toHaveCount(1);
+      await chip.click();
+      await expect(page.getByRole("button", { name: "확인", exact: true })).toBeVisible();
+      await page.waitForTimeout(400);
+      expect(await page.getByRole("tooltip").count()).toBe(0);
+    } finally {
+      await context.close();
+    }
+  });
+});

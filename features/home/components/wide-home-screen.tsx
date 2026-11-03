@@ -282,7 +282,7 @@ function WideHomeScreen() {
                   style={todoGrid.itemStyle}
                 >
                   <TodoItem
-                    className="h-full"
+                    className="grow"
                     variant="display"
                     text={todo.title}
                     done={Boolean(todo.completedAt)}

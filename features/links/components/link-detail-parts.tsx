@@ -13,6 +13,7 @@ import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import type { TriggerRef as TooltipTriggerRef } from "@rn-primitives/tooltip";
 
 import { RefreshCw } from "lucide-react-native/icons";
 
@@ -34,6 +35,23 @@ function HoverLabel({
   shrink?: boolean;
   children: React.ReactElement;
 }) {
+  const triggerRef = React.useRef<TooltipTriggerRef>(null);
+  const isPressedRef = React.useRef(false);
+
+  const handleOpenChange = React.useCallback((open: boolean) => {
+    if (open && isPressedRef.current) {
+      triggerRef.current?.close();
+    }
+  }, []);
+
+  const handlePress = React.useCallback(() => {
+    isPressedRef.current = true;
+  }, []);
+
+  const handleRelease = React.useCallback(() => {
+    isPressedRef.current = false;
+  }, []);
+
   if (!isWeb) {
     return children;
   }
@@ -41,8 +59,19 @@ function HoverLabel({
     <Tooltip
       delayDuration={150}
       style={shrink ? { flexShrink: 1, minWidth: 0 } : undefined}
+      onOpenChange={handleOpenChange}
     >
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipTrigger
+        ref={triggerRef}
+        asChild
+        onBlur={handleRelease}
+        onHoverIn={handleRelease}
+        onHoverOut={handleRelease}
+        onPointerLeave={handleRelease}
+        onPress={handlePress}
+      >
+        {children}
+      </TooltipTrigger>
       <TooltipContent side={side}>
         <Text>{label}</Text>
       </TooltipContent>

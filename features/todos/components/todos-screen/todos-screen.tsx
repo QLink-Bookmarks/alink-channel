@@ -220,7 +220,7 @@ function WideTodoGrid({
           style={itemStyle}
         >
           <TodoDisplayItem
-            className="h-full"
+            className="grow"
             nowMs={nowMs}
             onPress={onPress}
             onToggle={onToggle}

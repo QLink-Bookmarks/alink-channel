@@ -111,7 +111,7 @@ function FolderPickerDialog({
       >
         <DialogContent
           hideCloseButton
-          className="max-h-[80vh] max-w-xl gap-3.5 rounded-[20px]"
+          className="max-h-[80vh] w-[420px] max-w-[90vw] gap-3.5 rounded-[20px] sm:max-w-[90vw]"
         >
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>

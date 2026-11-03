@@ -7,7 +7,7 @@ test.beforeEach(() => {
   test.skip(!isWideProject(), "wide sidebar only");
 });
 
-const HOVER_CLOSE_PAST_MS = 300;
+const HOVER_CLOSE_PAST_MS = 400;
 
 const RAIL_ORDER = [
   "사이드바 펼치기",
@@ -559,5 +559,37 @@ test.describe("rail on a touch screen", () => {
     await expect(mine).toBeVisible();
     await page.touchscreen.tap(900, 600);
     await expect(mine).toHaveCount(0);
+  });
+});
+
+test.describe("rail flyout placement (#27)", () => {
+  test("the flyout opens 8px outside the rail and keeps a gap under its scrolling list", async ({
+    page,
+  }) => {
+    await mockApi(page, { folders: makeFolders(45, 3) });
+    await page.goto("/home");
+    await collapse(page);
+
+    await railButton(page, "내 폴더").hover();
+    const mine = flyout(page, "내 폴더");
+    await expect(flyoutRow(mine, 44)).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.getAnimations().filter((animation) => animation.playState === "running")
+              .length,
+        ),
+      )
+      .toBe(0);
+    const rail = await boxOf(sidebarColumn(page));
+    const panel = await boxOf(mine);
+    expect(panel.x).toBeGreaterThanOrEqual(rail.x + rail.width + 8 - 1);
+    expect(panel.x).toBeLessThanOrEqual(rail.x + rail.width + 8 + 1);
+
+    const list = mine.getByLabel("내 폴더 목록", { exact: true });
+    expect(await list.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+    const listBox = await boxOf(list);
+    expect(panel.y + panel.height - (listBox.y + listBox.height)).toBeGreaterThanOrEqual(6 - 0.5);
   });
 });

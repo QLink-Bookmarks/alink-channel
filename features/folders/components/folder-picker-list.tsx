@@ -12,7 +12,7 @@ import { CreateFolderDialog, type CreatedFolder } from "./create-folder-dialog";
 import { FolderSections } from "./folder-sections";
 import { NestedListBoundary } from "./nested-list-boundary";
 
-import { Sparkles } from "lucide-react-native/icons";
+import { Check } from "lucide-react-native/icons";
 
 const ALL_SECTIONS: FolderSection[] = ["mine", "shared"];
 const WIDE_LIST_MAX_HEIGHT = 340;
@@ -178,10 +178,13 @@ function FolderPickerRow({
           {label}
         </Text>
       </View>
-      <View className="size-[18px] shrink-0 items-center justify-center">
+      <View
+        className="size-[18px] shrink-0 items-center justify-center"
+        testID={selected ? "folder-picker-selected-mark" : undefined}
+      >
         {selected ? (
           <Icon
-            as={Sparkles}
+            as={Check}
             size={18}
             className="text-primary"
           />
