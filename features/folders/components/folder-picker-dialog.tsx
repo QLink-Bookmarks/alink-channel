@@ -18,6 +18,7 @@ import type { FolderSection } from "@/stores/folder-navigation";
 
 import { useFolderPickerConfirm } from "../hooks/use-folder-picker-confirm";
 import {
+  type FolderPickerId,
   FolderPickerList,
   type FolderPickerListProps,
   type FolderPickerSelection,
@@ -39,7 +40,14 @@ function getSheetListMaxHeight(windowHeight: number) {
 
 type FolderPickerDialogPresentation = "dialog" | "sheet";
 
-type FolderPickerDialogProps = {
+type FolderPickerListSlot<Id> = {
+  selectedId: Id | null;
+  isPending: boolean;
+  listMaxHeight?: number;
+  onSelect: (selection: FolderPickerSelection<Id>) => void;
+};
+
+type FolderPickerDialogBaseProps<Id> = {
   open: boolean;
   presentation: FolderPickerDialogPresentation;
   title: string;
@@ -47,27 +55,55 @@ type FolderPickerDialogProps = {
   confirmLabel: string;
   pendingLabel: string;
   errorMessage: string;
-  initialFolderId?: number | null;
+  initialFolderId?: Id;
   noneOption?: FolderPickerListProps["noneOption"];
   visibleSections?: FolderSection[];
   onOpenChange: (open: boolean) => void;
-  onConfirm: (selection: FolderPickerSelection) => Promise<void>;
+  onConfirm: (selection: FolderPickerSelection<Id>) => Promise<void>;
 };
 
-function FolderPickerDialog({
-  open,
-  presentation,
-  title,
-  description,
-  confirmLabel,
-  pendingLabel,
-  errorMessage,
-  initialFolderId,
-  noneOption,
-  visibleSections,
-  onOpenChange,
-  onConfirm,
-}: FolderPickerDialogProps) {
+type FolderPickerDialogProps<Id = FolderPickerId> = FolderPickerDialogBaseProps<Id> &
+  ([Id] extends [FolderPickerId]
+    ? [FolderPickerId] extends [Id]
+      ? { renderList?: (slot: FolderPickerListSlot<Id>) => React.ReactNode }
+      : { renderList: (slot: FolderPickerListSlot<Id>) => React.ReactNode }
+    : { renderList: (slot: FolderPickerListSlot<Id>) => React.ReactNode });
+
+function renderDefaultList(
+  slot: FolderPickerListSlot<FolderPickerId>,
+  options: Pick<FolderPickerDialogBaseProps<FolderPickerId>, "noneOption" | "visibleSections">,
+) {
+  return (
+    <FolderPickerList
+      className="min-h-0 shrink"
+      isAddDisabled={slot.isPending}
+      listMaxHeight={slot.listMaxHeight}
+      noneOption={options.noneOption}
+      selectedFolderId={slot.selectedId}
+      visibleSections={options.visibleSections}
+      onSelect={slot.onSelect}
+    />
+  );
+}
+
+function FolderPickerDialog<Id = FolderPickerId>(props: FolderPickerDialogProps<Id>) {
+  const {
+    open,
+    presentation,
+    title,
+    description,
+    confirmLabel,
+    pendingLabel,
+    errorMessage,
+    initialFolderId,
+    noneOption,
+    visibleSections,
+    renderList,
+    onOpenChange,
+    onConfirm,
+  } = props as FolderPickerDialogBaseProps<Id> & {
+    renderList?: (slot: FolderPickerListSlot<Id>) => React.ReactNode;
+  };
   const { height } = useWindowDimensions();
   const { selection, error, isPending, canConfirm, select, confirm, requestOpenChange } =
     useFolderPickerConfirm({ open, initialFolderId, errorMessage, onConfirm, onOpenChange });
@@ -78,17 +114,18 @@ function FolderPickerDialog({
     void confirm();
   }, [confirm]);
 
-  const list = (
-    <FolderPickerList
-      className="min-h-0 shrink"
-      isAddDisabled={isPending}
-      listMaxHeight={isSheet ? getSheetListMaxHeight(height) : undefined}
-      noneOption={noneOption}
-      selectedFolderId={selection?.id ?? null}
-      visibleSections={visibleSections}
-      onSelect={select}
-    />
-  );
+  const slot: FolderPickerListSlot<Id> = {
+    selectedId: selection?.id ?? null,
+    isPending,
+    listMaxHeight: isSheet ? getSheetListMaxHeight(height) : undefined,
+    onSelect: select,
+  };
+  const list = renderList
+    ? renderList(slot)
+    : renderDefaultList(slot as unknown as FolderPickerListSlot<FolderPickerId>, {
+        noneOption,
+        visibleSections,
+      });
 
   const footer = (
     <FolderPickerDialogFooter

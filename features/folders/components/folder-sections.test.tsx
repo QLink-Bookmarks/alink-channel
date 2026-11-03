@@ -1,0 +1,190 @@
+import * as React from "react";
+import { Pressable } from "react-native";
+
+import { Text } from "@/components/ui/text";
+import { useFolderNavigation } from "@/stores/folder-navigation";
+import { fireEvent, render, screen } from "@testing-library/react-native";
+
+import { type FolderSectionDefinition, FolderSectionsView } from "./folder-sections";
+
+/* eslint-disable @typescript-eslint/no-require-imports -- jest.mock factories must require */
+jest.mock("react-native-worklets", () => require("react-native-worklets/src/mock"));
+jest.mock("react-native-reanimated", () => ({
+  ...require("react-native-reanimated/mock"),
+  useReducedMotion: () => false,
+}));
+/* eslint-enable @typescript-eslint/no-require-imports */
+
+type Row = { key: string; name: string };
+type SectionKey = "existing" | "new";
+
+const mounts = new Map<string, number>();
+
+function PickerRow({
+  row,
+  selected,
+  onPress,
+}: {
+  row: Row;
+  selected: boolean;
+  onPress: (row: Row) => void;
+}) {
+  React.useEffect(() => {
+    mounts.set(row.key, (mounts.get(row.key) ?? 0) + 1);
+  }, [row.key]);
+  return (
+    <Pressable
+      accessibilityLabel={row.name}
+      accessibilityRole="radio"
+      aria-checked={selected}
+      onPress={() => onPress(row)}
+    >
+      <Text>{row.name}</Text>
+    </Pressable>
+  );
+}
+
+const SECTIONS: FolderSectionDefinition<SectionKey, Row>[] = [
+  {
+    key: "existing",
+    label: "내 폴더",
+    canAdd: false,
+    rows: [
+      { key: "existing:1", name: "여행" },
+      { key: "existing:2", name: "레시피" },
+    ],
+  },
+  { key: "new", label: "새 폴더", rows: [{ key: "new:1", name: "읽을거리" }] },
+];
+
+function getRowKey(row: Row) {
+  return row.key;
+}
+
+function Harness({
+  sections = SECTIONS,
+  initialOpen = "existing",
+  onAddPress,
+}: {
+  sections?: FolderSectionDefinition<SectionKey, Row>[];
+  initialOpen?: SectionKey | null;
+  onAddPress?: (section: SectionKey) => void;
+}) {
+  const [openSection, setOpenSection] = React.useState<SectionKey | null>(initialOpen);
+  const [selectedKey, setSelectedKey] = React.useState<string | null>(null);
+  const handleToggle = React.useCallback(
+    (section: SectionKey) => setOpenSection((current) => (current === section ? null : section)),
+    [],
+  );
+  const handleRowPress = React.useCallback((row: Row) => setSelectedKey(row.key), []);
+  const renderRow = React.useCallback(
+    (row: Row) => (
+      <PickerRow
+        row={row}
+        selected={selectedKey === row.key}
+        onPress={handleRowPress}
+      />
+    ),
+    [handleRowPress, selectedKey],
+  );
+  return (
+    <FolderSectionsView
+      getRowKey={getRowKey}
+      openSection={openSection}
+      sections={sections}
+      tone="surface"
+      renderRow={renderRow}
+      onAddPress={onAddPress}
+      onToggle={handleToggle}
+    />
+  );
+}
+
+const initialHasHydrated = useFolderNavigation.getState().hasHydrated;
+
+beforeEach(() => {
+  mounts.clear();
+});
+
+afterEach(() => {
+  useFolderNavigation.setState({ hasHydrated: initialHasHydrated });
+});
+
+describe("FolderSectionsView", () => {
+  it("shows the section labels, the rows of the open section only, and + only where allowed", () => {
+    const onAddPress = jest.fn();
+    render(<Harness onAddPress={onAddPress} />);
+
+    expect(screen.getByRole("button", { name: "내 폴더 접기", expanded: true })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "새 폴더 펼치기", expanded: false })).toBeTruthy();
+    expect(screen.getByLabelText("내 폴더 목록")).toBeTruthy();
+    expect(screen.queryByLabelText("새 폴더 목록")).toBeNull();
+    expect(screen.getByRole("radio", { name: "여행" })).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: "읽을거리" })).toBeNull();
+
+    expect(screen.queryByRole("button", { name: "내 폴더에 폴더 추가" })).toBeNull();
+    fireEvent.press(screen.getByRole("button", { name: "새 폴더에 폴더 추가" }));
+    expect(onAddPress).toHaveBeenCalledWith("new");
+  });
+
+  it("shows local rows on mount without a skeleton, next page or retry", () => {
+    render(<Harness />);
+
+    expect(screen.getByRole("radio", { name: "레시피" })).toBeTruthy();
+    expect(screen.queryByLabelText("폴더를 불러오는 중")).toBeNull();
+    expect(screen.queryByLabelText("폴더를 더 불러오는 중")).toBeNull();
+    expect(screen.queryByText("다시 시도")).toBeNull();
+    expect(screen.queryByText("아직 만든 폴더가 없어요")).toBeNull();
+  });
+
+  it("opens one section at a time through the controlled toggle", () => {
+    render(<Harness />);
+
+    fireEvent.press(screen.getByRole("button", { name: "새 폴더 펼치기" }));
+    expect(screen.getByRole("button", { name: "내 폴더 펼치기", expanded: false })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "새 폴더 접기", expanded: true })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: "여행" })).toBeNull();
+
+    fireEvent.press(screen.getByRole("button", { name: "새 폴더 접기" }));
+    expect(screen.queryByRole("radio", { name: "읽을거리" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "여행" })).toBeNull();
+  });
+
+  it("keeps the rows mounted when the selection changes", () => {
+    render(<Harness />);
+    expect(mounts.get("existing:1")).toBe(1);
+    expect(mounts.get("existing:2")).toBe(1);
+
+    fireEvent.press(screen.getByRole("radio", { name: "레시피" }));
+    expect(screen.getByRole("radio", { name: "레시피", checked: true })).toBeTruthy();
+    fireEvent.press(screen.getByRole("radio", { name: "여행" }));
+    expect(screen.getByRole("radio", { name: "여행", checked: true })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "레시피", checked: false })).toBeTruthy();
+
+    expect(mounts.get("existing:1")).toBe(1);
+    expect(mounts.get("existing:2")).toBe(1);
+  });
+
+  it("does not wait for the folder navigation store to hydrate", () => {
+    useFolderNavigation.setState({ hasHydrated: false });
+    render(<Harness initialOpen="new" />);
+
+    expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
+  });
+
+  it("shows the empty note of an open section without rows", () => {
+    render(
+      <Harness
+        initialOpen="new"
+        sections={[
+          SECTIONS[0],
+          { ...SECTIONS[1], rows: [], emptyComponent: <Text>+로 새 폴더를 만들어요.</Text> },
+        ]}
+      />,
+    );
+
+    expect(screen.getByLabelText("새 폴더 목록")).toBeTruthy();
+    expect(screen.getByText("+로 새 폴더를 만들어요.")).toBeTruthy();
+  });
+});
