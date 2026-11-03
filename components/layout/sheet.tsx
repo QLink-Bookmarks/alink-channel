@@ -403,4 +403,4 @@ function Sheet({
 }
 
 export { Sheet, useIsInsideSheet, useSheetPosition };
-export type { SheetProps, SheetResizeTiming };
+export type { SheetProps };

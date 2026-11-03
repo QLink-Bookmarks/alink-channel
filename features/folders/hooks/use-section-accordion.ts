@@ -29,6 +29,15 @@ const SHEET_WAIT_MS = 80;
 const SHEET_MOVE_THRESHOLD = 0.5;
 const FOLDER_SECTIONS_SHEET_TIMING = { duration: SECTION_TRANSITION_MS, easing: SECTION_EASING };
 
+function timingToEnd(duration: number, onEnd: (token: number) => void, token: number) {
+  "worklet";
+  return withTiming(1, { duration, easing: SECTION_EASING }, (finished) => {
+    if (finished) {
+      scheduleOnRN(onEnd, token);
+    }
+  });
+}
+
 type SectionMotion = {
   mode: SharedValue<number>;
   progress: SharedValue<number>;
@@ -216,15 +225,7 @@ function useSectionAccordion<K extends string>({
         plan.value = { from, to, openFrom, openTo };
         mode.value = MODE_MOVING;
         progress.value = 0;
-        const timing = withTiming(
-          1,
-          { duration: SECTION_TRANSITION_MS, easing: SECTION_EASING },
-          (finished) => {
-            if (finished) {
-              scheduleOnRN(finishTransition, token);
-            }
-          },
-        );
+        const timing = timingToEnd(SECTION_TRANSITION_MS, finishTransition, token);
         let fromTotal = 0;
         let toTotal = 0;
         for (const name of names) {
@@ -254,15 +255,7 @@ function useSectionAccordion<K extends string>({
         return;
       }
       sheetWait.value = { ...wait, isWaiting: false };
-      progress.value = withTiming(
-        1,
-        { duration: SECTION_TRANSITION_MS, easing: SECTION_EASING },
-        (finished) => {
-          if (finished) {
-            scheduleOnRN(finishTransition, wait.token);
-          }
-        },
-      );
+      progress.value = timingToEnd(SECTION_TRANSITION_MS, finishTransition, wait.token);
     },
     [sheetPosition],
   );
@@ -293,17 +286,10 @@ function useSectionAccordion<K extends string>({
           openTo: running.openTo,
         };
         progress.value = 0;
-        progress.value = withTiming(
-          1,
-          {
-            duration: Math.max(MIN_RETARGET_MS, (1 - at) * SECTION_TRANSITION_MS),
-            easing: SECTION_EASING,
-          },
-          (finished) => {
-            if (finished) {
-              scheduleOnRN(finishTransition, token);
-            }
-          },
+        progress.value = timingToEnd(
+          Math.max(MIN_RETARGET_MS, (1 - at) * SECTION_TRANSITION_MS),
+          finishTransition,
+          token,
         );
       });
     },
@@ -384,9 +370,6 @@ function useSectionAccordion<K extends string>({
       return;
     }
     handledRequestRef.current = request.id;
-    if (request.token !== tokenRef.current) {
-      return;
-    }
     const run = () => {
       if (request.token !== tokenRef.current) {
         return;
@@ -483,5 +466,5 @@ function useSectionAccordion<K extends string>({
   };
 }
 
-export { FOLDER_SECTIONS_SHEET_TIMING, MODE_MOVING, MODE_SETTLED, useSectionAccordion };
+export { FOLDER_SECTIONS_SHEET_TIMING, MODE_MOVING, useSectionAccordion };
 export type { SectionMotion };

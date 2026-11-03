@@ -469,4 +469,4 @@ function FolderSections({
 const MemoFolderSections = React.memo(FolderSections);
 
 export { MemoFolderSections as FolderSections, FolderSectionsView };
-export type { FolderSectionDefinition, FolderSectionsAvailableHeight, FolderSectionsProps };
+export type { FolderSectionDefinition, FolderSectionsProps };
