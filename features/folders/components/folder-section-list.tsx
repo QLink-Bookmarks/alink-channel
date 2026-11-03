@@ -42,58 +42,44 @@ type FolderListEdges = {
   atBottom: boolean;
 };
 
-type FolderSectionListProps = {
-  section: FolderSection;
-  folders: Folder[];
-  status: FolderListStatus;
+type FolderSectionListBaseProps<T> = {
   size?: FolderSectionSize;
-  tone?: FolderSectionTone;
-  scrollSurface?: FolderScrollSurface;
   className?: string;
   style?: React.ComponentProps<typeof FlatList>["style"];
-  renderRow: (folder: Folder) => React.ReactElement;
-  onFetchMore: () => void;
-  onRetry: () => void;
+  renderRow: (row: T) => React.ReactElement;
   onEdgesChange?: (edges: FolderListEdges) => void;
 };
 
-function FolderSectionList({
-  section,
-  folders,
-  status,
-  size = "compact",
-  tone = "sidebar",
-  scrollSurface,
-  className,
-  style,
-  renderRow,
-  onFetchMore,
-  onRetry,
-  onEdgesChange,
-}: FolderSectionListProps) {
-  const listRef = React.useRef<FlatList<Folder>>(null);
+type FolderSectionListProps = FolderSectionListBaseProps<Folder> & {
+  section: FolderSection;
+  folders: readonly Folder[];
+  status: FolderListStatus;
+  tone?: FolderSectionTone;
+  scrollSurface?: FolderScrollSurface;
+  onFetchMore: () => void;
+  onRetry: () => void;
+};
+
+type FolderSectionLocalListProps<T> = FolderSectionListBaseProps<T> & {
+  label: string;
+  rows: readonly T[];
+  extraData?: unknown;
+  emptyComponent?: React.ReactElement | null;
+  getRowKey: (row: T) => string;
+};
+
+function getListClassNames(size: FolderSectionSize, className?: string) {
+  return {
+    className: cn("min-h-0 shrink grow-0", className),
+    contentContainerClassName: cn("gap-0.5 pb-1.5 pt-0.5", size === "large" && "px-3 pb-2.5"),
+  };
+}
+
+function useListEdges(onEdgesChange?: (edges: FolderListEdges) => void) {
   const offsetRef = React.useRef(0);
   const edgesRef = React.useRef<FolderListEdges>({ atTop: true, atBottom: true });
   const [contentHeight, setContentHeight] = React.useState(0);
   const [viewportHeight, setViewportHeight] = React.useState(0);
-  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, isInitialError } = status;
-  const isListReady = !status.isInitialLoading && !isInitialError;
-
-  const scrollTo = React.useCallback((offset: number) => {
-    listRef.current?.scrollToOffset({ offset, animated: false });
-  }, []);
-
-  const { recordScrollOffset, stopRestore } = useSectionScrollMemory({
-    surface: scrollSurface,
-    section,
-    contentHeight,
-    viewportHeight,
-    hasNextPage,
-    isFetchingNextPage,
-    isFetchNextPageError,
-    scrollTo,
-    onFetchMore,
-  });
 
   const updateEdges = React.useCallback(
     (nextContentHeight: number, nextViewportHeight: number) => {
@@ -114,6 +100,62 @@ function FolderSectionList({
   React.useEffect(() => {
     updateEdges(contentHeight, viewportHeight);
   }, [contentHeight, updateEdges, viewportHeight]);
+
+  const trackScroll = React.useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+      offsetRef.current = contentOffset.y;
+      updateEdges(contentSize.height, layoutMeasurement.height);
+    },
+    [updateEdges],
+  );
+
+  const handleLayout = React.useCallback((event: LayoutChangeEvent) => {
+    setViewportHeight(event.nativeEvent.layout.height);
+  }, []);
+
+  const handleContentSizeChange = React.useCallback((_width: number, height: number) => {
+    setContentHeight(height);
+  }, []);
+
+  return { contentHeight, viewportHeight, trackScroll, handleLayout, handleContentSizeChange };
+}
+
+function FolderSectionList({
+  section,
+  folders,
+  status,
+  size = "compact",
+  tone = "sidebar",
+  scrollSurface,
+  className,
+  style,
+  renderRow,
+  onFetchMore,
+  onRetry,
+  onEdgesChange,
+}: FolderSectionListProps) {
+  const listRef = React.useRef<FlatList<Folder>>(null);
+  const { contentHeight, viewportHeight, trackScroll, handleLayout, handleContentSizeChange } =
+    useListEdges(onEdgesChange);
+  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, isInitialError } = status;
+  const isListReady = !status.isInitialLoading && !isInitialError;
+
+  const scrollTo = React.useCallback((offset: number) => {
+    listRef.current?.scrollToOffset({ offset, animated: false });
+  }, []);
+
+  const { recordScrollOffset, stopRestore } = useSectionScrollMemory({
+    surface: scrollSurface,
+    section,
+    contentHeight,
+    viewportHeight,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    scrollTo,
+    onFetchMore,
+  });
 
   React.useEffect(() => {
     if (!isListReady) {
@@ -139,12 +181,10 @@ function FolderSectionList({
 
   const handleScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-      offsetRef.current = contentOffset.y;
-      recordScrollOffset(contentOffset.y);
-      updateEdges(contentSize.height, layoutMeasurement.height);
+      recordScrollOffset(event.nativeEvent.contentOffset.y);
+      trackScroll(event);
     },
-    [recordScrollOffset, updateEdges],
+    [recordScrollOffset, trackScroll],
   );
 
   const handleEndReached = React.useCallback(() => {
@@ -160,28 +200,16 @@ function FolderSectionList({
     }
   }, [hasNextPage, isFetchNextPageError, isFetchingNextPage, isListReady, onFetchMore]);
 
-  const handleLayout = React.useCallback((event: LayoutChangeEvent) => {
-    setViewportHeight(event.nativeEvent.layout.height);
-  }, []);
-
-  const handleContentSizeChange = React.useCallback((_width: number, height: number) => {
-    setContentHeight(height);
-  }, []);
-
   const renderItem = React.useCallback(
     ({ item }: { item: Folder }) => renderRow(item),
     [renderRow],
   );
 
-  const sectionLabel = FOLDER_SECTION_LABELS[section];
-  const isLarge = size === "large";
-
   return (
     <FlatList
       ref={listRef}
-      accessibilityLabel={`${sectionLabel} 목록`}
-      className={cn("min-h-0 shrink grow-0", className)}
-      contentContainerClassName={cn("gap-0.5 pb-1.5 pt-0.5", isLarge && "px-3 pb-2.5")}
+      accessibilityLabel={`${FOLDER_SECTION_LABELS[section]} 목록`}
+      {...getListClassNames(size, className)}
       contentInsetAdjustmentBehavior="automatic"
       data={isListReady ? folders : []}
       keyExtractor={(folder) => String(folder.id)}
@@ -228,6 +256,44 @@ function FolderSectionList({
           />
         ) : null
       }
+    />
+  );
+}
+
+function FolderSectionLocalList<T>({
+  label,
+  rows,
+  size = "compact",
+  className,
+  style,
+  extraData,
+  emptyComponent = null,
+  getRowKey,
+  renderRow,
+  onEdgesChange,
+}: FolderSectionLocalListProps<T>) {
+  const { trackScroll, handleLayout, handleContentSizeChange } = useListEdges(onEdgesChange);
+
+  const renderItem = React.useCallback(({ item }: { item: T }) => renderRow(item), [renderRow]);
+
+  return (
+    <FlatList
+      accessibilityLabel={`${label} 목록`}
+      {...getListClassNames(size, className)}
+      contentInsetAdjustmentBehavior="automatic"
+      data={rows}
+      extraData={extraData}
+      keyExtractor={getRowKey}
+      renderItem={renderItem}
+      scrollEventThrottle={16}
+      style={style}
+      showsVerticalScrollIndicator={false}
+      initialNumToRender={20}
+      nestedScrollEnabled
+      onContentSizeChange={handleContentSizeChange}
+      onLayout={handleLayout}
+      onScroll={trackScroll}
+      ListEmptyComponent={emptyComponent}
     />
   );
 }
@@ -384,5 +450,5 @@ function FolderListFooter({
   return null;
 }
 
-export { FOLDER_LIST_PADDING, FOLDER_LIST_ROW_GAP, FolderSectionList };
+export { FOLDER_LIST_PADDING, FOLDER_LIST_ROW_GAP, FolderSectionList, FolderSectionLocalList };
 export type { FolderListEdges, FolderSectionListProps };

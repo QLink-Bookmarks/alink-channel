@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { getFolders } from "./api";
-import { MAX_FOLDER_PAGES, fetchAllFolders, useFolderQuery } from "./queries";
+import { MAX_FOLDER_PAGES, fetchAllFolders, useFolderPagesQuery, useFolderQuery } from "./queries";
 import type { Folder, GetFoldersParams } from "./types";
 
 jest.mock("./api", () => ({ getFolders: jest.fn(), getFolderMembers: jest.fn() }));
@@ -226,5 +226,259 @@ describe("useFolderQuery", () => {
     act(() => result.current.retry());
 
     await waitFor(() => expect(result.current.folder?.id).toBe(30));
+  });
+});
+
+function cursorMalformedError() {
+  return Object.assign(new Error("Request failed with status code 400"), {
+    isAxiosError: true,
+    response: {
+      status: 400,
+      data: {
+        success: false,
+        data: null,
+        error: { code: "COM_400_0004", message: "커서 형식이 올바르지 않습니다." },
+      },
+    },
+  });
+}
+
+function servePage(folders: Folder[], nextCursor: string | null) {
+  return {
+    success: true,
+    error: null,
+    data: { isEmpty: folders.length === 0, contents: folders, nextCursor, hasNext: !!nextCursor },
+  } as Awaited<ReturnType<typeof getFolders>>;
+}
+
+function requestedCursors() {
+  return mockedGetFolders.mock.calls.map(([params]) => params?.cursor ?? "first");
+}
+
+function renderFolderPages(client = createClient(), seenErrors: boolean[] = []) {
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return renderHook(
+    () => {
+      const query = useFolderPagesQuery();
+      seenErrors.push(query.isFetchNextPageError || query.isError);
+      return query;
+    },
+    { wrapper },
+  );
+}
+
+describe("useFolderPagesQuery", () => {
+  it("reads again from the first page when the next page cursor is malformed, without reporting an error meanwhile", async () => {
+    const folders = makeFolders(45);
+    let firstPageCursor = "stale";
+    mockedGetFolders.mockImplementation(async (params: GetFoldersParams = {}) => {
+      if (params.cursor === undefined) {
+        return servePage(folders.slice(0, 20), firstPageCursor);
+      }
+      if (params.cursor === "stale") {
+        firstPageCursor = "20";
+        throw cursorMalformedError();
+      }
+      const offset = Number(params.cursor);
+      const end = offset + 20;
+      return servePage(folders.slice(offset, end), end < folders.length ? String(end) : null);
+    });
+
+    const seenErrors: boolean[] = [];
+    const { result } = renderFolderPages(createClient(), seenErrors);
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    await waitFor(() => expect(requestedCursors()).toStrictEqual(["first", "stale", "first"]));
+    expect(seenErrors).not.toContain(true);
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    expect(result.current.isFetchNextPageError).toBe(false);
+    expect(result.current.data?.pages).toHaveLength(1);
+    expect(result.current.data?.pages[0].nextCursor).toBe("20");
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    expect(result.current.data?.pages[1].contents[0].id).toBe(25);
+  });
+
+  it("restarts once for two mounted hooks, and leaves a second malformed cursor in a row to the retry button", async () => {
+    mockedGetFolders.mockImplementation(async (params: GetFoldersParams = {}) => {
+      if (params.cursor === undefined) {
+        return servePage(makeFolders(20), "bad");
+      }
+      throw cursorMalformedError();
+    });
+    const client = createClient();
+    const first = renderFolderPages(client);
+    const second = renderFolderPages(client);
+    await waitFor(() => expect(first.result.current.data?.pages).toHaveLength(1));
+
+    await act(async () => {
+      await first.result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(requestedCursors()).toStrictEqual(["first", "bad", "first"]));
+    await waitFor(() => expect(first.result.current.isFetching).toBe(false));
+
+    await act(async () => {
+      await first.result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(first.result.current.isFetchNextPageError).toBe(true));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(first.result.current.isFetchNextPageError).toBe(true);
+    expect(second.result.current.isFetchNextPageError).toBe(true);
+    expect(requestedCursors()).toStrictEqual(["first", "bad", "first", "bad"]);
+  });
+
+  it("restarts again when a malformed cursor comes back after a next page loaded", async () => {
+    let generation = 0;
+    mockedGetFolders.mockImplementation(async (params: GetFoldersParams = {}) => {
+      if (params.cursor === undefined) {
+        return servePage(makeFolders(20), `g${generation}-p1`);
+      }
+      const [cursorGeneration, page] = params.cursor.split("-");
+      if (cursorGeneration !== `g${generation}`) {
+        throw cursorMalformedError();
+      }
+      return servePage(makeFolders(20), page === "p1" ? `g${generation}-p2` : `g${generation}-p3`);
+    });
+
+    const { result } = renderFolderPages();
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(1));
+    generation = 1;
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(requestedCursors()).toStrictEqual(["first", "g0-p1", "first"]));
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    generation = 2;
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() =>
+      expect(requestedCursors()).toStrictEqual([
+        "first",
+        "g0-p1",
+        "first",
+        "g1-p1",
+        "g1-p2",
+        "first",
+        "g2-p1",
+      ]),
+    );
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    expect(result.current.isFetchNextPageError).toBe(false);
+    expect(result.current.data?.pages).toHaveLength(2);
+    expect(result.current.data?.pages[1].nextCursor).toBe("g2-p2");
+  });
+
+  it("restarts again when a malformed cursor comes back after a refetch without new pages", async () => {
+    let generation = 0;
+    mockedGetFolders.mockImplementation(async (params: GetFoldersParams = {}) => {
+      if (params.cursor === undefined) {
+        return servePage(makeFolders(20), `g${generation}-p1`);
+      }
+      if (!params.cursor.startsWith(`g${generation}-`)) {
+        throw cursorMalformedError();
+      }
+      return servePage(makeFolders(20), null);
+    });
+    const client = createClient();
+    const { result } = renderFolderPages(client);
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(1));
+    generation = 1;
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(requestedCursors()).toStrictEqual(["first", "g0-p1", "first"]));
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ["folders"] });
+    });
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    generation = 2;
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() =>
+      expect(requestedCursors()).toStrictEqual([
+        "first",
+        "g0-p1",
+        "first",
+        "first",
+        "g1-p1",
+        "first",
+      ]),
+    );
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    expect(result.current.isFetchNextPageError).toBe(false);
+    expect(result.current.data?.pages[0].nextCursor).toBe("g2-p1");
+  });
+
+  it("keeps other next page errors for the retry button", async () => {
+    serve(makeFolders(45), { failPages: new Set([1]) });
+
+    const { result } = renderFolderPages();
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(1));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    await waitFor(() => expect(result.current.isFetchNextPageError).toBe(true));
+    expect(mockedGetFolders).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useFolderQuery during a cursor restart", () => {
+  it("keeps loading instead of reporting an error while it reads again from the first page", async () => {
+    let firstPageCursor = "stale";
+    const folders = makeFolders(45);
+    mockedGetFolders.mockImplementation(async (params: GetFoldersParams = {}) => {
+      if (params.cursor === undefined) {
+        return servePage(folders.slice(0, 20), firstPageCursor);
+      }
+      if (params.cursor === "stale") {
+        firstPageCursor = "20";
+        throw cursorMalformedError();
+      }
+      const offset = Number(params.cursor);
+      const end = offset + 20;
+      return servePage(folders.slice(offset, end), end < folders.length ? String(end) : null);
+    });
+    const seenErrors: boolean[] = [];
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={createClient()}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () => {
+        const query = useFolderQuery(1);
+        seenErrors.push(query.isError);
+        return query;
+      },
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.folder?.id).toBe(1));
+    expect(seenErrors).not.toContain(true);
+    expect(requestedCursors()).toStrictEqual(["first", "stale", "first", "20", "40"]);
   });
 });

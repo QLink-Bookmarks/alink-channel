@@ -1,4 +1,4 @@
-type SourceType = "INPUT" | "QR";
+type SourceType = "INPUT" | "QR" | "IMPORT" | "COPY";
 
 type LinkStatus = "G" | "A" | "F" | "C";
 
@@ -23,7 +23,7 @@ type CreateLinkRequest = {
   thumbnailUrl?: string | null;
   faviconUrl?: string | null;
   isVideo?: boolean;
-  sourceType: SourceType;
+  sourceType: Extract<SourceType, "INPUT" | "QR">;
   folderId?: number | null;
   todos: CreateLinkTodoRequest[];
 };

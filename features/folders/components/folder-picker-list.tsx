@@ -20,7 +20,13 @@ const SHEET_LIST_HEIGHT_RATIO = 0.4;
 const DEFAULT_NONE_OPTION = { label: "없음 - ✨ AI 자동 분류" };
 const UNCATEGORIZED_PICKER_OPTION = { label: "미분류", icon: "🗂️" };
 
-type FolderPickerSelection = { id: number | null; label: string; emoji?: string | null };
+type FolderPickerId = number | null;
+
+type FolderPickerSelection<Id = FolderPickerId> = {
+  id: Id;
+  label: string;
+  emoji?: string | null;
+};
 
 type FolderPickerListProps = {
   selectedFolderId: number | null;
@@ -33,6 +39,15 @@ type FolderPickerListProps = {
   onAddDialogOpenChange?: (open: boolean) => void;
   className?: string;
 };
+
+function useFolderPickerListMaxHeight(listMaxHeight?: number) {
+  const isInsideSheet = useIsInsideSheet();
+  const { height } = useWindowDimensions();
+  return (
+    listMaxHeight ??
+    (isInsideSheet ? Math.round(height * SHEET_LIST_HEIGHT_RATIO) : WIDE_LIST_MAX_HEIGHT)
+  );
+}
 
 function getFolderLabel(folder: Folder): string {
   return folder.emoji ? `${folder.emoji} ${folder.name}` : folder.name;
@@ -50,14 +65,11 @@ function FolderPickerList({
   className,
 }: FolderPickerListProps) {
   const isInsideSheet = useIsInsideSheet();
-  const { height } = useWindowDimensions();
   const openSectionOn = useFolderNavigation((state) => state.openSectionOn);
   const [createSection, setCreateSection] = React.useState<FolderSection | null>(null);
   const [listKey, setListKey] = React.useState(0);
   const isLarge = isInsideSheet;
-  const maxHeight =
-    listMaxHeight ??
-    (isInsideSheet ? Math.round(height * SHEET_LIST_HEIGHT_RATIO) : WIDE_LIST_MAX_HEIGHT);
+  const maxHeight = useFolderPickerListMaxHeight(listMaxHeight);
 
   const handleAddPress = React.useCallback(
     (section: FolderSection | null) => {
@@ -196,5 +208,11 @@ function FolderPickerRow({
   );
 }
 
-export { FolderPickerList, UNCATEGORIZED_PICKER_OPTION, getFolderLabel };
-export type { FolderPickerListProps, FolderPickerSelection };
+export {
+  FolderPickerList,
+  FolderPickerRow,
+  UNCATEGORIZED_PICKER_OPTION,
+  getFolderLabel,
+  useFolderPickerListMaxHeight,
+};
+export type { FolderPickerId, FolderPickerListProps, FolderPickerSelection };

@@ -25,9 +25,11 @@ const FOLDER_SECTION_LABELS: Record<FolderSection, string> = {
   shared: "공유 폴더",
 };
 
-type FolderSectionHeaderProps = {
-  section: FolderSection;
+type FolderSectionHeaderProps<K extends string = FolderSection> = {
+  section: K;
+  label: string;
   isOpen: boolean;
+  canAdd?: boolean;
   size?: FolderSectionSize;
   tone?: FolderSectionTone;
   shadow?: FolderSectionHeaderShadow;
@@ -36,13 +38,15 @@ type FolderSectionHeaderProps = {
   isAddDisabled?: boolean;
   isToggleDisabled?: boolean;
   className?: string;
-  onToggle: (section: FolderSection) => void;
-  onAddPress: (section: FolderSection) => void;
+  onToggle: (section: K) => void;
+  onAddPress?: (section: K) => void;
 };
 
-function FolderSectionHeader({
+function FolderSectionHeader<K extends string = FolderSection>({
   section,
+  label,
   isOpen,
+  canAdd = true,
   size = "compact",
   tone = "sidebar",
   shadow = null,
@@ -53,8 +57,7 @@ function FolderSectionHeader({
   className,
   onToggle,
   onAddPress,
-}: FolderSectionHeaderProps) {
-  const label = FOLDER_SECTION_LABELS[section];
+}: FolderSectionHeaderProps<K>) {
   const isLarge = size === "large";
   const isSurface = !isLarge && tone === "surface";
   const pathFolder = isOpen ? null : currentFolder;
@@ -138,39 +141,41 @@ function FolderSectionHeader({
           </View>
         ) : null}
       </Pressable>
-      <Pressable
-        accessibilityLabel={`${label}에 폴더 추가`}
-        accessibilityRole="button"
-        disabled={isAddDisabled}
-        className={cn(
-          "group shrink-0 items-center justify-center",
-          isLarge ? "size-12" : "-mr-1 size-11",
-          isAddDisabled && "opacity-50",
-        )}
-        onPress={() => onAddPress(section)}
-      >
-        <View
+      {canAdd ? (
+        <Pressable
+          accessibilityLabel={`${label}에 폴더 추가`}
+          accessibilityRole="button"
+          disabled={isAddDisabled}
           className={cn(
-            "items-center justify-center web:transition-colors web:motion-reduce:transition-none",
-            isLarge
-              ? "size-8 rounded-full bg-muted group-active:bg-accent"
-              : isSurface
-                ? "size-6 rounded-md group-active:bg-accent web:group-hover:bg-accent"
-                : "size-6 rounded-md group-active:bg-sidebar-surface-2 web:group-hover:bg-sidebar-surface-2",
+            "group shrink-0 items-center justify-center",
+            isLarge ? "size-12" : "-mr-1 size-11",
+            isAddDisabled && "opacity-50",
           )}
+          onPress={() => onAddPress?.(section)}
         >
-          <Icon
-            as={Plus}
+          <View
             className={cn(
+              "items-center justify-center web:transition-colors web:motion-reduce:transition-none",
               isLarge
-                ? "size-4 text-foreground"
+                ? "size-8 rounded-full bg-muted group-active:bg-accent"
                 : isSurface
-                  ? "size-3.5 text-muted-foreground web:group-hover:text-primary"
-                  : "size-3.5 text-sidebar-muted web:group-hover:text-primary",
+                  ? "size-6 rounded-md group-active:bg-accent web:group-hover:bg-accent"
+                  : "size-6 rounded-md group-active:bg-sidebar-surface-2 web:group-hover:bg-sidebar-surface-2",
             )}
-          />
-        </View>
-      </Pressable>
+          >
+            <Icon
+              as={Plus}
+              className={cn(
+                isLarge
+                  ? "size-4 text-foreground"
+                  : isSurface
+                    ? "size-3.5 text-muted-foreground web:group-hover:text-primary"
+                    : "size-3.5 text-sidebar-muted web:group-hover:text-primary",
+              )}
+            />
+          </View>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

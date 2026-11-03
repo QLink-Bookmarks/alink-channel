@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react-native";
 
+import type { FolderPickerSelection } from "../components/folder-picker-list";
 import {
   type FolderPickerConfirmOptions,
   useFolderPickerConfirm,
@@ -173,5 +174,34 @@ describe("useFolderPickerConfirm", () => {
     expect(result.current.selection?.id).toBe(3);
     expect(result.current.error).toBeNull();
     expect(result.current.canConfirm).toBe(false);
+  });
+
+  it("works with string ids, such as folder keys of an import proposal", async () => {
+    const onConfirm = jest.fn<Promise<void>, [FolderPickerSelection<string>]>(() =>
+      Promise.resolve(),
+    );
+    const onOpenChange = jest.fn();
+    const { result } = renderHook(() =>
+      useFolderPickerConfirm<string>({
+        open: true,
+        initialFolderId: "unfiled",
+        errorMessage: "옮기지 못했어요.",
+        onConfirm,
+        onOpenChange,
+      }),
+    );
+    expect(result.current.selection?.id).toBe("unfiled");
+    expect(result.current.canConfirm).toBe(false);
+
+    act(() => result.current.select({ id: "unfiled", label: "미분류" }));
+    expect(result.current.canConfirm).toBe(false);
+
+    act(() => result.current.select({ id: "new:2", label: "읽을거리" }));
+    expect(result.current.canConfirm).toBe(true);
+    await act(async () => {
+      await result.current.confirm();
+    });
+    expect(onConfirm).toHaveBeenCalledWith({ id: "new:2", label: "읽을거리" });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
