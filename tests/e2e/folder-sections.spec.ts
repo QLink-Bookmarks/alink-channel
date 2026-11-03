@@ -859,7 +859,7 @@ test.describe("wide sidebar at low heights", () => {
     await expect(paletteButton(page)).toBeHidden();
   });
 
-  test("the palette opens 모드 · 강조색 next to the sidebar, applies choices, and closes on Esc or an outside click", async ({
+  test("the palette opens only the accent and mode controls next to the sidebar, applies choices, and closes on Esc or an outside click", async ({
     page,
   }) => {
     await mockApi(page, { folders: makeFolders(3, 0) });
@@ -868,7 +868,8 @@ test.describe("wide sidebar at low heights", () => {
 
     await paletteButton(page).click();
     const popover = page.getByLabel("모드와 강조색", { exact: true }).last();
-    await expect(popover.getByText("모드 · 강조색")).toBeVisible();
+    await expect(popover.getByRole("radiogroup", { name: "강조색" })).toBeVisible();
+    await expect(popover.getByText("모드 · 강조색")).toHaveCount(0);
     const popoverBox = await boxOf(popover);
     const buttonBox = await boxOf(paletteButton(page));
     expect(popoverBox.x).toBeGreaterThanOrEqual(buttonBox.x + buttonBox.width);
@@ -887,8 +888,15 @@ test.describe("wide sidebar at low heights", () => {
     await expect(paletteButton(page)).toBeFocused();
 
     await paletteButton(page).click();
-    await expect(page.getByLabel("모드와 강조색", { exact: true }).last()).toBeVisible();
+    const reopened = page.getByLabel("모드와 강조색", { exact: true }).last();
+    await expect(reopened).toBeVisible();
     await expect(page.getByRole("switch")).toHaveCount(1);
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0))),
+        ),
+    );
     const searchBox = await boxOf(page.getByText("⌘/Ctrl + K").first());
     await page.mouse.click(1200, searchBox.y + searchBox.height / 2);
     await expect(page.getByRole("switch")).toHaveCount(0);

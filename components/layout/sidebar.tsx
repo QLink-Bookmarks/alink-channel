@@ -83,9 +83,10 @@ function SidebarItem({
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       {...selectionProps}
+      // shadow-none: NativeWind가 transform/shadow 클래스가 처음 붙을 때 컴포넌트를 바꿔 끼워 iOS에서 Couldn't find a navigation context 오류가 난다. 기본값을 늘 붙여 둔다. 지우지 말 것.
       className={cn(
         "group relative min-h-10 flex-row items-center gap-3 overflow-hidden rounded-xl px-3 active:bg-sidebar-surface-2 web:transition-colors web:hover:bg-sidebar-surface-2",
-        active && "bg-sidebar-surface-2 shadow-qlink-sm",
+        active ? "bg-sidebar-surface-2 shadow-qlink-sm" : "shadow-none",
         className,
       )}
       onPress={onPress}
@@ -280,9 +281,10 @@ function SidebarRailButton({
     <Pressable
       accessibilityRole="button"
       {...getSelectionProps(active)}
+      // shadow-none: NativeWind가 transform/shadow 클래스가 처음 붙을 때 컴포넌트를 바꿔 끼워 iOS에서 Couldn't find a navigation context 오류가 난다. 기본값을 늘 붙여 둔다. 지우지 말 것.
       className={cn(
         "group relative size-11 items-center justify-center rounded-xl active:bg-sidebar-surface-2 web:transition-colors web:hover:bg-sidebar-surface-2 web:motion-reduce:transition-none",
-        active && "bg-sidebar-surface-2 shadow-qlink-sm",
+        active ? "bg-sidebar-surface-2 shadow-qlink-sm" : "shadow-none",
         className,
       )}
       {...props}
