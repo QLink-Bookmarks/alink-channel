@@ -1,0 +1,354 @@
+import { type Page, expect, test } from "@playwright/test";
+
+import { boxOf, isWideProject } from "./support/helpers";
+import { type MockFolder, makeDetail, makeLink, mockApi } from "./support/mock-api";
+import {
+  type MotionSample,
+  type SectionKey,
+  headerJump,
+  maxOverlap,
+  movingFrames,
+  sampleSectionMotion,
+  settleSections,
+  syncError,
+} from "./support/section-motion";
+
+type Surface = "sidebar" | "mobileTab" | "picker";
+
+const SIDEBAR = '[data-testid="wide-sidebar-column"]';
+const LABEL: Record<SectionKey, string> = { mine: "내 폴더", shared: "공유 폴더" };
+
+function mixedFolders(mine: number, shared: number): MockFolder[] {
+  const total = mine + shared;
+  return Array.from({ length: total }, (_, index) => {
+    const id = total - index;
+    const isShared = index >= mine;
+    return {
+      id,
+      ownerId: isShared ? 2 : 1,
+      name: `폴더 ${id}`,
+      emoji: "📁",
+      isShared,
+      shareCounts: isShared ? 3 : 0,
+      linkCounts: 1,
+    };
+  });
+}
+
+async function prepare(
+  page: Page,
+  surface: Surface,
+  open: SectionKey | null,
+  options: Parameters<typeof mockApi>[1] = {},
+) {
+  await page.addInitScript(
+    ({ surface: key, open: value }) => {
+      const openSection: Record<string, string | null> = {
+        sidebar: "mine",
+        mobileTab: "mine",
+        picker: "mine",
+      };
+      openSection[key] = value;
+      window.localStorage.setItem(
+        "qlink-folder-navigation",
+        JSON.stringify({ isSidebarCollapsed: false, openSection }),
+      );
+    },
+    { surface, open },
+  );
+  const link = makeLink({ id: 1 });
+  return mockApi(page, {
+    folders: mixedFolders(30, 6),
+    links: [link],
+    details: { [link.id]: makeDetail(link) },
+    ...options,
+  });
+}
+
+function toggle(page: Page, key: SectionKey, scope = "body") {
+  return page
+    .locator(scope)
+    .last()
+    .getByRole("button", { name: new RegExp(`^${LABEL[key]} (접기|펼치기)`) });
+}
+
+async function ready(page: Page, open: SectionKey | null, scope = "body") {
+  await expect(toggle(page, "mine", scope)).toBeVisible();
+  await expect(toggle(page, "shared", scope)).toBeVisible();
+  if (open) {
+    await expect(
+      page.locator(scope).last().getByLabel(`${LABEL[open]} 목록`, { exact: true }),
+    ).toBeVisible();
+  }
+  await settleSections(page, scope);
+}
+
+function expectSwitchTogether(sample: MotionSample, opening: SectionKey, closing: SectionKey) {
+  expect(movingFrames(sample, opening)).toBeGreaterThanOrEqual(5);
+  expect(movingFrames(sample, closing)).toBeGreaterThanOrEqual(5);
+  expect(syncError(sample, opening, closing)).toBeLessThanOrEqual(0.2);
+  expect(headerJump(sample, "shared")).toBeLessThan(0.35);
+  expect(maxOverlap(sample)).toBeLessThanOrEqual(1);
+  expect(sample.final.lists[opening]?.height ?? 0).toBeGreaterThan(40);
+  expect(sample.final.lists[closing]).toBeNull();
+}
+
+function lastMotion(sample: MotionSample) {
+  const signature = (frame: MotionSample["frames"][number]) =>
+    JSON.stringify(
+      (["mine", "shared"] as const).map((key) => [
+        Math.round(frame.headers[key]?.top ?? 0),
+        Math.round(frame.lists[key]?.height ?? 0),
+      ]),
+    );
+  const finalSignature = signature({ t: 0, ...sample.final });
+  const moving = sample.frames.filter((frame) => signature(frame) !== finalSignature);
+  return moving.length ? moving[moving.length - 1].t : 0;
+}
+
+test.describe("wide", () => {
+  test.beforeEach(() => {
+    test.skip(!isWideProject(), "wide only");
+  });
+
+  for (const [from, to] of [
+    ["shared", "mine"],
+    ["mine", "shared"],
+  ] as const) {
+    test(`sidebar: switching ${LABEL[from]} → ${LABEL[to]} collapses and expands together within 300 ms`, async ({
+      page,
+    }) => {
+      await prepare(page, "sidebar", from);
+      await page.goto("/home");
+      await ready(page, from, SIDEBAR);
+
+      const sample = await sampleSectionMotion(page, {
+        scope: SIDEBAR,
+        clicks: [{ at: 0, section: to }],
+      });
+
+      expectSwitchTogether(sample, to, from);
+      expect(lastMotion(sample)).toBeLessThanOrEqual(340);
+      await expect(toggle(page, to, SIDEBAR)).toHaveAttribute("aria-expanded", "true");
+    });
+  }
+
+  test("sidebar: opening from all collapsed grows from zero, and tapping again collapses it", async ({
+    page,
+  }) => {
+    await prepare(page, "sidebar", null);
+    await page.goto("/home");
+    await ready(page, null, SIDEBAR);
+
+    const opening = await sampleSectionMotion(page, {
+      scope: SIDEBAR,
+      clicks: [{ at: 0, section: "mine" }],
+    });
+    const firstVisible = opening.frames.find((frame) => frame.lists.mine != null);
+    expect(firstVisible?.lists.mine?.height ?? 0).toBeLessThan(5);
+    expect(movingFrames(opening, "mine")).toBeGreaterThanOrEqual(5);
+    expect(maxOverlap(opening)).toBeLessThanOrEqual(1);
+    expect(opening.final.lists.mine?.height ?? 0).toBeGreaterThan(100);
+
+    const closing = await sampleSectionMotion(page, {
+      scope: SIDEBAR,
+      clicks: [{ at: 0, section: "mine" }],
+    });
+    expect(movingFrames(closing, "mine")).toBeGreaterThanOrEqual(5);
+    expect(closing.final.lists.mine).toBeNull();
+    await expect(toggle(page, "mine", SIDEBAR)).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("sidebar: quick taps mid-motion end with the last tapped section and leave no list behind", async ({
+    page,
+  }) => {
+    await prepare(page, "sidebar", "shared");
+    await page.goto("/home");
+    await ready(page, "shared", SIDEBAR);
+
+    const sample = await sampleSectionMotion(page, {
+      scope: SIDEBAR,
+      clicks: [
+        { at: 0, section: "mine" },
+        { at: 70, section: "shared" },
+        { at: 140, section: "mine" },
+      ],
+      durationMs: 800,
+    });
+
+    expect(maxOverlap(sample)).toBeLessThanOrEqual(1);
+    expect(sample.final.lists.mine?.height ?? 0).toBeGreaterThan(100);
+    expect(sample.final.lists.shared).toBeNull();
+    await expect(toggle(page, "mine", SIDEBAR)).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByLabel("공유 폴더 목록", { exact: true })).toHaveCount(0);
+  });
+
+  test("sidebar: the restored open section shows at full height on the first frame", async ({
+    page,
+  }) => {
+    await prepare(page, "sidebar", "shared");
+    await page.addInitScript(() => {
+      const heights: number[] = [];
+      (window as unknown as { __sharedHeights: number[] }).__sharedHeights = heights;
+      const tick = () => {
+        const list = document.querySelector<HTMLElement>('[aria-label="공유 폴더 목록"]');
+        if (list) heights.push(Math.round(list.getBoundingClientRect().height));
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    await page.goto("/home");
+    await ready(page, "shared", SIDEBAR);
+
+    const heights = await page.evaluate(
+      () => (window as unknown as { __sharedHeights: number[] }).__sharedHeights,
+    );
+    const shown = heights.filter((value) => value > 0);
+    expect(shown.length).toBeGreaterThan(0);
+    const growingFrames = shown.filter((value, index) => index > 0 && value > shown[index - 1]);
+    expect(growingFrames.length).toBeLessThanOrEqual(2);
+  });
+
+  test("sidebar: reduced motion switches in one frame", async ({ browser }) => {
+    const context = await browser.newContext({
+      reducedMotion: "reduce",
+      viewport: { width: 1280, height: 800 },
+    });
+    const page = await context.newPage();
+    await prepare(page, "sidebar", "shared");
+    await page.goto("/home");
+    await ready(page, "shared", SIDEBAR);
+
+    const sample = await sampleSectionMotion(page, {
+      scope: SIDEBAR,
+      clicks: [{ at: 0, section: "mine" }],
+    });
+
+    expect(movingFrames(sample, "mine")).toBeLessThanOrEqual(1);
+    expect(headerJump(sample, "shared")).toBe(1);
+    expect(sample.final.lists.shared).toBeNull();
+    await context.close();
+  });
+
+  test("sidebar: sections that failed to load switch with the same motion", async ({ page }) => {
+    await prepare(page, "sidebar", "mine", { folderPages: { failAll: true } });
+    await page.goto("/home");
+    const sidebar = page.locator(SIDEBAR);
+    await expect(sidebar.getByText("폴더를 불러오지 못했어요")).toBeVisible({ timeout: 30_000 });
+    await ready(page, "mine", SIDEBAR);
+
+    const switched = await sampleSectionMotion(page, {
+      scope: SIDEBAR,
+      clicks: [{ at: 0, section: "shared" }],
+    });
+    expectSwitchTogether(switched, "shared", "mine");
+    await expect(sidebar.getByText("폴더를 불러오지 못했어요")).toBeVisible();
+
+    const closed = await sampleSectionMotion(page, {
+      scope: SIDEBAR,
+      clicks: [{ at: 0, section: "shared" }],
+    });
+    expect(movingFrames(closed, "shared")).toBeGreaterThanOrEqual(5);
+    expect(closed.final.lists.shared).toBeNull();
+  });
+
+  test("move dialog: switching sections moves the lists together and keeps the dialog size and 확인 in place", async ({
+    page,
+  }) => {
+    await prepare(page, "picker", "shared");
+    await page.goto("/links?linkId=1");
+    await expect(page.getByTestId("link-detail-title")).toBeVisible();
+    await page.getByRole("button", { name: /^폴더 이동, 현재/ }).click();
+    const dialog = page.getByRole("dialog", { name: "폴더 이동" });
+    const confirm = dialog.getByRole("button", { name: "확인", exact: true });
+    await expect(confirm).toBeVisible();
+    await ready(page, "shared", '[role="dialog"]');
+    const dialogBefore = await boxOf(dialog);
+    const confirmBefore = await boxOf(confirm);
+
+    const sample = await sampleSectionMotion(page, {
+      scope: '[role="dialog"]',
+      clicks: [{ at: 0, section: "mine" }],
+    });
+
+    expectSwitchTogether(sample, "mine", "shared");
+    expect(await boxOf(dialog)).toEqual(dialogBefore);
+    expect(await boxOf(confirm)).toEqual(confirmBefore);
+  });
+
+  test("new link folder popover: switching sections moves the lists together", async ({ page }) => {
+    await prepare(page, "picker", "shared");
+    await page.goto("/home");
+    await page.getByText("새 링크", { exact: true }).first().click();
+    await page.getByRole("button", { name: /^폴더, / }).click();
+    await expect(
+      page.getByRole("dialog").last().getByRole("radio", { name: "없음 - ✨ AI 자동 분류" }),
+    ).toBeVisible();
+    await ready(page, "shared", '[role="dialog"]');
+
+    const sample = await sampleSectionMotion(page, {
+      scope: '[role="dialog"]',
+      clicks: [{ at: 0, section: "mine" }],
+    });
+
+    expectSwitchTogether(sample, "mine", "shared");
+  });
+});
+
+test.describe("mobile", () => {
+  test.beforeEach(() => {
+    test.skip(isWideProject(), "mobile only");
+  });
+
+  test("folders tab: switching sections collapses and expands together", async ({ page }) => {
+    await prepare(page, "mobileTab", "shared");
+    await page.goto("/folders");
+    await ready(page, "shared");
+
+    const sample = await sampleSectionMotion(page, { clicks: [{ at: 0, section: "mine" }] });
+
+    expectSwitchTogether(sample, "mine", "shared");
+    expect(lastMotion(sample)).toBeLessThanOrEqual(340);
+  });
+
+  test("folders tab: opening from all collapsed grows from zero", async ({ page }) => {
+    await prepare(page, "mobileTab", null);
+    await page.goto("/folders");
+    await ready(page, null);
+
+    const sample = await sampleSectionMotion(page, { clicks: [{ at: 0, section: "shared" }] });
+
+    const firstVisible = sample.frames.find((frame) => frame.lists.shared != null);
+    expect(firstVisible?.lists.shared?.height ?? 0).toBeLessThan(5);
+    expect(movingFrames(sample, "shared")).toBeGreaterThanOrEqual(5);
+    expect(maxOverlap(sample)).toBeLessThanOrEqual(1);
+  });
+
+  test("move sheet: switching sections moves the lists together", async ({ page }) => {
+    await prepare(page, "picker", "shared");
+    await page.goto("/links/1");
+    await expect(page.getByTestId("link-detail-title")).toBeVisible();
+    await page.getByRole("button", { name: /^폴더 이동, 현재/ }).click();
+    await expect(page.getByRole("button", { name: "확인", exact: true })).toBeVisible();
+    await ready(page, "shared");
+
+    const sample = await sampleSectionMotion(page, { clicks: [{ at: 0, section: "mine" }] });
+
+    expectSwitchTogether(sample, "mine", "shared");
+  });
+
+  test("new link sheet folder step: switching sections moves the lists together", async ({
+    page,
+  }) => {
+    await prepare(page, "picker", "shared");
+    await page.goto("/home");
+    await page.getByLabel("새 링크").click();
+    await page.getByRole("button", { name: "변경" }).first().click();
+    await expect(page.getByRole("radio", { name: "없음 - ✨ AI 자동 분류" })).toBeVisible();
+    await ready(page, "shared");
+
+    const sample = await sampleSectionMotion(page, { clicks: [{ at: 0, section: "mine" }] });
+
+    expectSwitchTogether(sample, "mine", "shared");
+  });
+});
