@@ -269,6 +269,18 @@ function renderFolderPages(client = createClient(), seenErrors: boolean[] = []) 
   );
 }
 
+function waitForSettledPages(
+  client: QueryClient,
+  query: { current: { data?: unknown; isFetching: boolean } },
+) {
+  return waitFor(() => {
+    const [pagesQuery] = client.getQueryCache().findAll({ queryKey: ["folders", "infinite"] });
+    expect(pagesQuery?.state.fetchStatus).toBe("idle");
+    expect(query.current.isFetching).toBe(false);
+    expect(query.current.data).toBe(pagesQuery?.state.data);
+  });
+}
+
 describe("useFolderPagesQuery", () => {
   it("reads again from the first page when the next page cursor is malformed, without reporting an error meanwhile", async () => {
     const folders = makeFolders(45);
@@ -287,7 +299,8 @@ describe("useFolderPagesQuery", () => {
     });
 
     const seenErrors: boolean[] = [];
-    const { result } = renderFolderPages(createClient(), seenErrors);
+    const client = createClient();
+    const { result } = renderFolderPages(client, seenErrors);
     await waitFor(() => expect(result.current.data?.pages).toHaveLength(1));
 
     await act(async () => {
@@ -296,7 +309,7 @@ describe("useFolderPagesQuery", () => {
 
     await waitFor(() => expect(requestedCursors()).toStrictEqual(["first", "stale", "first"]));
     expect(seenErrors).not.toContain(true);
-    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    await waitForSettledPages(client, result);
     expect(result.current.isFetchNextPageError).toBe(false);
     expect(result.current.data?.pages).toHaveLength(1);
     expect(result.current.data?.pages[0].nextCursor).toBe("20");
@@ -325,7 +338,7 @@ describe("useFolderPagesQuery", () => {
       await first.result.current.fetchNextPage();
     });
     await waitFor(() => expect(requestedCursors()).toStrictEqual(["first", "bad", "first"]));
-    await waitFor(() => expect(first.result.current.isFetching).toBe(false));
+    await waitForSettledPages(client, first.result);
 
     await act(async () => {
       await first.result.current.fetchNextPage();
@@ -352,7 +365,8 @@ describe("useFolderPagesQuery", () => {
       return servePage(makeFolders(20), page === "p1" ? `g${generation}-p2` : `g${generation}-p3`);
     });
 
-    const { result } = renderFolderPages();
+    const client = createClient();
+    const { result } = renderFolderPages(client);
     await waitFor(() => expect(result.current.data?.pages).toHaveLength(1));
     generation = 1;
 
@@ -360,7 +374,7 @@ describe("useFolderPagesQuery", () => {
       await result.current.fetchNextPage();
     });
     await waitFor(() => expect(requestedCursors()).toStrictEqual(["first", "g0-p1", "first"]));
-    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    await waitForSettledPages(client, result);
 
     await act(async () => {
       await result.current.fetchNextPage();
@@ -382,7 +396,7 @@ describe("useFolderPagesQuery", () => {
         "g2-p1",
       ]),
     );
-    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    await waitForSettledPages(client, result);
     expect(result.current.isFetchNextPageError).toBe(false);
     expect(result.current.data?.pages).toHaveLength(2);
     expect(result.current.data?.pages[1].nextCursor).toBe("g2-p2");
@@ -408,12 +422,12 @@ describe("useFolderPagesQuery", () => {
       await result.current.fetchNextPage();
     });
     await waitFor(() => expect(requestedCursors()).toStrictEqual(["first", "g0-p1", "first"]));
-    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    await waitForSettledPages(client, result);
 
     await act(async () => {
       await client.invalidateQueries({ queryKey: ["folders"] });
     });
-    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    await waitForSettledPages(client, result);
     generation = 2;
 
     await act(async () => {
@@ -429,7 +443,7 @@ describe("useFolderPagesQuery", () => {
         "first",
       ]),
     );
-    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    await waitForSettledPages(client, result);
     expect(result.current.isFetchNextPageError).toBe(false);
     expect(result.current.data?.pages[0].nextCursor).toBe("g2-p1");
   });
