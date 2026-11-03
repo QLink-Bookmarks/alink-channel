@@ -27,6 +27,7 @@ const MODE_MOVING = 1;
 const SECTION_EASING = Easing.bezier(0.4, 0, 0.2, 1);
 const MIN_RETARGET_MS = 80;
 const SHEET_FALLBACK_MS = SECTION_TRANSITION_MS + 160;
+const SHEET_LEAD_FRAMES = process.env.EXPO_OS === "web" ? 0 : 1;
 const FOLDER_SECTIONS_SHEET_TIMING = { duration: SECTION_TRANSITION_MS, easing: SECTION_EASING };
 
 function timingToEnd(duration: number, onEnd: (token: number) => void, token: number) {
@@ -114,6 +115,7 @@ function useSectionAccordion<K extends string>({
     isFollowing: false,
     startPosition: 0,
     distance: 0,
+    moved: 0,
     token: 0,
   });
   const sheetFallback = useSharedValue(0);
@@ -243,6 +245,7 @@ function useSectionAccordion<K extends string>({
             isFollowing: true,
             startPosition: sheetPosition.value,
             distance: fromTotal - toTotal,
+            moved: 0,
             token,
           };
           sheetFallback.value = 0;
@@ -271,11 +274,12 @@ function useSectionAccordion<K extends string>({
       if (!follow.isFollowing || mode.value !== MODE_MOVING || follow.distance === 0) {
         return;
       }
-      const moved = (position - follow.startPosition) / follow.distance;
-      const at = Math.min(1, Math.max(0, moved));
+      const moved = Math.min(1, Math.max(0, (position - follow.startPosition) / follow.distance));
+      const at = Math.min(1, moved + SHEET_LEAD_FRAMES * Math.max(0, moved - follow.moved));
+      sheetFollow.value = { ...follow, moved };
       progress.value = at;
-      if (at >= 0.999) {
-        sheetFollow.value = { ...follow, isFollowing: false };
+      if (moved >= 0.999) {
+        sheetFollow.value = { ...follow, moved, isFollowing: false };
         cancelAnimation(sheetFallback);
         progress.value = 1;
         scheduleOnRN(finishTransition, follow.token);
