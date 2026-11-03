@@ -54,6 +54,7 @@ function SidebarItem({
   labelClassName,
   count,
   meta,
+  metaIcon,
   kbd,
   active,
   accessibilityLabel,
@@ -66,21 +67,26 @@ function SidebarItem({
   labelClassName?: string;
   count?: number | string;
   meta?: string;
+  metaIcon?: LucideIcon;
   kbd?: string;
   active?: boolean;
   accessibilityLabel?: string;
   onPress?: () => void;
 }) {
   const selectionProps = getSelectionProps(active);
+  const metaTextClassName = active
+    ? "text-primary"
+    : "text-sidebar-muted web:group-hover:text-sidebar-hover";
 
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       {...selectionProps}
+      // shadow-none: NativeWind가 transform/shadow 클래스가 처음 붙을 때 컴포넌트를 바꿔 끼워 iOS에서 Couldn't find a navigation context 오류가 난다. 기본값을 늘 붙여 둔다. 지우지 말 것.
       className={cn(
         "group relative min-h-10 flex-row items-center gap-3 overflow-hidden rounded-xl px-3 active:bg-sidebar-surface-2 web:transition-colors web:hover:bg-sidebar-surface-2",
-        active && "bg-sidebar-surface-2 shadow-qlink-sm",
+        active ? "bg-sidebar-surface-2 shadow-qlink-sm" : "shadow-none",
         className,
       )}
       onPress={onPress}
@@ -116,14 +122,15 @@ function SidebarItem({
         {label}
       </Text>
       {meta ? (
-        <Text
-          className={cn(
-            "shrink-0 text-xs",
-            active ? "text-primary/70" : "text-sidebar-muted/70 web:group-hover:text-sidebar-hover",
-          )}
-        >
-          {meta}
-        </Text>
+        <View className="shrink-0 flex-row items-center gap-[3px]">
+          {metaIcon ? (
+            <Icon
+              as={metaIcon}
+              className={cn("size-3", metaTextClassName)}
+            />
+          ) : null}
+          <Text className={cn("text-xs tabular-nums", metaTextClassName)}>{meta}</Text>
+        </View>
       ) : null}
       {count != null ? (
         <Text
@@ -274,9 +281,10 @@ function SidebarRailButton({
     <Pressable
       accessibilityRole="button"
       {...getSelectionProps(active)}
+      // shadow-none: NativeWind가 transform/shadow 클래스가 처음 붙을 때 컴포넌트를 바꿔 끼워 iOS에서 Couldn't find a navigation context 오류가 난다. 기본값을 늘 붙여 둔다. 지우지 말 것.
       className={cn(
         "group relative size-11 items-center justify-center rounded-xl active:bg-sidebar-surface-2 web:transition-colors web:hover:bg-sidebar-surface-2 web:motion-reduce:transition-none",
-        active && "bg-sidebar-surface-2 shadow-qlink-sm",
+        active ? "bg-sidebar-surface-2 shadow-qlink-sm" : "shadow-none",
         className,
       )}
       {...props}
@@ -312,7 +320,10 @@ function SidebarRailCTA({
 }: React.ComponentProps<typeof Button> & { icon: LucideIcon }) {
   return (
     <Button
-      className={cn("size-11 min-w-0 rounded-2xl p-0 shadow-qlink-md sm:h-11", className)}
+      className={cn(
+        "size-11 min-w-0 self-center rounded-2xl p-0 shadow-qlink-md sm:h-11",
+        className,
+      )}
       size="icon"
       variant="gradient"
       {...props}

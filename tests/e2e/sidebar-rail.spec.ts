@@ -131,7 +131,8 @@ test.describe("collapsing the wide sidebar", () => {
 
     await railButton(page, "모드와 강조색").click();
     const popover = page.getByLabel("모드와 강조색", { exact: true }).last();
-    await expect(popover.getByText("모드 · 강조색")).toBeVisible();
+    await expect(popover.getByRole("radiogroup", { name: "강조색" })).toBeVisible();
+    await expect(popover.getByText("모드 · 강조색")).toHaveCount(0);
     await popover.getByRole("switch").click();
     await expect(page.locator("html")).toHaveClass(/dark/);
     await expect(page.locator("html")).toHaveAttribute("data-accent", "gray");

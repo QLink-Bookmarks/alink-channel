@@ -43,6 +43,7 @@ type FolderSectionsProps = {
   rowHeight?: number;
   listMaxHeight?: number;
   listKey?: React.Key;
+  currentFolder?: Folder | null;
   className?: string;
   isAddDisabled?: boolean;
   filterFolder?: (folder: Folder) => boolean;
@@ -64,6 +65,7 @@ function FolderSections({
   rowHeight,
   listMaxHeight,
   listKey,
+  currentFolder = null,
   className,
   isAddDisabled = false,
   filterFolder,
@@ -95,6 +97,12 @@ function FolderSections({
       ? storedOpenSection
       : null;
   const isInitialError = status.isInitialError;
+  const currentFolderSection: FolderSection | null =
+    currentFolder && hasHydrated && !status.isInitialLoading
+      ? currentFolder.isShared
+        ? "shared"
+        : "mine"
+      : null;
 
   React.useEffect(() => {
     setEdges({ atTop: true, atBottom: true });
@@ -180,6 +188,7 @@ function FolderSections({
                 isOpen={isOpen}
                 section={section}
                 shadow={getHeaderShadow(index)}
+                currentFolder={currentFolderSection === section ? currentFolder : null}
                 size={size}
                 tone={tone}
                 isAddDisabled={isAddDisabled}

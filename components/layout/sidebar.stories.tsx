@@ -155,7 +155,8 @@ export const FolderRows: Story = {
         count={31}
         emoji="🏖️"
         label="가족 여행 2026 여름 제주 일정과 맛집 지도"
-        meta="6명 참여"
+        meta="6"
+        metaIcon={Users}
       />
       <SidebarItem
         accessibilityLabel="미분류, 링크 100+개"
