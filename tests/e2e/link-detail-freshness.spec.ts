@@ -191,6 +191,84 @@ async function openMobileDetail(page: Page, title: string, linkId: number) {
   await expect(page.getByTestId("link-detail-title")).toContainText(title);
 }
 
+const UNSAVED_EDIT = "저장하지 않은 변경사항이 있어요";
+
+function unsavedEditPrompt(page: Page) {
+  return page.getByRole("dialog", { name: UNSAVED_EDIT });
+}
+
+function editSheet(page: Page) {
+  return page.getByRole("slider", { name: "Bottom Sheet" });
+}
+
+async function openEditSheet(page: Page) {
+  await page.getByRole("button", { name: "수정하기" }).click();
+  await expect(editSheet(page).getByPlaceholder("링크 제목")).toBeVisible();
+}
+
+async function waitForLinkPut(page: Page, linkId: number) {
+  return page.waitForResponse(
+    (response) =>
+      response.request().method() === "PUT" &&
+      new URL(response.url()).pathname === `/api/links/${linkId}`,
+  );
+}
+
+async function pressOutsideSheet(page: Page) {
+  await page
+    .getByRole("button", { name: "Bottom sheet backdrop" })
+    .click({ position: { x: 20, y: 20 } });
+}
+
+async function pressSheetClose(page: Page) {
+  await page.getByLabel("닫기", { exact: true }).click();
+}
+
+async function settledSheetBox(page: Page) {
+  let previous = await editSheet(page).boundingBox();
+  await expect
+    .poll(
+      async () => {
+        const current = await editSheet(page).boundingBox();
+        const viewportHeight = page.viewportSize()?.height ?? 0;
+        const settled =
+          current !== null &&
+          previous !== null &&
+          current.y < viewportHeight - 40 &&
+          current.y === previous.y;
+        previous = current;
+        return settled;
+      },
+      { intervals: [250] },
+    )
+    .toBe(true);
+  if (!previous) throw new Error("the sheet is not on screen");
+  return previous;
+}
+
+async function dragSheetDown(page: Page) {
+  const box = await settledSheetBox(page);
+  const x = box.x + box.width / 2;
+  const y = box.y - 14;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let step = 1; step <= 12; step += 1) {
+    await page.mouse.move(x, y + step * 40);
+  }
+  await page.mouse.up();
+}
+
+async function expectSheetStaysOpen(page: Page) {
+  await expect(editSheet(page)).toBeVisible();
+  await page.waitForTimeout(1000);
+  await expect(editSheet(page)).toBeVisible();
+}
+
+async function expectEditSheetClosedWithoutPrompt(page: Page) {
+  await expect(editSheet(page)).toHaveCount(0);
+  await expect(unsavedEditPrompt(page)).toHaveCount(0);
+}
+
 test.describe("mobile", () => {
   test.skip(() => isWideProject(), "mobile screens remount on every tab and back");
 
@@ -284,5 +362,194 @@ test.describe("mobile", () => {
     await expect(page).toHaveURL(/\/home$/);
     await expect(page.getByText("📚 공부 노트", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("📚 공부", { exact: true })).toHaveCount(0);
+  });
+
+  test("saving an edited title closes the edit sheet without asking about unsaved changes, every time", async ({
+    page,
+  }) => {
+    await mockFolderScreen(page);
+    await page.goto("/home");
+    await openMobileFolder(page, "공부", /\/folders\/1$/);
+    await openMobileDetail(page, "공부 링크 2", 2);
+
+    for (const title of ["고친 제목 1", "고친 제목 2", "고친 제목 3"]) {
+      await openEditSheet(page);
+      await editSheet(page).getByPlaceholder("링크 제목").fill(title);
+      const saved = waitForLinkPut(page, 2);
+      await editSheet(page).getByRole("button", { name: "저장", exact: true }).click();
+      await saved;
+      await expect(page.getByText("수정했어요.").first()).toBeVisible();
+      await expect(page.getByTestId("link-detail-title")).toContainText(title);
+      await expectEditSheetClosedWithoutPrompt(page);
+    }
+
+    await page.getByRole("button", { name: "뒤로" }).click();
+    await expect(page).toHaveURL(/\/folders\/1$/);
+    await expect(card(page, "고친 제목 3")).toBeVisible();
+    await expect(card(page, "공부 링크 2")).toHaveCount(0);
+  });
+
+  test("saving only an edited summary closes the edit sheet without asking", async ({ page }) => {
+    const state = await mockFolderScreen(page);
+    await page.goto("/home");
+    await openMobileFolder(page, "공부", /\/folders\/1$/);
+    await openMobileDetail(page, "공부 링크 1", 1);
+
+    await openEditSheet(page);
+    await editSheet(page).getByPlaceholder("한 줄 요약을 입력해주세요").fill("새 한 줄 요약");
+    const saved = waitForLinkPut(page, 1);
+    await editSheet(page).getByRole("button", { name: "저장", exact: true }).click();
+    await saved;
+    await expect(page.getByText("수정했어요.").first()).toBeVisible();
+    await expectEditSheetClosedWithoutPrompt(page);
+    expect(state.details[1].summary).toBe("새 한 줄 요약");
+  });
+
+  test("closing the edit sheet from outside asks only when something changed, and 저장 안 함 keeps the title", async ({
+    page,
+  }) => {
+    const state = await mockFolderScreen(page);
+    await page.goto("/home");
+    await openMobileFolder(page, "공부", /\/folders\/1$/);
+    await openMobileDetail(page, "공부 링크 2", 2);
+
+    await openEditSheet(page);
+    await pressOutsideSheet(page);
+    await expectEditSheetClosedWithoutPrompt(page);
+
+    await openEditSheet(page);
+    await editSheet(page).getByPlaceholder("링크 제목").fill("저장 안 할 제목");
+    await pressOutsideSheet(page);
+    await expect(unsavedEditPrompt(page)).toBeVisible();
+    await unsavedEditPrompt(page).getByRole("button", { name: "저장 안 함", exact: true }).click();
+    await expectEditSheetClosedWithoutPrompt(page);
+    await expect(page.getByTestId("link-detail-title")).toContainText("공부 링크 2");
+    expect(state.details[2].title).toBe("공부 링크 2");
+  });
+
+  test("저장 in the unsaved-changes prompt saves the edit and closes both", async ({ page }) => {
+    await mockFolderScreen(page);
+    await page.goto("/home");
+    await openMobileFolder(page, "공부", /\/folders\/1$/);
+    await openMobileDetail(page, "공부 링크 2", 2);
+
+    await openEditSheet(page);
+    await editSheet(page).getByPlaceholder("링크 제목").fill("창에서 저장한 제목");
+    await pressSheetClose(page);
+    const prompt = unsavedEditPrompt(page);
+    await expect(prompt).toBeVisible();
+    const saved = waitForLinkPut(page, 2);
+    await prompt.getByRole("button", { name: "저장", exact: true }).click();
+    await saved;
+    await expect(page.getByTestId("link-detail-title")).toContainText("창에서 저장한 제목");
+    await expectEditSheetClosedWithoutPrompt(page);
+  });
+
+  test("a failed save keeps the edit sheet open, and closing it then asks first", async ({
+    page,
+  }) => {
+    await mockFolderScreen(page);
+    await page.route("**/api/links/2", (route) =>
+      route.request().method() === "PUT" ? route.abort("internetdisconnected") : route.fallback(),
+    );
+    await page.goto("/home");
+    await openMobileFolder(page, "공부", /\/folders\/1$/);
+    await openMobileDetail(page, "공부 링크 2", 2);
+
+    await openEditSheet(page);
+    await editSheet(page).getByPlaceholder("링크 제목").fill("저장 실패할 제목");
+    await editSheet(page).getByRole("button", { name: "저장", exact: true }).click();
+    await expect(page.getByText("수정에 실패했어요.").first()).toBeVisible();
+    await expect(editSheet(page).getByPlaceholder("링크 제목")).toHaveValue("저장 실패할 제목");
+    await expect(unsavedEditPrompt(page)).toHaveCount(0);
+
+    await pressOutsideSheet(page);
+    await expect(unsavedEditPrompt(page)).toBeVisible();
+  });
+
+  test("an edited sheet closed with X opens again after the prompt is answered once the sheet is gone", async ({
+    page,
+  }) => {
+    await mockFolderScreen(page);
+    await page.goto("/home");
+    await openMobileFolder(page, "공부", /\/folders\/1$/);
+    await openMobileDetail(page, "공부 링크 2", 2);
+
+    await openEditSheet(page);
+    await pressSheetClose(page);
+    await expectEditSheetClosedWithoutPrompt(page);
+
+    await openEditSheet(page);
+    await editSheet(page).getByPlaceholder("링크 제목").fill("버릴 제목");
+    await pressSheetClose(page);
+    await expect(unsavedEditPrompt(page)).toBeVisible();
+    await expect(editSheet(page)).toHaveCount(0);
+    await unsavedEditPrompt(page).getByRole("button", { name: "저장 안 함", exact: true }).click();
+    await expect(page.getByTestId("link-detail-title")).toContainText("공부 링크 2");
+
+    await openEditSheet(page);
+    await expect(editSheet(page).getByPlaceholder("링크 제목")).toHaveValue("공부 링크 2");
+    await expectSheetStaysOpen(page);
+  });
+
+  for (const sheet of [
+    { name: "link edit", button: "수정하기" },
+    { name: "folder move", button: "폴더 이동, 현재 📚 공부" },
+    { name: "todo editor", button: "+ 할 일 추가 / 수정" },
+  ]) {
+    test(`the ${sheet.name} sheet opens again after it was dragged down to close`, async ({
+      page,
+    }) => {
+      await mockFolderScreen(page);
+      await page.goto("/home");
+      await openMobileFolder(page, "공부", /\/folders\/1$/);
+      await openMobileDetail(page, "공부 링크 2", 2);
+
+      await page.getByRole("button", { name: sheet.button, exact: true }).click();
+      await expect(editSheet(page)).toBeVisible();
+      await dragSheetDown(page);
+      await expect(editSheet(page)).toHaveCount(0);
+
+      await page.getByRole("button", { name: sheet.button, exact: true }).click();
+      await expectSheetStaysOpen(page);
+    });
+  }
+
+  for (const close of [
+    { name: "X", run: pressSheetClose },
+    { name: "outside", run: pressOutsideSheet },
+  ]) {
+    test(`the edit sheet opens and stays open when reopened as soon as the ${close.name} close finished`, async ({
+      page,
+    }) => {
+      await mockFolderScreen(page);
+      await page.goto("/home");
+      await openMobileFolder(page, "공부", /\/folders\/1$/);
+      await openMobileDetail(page, "공부 링크 2", 2);
+
+      await openEditSheet(page);
+      await close.run(page);
+      await expect(editSheet(page)).toHaveCount(0);
+      await page.getByRole("button", { name: "수정하기" }).click();
+
+      await expectSheetStaysOpen(page);
+      await expect(unsavedEditPrompt(page)).toHaveCount(0);
+    });
+  }
+
+  test("the edit sheet stays open when it is reopened while the outside-press close is still animating", async ({
+    page,
+  }) => {
+    await mockFolderScreen(page);
+    await page.goto("/home");
+    await openMobileFolder(page, "공부", /\/folders\/1$/);
+    await openMobileDetail(page, "공부 링크 2", 2);
+
+    await openEditSheet(page);
+    await pressOutsideSheet(page);
+    await page.getByRole("button", { name: "수정하기" }).dispatchEvent("click");
+
+    await expectSheetStaysOpen(page);
+    await expect(unsavedEditPrompt(page)).toHaveCount(0);
   });
 });

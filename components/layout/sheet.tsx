@@ -129,15 +129,59 @@ function Sheet({
   );
 
   const wasOpenRef = React.useRef(false);
+  const isPresentedRef = React.useRef(false);
+  const isClosingRef = React.useRef(false);
+  const isPresentPendingRef = React.useRef(false);
+  const hasShownRef = React.useRef(false);
+  const isDismissPendingRef = React.useRef(false);
+  const closeReportedRef = React.useRef(false);
+  const isMountedRef = React.useRef(false);
+  const onOpenChangeRef = React.useRef(onOpenChange);
+  React.useLayoutEffect(() => {
+    onOpenChangeRef.current = onOpenChange;
+  }, [onOpenChange]);
+  React.useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const presentSheet = React.useCallback(() => {
+    isPresentedRef.current = true;
+    hasShownRef.current = false;
+    closeReportedRef.current = false;
+    sheetRef.current?.present();
+  }, []);
+  const dismissSheet = React.useCallback(() => {
+    isClosingRef.current = true;
+    sheetRef.current?.dismiss();
+  }, []);
+
   React.useEffect(() => {
     if (open && !wasOpenRef.current) {
-      sheetRef.current?.present();
       wasOpenRef.current = true;
+      if (isDismissPendingRef.current) {
+        isDismissPendingRef.current = false;
+      } else if (isClosingRef.current) {
+        isPresentPendingRef.current = true;
+      } else {
+        presentSheet();
+      }
     } else if (!open && wasOpenRef.current) {
-      sheetRef.current?.dismiss();
+      // Cleared before dismissing so the onChange(-1)/onDismiss this close produces is not
+      // reported back to the caller that asked for it.
       wasOpenRef.current = false;
+      isPresentPendingRef.current = false;
+      if (isPresentedRef.current && !isClosingRef.current) {
+        if (hasShownRef.current) {
+          dismissSheet();
+        } else {
+          isDismissPendingRef.current = true;
+        }
+      }
     }
-  }, [open]);
+  }, [dismissSheet, open, presentSheet]);
 
   // Register this sheet as open so global chrome (mobile FAB) can hide while any
   // sheet is up. Cleanup fires on close and on unmount, keeping the count honest.
@@ -173,27 +217,59 @@ function Sheet({
     [sheetTokens],
   );
 
+  const reportUserClose = React.useCallback(() => {
+    if (!isMountedRef.current || !wasOpenRef.current || closeReportedRef.current) {
+      return;
+    }
+    closeReportedRef.current = true;
+    onOpenChangeRef.current?.(false);
+  }, []);
   const handleChange = React.useCallback(
     (index: number) => {
-      if (index < 0) {
-        onOpenChange?.(false);
+      if (index >= 0) {
+        hasShownRef.current = true;
+        closeReportedRef.current = false;
+        if (isDismissPendingRef.current) {
+          isDismissPendingRef.current = false;
+          dismissSheet();
+        }
+      } else if (!isClosingRef.current) {
+        reportUserClose();
       }
     },
-    [onOpenChange],
+    [dismissSheet, reportUserClose],
   );
   const handleDismiss = React.useCallback(() => {
-    onOpenChange?.(false);
-  }, [onOpenChange]);
-  const handleBackdropPress = React.useCallback(() => {
-    onOpenChange?.(false);
-    sheetRef.current?.dismiss();
-  }, [onOpenChange]);
+    const wasClosing = isClosingRef.current;
+    isPresentedRef.current = false;
+    isClosingRef.current = false;
+    isDismissPendingRef.current = false;
+    if (isPresentPendingRef.current) {
+      isPresentPendingRef.current = false;
+      requestAnimationFrame(() => {
+        if (isMountedRef.current && wasOpenRef.current && !isPresentedRef.current) {
+          presentSheet();
+        }
+      });
+      return;
+    }
+    if (!wasClosing) {
+      reportUserClose();
+    }
+  }, [presentSheet, reportUserClose]);
+  const handleClosePress = React.useCallback(() => {
+    if (!isPresentedRef.current || isClosingRef.current) {
+      return;
+    }
+    reportUserClose();
+    dismissSheet();
+  }, [dismissSheet, reportUserClose]);
 
   const renderBackdrop = React.useCallback(
     (props: BottomSheetBackdropProps) => (
       <BottomSheetBackdrop
         {...props}
-        onPress={dismissible ? handleBackdropPress : undefined}
+        onPress={dismissible ? handleClosePress : undefined}
         appearsOnIndex={0}
         disappearsOnIndex={-1}
         opacity={1}
@@ -201,7 +277,7 @@ function Sheet({
         pressBehavior={dismissible ? "close" : "none"}
       />
     ),
-    [backdropStyle, dismissible, handleBackdropPress],
+    [backdropStyle, dismissible, handleClosePress],
   );
   const renderBackground = React.useCallback(
     (props: BottomSheetBackgroundProps) => (
@@ -224,8 +300,10 @@ function Sheet({
         {dismissible && !hideCloseButton ? (
           <Pressable
             className="absolute right-3 top-2 size-9 items-center justify-center rounded-full active:bg-accent web:hover:bg-accent"
+            accessibilityLabel="닫기"
+            accessibilityRole="button"
             hitSlop={8}
-            onPress={handleBackdropPress}
+            onPress={handleClosePress}
           >
             <Icon
               as={X}
@@ -236,7 +314,7 @@ function Sheet({
         ) : null}
       </View>
     ),
-    [dismissible, handleBackdropPress, hideCloseButton],
+    [dismissible, handleClosePress, hideCloseButton],
   );
 
   const safeBottomInset = Math.max(insets.bottom, 16);

@@ -1,3 +1,4 @@
+import * as React from "react";
 import { View } from "react-native";
 
 import { Button } from "@/components/ui/button";
@@ -256,5 +257,54 @@ export const WithFooter: Story = {
     >
       <LongContent />
     </Sheet>
+  ),
+};
+
+function ClosedByCallerStory({ accent, mode }: Pick<SheetStoryProps, "accent" | "mode">) {
+  const [open, setOpen] = React.useState(false);
+  const [closeReports, setCloseReports] = React.useState(0);
+
+  return (
+    <View className="gap-3">
+      <Button onPress={() => setOpen(true)}>
+        <Text>시트 열기</Text>
+      </Button>
+      <Text className="text-muted-foreground">시트가 닫혔다고 알려준 횟수: {closeReports}</Text>
+      <Sheet
+        open={open}
+        title="저장 버튼으로 닫는 시트"
+        fitContent
+        accent={accent}
+        mode={mode}
+        footer={
+          <Button
+            className="h-12"
+            onPress={() => setOpen(false)}
+          >
+            <Text>저장</Text>
+          </Button>
+        }
+        onOpenChange={(next) => {
+          if (!next) {
+            setCloseReports((count) => count + 1);
+            setOpen(false);
+          }
+        }}
+      >
+        <Text className="text-muted-foreground">
+          저장으로 닫으면 횟수가 그대로고, X·바깥 누르기·아래로 내리기로 닫으면 늘어난다.
+        </Text>
+      </Sheet>
+    </View>
+  );
+}
+
+export const ClosedByCaller: Story = {
+  name: "코드로 닫기",
+  render: (_args, context) => (
+    <ClosedByCallerStory
+      accent={(context.globals.accent ?? "gray") as AccentName}
+      mode={(context.globals.mode ?? "light") as ThemeMode}
+    />
   ),
 };
