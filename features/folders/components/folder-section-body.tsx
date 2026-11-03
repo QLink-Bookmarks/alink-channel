@@ -13,6 +13,7 @@ type FolderSectionBodyProps<K extends string> = {
   isOpen: boolean;
   isOpening: boolean;
   openingCap: number | undefined;
+  openingTarget: number;
   frozenHeight: number | undefined;
   listMaxHeight?: number;
   children: React.ReactNode;
@@ -26,6 +27,7 @@ function FolderSectionBody<K extends string>({
   isOpen,
   isOpening,
   openingCap,
+  openingTarget,
   frozenHeight,
   listMaxHeight,
   children,
@@ -45,7 +47,7 @@ function FolderSectionBody<K extends string>({
     frozenHeight != null
       ? { height: frozenHeight, flexShrink: 0 }
       : isOpening
-        ? { flexShrink: 0, maxHeight: openingCap }
+        ? { position: "absolute" as const, top: 0, left: 0, right: 0, maxHeight: openingCap }
         : { flexShrink: 1, maxHeight: listMaxHeight };
 
   const handleBodyLayout = React.useCallback(
@@ -78,6 +80,12 @@ function FolderSectionBody<K extends string>({
       >
         {children}
       </View>
+      {isOpening ? (
+        <View
+          className="shrink-0"
+          style={{ height: openingTarget }}
+        />
+      ) : null}
     </Animated.View>
   );
 }

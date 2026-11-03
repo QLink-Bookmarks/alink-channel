@@ -274,6 +274,7 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
                 frozenHeight={accordion.frozen[section.key]}
                 isOpening={accordion.opening === section.key}
                 openingCap={accordion.openingCap}
+                openingTarget={accordion.openingTarget}
                 isOpen={isOpen}
                 listMaxHeight={listMaxHeight}
                 motion={accordion.motion}

@@ -32,6 +32,7 @@ type AccordionState<K extends string> = {
   frozen: Partial<Record<K, number>>;
   opening: K | null;
   openingCap: number | undefined;
+  openingTarget: number;
   isMoving: boolean;
   transitionMinHeight: number | undefined;
   settleToken: number;
@@ -55,6 +56,7 @@ function settledState<K extends string>(key: K | null, token: number): Accordion
     frozen: {},
     opening: null,
     openingCap: undefined,
+    openingTarget: 0,
     isMoving: false,
     transitionMinHeight: undefined,
     settleToken: token,
@@ -268,6 +270,7 @@ function useSectionAccordion<K extends string>({
         frozen,
         opening: openKey,
         openingCap,
+        openingTarget: target,
         isMoving: true,
         transitionMinHeight: getReserved(frozen, target, transitionMinHeight),
       });
@@ -282,6 +285,7 @@ function useSectionAccordion<K extends string>({
       frozen,
       opening: openKey,
       openingCap,
+      openingTarget: 0,
       isMoving: true,
       transitionMinHeight,
     });
@@ -314,6 +318,7 @@ function useSectionAccordion<K extends string>({
         pendingRef.current = null;
         setState((value) => ({
           ...value,
+          openingTarget: target,
           transitionMinHeight: getReserved(value.frozen, target, value.transitionMinHeight),
         }));
         startTransition(key, target, pending.token);
@@ -324,6 +329,7 @@ function useSectionAccordion<K extends string>({
       }
       setState((value) => ({
         ...value,
+        openingTarget: target,
         transitionMinHeight: getReserved(value.frozen, target, value.transitionMinHeight),
       }));
       retarget(key, target, tokenRef.current);
@@ -347,6 +353,7 @@ function useSectionAccordion<K extends string>({
     frozen: state.frozen,
     opening: state.opening,
     openingCap: state.openingCap,
+    openingTarget: state.openingTarget,
     displayMinHeight,
     handleMeasure,
     handleVisibleLayout,
