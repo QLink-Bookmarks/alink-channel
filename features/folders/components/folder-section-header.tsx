@@ -1,4 +1,5 @@
-import { Pressable, View } from "react-native";
+import { Pressable, type StyleProp, View, type ViewStyle } from "react-native";
+import Animated, { type AnimatedStyle } from "react-native-reanimated";
 
 import { Emoji } from "@/components/ui/emoji";
 import { Icon } from "@/components/ui/icon";
@@ -20,6 +21,8 @@ const FOLDER_SECTION_HEADER_HEIGHT: Record<FolderSectionSize, number> = {
   large: 52,
 };
 
+const CHEVRON_STYLE = { alignItems: "center", justifyContent: "center" } as const;
+
 const FOLDER_SECTION_LABELS: Record<FolderSection, string> = {
   mine: "내 폴더",
   shared: "공유 폴더",
@@ -37,6 +40,7 @@ type FolderSectionHeaderProps<K extends string = FolderSection> = {
   hasDivider?: boolean;
   isAddDisabled?: boolean;
   isToggleDisabled?: boolean;
+  chevronStyle?: StyleProp<AnimatedStyle<StyleProp<ViewStyle>>>;
   className?: string;
   onToggle: (section: K) => void;
   onAddPress?: (section: K) => void;
@@ -54,6 +58,7 @@ function FolderSectionHeader<K extends string = FolderSection>({
   hasDivider = false,
   isAddDisabled = false,
   isToggleDisabled = false,
+  chevronStyle,
   className,
   onToggle,
   onAddPress,
@@ -78,6 +83,19 @@ function FolderSectionHeader<K extends string = FolderSection>({
       : isSurface
         ? "text-xs"
         : "text-sm";
+
+  const chevronIcon = (
+    <Icon
+      as={ChevronDown}
+      className={cn(
+        isLarge
+          ? "size-[18px] text-muted-foreground"
+          : isSurface
+            ? "size-3.5 text-muted-foreground web:group-hover:text-foreground"
+            : "size-3.5 text-sidebar-muted web:group-hover:text-sidebar-hover",
+      )}
+    />
+  );
 
   return (
     <View
@@ -114,24 +132,19 @@ function FolderSectionHeader<K extends string = FolderSection>({
         )}
         onPress={() => onToggle(section)}
       >
-        <View
-          // rotate-0: NativeWind가 transform/shadow 클래스가 처음 붙을 때 컴포넌트를 바꿔 끼워 iOS에서 Couldn't find a navigation context 오류가 난다. 기본값을 늘 붙여 둔다. 지우지 말 것.
-          className={cn(
-            "items-center justify-center web:transition-transform web:duration-200 web:motion-reduce:transition-none",
-            isOpen ? "rotate-0" : "-rotate-90",
-          )}
-        >
-          <Icon
-            as={ChevronDown}
+        {chevronStyle ? (
+          <Animated.View style={[CHEVRON_STYLE, chevronStyle]}>{chevronIcon}</Animated.View>
+        ) : (
+          <View
+            // rotate-0: NativeWind가 transform/shadow 클래스가 처음 붙을 때 컴포넌트를 바꿔 끼워 iOS에서 Couldn't find a navigation context 오류가 난다. 기본값을 늘 붙여 둔다. 지우지 말 것.
             className={cn(
-              isLarge
-                ? "size-[18px] text-muted-foreground"
-                : isSurface
-                  ? "size-3.5 text-muted-foreground web:group-hover:text-foreground"
-                  : "size-3.5 text-sidebar-muted web:group-hover:text-sidebar-hover",
+              "items-center justify-center web:transition-transform web:duration-200 web:motion-reduce:transition-none",
+              isOpen ? "rotate-0" : "-rotate-90",
             )}
-          />
-        </View>
+          >
+            {chevronIcon}
+          </View>
+        )}
         <Text
           className={cn("shrink-0 font-semibold", labelTextClassName)}
           numberOfLines={1}

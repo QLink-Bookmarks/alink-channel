@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Pressable, type StyleProp, View, type ViewStyle } from "react-native";
-import Animated from "react-native-reanimated";
+import Animated, { type EasingFunctionFactory } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/icon";
@@ -17,6 +17,7 @@ import {
   type BottomSheetFooterProps,
   BottomSheetModal,
   BottomSheetScrollView,
+  useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
 
 import { X } from "lucide-react-native/icons";
@@ -32,6 +33,8 @@ const SheetContext = React.createContext<boolean>(false);
 function useIsInsideSheet() {
   return React.useContext(SheetContext);
 }
+
+type SheetResizeTiming = { duration: number; easing: EasingFunctionFactory };
 
 // View scope: 모바일 전용. md >= 769px에서는 사용하지 않는다.
 
@@ -93,6 +96,11 @@ type SheetProps = {
    * inside an already-open editor sheet).
    */
   stackBehavior?: "switch" | "push" | "replace";
+  /**
+   * Timing for every move of the sheet (open, close, content resize) instead of the default
+   * spring, so a sheet whose content animates its height can follow it frame for frame.
+   */
+  resizeTiming?: SheetResizeTiming;
 };
 
 function Sheet({
@@ -112,8 +120,13 @@ function Sheet({
   footer,
   onOpenChange,
   stackBehavior = "switch",
+  resizeTiming,
 }: SheetProps) {
   const [footerHeight, setFooterHeight] = React.useState(0);
+  const resizeConfigs = useBottomSheetTimingConfigs({
+    duration: resizeTiming?.duration,
+    easing: resizeTiming?.easing,
+  });
   const sheetRef = React.useRef<BottomSheetModal>(null);
   const insets = useSafeAreaInsets();
   // Default to the active app theme so sheets follow dark mode even when the
@@ -354,6 +367,7 @@ function Sheet({
       enableContentPanningGesture={false}
       enablePanDownToClose={dismissible}
       stackBehavior={stackBehavior}
+      animationConfigs={resizeTiming ? resizeConfigs : undefined}
       backdropComponent={renderBackdrop}
       backgroundComponent={renderBackground}
       footerComponent={hasFooter ? renderFooter : undefined}
@@ -375,4 +389,4 @@ function Sheet({
 }
 
 export { Sheet, useIsInsideSheet };
-export type { SheetProps };
+export type { SheetProps, SheetResizeTiming };

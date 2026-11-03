@@ -121,6 +121,7 @@ jest.mock("@gorhom/bottom-sheet", () => {
     BottomSheetFooter: ({ children }: { children?: React.ReactNode }) => children,
     BottomSheetModal,
     BottomSheetScrollView: ({ children }: { children?: React.ReactNode }) => children,
+    useBottomSheetTimingConfigs: (configs: object) => configs,
   };
 });
 /* eslint-enable @typescript-eslint/no-require-imports */

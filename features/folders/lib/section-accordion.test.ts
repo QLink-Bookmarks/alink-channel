@@ -1,10 +1,11 @@
 import {
   getAvailableListHeight,
+  getChevronRotation,
   getOpenTarget,
   getPlanTargets,
-  getReservedHeight,
   getTransitionMinHeight,
   interpolateSectionHeight,
+  interpolateSectionOpenness,
 } from "./section-accordion";
 
 describe("getAvailableListHeight", () => {
@@ -47,7 +48,12 @@ describe("getPlanTargets", () => {
 });
 
 describe("interpolateSectionHeight", () => {
-  const plan = { from: { mine: 0, shared: 260 }, to: { mine: 315, shared: 0 } };
+  const plan = {
+    from: { mine: 0, shared: 260 },
+    to: { mine: 315, shared: 0 },
+    openFrom: { mine: 0, shared: 1 },
+    openTo: { mine: 1, shared: 0 },
+  };
 
   it("moves the opening and the closing list by the same share of their travel", () => {
     expect(interpolateSectionHeight(plan, "mine", 0)).toBe(0);
@@ -65,6 +71,8 @@ describe("interpolateSectionHeight", () => {
         shared: interpolateSectionHeight(plan, "shared", 0.4),
       },
       to: { mine: 0, shared: 260 },
+      openFrom: { mine: 0.4, shared: 0.6 },
+      openTo: { mine: 0, shared: 1 },
     };
     expect(interpolateSectionHeight(midway, "mine", 0)).toBe(
       interpolateSectionHeight(plan, "mine", 0.4),
@@ -88,10 +96,23 @@ describe("getTransitionMinHeight", () => {
   });
 });
 
-describe("getReservedHeight", () => {
-  it("keeps room for the taller of the closing lists and the opening list", () => {
-    expect(getReservedHeight(104, [286], 120)).toBe(390);
-    expect(getReservedHeight(104, [], 286)).toBe(390);
-    expect(getReservedHeight(104, [100, 60], 120)).toBe(264);
+describe("chevron rotation", () => {
+  const plan = {
+    from: { mine: 0, shared: 260 },
+    to: { mine: 315, shared: 0 },
+    openFrom: { mine: 0, shared: 1 },
+    openTo: { mine: 1, shared: 0 },
+  };
+
+  it("turns the opening chevron down and the closing one right over the same progress", () => {
+    expect(getChevronRotation(interpolateSectionOpenness(plan, "mine", 0))).toBe(-90);
+    expect(getChevronRotation(interpolateSectionOpenness(plan, "mine", 0.5))).toBe(-45);
+    expect(getChevronRotation(interpolateSectionOpenness(plan, "mine", 1))).toBe(0);
+    expect(getChevronRotation(interpolateSectionOpenness(plan, "shared", 0.5))).toBe(-45);
+    expect(getChevronRotation(interpolateSectionOpenness(plan, "shared", 1))).toBe(-90);
+  });
+
+  it("keeps a section that is not in the plan closed", () => {
+    expect(getChevronRotation(interpolateSectionOpenness(plan, "other", 0.5))).toBe(-90);
   });
 });

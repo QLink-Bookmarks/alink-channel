@@ -6,6 +6,8 @@ type SectionHeights = Record<string, number>;
 type SectionPlan = {
   from: SectionHeights;
   to: SectionHeights;
+  openFrom: SectionHeights;
+  openTo: SectionHeights;
 };
 
 function getAvailableListHeight({
@@ -45,9 +47,16 @@ function interpolateSectionHeight(plan: SectionPlan, key: string, progress: numb
   return from + (to - from) * progress;
 }
 
-function getReservedHeight(headersHeight: number, closing: readonly number[], target: number) {
-  const closingTotal = closing.reduce((sum, height) => sum + height, 0);
-  return headersHeight + Math.max(closingTotal, target);
+function interpolateSectionOpenness(plan: SectionPlan, key: string, progress: number) {
+  "worklet";
+  const from = plan.openFrom[key] ?? 0;
+  const to = plan.openTo[key] ?? 0;
+  return from + (to - from) * progress;
+}
+
+function getChevronRotation(openness: number) {
+  "worklet";
+  return -90 + 90 * openness;
 }
 
 function getTransitionMinHeight(settled: number | undefined, next: number | undefined) {
@@ -63,8 +72,9 @@ export {
   getAvailableListHeight,
   getOpenTarget,
   getPlanTargets,
-  getReservedHeight,
   getTransitionMinHeight,
+  getChevronRotation,
   interpolateSectionHeight,
+  interpolateSectionOpenness,
 };
 export type { SectionHeights, SectionPlan };

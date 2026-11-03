@@ -252,6 +252,69 @@ test.describe("wide", () => {
     expect(closed.final.lists.shared).toBeNull();
   });
 
+  test("sidebar: the chevrons turn with the lists, and at once with reduced motion", async ({
+    browser,
+  }) => {
+    for (const reducedMotion of ["no-preference", "reduce"] as const) {
+      const context = await browser.newContext({
+        reducedMotion,
+        viewport: { width: 1280, height: 800 },
+      });
+      const page = await context.newPage();
+      await prepare(page, "sidebar", "shared");
+      await page.goto("/home");
+      await ready(page, "shared", SIDEBAR);
+
+      const angles = await page.evaluate(
+        (scope) =>
+          new Promise<{ mine: number; shared: number }[]>((resolve) => {
+            const root = document.querySelector(scope) ?? document.body;
+            const chevron = (label: string) =>
+              root.querySelector<HTMLElement>(`[role="button"][aria-label^="${label}"]`)
+                ?.firstElementChild as HTMLElement | null;
+            const angle = (element: HTMLElement | null) => {
+              const transform = element ? getComputedStyle(element).transform : "none";
+              if (!transform || transform === "none") return 0;
+              const [a, b] = transform
+                .slice(transform.indexOf("(") + 1, -1)
+                .split(",")
+                .map(Number);
+              return Math.round((Math.atan2(b, a) * 180) / Math.PI);
+            };
+            const read = () => ({
+              mine: angle(chevron("내 폴더")),
+              shared: angle(chevron("공유 폴더")),
+            });
+            const frames = [read()];
+            root
+              .querySelector<HTMLElement>('[role="button"][aria-label^="내 폴더 펼치기"]')
+              ?.click();
+            const start = performance.now();
+            const tick = (time: number) => {
+              frames.push(read());
+              if (time - start < 450) requestAnimationFrame(tick);
+              else resolve(frames);
+            };
+            requestAnimationFrame(tick);
+          }),
+        SIDEBAR,
+      );
+
+      expect(angles[0]).toEqual({ mine: -90, shared: 0 });
+      expect(angles[angles.length - 1]).toEqual({ mine: 0, shared: -90 });
+      const turning = angles.filter((frame) => frame.mine > -89 && frame.mine < -1);
+      if (reducedMotion === "reduce") {
+        expect(turning).toHaveLength(0);
+      } else {
+        expect(turning.length).toBeGreaterThanOrEqual(5);
+        for (const frame of turning) {
+          expect(Math.abs(frame.mine + frame.shared + 90)).toBeLessThanOrEqual(3);
+        }
+      }
+      await context.close();
+    }
+  });
+
   test("move dialog: switching sections moves the lists together and keeps the dialog size and 확인 in place", async ({
     page,
   }) => {

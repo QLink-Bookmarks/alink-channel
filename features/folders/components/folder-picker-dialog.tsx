@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import type { FolderSection } from "@/stores/folder-navigation";
 
 import { useFolderPickerConfirm } from "../hooks/use-folder-picker-confirm";
+import { FOLDER_SECTIONS_SHEET_TIMING } from "../hooks/use-section-accordion";
 import {
   type FolderPickerId,
   FolderPickerList,
@@ -177,6 +178,7 @@ function FolderPickerDialog<Id = FolderPickerId>(props: FolderPickerDialogProps<
       footer={footer}
       hideCloseButton
       maxDynamicContentSize={Math.round(height * SHEET_MAX_HEIGHT_RATIO)}
+      resizeTiming={FOLDER_SECTIONS_SHEET_TIMING}
       onOpenChange={requestOpenChange}
     >
       <View className="gap-3">

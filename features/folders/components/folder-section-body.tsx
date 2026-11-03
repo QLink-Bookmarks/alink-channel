@@ -3,14 +3,17 @@ import { type LayoutChangeEvent, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 
 import { MODE_MOVING, type SectionMotion } from "../hooks/use-section-accordion";
+import { isListMeasurable, useSyncMeasure } from "../hooks/use-sync-measure";
 import { SETTLED_MAX_HEIGHT, interpolateSectionHeight } from "../lib/section-accordion";
 
 const BODY_STYLE = { flexShrink: 1, minHeight: 0, overflow: "hidden" } as const;
+const LOCKED_BODY_STYLE = { flexShrink: 0 } as const;
 
 type FolderSectionBodyProps<K extends string> = {
   sectionKey: K;
   motion: SectionMotion;
   isOpen: boolean;
+  isShrinkLocked: boolean;
   isOpening: boolean;
   openingCap: number | undefined;
   openingTarget: number;
@@ -25,6 +28,7 @@ function FolderSectionBody<K extends string>({
   sectionKey,
   motion,
   isOpen,
+  isShrinkLocked,
   isOpening,
   openingCap,
   openingTarget,
@@ -55,9 +59,16 @@ function FolderSectionBody<K extends string>({
     [onVisibleLayout, sectionKey],
   );
 
+  const innerRef = React.useRef<View>(null);
+  const handleSyncMeasure = React.useCallback(
+    (height: number) => onMeasure(sectionKey, height),
+    [onMeasure, sectionKey],
+  );
+  useSyncMeasure(innerRef, isOpening, handleSyncMeasure);
+
   const handleInnerLayout = React.useCallback(
     (event: LayoutChangeEvent) => {
-      if (isOpening) {
+      if (isOpening && isListMeasurable(innerRef)) {
         onMeasure(sectionKey, event.nativeEvent.layout.height);
       }
     },
@@ -68,11 +79,12 @@ function FolderSectionBody<K extends string>({
     <Animated.View
       aria-hidden={!isOpen}
       pointerEvents={isOpen ? "auto" : "none"}
-      style={[BODY_STYLE, animatedStyle]}
+      style={[BODY_STYLE, isShrinkLocked ? LOCKED_BODY_STYLE : null, animatedStyle]}
       testID={`folder-section-body-${sectionKey}`}
       onLayout={handleBodyLayout}
     >
       <View
+        ref={innerRef}
         className="min-h-0"
         style={innerStyle}
         testID={`folder-section-body-inner-${sectionKey}`}
