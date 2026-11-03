@@ -17,6 +17,7 @@ module.exports = defineConfig([
     "coverage/**",
     "dist/**",
     "node_modules/**",
+    "output/**",
     "web-build/**",
   ]),
   expoConfig,

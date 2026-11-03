@@ -660,8 +660,9 @@ test.describe("mobile folder tab states", () => {
     await page.goto("/folders");
     await expect(folderRow(sectionList(page, "내 폴더"), 11)).toBeVisible();
 
-    const titleBox = await boxOf(toggle(page, "공유 폴더"));
-    await page.mouse.click(titleBox.x + titleBox.width - 6, titleBox.y + titleBox.height / 2);
+    const sharedTitle = toggle(page, "공유 폴더");
+    const titleBox = await boxOf(sharedTitle);
+    await sharedTitle.click({ position: { x: titleBox.width - 6, y: titleBox.height / 2 } });
     await expect(toggle(page, "공유 폴더")).toHaveAccessibleName("공유 폴더 접기");
 
     const addBox = await boxOf(addButton(page, "내 폴더"));
