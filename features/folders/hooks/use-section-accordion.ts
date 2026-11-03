@@ -2,6 +2,7 @@ import * as React from "react";
 import {
   Easing,
   type SharedValue,
+  cancelAnimation,
   useAnimatedReaction,
   useSharedValue,
   withDelay,
@@ -25,8 +26,7 @@ const MODE_SETTLED = 0;
 const MODE_MOVING = 1;
 const SECTION_EASING = Easing.bezier(0.4, 0, 0.2, 1);
 const MIN_RETARGET_MS = 80;
-const SHEET_WAIT_MS = 80;
-const SHEET_MOVE_THRESHOLD = 0.5;
+const SHEET_FALLBACK_MS = SECTION_TRANSITION_MS + 160;
 const FOLDER_SECTIONS_SHEET_TIMING = { duration: SECTION_TRANSITION_MS, easing: SECTION_EASING };
 
 function timingToEnd(duration: number, onEnd: (token: number) => void, token: number) {
@@ -110,7 +110,13 @@ function useSectionAccordion<K extends string>({
   const progress = useSharedValue(1);
   const plan = useSharedValue<SectionPlan>({ from: {}, to: {}, openFrom: {}, openTo: {} });
   const settledKeyValue = useSharedValue<string | null>(openKey);
-  const sheetWait = useSharedValue({ isWaiting: false, startPosition: 0, token: 0 });
+  const sheetFollow = useSharedValue({
+    isFollowing: false,
+    startPosition: 0,
+    distance: 0,
+    token: 0,
+  });
+  const sheetFallback = useSharedValue(0);
   const motion = React.useMemo<SectionMotion>(
     () => ({ mode, progress, plan, settledKey: settledKeyValue }),
     [mode, plan, progress, settledKeyValue],
@@ -233,29 +239,47 @@ function useSectionAccordion<K extends string>({
           toTotal += to[name] ?? 0;
         }
         if (sheetPosition && Math.abs(toTotal - fromTotal) > 1) {
-          sheetWait.value = { isWaiting: true, startPosition: sheetPosition.value, token };
-          progress.value = withDelay(SHEET_WAIT_MS, timing);
+          sheetFollow.value = {
+            isFollowing: true,
+            startPosition: sheetPosition.value,
+            distance: fromTotal - toTotal,
+            token,
+          };
+          sheetFallback.value = 0;
+          sheetFallback.value = withDelay(
+            SHEET_FALLBACK_MS,
+            withTiming(1, { duration: 0 }, (finished) => {
+              if (finished && sheetFollow.value.isFollowing && sheetFollow.value.token === token) {
+                sheetFollow.value = { ...sheetFollow.value, isFollowing: false };
+                progress.value = timingToEnd(MIN_RETARGET_MS, finishTransition, token);
+              }
+            }),
+          );
         } else {
-          sheetWait.value = { isWaiting: false, startPosition: 0, token };
+          sheetFollow.value = { ...sheetFollow.value, isFollowing: false };
           progress.value = timing;
         }
       });
     },
-    [finishTransition, mode, plan, progress, sheetPosition, sheetWait],
+    [finishTransition, mode, plan, progress, sheetFallback, sheetFollow, sheetPosition],
   );
 
   useAnimatedReaction(
     () => (sheetPosition ? sheetPosition.value : 0),
     (position) => {
-      const wait = sheetWait.value;
-      if (!wait.isWaiting || mode.value !== MODE_MOVING) {
+      const follow = sheetFollow.value;
+      if (!follow.isFollowing || mode.value !== MODE_MOVING || follow.distance === 0) {
         return;
       }
-      if (Math.abs(position - wait.startPosition) <= SHEET_MOVE_THRESHOLD) {
-        return;
+      const moved = (position - follow.startPosition) / follow.distance;
+      const at = Math.min(1, Math.max(0, moved));
+      progress.value = at;
+      if (at >= 0.999) {
+        sheetFollow.value = { ...follow, isFollowing: false };
+        cancelAnimation(sheetFallback);
+        progress.value = 1;
+        scheduleOnRN(finishTransition, follow.token);
       }
-      sheetWait.value = { ...wait, isWaiting: false };
-      progress.value = timingToEnd(SECTION_TRANSITION_MS, finishTransition, wait.token);
     },
     [sheetPosition],
   );
@@ -268,7 +292,8 @@ function useSectionAccordion<K extends string>({
         if (mode.value !== MODE_MOVING) {
           return;
         }
-        sheetWait.value = { ...sheetWait.value, isWaiting: false };
+        sheetFollow.value = { ...sheetFollow.value, isFollowing: false };
+        cancelAnimation(sheetFallback);
         const running = plan.value;
         const at = progress.value;
         const from: SectionHeights = {};
@@ -293,7 +318,7 @@ function useSectionAccordion<K extends string>({
         );
       });
     },
-    [finishTransition, mode, plan, progress, sheetWait],
+    [finishTransition, mode, plan, progress, sheetFallback, sheetFollow],
   );
 
   React.useLayoutEffect(() => {
