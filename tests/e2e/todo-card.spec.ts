@@ -1,4 +1,4 @@
-import { type Page, expect, test } from "@playwright/test";
+import { type Locator, type Page, expect, test } from "@playwright/test";
 
 import { boxOf, cssOf, firstRowCount, isWideProject } from "./support/helpers";
 import {
@@ -233,5 +233,228 @@ test.describe("same card everywhere", () => {
     await expect
       .poll(() => cssOf(card.getByTestId("todo-item-title"), "text-decoration-line"))
       .toBe("line-through");
+  });
+});
+
+// #15 completing a todo moves it to another section; the cards left behind keep their size.
+
+function buildSectionFixtures() {
+  const link = makeLink({
+    id: 3,
+    url: "https://careers.lg.com/apply",
+    title: "LG Careers 채용 공고",
+    thumbnailUrl: null,
+    faviconUrl: null,
+  });
+  const todo = (
+    id: number,
+    title: string,
+    reminderAt: string | null,
+    completedAt: string | null = null,
+  ): MockTodo => ({
+    id,
+    title,
+    reminderAt,
+    completedAt,
+    linkId: 3,
+    linkUrl: link.url,
+    linkTitle: link.title,
+    linkThumbnailUrl: null,
+    linkFaviconUrl: null,
+  });
+  const todos = [
+    todo(31, "서류 최종 제출", iso(-3 * HOUR_MS)),
+    todo(32, "지원서 최종 제출", iso(-4 * HOUR_MS)),
+    todo(33, "이력서 작성 시작", iso(-5 * HOUR_MS)),
+    todo(34, "알림 없는 할 일", null),
+    todo(35, "이미 끝낸 일", iso(-7 * HOUR_MS), iso(-1 * HOUR_MS)),
+    todo(36, "이미 끝낸 알림 없는 일", null, iso(-1 * HOUR_MS)),
+  ];
+  const detailTodos = todos.map(({ id, title, reminderAt, completedAt }) => ({
+    id,
+    title,
+    reminderAt,
+    completedAt,
+  }));
+  link.todoCounts = countTodos(detailTodos);
+  return {
+    links: [link],
+    details: { 3: makeDetail(link, { todos: detailTodos }) },
+    todos,
+  };
+}
+
+function sectionHeader(page: Page, label: string) {
+  return page.getByText(label, { exact: true });
+}
+
+async function heightsByTitle(cards: Locator): Promise<Record<string, number>> {
+  const entries = await cards.evaluateAll((nodes) =>
+    nodes.map((node) => [
+      node.querySelector('[data-testid="todo-item-title"]')?.textContent ?? "",
+      Math.round(node.getBoundingClientRect().height),
+    ]),
+  );
+  return Object.fromEntries(entries);
+}
+
+async function expectNoClippedCards(cards: Locator) {
+  const clipped = await cards.evaluateAll((nodes) =>
+    nodes
+      .filter((node) => node.scrollHeight > node.clientHeight + 1)
+      .map((node) => node.querySelector('[data-testid="todo-item-title"]')?.textContent),
+  );
+  expect(clipped).toEqual([]);
+}
+
+async function expectSameHeights(
+  cards: Locator,
+  before: Record<string, number>,
+  { changed = [] as string[], exact = true } = {},
+) {
+  await expectNoClippedCards(cards);
+  const after = await heightsByTitle(cards);
+  expect(Object.keys(after).length).toBeGreaterThan(0);
+  if (!exact) return;
+  for (const [title, height] of Object.entries(after)) {
+    if (changed.includes(title)) {
+      expect(height, `height of "${title}"`).toBeGreaterThanOrEqual(before[title] - 1);
+    } else {
+      expect(height, `height of "${title}"`).toBe(before[title]);
+    }
+  }
+}
+
+async function expectCardsComplete(cards: Locator, { withReminder = false } = {}) {
+  const count = await cards.count();
+  for (let index = 0; index < count; index += 1) {
+    const card = cards.nth(index);
+    await expect(card.getByRole("checkbox")).toBeVisible();
+    await expect(card.getByTestId("todo-item-title")).toBeVisible();
+    await expect(card.getByTestId("todo-item-link")).toBeVisible();
+    if (withReminder) {
+      await expect(card.getByTestId("todo-item-reminder")).toBeVisible();
+    }
+  }
+}
+
+async function expectHeaderRightBelow(page: Page, cards: Locator, label: string) {
+  const bottoms = await cards.evaluateAll((nodes) =>
+    nodes.map((node) => node.getBoundingClientRect().bottom),
+  );
+  const header = await boxOf(sectionHeader(page, label));
+  const gap = header.y - Math.max(...bottoms);
+  expect(gap).toBeGreaterThan(0);
+  expect(gap).toBeLessThan(40);
+}
+
+test.describe("completing a todo keeps the other cards intact", () => {
+  test.beforeEach(async ({ page }) => {
+    await mockApi(page, buildSectionFixtures());
+    await page.goto("/todos");
+    await expect(page.getByTestId("todo-item-overdue")).toHaveCount(3);
+  });
+
+  test("the overdue cards left behind keep their size and the next section follows them", async ({
+    page,
+  }) => {
+    const overdue = page.getByTestId("todo-item-overdue");
+    const before = await heightsByTitle(todoCards(page));
+    await todoCard(page, "서류 최종 제출").getByRole("checkbox").click();
+    await expect(overdue).toHaveCount(2);
+    await expect(todoCard(page, "서류 최종 제출").getByRole("checkbox")).toBeChecked();
+    await expectSameHeights(todoCards(page), before, { changed: ["서류 최종 제출"] });
+    await expectCardsComplete(overdue, { withReminder: true });
+    await expectCardsComplete(todoCards(page));
+    await expectHeaderRightBelow(page, overdue, "🕊 알림없음");
+  });
+
+  test("unchecking brings the todo back to the overdue section with every card intact", async ({
+    page,
+  }) => {
+    const overdue = page.getByTestId("todo-item-overdue");
+    const before = await heightsByTitle(todoCards(page));
+    await todoCard(page, "서류 최종 제출").getByRole("checkbox").click();
+    await expect(overdue).toHaveCount(2);
+    await todoCard(page, "서류 최종 제출").getByRole("checkbox").click();
+    await expect(overdue).toHaveCount(3);
+    await expectSameHeights(todoCards(page), before);
+    await expectCardsComplete(overdue, { withReminder: true });
+    await expectCardsComplete(todoCards(page));
+    await expectHeaderRightBelow(page, overdue, "🕊 알림없음");
+  });
+
+  test("completing the last overdue todo removes the section and leaves the others intact", async ({
+    page,
+  }) => {
+    const overdue = page.getByTestId("todo-item-overdue");
+    const before = await heightsByTitle(todoCards(page));
+    for (const title of ["서류 최종 제출", "지원서 최종 제출", "이력서 작성 시작"]) {
+      await todoCard(page, title).getByRole("checkbox").click();
+    }
+    await expect(overdue).toHaveCount(0);
+    await expect(sectionHeader(page, "🔥 기간지남")).toHaveCount(0);
+    await expect(todoCards(page)).toHaveCount(6);
+    await expectSameHeights(todoCards(page), before, {
+      changed: ["서류 최종 제출", "지원서 최종 제출", "이력서 작성 시작"],
+      exact: !isWideProject(),
+    });
+    await expectCardsComplete(todoCards(page));
+  });
+
+  test("completing and unchecking a todo without a reminder keeps every card intact", async ({
+    page,
+  }) => {
+    const before = await heightsByTitle(todoCards(page));
+    const card = todoCard(page, "알림 없는 할 일");
+    await card.getByRole("checkbox").click();
+    await expect(sectionHeader(page, "🕊 알림없음")).toHaveCount(0);
+    await expectSameHeights(todoCards(page), before, { changed: ["알림 없는 할 일"] });
+    await expectCardsComplete(todoCards(page));
+    await card.getByRole("checkbox").click();
+    await expect(sectionHeader(page, "🕊 알림없음")).toHaveCount(1);
+    await expect(async () => {
+      await expectSameHeights(todoCards(page), before);
+    }).toPass();
+    await expectCardsComplete(todoCards(page));
+  });
+
+  test("cards in one grid row share a height and keep the link row at the bottom", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "the grid is wide only");
+    const completedCards = page.getByTestId("todo-grid").last().getByTestId("todo-item");
+    await expect.poll(() => firstRowCount(completedCards)).toBe(2);
+    const rows = await completedCards.evaluateAll((cards) =>
+      cards.map((card) => {
+        const rect = card.getBoundingClientRect();
+        const link = card.querySelector('[data-testid="todo-item-link"]')!.getBoundingClientRect();
+        return {
+          height: Math.round(rect.height),
+          linkGap: Math.round(rect.bottom - link.bottom),
+        };
+      }),
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[1].height).toBe(rows[0].height);
+    for (const row of rows) expect(row.linkGap).toBeLessThanOrEqual(1);
+  });
+
+  test("completing and unchecking a todo in the link detail keeps every card intact", async ({
+    page,
+  }) => {
+    await page.goto(isWideProject() ? "/links?linkId=3" : "/links/3");
+    const cards = page.getByTestId("link-detail-todos").getByTestId(/^todo-item(-overdue)?$/);
+    await expect(cards).toHaveCount(6);
+    const before = await heightsByTitle(cards);
+    const checkbox = cards.filter({ hasText: "서류 최종 제출" }).getByRole("checkbox");
+    await checkbox.click();
+    await expect(checkbox).toBeChecked();
+    await expectSameHeights(cards, before, { changed: ["서류 최종 제출"] });
+    await expectCardsComplete(cards);
+    await checkbox.click();
+    await expect(checkbox).not.toBeChecked();
+    await expectSameHeights(cards, before);
+    await expectCardsComplete(cards);
   });
 });
