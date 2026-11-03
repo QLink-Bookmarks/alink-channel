@@ -102,7 +102,7 @@ function LinkCard({
         onPress={onPress}
       >
         <Text
-          className="h-9 text-[13px] font-semibold leading-[18px] text-foreground"
+          className="h-9 text-[13px] font-semibold leading-[18px] text-foreground web:break-keep"
           numberOfLines={2}
           testID="link-card-title"
         >

@@ -187,7 +187,7 @@ function PostDetailScreen({ postId, backPath, imagesClickable = false }: PostDet
         className="flex-1"
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="mx-auto w-full gap-4 px-4 pb-16 pt-4 md:max-w-3xl md:px-6"
+        contentContainerClassName="mx-auto w-full gap-4 px-4 pb-16 pt-4 md:max-w-3xl md:px-6 md:pb-20"
       >
         <View className="gap-2">
           <Text className="text-2xl font-semibold text-foreground">{post.title}</Text>

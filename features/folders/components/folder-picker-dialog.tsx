@@ -26,6 +26,8 @@ import {
 import { CircleAlert } from "lucide-react-native/icons";
 
 const SHEET_MAX_HEIGHT_RATIO = 0.86;
+const DIALOG_MAX_HEIGHT = 640;
+const DIALOG_HEIGHT_RATIO = 0.8;
 const SHEET_FIXED_PARTS_HEIGHT = 440;
 const SHEET_LIST_MIN_HEIGHT = 120;
 const SHEET_LIST_HEIGHT_RATIO = 0.4;
@@ -80,7 +82,7 @@ function FolderPickerDialog({
 
   const list = (
     <FolderPickerList
-      className="min-h-0 shrink"
+      className={isSheet ? "min-h-0 shrink" : "min-h-0 flex-1"}
       isAddDisabled={isPending}
       listMaxHeight={isSheet ? getSheetListMaxHeight(height) : undefined}
       noneOption={noneOption}
@@ -112,6 +114,7 @@ function FolderPickerDialog({
         <DialogContent
           hideCloseButton
           className="max-h-[80vh] w-[420px] max-w-[90vw] gap-3.5 rounded-[20px] sm:max-w-[90vw]"
+          style={{ height: Math.min(DIALOG_MAX_HEIGHT, Math.round(height * DIALOG_HEIGHT_RATIO)) }}
         >
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>

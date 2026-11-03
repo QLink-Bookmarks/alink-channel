@@ -183,7 +183,7 @@ function WideHomeScreen() {
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
     >
-      <View className="w-full max-w-[980px] gap-8 self-center px-6 pb-16 pt-24">
+      <View className="w-full max-w-[980px] gap-8 self-center px-6 pb-20 pt-24">
         <View className="items-center gap-2">
           <BrandHeader
             accent={accent}
@@ -323,23 +323,6 @@ function WideHomeScreen() {
               onCardPress={(item) => router.push(`/links/${item.id}` as Href)}
             />
           )}
-        </View>
-
-        <View className="flex-row flex-wrap items-center justify-center gap-5 pt-2">
-          {shortcutLabel ? (
-            <Kbd
-              label="새 링크"
-              labelPosition="right"
-            >
-              {shortcutLabel}
-            </Kbd>
-          ) : null}
-          <Kbd
-            label="검색"
-            labelPosition="right"
-          >
-            ⌘/Ctrl + K
-          </Kbd>
         </View>
       </View>
 

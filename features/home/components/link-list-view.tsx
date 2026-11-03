@@ -95,7 +95,7 @@ function LinkListView({
         meta={totalLabel}
         actions={headerActions}
       />
-      <View className="gap-5 px-6 pb-6 pt-4 md:pt-0">
+      <View className="gap-5 px-6 pb-24 pt-4 md:pb-20 md:pt-0">
         <OrderFilter
           favoriteOnly={favoriteOnly}
           value={order}

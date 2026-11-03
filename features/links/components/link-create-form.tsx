@@ -1,5 +1,10 @@
 import * as React from "react";
-import { Pressable, ActivityIndicator as RNActivityIndicator, View } from "react-native";
+import {
+  Pressable,
+  ActivityIndicator as RNActivityIndicator,
+  ScrollView,
+  View,
+} from "react-native";
 
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Button } from "@/components/ui/button";
@@ -77,11 +82,12 @@ type LinkCreateFormProps = {
   initialUrl?: string;
   onCancel: () => void;
   onSaved?: (id: number) => void;
+  onMobileSubStepChange?: (isSubStep: boolean) => void;
 };
 
 const defaultFolder: FolderDraft = {
   id: null,
-  label: "없음 - ✨ AI 생성으로 자동 분류해보세요",
+  label: "없음 - ✨ AI 자동 분류",
 };
 
 const defaultWeekdays: WeekdayValue[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -109,7 +115,14 @@ function getUrlFillMode(previousUrl: string, nextUrl: string): UrlFillMode {
   return nextUrl.length - previousUrl.length > 1 ? "instant" : "typed";
 }
 
-function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreateFormProps) {
+function LinkCreateForm({
+  mode,
+  open,
+  initialUrl,
+  onCancel,
+  onSaved,
+  onMobileSubStepChange,
+}: LinkCreateFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const pendingQrResult = useQrScanStore((state) => state.pendingResult);
@@ -149,6 +162,15 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
   const [generateTodo, setGenerateTodo] = React.useState(false);
   const [errors, setErrors] = React.useState<{ url?: string; title?: string }>({});
   const [mobileSheetStep, setMobileSheetStep] = React.useState<MobileSheetStep>("form");
+  const isMobileSubStep = mobileSheetStep !== "form";
+
+  React.useEffect(() => {
+    onMobileSubStepChange?.(isMobileSubStep);
+  }, [isMobileSubStep, onMobileSubStepChange]);
+
+  React.useEffect(() => {
+    return () => onMobileSubStepChange?.(false);
+  }, [onMobileSubStepChange]);
 
   React.useEffect(() => {
     if (aiProvider || !aiProviders) {
@@ -540,9 +562,11 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
       <View className="gap-5">
         <View className="flex-row items-center justify-between gap-3">
           <View className="w-10 items-start">
-            {mobileSheetStep !== "form" ? (
+            {isMobileSubStep ? (
               <Pressable
-                className="size-10 items-center justify-center rounded-full active:bg-accent"
+                accessibilityLabel="뒤로"
+                accessibilityRole="button"
+                className="size-10 items-center justify-center rounded-full active:bg-accent web:hover:bg-accent"
                 onPress={() => setMobileSheetStep("form")}
               >
                 <Icon
@@ -554,7 +578,6 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
             ) : null}
           </View>
           <Text className="flex-1 text-center text-xl font-bold text-primary">{stepTitle}</Text>
-          {/* The Sheet's own X handles dismiss on the form step — don't render a second X. */}
           <View className="size-10" />
         </View>
 
@@ -681,127 +704,136 @@ function LinkCreateForm({ mode, open, initialUrl, onCancel, onSaved }: LinkCreat
   }
 
   return (
-    <View className="gap-5">
-      <LinkPreviewImage
-        isLoading={isPreviewLoading}
-        mode={mode}
-        preview={linkPreview}
-      />
-      <View className="gap-2">
-        <View className="flex-row items-center gap-2">
-          <Text className="text-sm font-semibold text-muted-foreground">URL</Text>
-          <Text className="text-sm font-semibold text-muted-foreground">📋 클립보드 자동 감지</Text>
-        </View>
-        <FieldError error={errors.url}>
-          <Input
-            className="h-10 rounded-xl px-4 text-lg"
-            value={url}
-            autoCapitalize="none"
-            keyboardType="url"
-            placeholder="https://www.example.com"
-            onChangeText={handleUrlChange}
-          />
-        </FieldError>
-      </View>
-
-      <View className="gap-2">
-        <Text className="text-sm font-semibold text-muted-foreground">제목</Text>
-        <FieldError error={errors.title}>
-          <TitleField isLoading={isPreviewLoading}>
-            <Input
-              className="h-10 rounded-xl px-4 pr-10 text-lg"
-              value={title}
-              maxLength={300}
-              placeholder={
-                isPreviewLoading ? "제목을 불러오는 중…" : "AI 생성으로 자동 정리해보세요"
-              }
-              onChangeText={handleTitleChange}
-            />
-          </TitleField>
-        </FieldError>
-      </View>
-
-      <View className="flex-row gap-4">
-        <View className="min-w-0 flex-1 gap-2">
-          <Text className="text-sm font-semibold text-muted-foreground">폴더</Text>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                accessibilityLabel={`폴더, ${folder.label}`}
-                className="h-10 w-full flex-row justify-start rounded-xl px-4"
-                variant="outline"
-              >
-                <View className="min-w-0 flex-1 flex-row items-center gap-2">
-                  <Icon
-                    as={FolderOpen}
-                    size={18}
-                    className="text-primary"
-                  />
-                  <Text
-                    className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground"
-                    numberOfLines={1}
-                  >
-                    {folder.label}
-                  </Text>
-                  <Icon
-                    as={ChevronDown}
-                    size={14}
-                    className="text-muted-foreground"
-                  />
-                </View>
-              </Button>
-            </PopoverTrigger>
-            <FolderPickerPopoverContent
-              selectedFolderId={folder.id ? Number(folder.id) : null}
-              onSelect={handleFolderSelect}
-            />
-          </Popover>
-        </View>
-        <View className="min-w-0 flex-1 gap-2">
-          <Text className="text-sm font-semibold text-muted-foreground">메모 (선택)</Text>
-          <Textarea
-            className="scrollbar-none h-10 min-h-10 rounded-xl py-2.5 text-base web:resize-none"
-            value={memo}
-            numberOfLines={1}
-            placeholder="간단한 메모"
-            scrollEnabled={false}
-            onChangeText={setMemo}
-          />
-        </View>
-      </View>
-
-      <GenerateTodoRow
-        value={generateTodo}
-        onValueChange={setGenerateTodo}
-      />
-
-      {/* TODO: AI 요약 제공자 API와 실제 옵션이 정리되면 와이드 전용 선택 UI 복구 */}
-
-      <View className="gap-3">
-        <Text className="text-sm font-semibold text-muted-foreground">
-          ✅ 할 일 (선택, 여러 개 가능)
-        </Text>
-        <TodoDraftListEditor
-          addLabel="할 일 추가"
-          pickerMode={mode}
-          todos={decoratedTodos}
-          onAddTodo={handleAddTodo}
-          onChangeTodoTitle={handleTodoTitleChange}
-          onChangeTodoMode={handleTodoModeChange}
-          onChangeTodoWeekdays={handleTodoWeekdaysChange}
-          onChangeTodoDate={handleTodoDateChange}
-          onChangeTodoTime={handleTodoTimeChange}
-          onRemoveTodo={handleRemoveTodo}
+    <View className="min-h-0 shrink">
+      <ScrollView
+        className="min-h-0 shrink"
+        contentContainerClassName="gap-5 px-8 py-6"
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+      >
+        <LinkPreviewImage
+          isLoading={isPreviewLoading}
+          mode={mode}
+          preview={linkPreview}
         />
-      </View>
+        <View className="gap-2">
+          <View className="flex-row items-center gap-2">
+            <Text className="text-sm font-semibold text-muted-foreground">URL</Text>
+            <Text className="text-sm font-semibold text-muted-foreground">
+              📋 클립보드 자동 감지
+            </Text>
+          </View>
+          <FieldError error={errors.url}>
+            <Input
+              className="h-10 rounded-xl px-4 text-lg"
+              value={url}
+              autoCapitalize="none"
+              keyboardType="url"
+              placeholder="https://www.example.com"
+              onChangeText={handleUrlChange}
+            />
+          </FieldError>
+        </View>
 
-      {createLinkMutation.error ? (
-        <Text className="text-sm font-medium text-destructive">
-          링크 저장에 실패했습니다. 잠시 후 다시 시도해주세요.
-        </Text>
-      ) : null}
+        <View className="gap-2">
+          <Text className="text-sm font-semibold text-muted-foreground">제목</Text>
+          <FieldError error={errors.title}>
+            <TitleField isLoading={isPreviewLoading}>
+              <Input
+                className="h-10 rounded-xl px-4 pr-10 text-lg"
+                value={title}
+                maxLength={300}
+                placeholder={
+                  isPreviewLoading ? "제목을 불러오는 중…" : "AI 생성으로 자동 정리해보세요"
+                }
+                onChangeText={handleTitleChange}
+              />
+            </TitleField>
+          </FieldError>
+        </View>
 
-      <View className="flex-row items-center justify-end gap-3 border-t border-border pt-5">
+        <View className="flex-row gap-4">
+          <View className="min-w-0 flex-1 gap-2">
+            <Text className="text-sm font-semibold text-muted-foreground">폴더</Text>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  accessibilityLabel={`폴더, ${folder.label}`}
+                  className="h-10 w-full flex-row justify-start rounded-xl px-4"
+                  variant="outline"
+                >
+                  <View className="min-w-0 flex-1 flex-row items-center gap-2">
+                    <Icon
+                      as={FolderOpen}
+                      size={18}
+                      className="text-primary"
+                    />
+                    <Text
+                      className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground"
+                      numberOfLines={1}
+                    >
+                      {folder.label}
+                    </Text>
+                    <Icon
+                      as={ChevronDown}
+                      size={14}
+                      className="text-muted-foreground"
+                    />
+                  </View>
+                </Button>
+              </PopoverTrigger>
+              <FolderPickerPopoverContent
+                selectedFolderId={folder.id ? Number(folder.id) : null}
+                onSelect={handleFolderSelect}
+              />
+            </Popover>
+          </View>
+          <View className="min-w-0 flex-1 gap-2">
+            <Text className="text-sm font-semibold text-muted-foreground">메모 (선택)</Text>
+            <Textarea
+              className="scrollbar-none h-10 min-h-10 rounded-xl py-2.5 text-base web:resize-none"
+              value={memo}
+              numberOfLines={1}
+              placeholder="간단한 메모"
+              scrollEnabled={false}
+              onChangeText={setMemo}
+            />
+          </View>
+        </View>
+
+        <GenerateTodoRow
+          value={generateTodo}
+          onValueChange={setGenerateTodo}
+        />
+
+        {/* TODO: AI 요약 제공자 API와 실제 옵션이 정리되면 와이드 전용 선택 UI 복구 */}
+
+        <View className="gap-3">
+          <Text className="text-sm font-semibold text-muted-foreground">
+            ✅ 할 일 (선택, 여러 개 가능)
+          </Text>
+          <TodoDraftListEditor
+            addLabel="할 일 추가"
+            pickerMode={mode}
+            todos={decoratedTodos}
+            onAddTodo={handleAddTodo}
+            onChangeTodoTitle={handleTodoTitleChange}
+            onChangeTodoMode={handleTodoModeChange}
+            onChangeTodoWeekdays={handleTodoWeekdaysChange}
+            onChangeTodoDate={handleTodoDateChange}
+            onChangeTodoTime={handleTodoTimeChange}
+            onRemoveTodo={handleRemoveTodo}
+          />
+        </View>
+
+        {createLinkMutation.error ? (
+          <Text className="text-sm font-medium text-destructive">
+            링크 저장에 실패했습니다. 잠시 후 다시 시도해주세요.
+          </Text>
+        ) : null}
+      </ScrollView>
+
+      <View className="flex-row items-center justify-end gap-3 border-t border-border px-8 py-5">
         <Button
           className="h-10"
           variant="outline"

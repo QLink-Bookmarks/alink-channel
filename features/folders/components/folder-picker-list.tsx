@@ -17,7 +17,7 @@ import { Check } from "lucide-react-native/icons";
 const ALL_SECTIONS: FolderSection[] = ["mine", "shared"];
 const WIDE_LIST_MAX_HEIGHT = 340;
 const SHEET_LIST_HEIGHT_RATIO = 0.4;
-const DEFAULT_NONE_OPTION = { label: "없음 - ✨ AI 자동 분류", icon: "✨" };
+const DEFAULT_NONE_OPTION = { label: "없음 - ✨ AI 자동 분류" };
 const UNCATEGORIZED_PICKER_OPTION = { label: "미분류", icon: "🗂️" };
 
 type FolderPickerSelection = { id: number | null; label: string; emoji?: string | null };
@@ -106,13 +106,15 @@ function FolderPickerList({
   return (
     <View className={cn("gap-1.5", className)}>
       {noneOption ? (
-        <FolderPickerRow
-          icon={noneOption.icon}
-          isLarge={isLarge}
-          label={noneOption.label}
-          selected={selectedFolderId === null}
-          onPress={() => onSelect({ id: null, label: noneOption.label })}
-        />
+        <View className={cn(isLarge && "px-3")}>
+          <FolderPickerRow
+            icon={noneOption.icon}
+            isLarge={isLarge}
+            label={noneOption.label}
+            selected={selectedFolderId === null}
+            onPress={() => onSelect({ id: null, label: noneOption.label })}
+          />
+        </View>
       ) : null}
       <NestedListBoundary>
         <FolderSections

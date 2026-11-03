@@ -1008,3 +1008,65 @@ test.describe("window fit, width and marks (#27)", () => {
     }
   });
 });
+
+test.describe("design critique follow-ups (#27)", () => {
+  test("the move window keeps one height, top and confirm position across sections, both closed and the failure message", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "wide window");
+    await mockWithLink(page, linkIn(44), { linkMutations: { failMove: true } });
+    await openDetail(page);
+    const scope = (await openMoveWindow(page)) as Locator;
+    const confirm = scope.getByRole("button", { name: "확인", exact: true });
+    const frames: { top: number; height: number; confirmY: number }[] = [];
+    const measure = async () => {
+      await settle(page);
+      const box = await boxOf(scope);
+      frames.push({
+        top: Math.round(box.y),
+        height: Math.round(box.height),
+        confirmY: Math.round((await boxOf(confirm)).y),
+      });
+    };
+    await measure();
+    await toggle(scope, "공유 폴더").click();
+    await measure();
+    await toggle(scope, "공유 폴더").click();
+    await measure();
+    await toggle(scope, "내 폴더").click();
+    await radio(scope, 43).click();
+    await confirm.click();
+    await expect(scope.getByRole("alert").filter({ hasText: MOVE_ERROR })).toBeVisible();
+    await measure();
+    expect(frames).toEqual([frames[0], frames[0], frames[0], frames[0]]);
+    expect(frames[0].height).toBe(Math.min(640, Math.round(800 * 0.8)));
+  });
+
+  test("the none row shows the sparkle once, and the wide form button uses the same wording", async ({
+    page,
+  }) => {
+    await mockApi(page, { folders: makeFolders(12, 3) });
+    const picker = await openNewLinkPicker(page);
+    const none = picker.getByRole("radio", { name: NONE_LABEL });
+    await expect(none).toBeVisible();
+    expect((await none.innerText()).match(/✨/g)).toHaveLength(1);
+    if (isWideProject()) {
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("button", { name: `폴더, ${NONE_LABEL}` })).toBeVisible();
+    }
+  });
+
+  test("in the mobile move sheet the 미분류 row lines up with the folder rows", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "mobile sheet");
+    await mockWithLink(page, linkIn(44));
+    await openDetail(page);
+    const scope = await openMoveWindow(page);
+    await settle(page);
+    const uncategorized = await boxOf(scope.getByRole("radio", { name: UNCATEGORIZED_LABEL }));
+    const row = await boxOf(radio(scope, 44));
+    expect(Math.round(uncategorized.x)).toBe(Math.round(row.x));
+    expect(Math.round(uncategorized.width)).toBe(Math.round(row.width));
+  });
+});

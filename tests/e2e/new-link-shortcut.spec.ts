@@ -168,7 +168,8 @@ test.describe("new link shortcut", () => {
       await page.getByRole("button", { name: "홈", exact: true }).click();
       await expect(page).toHaveURL(/\/home$/);
       const homeLabels = page.getByRole("main").getByText(label, { exact: true });
-      await expect(homeLabels).toHaveCount(3);
+      await expect(homeLabels).toHaveCount(2);
+      await expect(page.getByRole("main").getByText("⌘/Ctrl + K", { exact: true })).toHaveCount(1);
       expect(await countBareN(page)).toBe(0);
     });
   }
