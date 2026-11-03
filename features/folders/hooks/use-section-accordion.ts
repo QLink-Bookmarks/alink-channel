@@ -16,7 +16,7 @@ import {
 
 const MODE_SETTLED = 0;
 const MODE_MOVING = 1;
-const SECTION_EASING = Easing.bezier(0.2, 0, 0, 1);
+const SECTION_EASING = Easing.bezier(0.4, 0, 0.2, 1);
 const MIN_RETARGET_MS = 80;
 const FOLDER_SECTIONS_SHEET_TIMING = { duration: SECTION_TRANSITION_MS, easing: SECTION_EASING };
 
@@ -332,11 +332,21 @@ function useSectionAccordion<K extends string>({
     if (request.token !== tokenRef.current) {
       return;
     }
-    if (request.kind === "start") {
-      runStart(request.key, request.target, request.token);
-    } else if (request.key != null) {
-      runRetarget(request.key, request.target, request.token);
+    const run = () => {
+      if (request.token !== tokenRef.current) {
+        return;
+      }
+      if (request.kind === "start") {
+        runStart(request.key, request.target, request.token);
+      } else if (request.key != null) {
+        runRetarget(request.key, request.target, request.token);
+      }
+    };
+    if (process.env.EXPO_OS === "web") {
+      run();
+      return;
     }
+    requestAnimationFrame(run);
   }, [runRetarget, runStart, state.request]);
 
   React.useLayoutEffect(() => {
