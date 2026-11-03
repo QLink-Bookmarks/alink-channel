@@ -11,7 +11,7 @@ export default defineConfig({
     browserName: "chromium",
   },
   webServer: {
-    command: "bun web --port 8081",
+    command: "EXPO_WEB_DEV_HYDRATE=1 bun web --port 8081",
     url: "http://localhost:8081",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

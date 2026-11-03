@@ -4,10 +4,13 @@ import Animated, { SlideInRight, SlideOutRight } from "react-native-reanimated";
 import { FullWindowOverlay as RNFullWindowOverlay } from "react-native-screens";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { Icon } from "@/components/ui/icon";
 import type { LinkDetail } from "@/features/links/types";
 import { cn } from "@/lib/utils";
 
 import { LinkDetailView } from "../link-detail-view";
+
+import { X } from "lucide-react-native/icons";
 
 // View scope: 와이드뷰 전용. md >= 769px에서 사용한다.
 
@@ -52,12 +55,29 @@ function DetailPanelBody({
           onDeleted={onDeleted}
         />
       ) : notFound ? (
-        <EmptyState
-          className="h-full"
-          emoji="🔍"
-          description="이미 삭제됐거나 잘못된 주소일 수 있어요."
-          title="찾으시는 링크가 없어요"
-        />
+        <View className="h-full">
+          <View className="flex-row justify-end px-5 pt-4">
+            <Pressable
+              accessibilityLabel="닫기"
+              accessibilityRole="button"
+              className="size-9 items-center justify-center rounded-xl border border-border bg-card web:transition-colors web:hover:border-primary"
+              testID="link-detail-not-found-close"
+              onPress={() => onOpenChange?.(false)}
+            >
+              <Icon
+                as={X}
+                size={16}
+                className="text-muted-foreground"
+              />
+            </Pressable>
+          </View>
+          <EmptyState
+            className="flex-1"
+            emoji="🔍"
+            description="이미 삭제됐거나 잘못된 주소일 수 있어요."
+            title="찾으시는 링크가 없어요"
+          />
+        </View>
       ) : error ? (
         <EmptyState
           className="h-full"

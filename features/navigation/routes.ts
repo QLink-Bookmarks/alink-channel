@@ -236,7 +236,7 @@ function getRedirectHref({ isWideView, pathname, searchParams }: ShellRouteState
   }
 
   if (isWideView && normalizedPathname === "/folders") {
-    return "/home";
+    return linkId ? `/links?linkId=${encodeURIComponent(linkId)}` : "/home";
   }
 
   if (!isWideView && linkId) {
