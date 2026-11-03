@@ -279,7 +279,7 @@ function WideTodosScreen() {
         icon={CheckSquare}
         meta={`${totalCount}개`}
       />
-      <View className="gap-5 px-6 pb-10 pt-4 md:pb-20 md:pt-0">
+      <View className="gap-5 px-6 pb-10 pt-4 md:pt-0">
         <SegmentedControl
           options={filterChips}
           selectionMode="single"

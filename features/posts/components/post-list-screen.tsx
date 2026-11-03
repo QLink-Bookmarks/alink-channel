@@ -103,7 +103,7 @@ function PostListScreen({
       renderItem={renderItem}
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
-      contentContainerClassName="mx-auto w-full pb-12 md:max-w-3xl md:pb-20"
+      contentContainerClassName="mx-auto w-full pb-12 md:max-w-3xl"
       ListHeaderComponent={
         mode === "wide" ? (
           <PageHeader

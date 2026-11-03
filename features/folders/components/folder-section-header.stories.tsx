@@ -127,6 +127,25 @@ export const Surface: Story = {
   ],
 };
 
+export const LargeSurface: Story = {
+  name: "폴더 선택 시트",
+  args: {
+    size: "large",
+    tone: "surface",
+    section: "mine",
+    label: FOLDER_SECTION_LABELS.mine,
+    isOpen: true,
+    hasDivider: true,
+  },
+  decorators: [
+    (Story) => (
+      <View className="w-[390px] bg-card p-3">
+        <Story />
+      </View>
+    ),
+  ],
+};
+
 export const WithoutAdd: Story = {
   name: "추가 버튼 없는 섹션",
   args: { tone: "surface", section: "existing", label: "내 폴더", isOpen: true, canAdd: false },

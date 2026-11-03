@@ -1,3 +1,5 @@
+import type { Locator } from "@playwright/test";
+
 type Rgba = { r: number; g: number; b: number; a: number };
 
 function parseColor(value: string): Rgba {
@@ -28,5 +30,22 @@ function contrast(first: Rgba, second: Rgba) {
   return (light + 0.05) / (dark + 0.05);
 }
 
-export { contrast, luminance, over, parseColor };
+async function textContrast(text: Locator) {
+  const [color, background] = await text.evaluate((node) => {
+    let element: Element | null = node;
+    let background = "rgba(0, 0, 0, 0)";
+    while (element) {
+      const value = getComputedStyle(element).backgroundColor;
+      if (!/rgba\(.*,\s*0\)$/.test(value) && value !== "transparent") {
+        background = value;
+        break;
+      }
+      element = element.parentElement;
+    }
+    return [getComputedStyle(node).color, background];
+  });
+  return contrast(parseColor(color), parseColor(background));
+}
+
+export { contrast, luminance, over, parseColor, textContrast };
 export type { Rgba };

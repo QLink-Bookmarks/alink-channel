@@ -52,6 +52,7 @@ type FolderSectionListBaseProps<T> = {
 
 type FolderSectionListProps = FolderSectionListBaseProps<Folder> & {
   section: FolderSection;
+  extraData?: unknown;
   folders: readonly Folder[];
   status: FolderListStatus;
   tone?: FolderSectionTone;
@@ -130,6 +131,7 @@ function FolderSectionList({
   scrollSurface,
   className,
   style,
+  extraData,
   renderRow,
   onFetchMore,
   onRetry,
@@ -212,6 +214,7 @@ function FolderSectionList({
       {...getListClassNames(size, className)}
       contentInsetAdjustmentBehavior="automatic"
       data={isListReady ? folders : []}
+      extraData={extraData}
       keyExtractor={(folder) => String(folder.id)}
       renderItem={renderItem}
       scrollEventThrottle={16}

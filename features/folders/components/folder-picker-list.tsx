@@ -19,6 +19,7 @@ const WIDE_LIST_MAX_HEIGHT = 340;
 const SHEET_LIST_HEIGHT_RATIO = 0.4;
 const DEFAULT_NONE_OPTION = { label: "없음 - ✨ AI 자동 분류" };
 const UNCATEGORIZED_PICKER_OPTION = { label: "미분류", icon: "🗂️" };
+const DEFAULT_FOLDER_EMOJI = "📁";
 
 type FolderPickerId = number | null;
 
@@ -101,16 +102,14 @@ function FolderPickerList({
 
   const renderRow = React.useCallback(
     (folder: Folder) => (
-      <View className="py-[3px]">
-        <FolderPickerRow
-          isLarge={isLarge}
-          label={getFolderLabel(folder)}
-          selected={selectedFolderId === folder.id}
-          onPress={() =>
-            onSelect({ id: folder.id, label: folder.name, emoji: folder.emoji ?? null })
-          }
-        />
-      </View>
+      <FolderPickerRow
+        accessibilityLabel={getFolderLabel(folder)}
+        emoji={folder.emoji ?? DEFAULT_FOLDER_EMOJI}
+        isLarge={isLarge}
+        label={folder.name}
+        selected={selectedFolderId === folder.id}
+        onPress={() => onSelect({ id: folder.id, label: folder.name, emoji: folder.emoji ?? null })}
+      />
     ),
     [isLarge, onSelect, selectedFolderId],
   );
@@ -120,7 +119,7 @@ function FolderPickerList({
       {noneOption ? (
         <View className={cn(isLarge && "px-3")}>
           <FolderPickerRow
-            icon={noneOption.icon}
+            emoji={noneOption.icon}
             isLarge={isLarge}
             label={noneOption.label}
             selected={selectedFolderId === null}
@@ -130,7 +129,9 @@ function FolderPickerList({
       ) : null}
       <NestedListBoundary>
         <FolderSections
+          extraData={selectedFolderId}
           filterFolder={filterFolder}
+          hasLeadingDivider={noneOption != null}
           isAddDisabled={isAddDisabled}
           listKey={listKey}
           listMaxHeight={maxHeight}
@@ -156,42 +157,48 @@ function FolderPickerList({
 
 function FolderPickerRow({
   label,
-  icon,
+  emoji,
+  accessibilityLabel,
   selected,
   isLarge,
   onPress,
 }: {
   label: string;
-  icon?: string;
+  emoji?: string;
+  accessibilityLabel?: string;
   selected: boolean;
   isLarge: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="radio"
       aria-checked={selected}
       className={cn(
-        "flex-row items-center gap-2 rounded-xl border px-4 web:transition-colors web:hover:border-primary/60 web:motion-reduce:transition-none",
-        isLarge ? "min-h-[52px] py-3" : "py-[11px]",
-        selected ? "border-primary bg-accent" : "border-border bg-card",
+        "flex-row items-center gap-3 rounded-xl web:transition-colors web:motion-reduce:transition-none",
+        isLarge ? "min-h-12 px-2" : "min-h-10 px-3",
+        selected ? "bg-accent" : "active:bg-muted web:hover:bg-muted",
       )}
       onPress={onPress}
     >
-      <View className="min-w-0 flex-1 flex-row items-center gap-2">
-        {icon ? <Text aria-hidden>{icon}</Text> : null}
+      {emoji ? (
         <Text
-          className={cn(
-            "min-w-0 flex-1 font-semibold",
-            isLarge ? "text-sm" : "text-[13px]",
-            selected ? "text-accent-foreground" : "text-foreground",
-          )}
-          numberOfLines={1}
+          aria-hidden
+          className={cn("shrink-0 text-center", isLarge ? "w-6 text-base" : "w-[18px] text-sm")}
         >
-          {label}
+          {emoji}
         </Text>
-      </View>
+      ) : null}
+      <Text
+        className={cn(
+          "min-w-0 flex-1 font-medium text-foreground",
+          isLarge ? "text-base" : "text-sm",
+        )}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
       <View
         className="size-[18px] shrink-0 items-center justify-center"
         testID={selected ? "folder-picker-selected-mark" : undefined}
@@ -200,7 +207,7 @@ function FolderPickerRow({
           <Icon
             as={Check}
             size={18}
-            className="text-primary"
+            className="text-accent-foreground"
           />
         ) : null}
       </View>

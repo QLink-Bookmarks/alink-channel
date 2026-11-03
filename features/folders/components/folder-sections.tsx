@@ -73,6 +73,7 @@ type FolderSectionsViewProps<K extends string, T> = FolderSectionsViewListProps<
   className?: string;
   isAddDisabled?: boolean;
   isToggleDisabled?: boolean;
+  hasLeadingDivider?: boolean;
   // renderList, isListDeferred and isListPending exist for the server-backed FolderSections wrapper.
   isListDeferred?: boolean;
   isListPending?: boolean;
@@ -95,6 +96,8 @@ type FolderSectionsProps = {
   currentFolder?: Folder | null;
   className?: string;
   isAddDisabled?: boolean;
+  hasLeadingDivider?: boolean;
+  extraData?: unknown;
   filterFolder?: (folder: Folder) => boolean;
   renderRow: (folder: Folder, section: FolderSection) => React.ReactElement;
   onAddPress: (section: FolderSection) => void;
@@ -118,6 +121,7 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
     className,
     isAddDisabled = false,
     isToggleDisabled = false,
+    hasLeadingDivider = false,
     isListDeferred = false,
     isListPending = false,
     extraData,
@@ -212,7 +216,7 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
             >
               <FolderSectionHeader
                 canAdd={section.canAdd ?? true}
-                hasDivider={index > 0}
+                hasDivider={index > 0 || hasLeadingDivider}
                 isOpen={isOpen}
                 label={section.label}
                 section={section.key}
@@ -258,6 +262,8 @@ function FolderSections({
   currentFolder = null,
   className,
   isAddDisabled = false,
+  hasLeadingDivider = false,
+  extraData,
   filterFolder,
   renderRow,
   onAddPress,
@@ -325,6 +331,7 @@ function FolderSections({
   ) => (
     <FolderSectionList
       key={listKey}
+      extraData={extraData}
       folders={section.rows}
       scrollSurface={getScrollSurface(surface)}
       section={section.key}
@@ -341,6 +348,7 @@ function FolderSections({
   return (
     <FolderSectionsView
       className={className}
+      hasLeadingDivider={hasLeadingDivider}
       isAddDisabled={isAddDisabled}
       isListDeferred={!hasHydrated}
       isListPending={status.isInitialLoading || status.isInitialError}

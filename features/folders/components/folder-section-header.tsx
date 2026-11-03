@@ -60,15 +60,24 @@ function FolderSectionHeader<K extends string = FolderSection>({
 }: FolderSectionHeaderProps<K>) {
   const isLarge = size === "large";
   const isSurface = !isLarge && tone === "surface";
+  const isLargeSurface = isLarge && tone === "surface";
   const pathFolder = isOpen ? null : currentFolder;
   const pathEmoji = pathFolder?.emoji ?? "📁";
   const toggleLabel = `${label} ${isOpen ? "접기" : "펼치기"}`;
-  const labelTextClassName = isLarge
-    ? "text-base text-foreground"
-    : isSurface
-      ? "text-xs text-muted-foreground web:group-hover:text-foreground"
-      : "text-sm text-sidebar-muted web:group-hover:text-sidebar-hover";
-  const pathTextSize = isLarge ? "text-base" : isSurface ? "text-xs" : "text-sm";
+  const labelTextClassName = isLargeSurface
+    ? "text-sm text-muted-foreground"
+    : isLarge
+      ? "text-base text-foreground"
+      : isSurface
+        ? "text-xs text-muted-foreground web:group-hover:text-foreground"
+        : "text-sm text-sidebar-muted web:group-hover:text-sidebar-hover";
+  const pathTextSize = isLargeSurface
+    ? "text-sm"
+    : isLarge
+      ? "text-base"
+      : isSurface
+        ? "text-xs"
+        : "text-sm";
 
   return (
     <View
@@ -76,7 +85,12 @@ function FolderSectionHeader<K extends string = FolderSection>({
       className={cn(
         "relative z-10 flex-row items-center shadow-section-rest",
         isLarge ? "h-[52px] bg-background pl-2 pr-1" : isSurface ? "h-11" : "h-11 bg-sidebar",
-        hasDivider && (isLarge ? "shadow-section-divider-strong" : "shadow-section-divider"),
+        hasDivider &&
+          (isLarge
+            ? "shadow-section-divider-strong"
+            : isSurface
+              ? "border-t border-sidebar-border"
+              : "shadow-section-divider"),
         shadow === "top" && (isLarge ? "shadow-section-pin-top-strong" : "shadow-section-pin-top"),
         shadow === "bottom" &&
           (isLarge ? "shadow-section-pin-bottom-strong" : "shadow-section-pin-bottom"),

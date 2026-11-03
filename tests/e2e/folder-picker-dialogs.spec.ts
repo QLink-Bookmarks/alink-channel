@@ -1,5 +1,6 @@
 import { type Locator, type Page, type Route, expect, test } from "@playwright/test";
 
+import { textContrast } from "./support/color";
 import { boxOf, isWideProject } from "./support/helpers";
 import {
   type MockFolder,
@@ -9,6 +10,7 @@ import {
   makeFolders,
   makeLink,
   mockApi,
+  settingsHandler,
 } from "./support/mock-api";
 
 const DARK_SETTINGS = {
@@ -432,9 +434,9 @@ test.describe("move window in the link detail", () => {
     const row = scope.getByRole("radio", { name: `📁 ${LONG_NAME}` });
     await row.click();
     await expect(row).toBeChecked();
-    const text = await boxOf(row.getByText(`📁 ${LONG_NAME}`));
+    const text = await boxOf(row.getByText(LONG_NAME, { exact: true }));
     const mark = await boxOf(row.locator("svg"));
-    expect(text.height).toBeLessThan(24);
+    expect(text.height).toBeLessThan(32);
     expect(text.x + text.width).toBeLessThanOrEqual(mark.x);
   });
 
@@ -714,9 +716,9 @@ test.describe("mobile sheet", () => {
       const box = await boxOf(button);
       expect(box.y + box.height).toBeLessThanOrEqual(viewport - 16);
     }
-    const border = (id: number) =>
-      radio(scope, id).evaluate((node) => getComputedStyle(node).borderTopColor);
-    await expect.poll(async () => (await border(43)) !== (await border(40))).toBe(true);
+    const background = (id: number) =>
+      radio(scope, id).evaluate((node) => getComputedStyle(node).backgroundColor);
+    await expect.poll(async () => (await background(43)) !== (await background(40))).toBe(true);
     await expect(radio(scope, 43).locator("svg")).toBeVisible();
   });
 
@@ -919,7 +921,7 @@ test.describe("window fit, width and marks (#27)", () => {
     await measure();
     expect(widths).toEqual([420, 420, 420, 420]);
     const longRow = scope.getByRole("radio", { name: `📁 ${LONG_NAME}` });
-    expect((await boxOf(longRow.getByText(`📁 ${LONG_NAME}`))).height).toBeLessThan(24);
+    expect((await boxOf(longRow.getByText(LONG_NAME, { exact: true }))).height).toBeLessThan(24);
   });
 
   test("the add to personal folder window opens at the same 420px width", async ({ page }) => {
@@ -1069,4 +1071,226 @@ test.describe("design critique follow-ups (#27)", () => {
     expect(Math.round(uncategorized.x)).toBe(Math.round(row.x));
     expect(Math.round(uncategorized.width)).toBe(Math.round(row.width));
   });
+});
+
+test.describe("folder picker rows look like the sidebar (#27)", () => {
+  function frameOf(page: Page, scope: Locator | Page): Locator {
+    return isWideProject() ? (scope as Locator) : page.getByLabel("Bottom Sheet", { exact: true });
+  }
+
+  async function rowLook(row: Locator) {
+    return row.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return {
+        background: style.backgroundColor,
+        borders: [
+          style.borderTopWidth,
+          style.borderRightWidth,
+          style.borderBottomWidth,
+          style.borderLeftWidth,
+        ],
+      };
+    });
+  }
+
+  async function expectListRows(frame: Locator, selected: Locator, others: Locator[]) {
+    await expect(selected).toBeChecked();
+    await expect(selected.getByTestId("folder-picker-selected-mark")).toBeVisible();
+    await expect(frame.getByTestId("folder-picker-selected-mark")).toHaveCount(1);
+    const chosen = await rowLook(selected);
+    expect(chosen.borders).toEqual(["0px", "0px", "0px", "0px"]);
+    for (const other of others) {
+      await expect(other).toBeVisible();
+      const look = await rowLook(other);
+      expect(look.borders).toEqual(["0px", "0px", "0px", "0px"]);
+      expect(look.background).not.toBe(chosen.background);
+    }
+
+    const bounds = await boxOf(frame);
+    for (const row of [selected, ...others]) {
+      const box = await boxOf(row);
+      expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width + 0.5);
+      if (isWideProject()) {
+        expect(Math.round(box.height)).toBe(40);
+      } else {
+        expect(Math.round(box.height)).toBeGreaterThanOrEqual(44);
+        expect(Math.round(box.height)).toBeLessThanOrEqual(48);
+      }
+    }
+    const overflow = await frame.evaluate(
+      (node) =>
+        Array.from(node.querySelectorAll<HTMLElement>("*")).filter(
+          (element) =>
+            ["auto", "scroll"].includes(getComputedStyle(element).overflowX) &&
+            element.scrollWidth > element.clientWidth + 1,
+        ).length,
+    );
+    expect(overflow).toBe(0);
+  }
+
+  test("move window: plain rows, the chosen one with a soft background and the check", async ({
+    page,
+  }) => {
+    await mockWithLink(page, linkIn(44));
+    await openDetail(page);
+    const scope = await openMoveWindow(page);
+    await settle(page);
+    await expectListRows(frameOf(page, scope), radio(scope, 44), [
+      radio(scope, 43),
+      radio(scope, 41),
+      scope.getByRole("radio", { name: UNCATEGORIZED_LABEL, exact: true }),
+    ]);
+  });
+
+  test("add to personal folder window: plain rows, the chosen one with a soft background and the check", async ({
+    page,
+  }) => {
+    await mockWithLink(page, linkIn(45));
+    await openDetail(page);
+    const scope = await openAddWindow(page);
+    await radio(scope, 44).click();
+    await settle(page);
+    await expectListRows(frameOf(page, scope), radio(scope, 44), [
+      radio(scope, 43),
+      radio(scope, 41),
+    ]);
+  });
+
+  test("new link folder picker: the none row and folder rows share the plain row look", async ({
+    page,
+  }) => {
+    await mockApi(page, { folders: makeFolders(12, 3) });
+    const picker = await openNewLinkPicker(page);
+    await settle(page);
+    const frame = isWideProject()
+      ? (picker as Locator)
+      : page.getByLabel("Bottom Sheet", { exact: true });
+    await expectListRows(frame, picker.getByRole("radio", { name: NONE_LABEL }), [
+      radio(picker, 11),
+      radio(picker, 10),
+    ]);
+  });
+
+  async function headerShadow(scope: Locator | Page, label: "내 폴더" | "공유 폴더") {
+    return toggle(scope, label).evaluate((node) => {
+      const style = getComputedStyle(node.parentElement as Element);
+      return style.borderTopWidth === "1px" && style.borderTopStyle === "solid"
+        ? "0px -1px 0px border"
+        : style.boxShadow;
+    });
+  }
+
+  async function geometry(header: Locator, headerLabel: string, row: Locator, rowLabel: string) {
+    const [chevron, title, icon, name] = await Promise.all([
+      boxOf(header.locator("svg").first()),
+      boxOf(header.getByText(headerLabel, { exact: true })),
+      boxOf(row.getByText("📁", { exact: true })),
+      boxOf(row.getByText(rowLabel, { exact: true })),
+    ]);
+    return { iconFromChevron: icon.x - chevron.x, labelFromHeaderLabel: name.x - title.x };
+  }
+
+  async function sidebarGeometry(page: Page) {
+    const viewport = page.viewportSize();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/home");
+    const header = page.getByRole("button", { name: /^내 폴더 (접기|펼치기)$/ }).first();
+    if ((await header.getAttribute("aria-expanded")) !== "true") {
+      await header.click();
+    }
+    const row = page.getByRole("button", { name: /^폴더 3, 링크/ }).first();
+    await expect(row).toBeVisible();
+    await settle(page);
+    const result = await geometry(header, "내 폴더", row, "폴더 3");
+    if (viewport) {
+      await page.setViewportSize(viewport);
+    }
+    return result;
+  }
+
+  test("a soft divider sits between the fixed row and the first section, none between a section title and its rows, and rows keep the sidebar's offsets", async ({
+    page,
+  }) => {
+    await mockWithLink(page, linkIn(3), { folders: makeFolders(3, 0) });
+    const sidebar = await sidebarGeometry(page);
+    await openDetail(page);
+    const scope = await openMoveWindow(page);
+    await settle(page);
+
+    expect(await headerShadow(scope, "내 폴더")).toMatch(/0px -1px 0px/);
+    expect(await headerShadow(scope, "공유 폴더")).toMatch(/0px -1px 0px/);
+    const list = sectionList(scope, "내 폴더");
+    const listLook = await list.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { border: style.borderTopWidth, shadow: style.boxShadow };
+    });
+    expect(listLook).toEqual({ border: "0px", shadow: "none" });
+
+    const header = toggle(scope, "내 폴더");
+    const title = header.getByText("내 폴더", { exact: true });
+    const name = radio(scope, 2).getByText("폴더 2", { exact: true });
+    const [titleLook, nameLook] = await Promise.all(
+      [title, name].map((text) =>
+        text.evaluate((node) => {
+          const style = getComputedStyle(node);
+          return { size: parseFloat(style.fontSize), color: style.color };
+        }),
+      ),
+    );
+    expect(titleLook.size).toBeLessThan(nameLook.size);
+    expect(titleLook.color).not.toBe(nameLook.color);
+
+    const fixed = await boxOf(scope.getByRole("radio", { name: UNCATEGORIZED_LABEL, exact: true }));
+    const mineHeader = await boxOf(header);
+    const sharedHeader = await boxOf(toggle(scope, "공유 폴더"));
+    const firstRow = await boxOf(radio(scope, 3));
+    const lastRow = await boxOf(radio(scope, 1));
+    const underHeader = firstRow.y - (mineHeader.y + mineHeader.height);
+    const beforeDivider = sharedHeader.y - (lastRow.y + lastRow.height);
+    expect(underHeader).toBeGreaterThanOrEqual(0);
+    expect(underHeader).toBeLessThan(beforeDivider);
+    expect(mineHeader.y - (fixed.y + fixed.height)).toBeGreaterThan(underHeader);
+
+    const picker = await geometry(header, "내 폴더", radio(scope, 3), "폴더 3");
+    expect(Math.abs(picker.iconFromChevron - sidebar.iconFromChevron)).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(picker.labelFromHeaderLabel - sidebar.labelFromHeaderLabel),
+    ).toBeLessThanOrEqual(1);
+  });
+
+  test("without a fixed row on top, the first section title has no divider above it", async ({
+    page,
+  }) => {
+    await mockWithLink(page, linkIn(45));
+    await openDetail(page);
+    const scope = await openAddWindow(page);
+    await settle(page);
+    expect(await headerShadow(scope, "내 폴더")).not.toMatch(/-1px/);
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    for (const accent of ["gray", "pink", "blue"] as const) {
+      test(`${theme} ${accent}: the chosen row label reaches 4.5:1 on its background`, async ({
+        page,
+      }) => {
+        await mockWithLink(page, linkIn(44), {
+          handlers: { "GET /api/users/me/settings": settingsHandler(theme, accent) },
+        });
+        await openDetail(page);
+        await expect(page.locator("html")).toHaveAttribute("data-accent", accent);
+        const scope = await openMoveWindow(page);
+        await settle(page);
+        const chosen = radio(scope, 44);
+        await expect(chosen).toBeChecked();
+        const label = chosen.getByText("폴더 44", { exact: true });
+        expect(await textContrast(label)).toBeGreaterThanOrEqual(4.5);
+        const background = await chosen.evaluate((node) => getComputedStyle(node).backgroundColor);
+        expect(background).not.toMatch(/rgba\(.*,\s*0\)$/);
+        expect(
+          await textContrast(radio(scope, 43).getByText("폴더 43", { exact: true })),
+        ).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+  }
 });

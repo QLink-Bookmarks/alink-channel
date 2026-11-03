@@ -183,7 +183,7 @@ function WideHomeScreen() {
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
     >
-      <View className="w-full max-w-[980px] gap-8 self-center px-6 pb-20 pt-24">
+      <View className="w-full max-w-[980px] gap-8 self-center px-6 pb-16 pt-24">
         <View className="items-center gap-2">
           <BrandHeader
             accent={accent}

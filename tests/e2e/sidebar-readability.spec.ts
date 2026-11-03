@@ -1,27 +1,10 @@
-import { type Locator, type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-import { contrast, parseColor } from "./support/color";
+import { textContrast } from "./support/color";
 import { isWideProject } from "./support/helpers";
 import { makeFolders, mockApi, settingsHandler } from "./support/mock-api";
 
 const ERROR_NOTE = "연결 상태를 확인하고 다시 시도해 주세요.";
-
-async function textContrast(text: Locator) {
-  const [color, background] = await text.evaluate((node) => {
-    let element: Element | null = node;
-    let background = "rgba(0, 0, 0, 0)";
-    while (element) {
-      const value = getComputedStyle(element).backgroundColor;
-      if (!/rgba\(.*,\s*0\)$/.test(value) && value !== "transparent") {
-        background = value;
-        break;
-      }
-      element = element.parentElement;
-    }
-    return [getComputedStyle(node).color, background];
-  });
-  return contrast(parseColor(color), parseColor(background));
-}
 
 function sidebarButton(page: Page, name: string | RegExp) {
   return page.getByRole("button", { name, exact: typeof name === "string" }).first();

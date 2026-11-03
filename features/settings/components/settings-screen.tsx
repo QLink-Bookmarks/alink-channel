@@ -103,7 +103,7 @@ function SettingsScreen({ mode }: { mode: SettingsScreenMode }) {
   const isLoading = profileQuery.isLoading || settingsQuery.isLoading;
 
   const body = (
-    <View className="mx-auto w-full gap-4 px-4 pb-12 pt-4 md:max-w-3xl md:px-6 md:pb-20 md:pt-0">
+    <View className="mx-auto w-full gap-4 px-4 pb-12 pt-4 md:max-w-3xl md:px-6 md:pt-0">
       {mode === "wide" ? (
         <PageHeader
           className="px-0"

@@ -124,7 +124,7 @@ function NotificationInboxScreen({ mode }: { mode: NotificationInboxScreenMode }
           icon={Bell}
           meta={unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "새 알림이 없어요"}
         />
-        <View className="w-full max-w-4xl gap-3 px-6 pb-20 pt-2">
+        <View className="w-full max-w-4xl gap-3 px-6 pb-10 pt-2">
           <SegmentedControl
             variant="chipsBadge"
             className="self-start"

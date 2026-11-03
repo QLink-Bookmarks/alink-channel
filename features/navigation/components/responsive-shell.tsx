@@ -45,7 +45,6 @@ import { getFolderIdFromPath } from "../lib/folder-path";
 import { isNewLinkShortcut, suppressNextTextInput } from "../lib/new-link-shortcut";
 import { canOpenWideOverlayInPlace } from "../routes";
 import type { MobileTabKey } from "../types";
-import { WideKbdHelper } from "./wide-kbd-helper";
 import { WideSidebarColumn } from "./wide-sidebar-column";
 
 import { type Href, Redirect, useLocalSearchParams, useRouter } from "expo-router";
@@ -363,7 +362,6 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
               role="main"
             >
               <RouteErrorBoundary resetKeys={[routeState.pathname]}>{children}</RouteErrorBoundary>
-              <WideKbdHelper />
             </View>
           </View>
 

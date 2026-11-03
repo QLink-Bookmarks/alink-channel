@@ -3,6 +3,8 @@ import { type Page, expect, test } from "@playwright/test";
 import { isWideProject } from "./support/helpers";
 import { makeFolders, mockApi } from "./support/mock-api";
 
+const HELPER_LABEL = "와이드뷰 키보드 단축키 안내";
+
 test.beforeEach(() => {
   test.skip(!isWideProject(), "wide shortcuts only");
 });
@@ -152,7 +154,7 @@ test.describe("new link shortcut", () => {
     ["MacIntel", "⌥N"],
     ["Win32", "Alt+N"],
   ] as const) {
-    test(`the sidebar button and the shortcut guide show ${label} on ${platform}, with no bare N`, async ({
+    test(`the sidebar button shows ${label} on ${platform}, the search badge stays, the shortcut helper is gone, with no bare N`, async ({
       page,
     }) => {
       await emulatePlatform(page, platform);
@@ -160,16 +162,15 @@ test.describe("new link shortcut", () => {
 
       const sidebarButton = page.getByRole("button", { name: /새 링크/ }).first();
       await expect(sidebarButton).toContainText(label);
-      const guide = page.getByText("와이드뷰 키보드 단축키 안내").locator("xpath=..");
-      await expect(guide).toContainText(label);
+      await expect(page.getByText("⌘/Ctrl + K", { exact: true }).first()).toBeVisible();
+      await expect(page.getByText(HELPER_LABEL)).toHaveCount(0);
 
       expect(await countBareN(page)).toBe(0);
 
       await page.getByRole("button", { name: "홈", exact: true }).click();
       await expect(page).toHaveURL(/\/home$/);
-      const homeLabels = page.getByRole("main").getByText(label, { exact: true });
-      await expect(homeLabels).toHaveCount(2);
-      await expect(page.getByRole("main").getByText("⌘/Ctrl + K", { exact: true })).toHaveCount(1);
+      await expect(page.getByRole("main").getByText(label, { exact: true })).toHaveCount(1);
+      await expect(page.getByText(HELPER_LABEL)).toHaveCount(0);
       expect(await countBareN(page)).toBe(0);
     });
   }
