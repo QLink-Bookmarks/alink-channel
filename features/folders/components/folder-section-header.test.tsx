@@ -8,6 +8,7 @@ describe("FolderSectionHeader", () => {
     const { rerender } = render(
       <FolderSectionHeader
         isOpen
+        label="내 폴더"
         section="mine"
         onAddPress={jest.fn()}
         onToggle={onToggle}
@@ -20,6 +21,7 @@ describe("FolderSectionHeader", () => {
     rerender(
       <FolderSectionHeader
         isOpen={false}
+        label="내 폴더"
         section="mine"
         onAddPress={jest.fn()}
         onToggle={onToggle}
@@ -33,6 +35,7 @@ describe("FolderSectionHeader", () => {
     render(
       <FolderSectionHeader
         isOpen={false}
+        label="공유 폴더"
         section="shared"
         onAddPress={onAddPress}
         onToggle={jest.fn()}
@@ -50,6 +53,7 @@ describe("FolderSectionHeader", () => {
       <FolderSectionHeader
         currentFolder={{ name: "교토 여행 준비", emoji: "🧳" }}
         isOpen={false}
+        label="내 폴더"
         section="mine"
         onAddPress={jest.fn()}
         onToggle={onToggle}
@@ -73,6 +77,7 @@ describe("FolderSectionHeader", () => {
       <FolderSectionHeader
         isOpen
         currentFolder={{ name: "교토 여행 준비", emoji: "🧳" }}
+        label="공유 폴더"
         section="shared"
         onAddPress={jest.fn()}
         onToggle={jest.fn()}
@@ -89,6 +94,7 @@ describe("FolderSectionHeader", () => {
       <FolderSectionHeader
         currentFolder={{ name: "읽을거리", emoji: null }}
         isOpen={false}
+        label="공유 폴더"
         section="shared"
         onAddPress={jest.fn()}
         onToggle={jest.fn()}
@@ -99,5 +105,22 @@ describe("FolderSectionHeader", () => {
       screen.getByRole("button", { name: "공유 폴더 펼치기, 현재 폴더 읽을거리 포함" }),
     ).toBeTruthy();
     expect(screen.getByText("📁", { includeHiddenElements: true })).toBeTruthy();
+  });
+
+  it("uses the label it is given and can hide the add button", () => {
+    const onToggle = jest.fn();
+    render(
+      <FolderSectionHeader
+        canAdd={false}
+        isOpen={false}
+        label="새 폴더"
+        section="new"
+        onToggle={onToggle}
+      />,
+    );
+
+    fireEvent.press(screen.getByRole("button", { name: "새 폴더 펼치기", expanded: false }));
+    expect(onToggle).toHaveBeenCalledWith("new");
+    expect(screen.queryByRole("button", { name: "새 폴더에 폴더 추가" })).toBeNull();
   });
 });
