@@ -13,6 +13,8 @@ import { useFolderQuery } from "@/features/folders/queries";
 import { LinkListView } from "@/features/home/components/link-list-view";
 import { MobileHomeScreen } from "@/features/home/components/mobile-home-screen";
 import { WideHomeScreen } from "@/features/home/components/wide-home-screen";
+import { ImportDetailScreen } from "@/features/imports/components/history/import-detail-screen";
+import { ImportHistoryScreen } from "@/features/imports/components/history/import-history-screen";
 import { LinkDetailScreen } from "@/features/links/components/link-detail-screen";
 import { NotificationInboxScreen } from "@/features/notifications/components/notification-inbox-screen";
 import { PostDetailScreen } from "@/features/posts/components/post-detail-screen";
@@ -204,6 +206,26 @@ function SettingsRouteScreen() {
   return <SettingsScreen mode={isWideView ? "wide" : "mobile"} />;
 }
 
+function readImportId(value: string | undefined) {
+  return value && /^\d+$/.test(value) ? Number(value) : Number.NaN;
+}
+
+function ImportsRouteScreen() {
+  return <ImportHistoryScreen />;
+}
+
+function ImportDetailRouteScreen() {
+  const { isWideView } = useShellRouteState();
+  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const importId = readImportId(readParamValue(params.id));
+
+  if (isWideView) {
+    return <ImportHistoryScreen detailId={importId} />;
+  }
+
+  return <ImportDetailScreen importId={importId} />;
+}
+
 function AnnouncementsRouteScreen() {
   const { isWideView } = useShellRouteState();
   return (
@@ -307,6 +329,8 @@ export {
   FolderDetailRouteScreen,
   FoldersRouteScreen,
   HomeRouteScreen,
+  ImportDetailRouteScreen,
+  ImportsRouteScreen,
   LinkDetailRouteScreen,
   LinksRouteScreen,
   NotificationsRouteScreen,
