@@ -1,7 +1,14 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
 import { boxOf, isWideProject } from "./support/helpers";
-import { type MockFolder, type MockTodo, makeFolders, makeLink, mockApi } from "./support/mock-api";
+import {
+  type MockFolder,
+  type MockTodo,
+  makeFolders,
+  makeLink,
+  mockApi,
+  settingsHandler,
+} from "./support/mock-api";
 
 const PIN_TOP = /0px 6px 10px -8px/;
 
@@ -39,6 +46,31 @@ async function scrollToEnd(list: Locator) {
 
 async function scrollTop(list: Locator) {
   return list.evaluate((node) => Math.round(node.scrollTop));
+}
+
+function bottomTabBar(page: Page) {
+  let bar = page.locator("div");
+  for (const label of ["홈", "폴더", "할일", "설정"]) {
+    bar = bar.filter({ has: page.getByText(label, { exact: true }) });
+  }
+  return bar.last();
+}
+
+async function scrollMainToEnd(page: Page) {
+  await expect
+    .poll(() =>
+      page.getByRole("main").evaluate((main) => {
+        const scroller = Array.from(main.querySelectorAll<HTMLElement>("*")).find(
+          (node) =>
+            ["auto", "scroll"].includes(getComputedStyle(node).overflowY) &&
+            node.scrollHeight > node.clientHeight + 1,
+        );
+        if (!scroller) return false;
+        scroller.scrollTop = scroller.scrollHeight;
+        return scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
+      }),
+    )
+    .toBe(true);
 }
 
 async function settle(page: Page) {
@@ -426,6 +458,93 @@ test.describe("mobile folder tab uncategorized row (#27)", () => {
     const viewport = page.viewportSize()?.width ?? 0;
     expect(Math.round(viewport - (fab.x + fab.width))).toBe(24);
   });
+
+  test("the new link button sits in the same place on the home and folder tabs, above the tabs and past home's last content, and opens the sheet on both", async ({
+    page,
+  }) => {
+    const links = Array.from({ length: 12 }, (_, index) => makeLink({ id: index + 1 }));
+    await mockApi(page, { folders: makeFolders(30, 0), links });
+    const fab = page.getByRole("button", { name: "새 링크", exact: true });
+    const tabs = page.getByText("홈", { exact: true }).last();
+
+    await page.goto("/folders");
+    await expect(folderRow(sectionList(page, "내 폴더"), 30)).toBeVisible();
+    await settle(page);
+    const onFolders = await boxOf(fab);
+
+    await page.getByText("홈", { exact: true }).last().click();
+    await expect(page).toHaveURL(/\/home$/);
+    await expect(page.getByTestId("link-card")).toHaveCount(12);
+    await settle(page);
+    const onHome = await boxOf(fab);
+    expect(Math.round(onHome.x)).toBe(Math.round(onFolders.x));
+    expect(Math.round(onHome.y)).toBe(Math.round(onFolders.y));
+    expect(Math.round(onHome.width)).toBe(Math.round(onFolders.width));
+
+    const tabBar = await boxOf(bottomTabBar(page));
+    const viewportHeight = page.viewportSize()?.height ?? 0;
+    expect(Math.round(tabBar.y + tabBar.height)).toBe(viewportHeight);
+    expect(tabBar.y).toBeLessThanOrEqual((await boxOf(tabs)).y);
+    expect(onHome.y + onHome.height).toBeLessThanOrEqual(tabBar.y);
+
+    await scrollMainToEnd(page);
+    await settle(page);
+    const lastCard = await boxOf(page.getByTestId("link-card").last());
+    expect(lastCard.y + lastCard.height).toBeLessThanOrEqual((await boxOf(fab)).y);
+
+    await fab.click();
+    await expect(page.getByText("링크 추가", { exact: true }).first()).toBeVisible();
+    await page.getByRole("button", { name: "닫기", exact: true }).click();
+    await expect(page.getByText("링크 추가", { exact: true })).toHaveCount(0);
+
+    await page.getByText("폴더", { exact: true }).last().click();
+    await expect(page).toHaveURL(/\/folders$/);
+    await fab.click();
+    await expect(page.getByText("링크 추가", { exact: true }).first()).toBeVisible();
+  });
+
+  test("on a folder detail scrolled to the end, the last card ends above the new link button", async ({
+    page,
+  }) => {
+    const links = Array.from({ length: 12 }, (_, index) =>
+      makeLink({ id: index + 1, folderId: 1, folderName: "폴더 1", folderEmoji: "📁" }),
+    );
+    await mockApi(page, { folders: makeFolders(3, 0), links });
+    await page.goto("/folders/1");
+    await expect(page.getByTestId("link-card")).toHaveCount(12);
+    await settle(page);
+
+    await scrollMainToEnd(page);
+    await settle(page);
+    const fab = await boxOf(page.getByRole("button", { name: "새 링크", exact: true }));
+    const lastCard = await boxOf(page.getByTestId("link-card").last());
+    expect(lastCard.y + lastCard.height).toBeLessThanOrEqual(fab.y);
+    expect(fab.y + fab.height).toBeLessThanOrEqual((await boxOf(bottomTabBar(page))).y);
+  });
+});
+
+test.describe("mobile new link button ring (#27)", () => {
+  test.beforeEach(() => {
+    test.skip(isWideProject(), "mobile button");
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`${theme}: the new link button ${theme === "dark" ? "has no light ring" : "keeps its light ring"}`, async ({
+      page,
+    }) => {
+      await mockApi(page, {
+        folders: makeFolders(3, 0),
+        handlers: { "GET /api/users/me/settings": settingsHandler(theme, "gray") },
+      });
+      await page.goto("/home");
+      await expect(page.locator("html")).toHaveClass(theme === "dark" ? /dark/ : /^(?!.*dark)/);
+      const fab = page.getByRole("button", { name: "새 링크", exact: true });
+      await expect(fab).toBeVisible();
+      const shadow = await fab.evaluate((node) => getComputedStyle(node).boxShadow);
+      const ring = /0px 0px 0px 4px/.test(shadow);
+      expect(ring).toBe(theme === "light");
+    });
+  }
 });
 
 test.describe("mobile folder tab states", () => {

@@ -324,23 +324,6 @@ function WideHomeScreen() {
             />
           )}
         </View>
-
-        <View className="flex-row flex-wrap items-center justify-center gap-5 pt-2">
-          {shortcutLabel ? (
-            <Kbd
-              label="새 링크"
-              labelPosition="right"
-            >
-              {shortcutLabel}
-            </Kbd>
-          ) : null}
-          <Kbd
-            label="검색"
-            labelPosition="right"
-          >
-            ⌘/Ctrl + K
-          </Kbd>
-        </View>
       </View>
 
       <AddShortcutDialog

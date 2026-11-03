@@ -27,6 +27,8 @@ import {
 import { CircleAlert } from "lucide-react-native/icons";
 
 const SHEET_MAX_HEIGHT_RATIO = 0.86;
+const DIALOG_MAX_HEIGHT = 640;
+const DIALOG_HEIGHT_RATIO = 0.8;
 const SHEET_FIXED_PARTS_HEIGHT = 440;
 const SHEET_LIST_MIN_HEIGHT = 120;
 const SHEET_LIST_HEIGHT_RATIO = 0.4;
@@ -44,6 +46,7 @@ type FolderPickerListSlot<Id> = {
   selectedId: Id | null;
   isPending: boolean;
   listMaxHeight?: number;
+  className: string;
   onSelect: (selection: FolderPickerSelection<Id>) => void;
 };
 
@@ -75,7 +78,7 @@ function renderDefaultList(
 ) {
   return (
     <FolderPickerList
-      className="min-h-0 shrink"
+      className={slot.className}
       isAddDisabled={slot.isPending}
       listMaxHeight={slot.listMaxHeight}
       noneOption={options.noneOption}
@@ -118,6 +121,7 @@ function FolderPickerDialog<Id = FolderPickerId>(props: FolderPickerDialogProps<
     selectedId: selection?.id ?? null,
     isPending,
     listMaxHeight: isSheet ? getSheetListMaxHeight(height) : undefined,
+    className: isSheet ? "min-h-0 shrink" : "min-h-0 flex-1",
     onSelect: select,
   };
   const list = renderList
@@ -149,6 +153,7 @@ function FolderPickerDialog<Id = FolderPickerId>(props: FolderPickerDialogProps<
         <DialogContent
           hideCloseButton
           className="max-h-[80vh] w-[420px] max-w-[90vw] gap-3.5 rounded-[20px] sm:max-w-[90vw]"
+          style={{ height: Math.min(DIALOG_MAX_HEIGHT, Math.round(height * DIALOG_HEIGHT_RATIO)) }}
         >
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>

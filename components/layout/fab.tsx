@@ -1,5 +1,4 @@
 import { Pressable, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -15,39 +14,18 @@ function Fab({
   icon,
   label,
   onPress,
-  placement = "floating",
-  bottomOffset = 24,
-  rightOffset = 24,
 }: {
   className?: string;
   icon: LucideIcon;
   label?: string;
   onPress?: () => void;
-  placement?: "floating" | "inline";
-  bottomOffset?: number;
-  rightOffset?: number;
 }) {
-  const insets = useSafeAreaInsets();
-  const isFloating = placement === "floating";
-
   return (
     <Button
       accessibilityLabel={label}
-      className={cn(
-        "size-14 rounded-full shadow-qlink-fab",
-        isFloating && "absolute z-fixed",
-        className,
-      )}
+      className={cn("size-14 rounded-full shadow-qlink-fab dark:shadow-qlink-fab-dark", className)}
       onPress={onPress}
       size="icon"
-      style={
-        isFloating
-          ? {
-              bottom: insets.bottom + bottomOffset,
-              right: rightOffset,
-            }
-          : undefined
-      }
       variant="gradient"
     >
       <Icon

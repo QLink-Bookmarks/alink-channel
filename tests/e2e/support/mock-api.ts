@@ -132,6 +132,23 @@ function envelope(data: unknown) {
   return { success: true, data, error: null };
 }
 
+/** Serves the settings endpoint with the given theme and accent. */
+function settingsHandler(theme: "light" | "dark", accent: "gray" | "pink" | "blue"): Handler {
+  return (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        envelope({
+          display: { theme, accent },
+          behavior: { allowsReminderNotification: false },
+          ai: { defaultProvider: null, defaultModel: null },
+          providers: [],
+        }),
+      ),
+    });
+}
+
 function scroll(contents: unknown[], nextCursor: string | null = null) {
   return envelope({
     isEmpty: contents.length === 0,
@@ -573,6 +590,7 @@ export {
   makeLink,
   mockApi,
   scroll,
+  settingsHandler,
 };
 export type {
   FolderPageControl,

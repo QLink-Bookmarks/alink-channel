@@ -52,6 +52,7 @@ type FolderSectionListBaseProps<T> = {
 
 type FolderSectionListProps = FolderSectionListBaseProps<Folder> & {
   section: FolderSection;
+  extraData?: unknown;
   folders: readonly Folder[];
   status: FolderListStatus;
   tone?: FolderSectionTone;
@@ -130,6 +131,7 @@ function FolderSectionList({
   scrollSurface,
   className,
   style,
+  extraData,
   renderRow,
   onFetchMore,
   onRetry,
@@ -212,6 +214,7 @@ function FolderSectionList({
       {...getListClassNames(size, className)}
       contentInsetAdjustmentBehavior="automatic"
       data={isListReady ? folders : []}
+      extraData={extraData}
       keyExtractor={(folder) => String(folder.id)}
       renderItem={renderItem}
       scrollEventThrottle={16}
@@ -355,7 +358,9 @@ function FolderListError({
         />
         <Text className={cn("font-semibold", text.strong)}>폴더를 불러오지 못했어요</Text>
       </View>
-      <Text className={text.muted}>연결 상태를 확인하고 다시 시도해 주세요.</Text>
+      <Text className={cn(text.muted, "web:break-keep")}>
+        연결 상태를 확인하고 다시 시도해 주세요.
+      </Text>
       <Button
         className={isLarge ? "h-11 px-4" : undefined}
         size="sm"

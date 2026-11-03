@@ -75,7 +75,7 @@ function SidebarItem({
 }) {
   const selectionProps = getSelectionProps(active);
   const metaTextClassName = active
-    ? "text-primary"
+    ? "text-sidebar-hover"
     : "text-sidebar-muted web:group-hover:text-sidebar-hover";
 
   return (
@@ -99,7 +99,9 @@ function SidebarItem({
           as={icon}
           className={cn(
             "size-4",
-            active ? "text-primary" : "text-sidebar-muted web:group-hover:text-sidebar-hover",
+            active
+              ? "text-sidebar-accent-foreground"
+              : "text-sidebar-muted web:group-hover:text-sidebar-hover",
           )}
         />
       ) : null}
@@ -114,7 +116,7 @@ function SidebarItem({
       <Text
         className={cn(
           "min-w-0 flex-1 text-sm font-medium",
-          active ? "text-primary" : "text-sidebar-muted web:group-hover:text-sidebar-hover",
+          active ? "text-sidebar-hover" : "text-sidebar-muted web:group-hover:text-sidebar-hover",
           labelClassName,
         )}
         numberOfLines={1}
@@ -136,7 +138,7 @@ function SidebarItem({
         <Text
           className={cn(
             "shrink-0 text-xs tabular-nums",
-            active ? "text-primary" : "text-sidebar-muted web:group-hover:text-sidebar-hover",
+            active ? "text-sidebar-hover" : "text-sidebar-muted web:group-hover:text-sidebar-hover",
           )}
         >
           {count}
