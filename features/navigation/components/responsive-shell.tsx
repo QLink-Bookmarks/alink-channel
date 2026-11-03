@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Platform, ScrollView, View } from "react-native";
+import { Platform, View } from "react-native";
 
 import { RouteErrorBoundary } from "@/components/error/route-error-boundary";
 import { AppHeader } from "@/components/layout/app-header";
@@ -45,7 +45,6 @@ import { getFolderIdFromPath } from "../lib/folder-path";
 import { isNewLinkShortcut, suppressNextTextInput } from "../lib/new-link-shortcut";
 import { canOpenWideOverlayInPlace } from "../routes";
 import type { MobileTabKey } from "../types";
-import { WideKbdHelper } from "./wide-kbd-helper";
 import { WideSidebarColumn } from "./wide-sidebar-column";
 
 import { type Href, Redirect, useLocalSearchParams, useRouter } from "expo-router";
@@ -75,6 +74,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const openSearchDialog = useSearchDialog((state) => state.open);
   const setSearchDialogOpen = useSearchDialog((state) => state.setOpen);
   const [isAddLinkDialogOpen, setIsAddLinkDialogOpen] = React.useState(false);
+  const [isAddLinkSheetSubStep, setIsAddLinkSheetSubStep] = React.useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = React.useState(false);
   const [createFolderSection, setCreateFolderSection] = React.useState<FolderSection>("mine");
   const [sidebarFolderListKey, setSidebarFolderListKey] = React.useState(0);
@@ -362,7 +362,6 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
               role="main"
             >
               <RouteErrorBoundary resetKeys={[routeState.pathname]}>{children}</RouteErrorBoundary>
-              <WideKbdHelper />
             </View>
           </View>
 
@@ -413,28 +412,21 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
                 <Text className="text-2xl font-normal text-muted-foreground">+</Text>
                 <DialogTitle className="text-xl">새 링크 추가</DialogTitle>
               </DialogHeader>
-              <ScrollView
-                className="flex-1"
-                contentInsetAdjustmentBehavior="automatic"
-                showsVerticalScrollIndicator={false}
+              <RouteErrorBoundary
+                className="mx-8 my-6"
+                description="링크 추가 시트를 다시 열어 시도해주세요."
+                resetKeys={[isAddLinkDialogOpen]}
+                title="링크 추가 화면을 불러오지 못했어요"
+                onClose={() => setIsAddLinkDialogOpen(false)}
               >
-                <View className="px-8 py-6">
-                  <RouteErrorBoundary
-                    description="링크 추가 시트를 다시 열어 시도해주세요."
-                    resetKeys={[isAddLinkDialogOpen]}
-                    title="링크 추가 화면을 불러오지 못했어요"
-                    onClose={() => setIsAddLinkDialogOpen(false)}
-                  >
-                    <LinkCreateForm
-                      mode="wide"
-                      open={isAddLinkDialogOpen}
-                      initialUrl={sharedLinkUrl ?? undefined}
-                      onCancel={() => setIsAddLinkDialogOpen(false)}
-                      onSaved={handleWideLinkSaved}
-                    />
-                  </RouteErrorBoundary>
-                </View>
-              </ScrollView>
+                <LinkCreateForm
+                  mode="wide"
+                  open={isAddLinkDialogOpen}
+                  initialUrl={sharedLinkUrl ?? undefined}
+                  onCancel={() => setIsAddLinkDialogOpen(false)}
+                  onSaved={handleWideLinkSaved}
+                />
+              </RouteErrorBoundary>
             </DialogContent>
           </Dialog>
         </View>
@@ -497,15 +489,15 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
           <ShellActionsContext value={shellActions}>
             <RouteErrorBoundary resetKeys={[routeState.pathname]}>{children}</RouteErrorBoundary>
           </ShellActionsContext>
+          {showMobileFab && !isAnySheetOpen && !isAddLinkSheetOpen && !isCreateFolderSheetOpen ? (
+            <Fab
+              className="absolute bottom-2 right-6 z-fixed"
+              icon={Plus}
+              label="새 링크"
+              onPress={handleFabPress}
+            />
+          ) : null}
         </View>
-        {showMobileFab && !isAnySheetOpen && !isAddLinkSheetOpen && !isCreateFolderSheetOpen ? (
-          <Fab
-            bottomOffset={96}
-            icon={Plus}
-            label="새 링크"
-            onPress={handleFabPress}
-          />
-        ) : null}
         <BottomTabs
           items={mobileTabItems}
           value={routeState.mobileTabKey ?? ""}
@@ -515,6 +507,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
           <Sheet
             open={isAddLinkSheetOpen}
             fitContent
+            hideCloseButton={isAddLinkSheetSubStep}
             onOpenChange={handleAddLinkSheetOpenChange}
           >
             <RouteErrorBoundary
@@ -528,6 +521,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
                 open={isAddLinkSheetOpen}
                 initialUrl={sharedLinkUrl ?? undefined}
                 onCancel={closeAddLinkSheet}
+                onMobileSubStepChange={setIsAddLinkSheetSubStep}
                 onSaved={handleMobileLinkSaved}
               />
             </RouteErrorBoundary>

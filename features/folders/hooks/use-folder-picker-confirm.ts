@@ -1,26 +1,26 @@
 import * as React from "react";
 
-import type { FolderPickerSelection } from "../components/folder-picker-list";
+import type { FolderPickerId, FolderPickerSelection } from "../components/folder-picker-list";
 
-type FolderPickerConfirmOptions = {
+type FolderPickerConfirmOptions<Id = FolderPickerId> = {
   open: boolean;
-  initialFolderId?: number | null;
+  initialFolderId?: Id;
   errorMessage: string;
-  onConfirm: (selection: FolderPickerSelection) => Promise<void>;
+  onConfirm: (selection: FolderPickerSelection<Id>) => Promise<void>;
   onOpenChange: (open: boolean) => void;
 };
 
-function getInitialSelection(initialFolderId?: number | null): FolderPickerSelection | null {
+function getInitialSelection<Id>(initialFolderId?: Id): FolderPickerSelection<Id> | null {
   return initialFolderId === undefined ? null : { id: initialFolderId, label: "" };
 }
 
-function useFolderPickerConfirm({
+function useFolderPickerConfirm<Id = FolderPickerId>({
   open,
   initialFolderId,
   errorMessage,
   onConfirm,
   onOpenChange,
-}: FolderPickerConfirmOptions) {
+}: FolderPickerConfirmOptions<Id>) {
   const [selection, setSelection] = React.useState(() => getInitialSelection(initialFolderId));
   const [error, setError] = React.useState<string | null>(null);
   const [isPending, setIsPending] = React.useState(false);
@@ -46,7 +46,7 @@ function useFolderPickerConfirm({
     selection != null && (initialFolderId === undefined || selection.id !== initialFolderId);
   const canConfirm = isChanged && !isPending;
 
-  const select = React.useCallback((next: FolderPickerSelection) => {
+  const select = React.useCallback((next: FolderPickerSelection<Id>) => {
     if (pendingRef.current) {
       return;
     }

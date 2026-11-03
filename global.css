@@ -66,7 +66,7 @@
     --sidebar-accent-foreground: 220 9% 46%;
     --sidebar-border: 220 9% 91%;
     --sidebar-ring: 220 9% 46%;
-    --sidebar-text-muted: 220 9% 46%;
+    --sidebar-text-muted: 220 9% 41%;
     --sidebar-text-hover: 217 33% 17%;
     --sidebar-surface-2: 220 14% 91%;
     --primary-2: 220 9% 64%;
@@ -189,7 +189,7 @@
     --sidebar-accent-foreground: 338 100% 71%;
     --sidebar-border: 327 56% 92%;
     --sidebar-ring: 338 100% 71%;
-    --sidebar-text-muted: 327 18% 52%;
+    --sidebar-text-muted: 327 18% 44%;
     --sidebar-text-hover: 326 39% 17%;
     --sidebar-surface-2: 330 79% 94%;
     --glow-rgb: 255, 107, 157;
@@ -277,7 +277,7 @@
     --sidebar-accent-foreground: 218 100% 65%;
     --sidebar-border: 217 56% 92%;
     --sidebar-ring: 218 100% 65%;
-    --sidebar-text-muted: 218 19% 51%;
+    --sidebar-text-muted: 218 19% 42%;
     --sidebar-text-hover: 218 49% 20%;
     --sidebar-surface-2: 220 100% 93%;
     --glow-rgb: 79, 143, 255;

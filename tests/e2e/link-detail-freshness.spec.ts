@@ -322,7 +322,7 @@ test.describe("mobile", () => {
       .getByPlaceholder(/^(AI 생성으로 자동 정리해보세요|제목을 불러오는 중…)$/)
       .fill("새로 저장한 링크");
     await addSheet.getByRole("button", { name: "변경" }).first().click();
-    await addSheet.getByText("📚 공부", { exact: true }).click();
+    await addSheet.getByRole("radio", { name: "📚 공부", exact: true }).click();
     await expect(addSheet.getByText("📚 공부", { exact: true })).toBeVisible();
     const created = page.waitForResponse(
       (response) =>

@@ -149,13 +149,12 @@ function MobileFoldersScreen() {
             </Text>
           )}
         </Pressable>
-        <View className="w-[88px] shrink-0 justify-center pr-6">
+        <View className="w-[88px] shrink-0 justify-end pb-2 pr-6">
           {shellActions ? (
             <Fab
               className="self-end"
               icon={Plus}
               label="새 링크"
-              placement="inline"
               onPress={shellActions.openNewLink}
             />
           ) : null}

@@ -119,6 +119,7 @@ module.exports = {
         "qlink-card": "0 2px 8px rgba(var(--glow-rgb), 0.08)",
         "qlink-glow": "0 0 20px rgba(var(--glow-rgb), 0.35)",
         "qlink-fab": "0 8px 24px rgba(var(--glow-rgb), 0.35), 0 0 0 4px rgba(255, 255, 255, 0.4)",
+        "qlink-fab-dark": "0 8px 24px rgba(var(--glow-rgb), 0.35)",
         "qlink-modal": "0 24px 60px rgba(0, 0, 0, 0.30)",
         // NativeWind가 transform/shadow 클래스가 처음 붙을 때 컴포넌트를 바꿔 끼워 iOS에서 Couldn't find a navigation context 오류가 난다. 기본값을 늘 붙여 둔다. 지우지 말 것.
         "section-rest": "0 0 0 0 rgba(var(--glow-rgb), 0)",

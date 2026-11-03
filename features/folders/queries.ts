@@ -1,6 +1,11 @@
 import * as React from "react";
 
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { getFolderMembers, getFolders } from "./api";
 import {
@@ -13,6 +18,7 @@ import type { FolderOrder, FolderScrollResponse, GetFoldersParams } from "./type
 
 const FOLDER_PAGE_SIZE = 20;
 const MAX_FOLDER_PAGES = 500;
+const COMMON_CURSOR_MALFORMED_CODE = "COM_400_0004";
 
 type FolderListParams = Pick<GetFoldersParams, "order" | "query">;
 type FolderPagesParams = { order: FolderOrder; size: number };
@@ -54,8 +60,17 @@ function useFoldersQuery(params: GetFoldersParams = {}, options?: { enabled?: bo
 
 const FOLDER_PAGES_ORDER: FolderOrder = "latest";
 
-function useFolderPagesQuery(options?: { enabled?: boolean }) {
-  return useInfiniteQuery({
+const cursorRestartMarks = new WeakMap<QueryClient, number | "pending">();
+
+function isCursorMalformedError(error: unknown) {
+  const response = (error as { response?: { data?: unknown } } | null)?.response;
+  const code = (response?.data as { error?: { code?: unknown } } | undefined)?.error?.code;
+  return code === COMMON_CURSOR_MALFORMED_CODE;
+}
+
+function useRestartingFolderPagesQuery(options?: { enabled?: boolean }) {
+  const queryClient = useQueryClient();
+  const pagesQuery = useInfiniteQuery({
     enabled: options?.enabled ?? true,
     getNextPageParam: (lastPage: FolderScrollResponse, _allPages, lastPageParam) => {
       const nextCursor = getNextFolderCursor(lastPage);
@@ -72,18 +87,43 @@ function useFolderPagesQuery(options?: { enabled?: boolean }) {
     },
     queryKey: folderQueryKeys.infinite({ order: FOLDER_PAGES_ORDER, size: FOLDER_PAGE_SIZE }),
   });
+  const { refetch, dataUpdatedAt } = pagesQuery;
+  const isCursorMalformed =
+    pagesQuery.isFetchNextPageError && isCursorMalformedError(pagesQuery.error);
+  const isRestartPending =
+    isCursorMalformed && cursorRestartMarks.get(queryClient) !== dataUpdatedAt;
+
+  React.useEffect(() => {
+    if (!isRestartPending || cursorRestartMarks.get(queryClient) === "pending") {
+      return;
+    }
+    cursorRestartMarks.set(queryClient, "pending");
+    void refetch({ cancelRefetch: false }).then((result) => {
+      cursorRestartMarks.set(queryClient, result.dataUpdatedAt);
+    });
+  }, [isRestartPending, queryClient, refetch]);
+
+  return { pagesQuery, isRestartPending };
+}
+
+function useFolderPagesQuery(options?: { enabled?: boolean }) {
+  const { pagesQuery, isRestartPending } = useRestartingFolderPagesQuery(options);
+  return isRestartPending
+    ? { ...pagesQuery, isError: false, isFetchNextPageError: false }
+    : pagesQuery;
 }
 
 function useFolderQuery(id: number, options?: { enabled?: boolean }) {
   const isValidId = isFolderId(id);
   const enabled = (options?.enabled ?? true) && isValidId;
-  const pagesQuery = useFolderPagesQuery({ enabled });
+  const { pagesQuery, isRestartPending } = useRestartingFolderPagesQuery({ enabled });
   const { fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, refetch } =
     pagesQuery;
   const folder = enabled ? findFolderInPages(pagesQuery.data?.pages, id) : undefined;
   const loadedPageCount = pagesQuery.data?.pages.length ?? 0;
   const hasPages = loadedPageCount > 0;
-  const isError = enabled && !folder && pagesQuery.isError && !pagesQuery.isFetching;
+  const isError =
+    enabled && !folder && pagesQuery.isError && !pagesQuery.isFetching && !isRestartPending;
   const shouldFetchNext =
     enabled &&
     hasPages &&
@@ -91,6 +131,7 @@ function useFolderQuery(id: number, options?: { enabled?: boolean }) {
     hasNextPage &&
     !isFetchingNextPage &&
     !isFetchNextPageError &&
+    !isRestartPending &&
     !pagesQuery.isRefetching;
 
   React.useEffect(() => {
