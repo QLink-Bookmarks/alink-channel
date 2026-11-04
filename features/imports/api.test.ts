@@ -126,6 +126,7 @@ describe("getImportErrorName", () => {
     ["IMPORT_404_0002", "IMPORT_NOT_FOUND"],
     ["IMPORT_404_0003", "IMPORT_PREVIEW_OWNER_NOT_FOUND"],
     ["IMPORT_422_0002", "IMPORT_REVERSAL_FOLDER_SHARED"],
+    ["IMPORT_422_0003", "IMPORT_NOTHING_TO_IMPORT"],
     ["COM_400_0004", "COMMON_CURSOR_MALFORMED"],
   ])("maps server code %s to %s", (code, name) => {
     expect(getImportErrorName(axiosError(code))).toBe(name);

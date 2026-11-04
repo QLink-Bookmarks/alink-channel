@@ -148,6 +148,11 @@ const IMPORT_ERRORS: Record<MockErrorName, { code: string; status: number; messa
     status: 404,
     message: "로그인 사용자를 찾을 수 없어요",
   },
+  IMPORT_NOTHING_TO_IMPORT: {
+    code: "IMPORT_422_0003",
+    status: 422,
+    message: "새로 가져올 링크가 없어요",
+  },
   IMPORT_REVERSAL_FOLDER_SHARED: {
     code: "IMPORT_422_0002",
     status: 422,
@@ -427,7 +432,8 @@ function validateSource(body: {
  *
  * Earlier imports count as the user's own data too: their IMPORTED/EDITED links are saved URLs and
  * their active NEW folders are the user's non-shared folders, so re-importing the same file skips
- * the links and reuses the folders like the real server.
+ * the links and reuses the folders like the real server. A start that would save no link and record
+ * no failure answers 422 `IMPORT_NOTHING_TO_IMPORT` and creates no record.
  *
  * `handlers` is a Proxy that answers `/api/imports/{id}` for any id; don't spread it.
  *
@@ -802,6 +808,9 @@ function createMockImportApi(options: MockImportApiOptions = {}) {
       return fail(route, "IMPORT_FOLDER_KEY_NOT_FOUND");
     }
     const record = buildRecord(body);
+    if (record.linkCount === 0 && record.failedCount === 0) {
+      return fail(route, "IMPORT_NOTHING_TO_IMPORT");
+    }
     state.records.unshift(record);
     if (control === "save-then-abort") return route.abort("failed");
     return json(route, toSummary(record), 201);

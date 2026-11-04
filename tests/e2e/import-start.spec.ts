@@ -4,13 +4,16 @@ import { type Page, expect, test } from "@playwright/test";
 import {
   PROPOSAL_TITLE,
   countRequests,
+  htmlFile,
   linkHandle,
   linkRemove,
+  makeBookmarkExport,
   openFolder,
   openProposal,
   setupImportFlow,
   summaryValue,
 } from "./support/bookmark-fixtures";
+import { makeLink } from "./support/mock-api";
 
 // #22 unit 4: the confirm window and the synchronous start.
 
@@ -219,5 +222,44 @@ test.describe("starting", () => {
     expect(bodies).toHaveLength(2);
     expect(bodies[1].clientRequestId).not.toBe(bodies[0].clientRequestId);
     expect(bodies[1].links).toHaveLength(bodies[0].links.length - 1);
+  });
+
+  test("when every link was saved after the proposal opened, 시작 says there is nothing to import, stays blocked and leaves no record", async ({
+    page,
+  }) => {
+    const { api, imports } = await setupImportFlow(page);
+    const scope = await openProposal(
+      page,
+      htmlFile("all-saved.html", makeBookmarkExport({ unfiled: 2 })),
+    );
+    await expect(summaryValue(scope, "추가할 링크")).toContainText("+2");
+    api.links.push(
+      makeLink({ id: 9001, url: "https://bulk.example.com/1" }),
+      makeLink({ id: 9002, url: "https://bulk.example.com/2" }),
+    );
+
+    const dialog = await openConfirm(page);
+    const start = dialog.getByRole("button", { name: "시작", exact: true });
+    await start.click();
+    await expect(dialog.getByText("가져오기를 시작하지 못했어요")).toBeVisible();
+    await expect(
+      dialog.getByText("이미 모두 저장된 링크라 새로 가져올 링크가 없어요"),
+    ).toBeVisible();
+    await expect(dialog.getByText("잠시 후 다시 시도해 주세요.")).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: "다시 시도" })).toHaveCount(0);
+    await expect(start).toBeDisabled();
+    await start.click({ force: true });
+    await page.waitForTimeout(500);
+    expect(countRequests(api, "POST", "/api/imports")).toBe(1);
+    expect(imports.state.records).toHaveLength(0);
+
+    await dialog.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText(PROPOSAL_TITLE)).toBeVisible();
+    await scope.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(page.getByText(PROPOSAL_TITLE)).toHaveCount(0);
+    await expect(page.getByText("아직 가져온 기록이 없어요")).toBeVisible();
+    await expect(page.getByTestId(/^import-row-/)).toHaveCount(0);
+    expect(countRequests(api, "POST", "/api/imports")).toBe(1);
   });
 });
