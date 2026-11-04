@@ -837,7 +837,7 @@ test.describe("window fit, width and marks (#27)", () => {
   }) => {
     test.skip(!isWideProject(), "wide popover");
     await mockApi(page, { folders: makeFolders(45, 3) });
-    for (const height of [620, 800]) {
+    for (const height of [520, 620, 800]) {
       await page.setViewportSize({ width: 1280, height });
       const scope = await openNewLinkPicker(page);
       await settle(page);
@@ -852,7 +852,8 @@ test.describe("window fit, width and marks (#27)", () => {
       expect(await mine.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
       const listHeight = (await boxOf(mine)).height;
       expect(listHeight).toBeLessThanOrEqual(200);
-      if (popover.y + popover.height >= height - 16 - 1) {
+      if (height === 520) {
+        expect(popover.y + popover.height).toBeGreaterThanOrEqual(height - 16 - 1);
         expect(listHeight).toBeLessThan(200);
       }
     }

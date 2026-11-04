@@ -536,11 +536,32 @@ test.describe("mobile new link sheet (#46)", () => {
       return true;
     });
     expect(scrolled).toBe(true);
-    await page.waitForTimeout(300);
 
+    const lastCard = form(page).getByRole("button", { name: "변경" }).last();
+    await expect
+      .poll(async () => {
+        const card = await boxOf(lastCard);
+        return card.y + card.height < save.y;
+      })
+      .toBe(true);
     expect(Math.round((await boxOf(saveButton(page))).y)).toBe(Math.round(save.y));
-    const providerCard = await boxOf(form(page).getByRole("button", { name: "변경" }).last());
-    expect(providerCard.y + providerCard.height).toBeLessThan(save.y);
+  });
+
+  test("typing in the form keeps the same 저장 button instead of rebuilding the footer", async ({
+    page,
+  }) => {
+    await setUpFormServer(page);
+    await openForm(page);
+    await saveButton(page).evaluate((node) => {
+      (node as HTMLElement & { __mark?: number }).__mark = 46;
+    });
+    await titleInput(page).pressSequentially("제목을 한 글자씩", { delay: 20 });
+    await urlInput(page).fill("https://example.com/plain");
+    await expect(saveButton(page)).toBeEnabled();
+    const mark = await saveButton(page).evaluate(
+      (node) => (node as HTMLElement & { __mark?: number }).__mark ?? null,
+    );
+    expect(mark).toBe(46);
   });
 
   test("sub-steps hide the buttons and 닫기, and coming back brings them again", async ({
