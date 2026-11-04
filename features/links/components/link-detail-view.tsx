@@ -97,7 +97,7 @@ const PERSONAL_FOLDER_SECTIONS: FolderSection[] = ["mine"];
 const defaultWeekdays: WeekdayValue[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 function getTodoTitle(todo: LinkTodo) {
-  return todo.title ?? todo.content ?? "할 일";
+  return todo.title ?? todo.content ?? "액션";
 }
 
 function getTodoDone(todo: LinkTodo) {
@@ -974,7 +974,7 @@ function LinkDetailView({
 
   const handleTodoSave = React.useCallback(async () => {
     if (hasInvalidTodoDraft) {
-      setTodoEditorError("할 일 제목을 모두 입력해주세요.");
+      setTodoEditorError("액션 제목을 모두 입력해주세요.");
       return;
     }
 
@@ -1032,7 +1032,7 @@ function LinkDetailView({
       await refreshDetail();
       setIsTodoEditorOpen(false);
     } catch (error: unknown) {
-      setTodoEditorError("할 일 저장에 실패했습니다. 서버 응답을 확인해주세요.");
+      setTodoEditorError("액션 저장에 실패했습니다. 서버 응답을 확인해주세요.");
       reportError(error, {
         area: "link-detail-view:save-todos",
         extra: { linkId: detail.id },
@@ -1132,7 +1132,7 @@ function LinkDetailView({
   const todoEditorContent = (
     <View className="gap-4">
       <TodoDraftListEditor
-        addLabel="할 일 추가"
+        addLabel="액션 추가"
         pickerMode={overlayMode}
         todos={decoratedTodoDrafts}
         onAddTodo={handleAddTodoDraft}
@@ -1427,7 +1427,7 @@ function LinkDetailView({
           </DetailSection>
 
           <DetailSection
-            title={`할 일 ${dueTodos.length}개`}
+            title={`액션 ${dueTodos.length}개`}
             testID="link-detail-todos"
           >
             <View className="gap-3">
@@ -1474,7 +1474,7 @@ function LinkDetailView({
               ) : (
                 <View className="items-center rounded-[14px] border border-dashed border-border px-4 py-3.5">
                   <Text className="text-xs font-medium text-muted-foreground">
-                    아직 연결된 할 일이 없어요
+                    아직 연결된 액션이 없어요
                   </Text>
                 </View>
               )}
@@ -1485,7 +1485,7 @@ function LinkDetailView({
                 onPress={handleTodoEditorOpen}
               >
                 <Text className="text-[13px] font-semibold text-muted-foreground">
-                  + 할 일 추가 / 수정
+                  + 액션 추가 / 수정
                 </Text>
               </Pressable>
             </View>
@@ -1534,9 +1534,9 @@ function LinkDetailView({
         >
           <DialogContent className="max-h-[80vh] max-w-3xl">
             <DialogHeader>
-              <DialogTitle>할 일 추가 / 수정</DialogTitle>
+              <DialogTitle>액션 추가 / 수정</DialogTitle>
               <DialogDescription>
-                각 할 일에 시간 또는 반복 알림을 설정할 수 있어요.
+                각 액션에 시간 또는 반복 알림을 설정할 수 있어요.
               </DialogDescription>
             </DialogHeader>
             <ScrollView
@@ -1561,9 +1561,9 @@ function LinkDetailView({
           }}
         >
           <View className="gap-2">
-            <Text className="text-lg font-semibold text-foreground">할 일 추가 / 수정</Text>
+            <Text className="text-lg font-semibold text-foreground">액션 추가 / 수정</Text>
             <Text className="text-sm leading-6 text-muted-foreground">
-              각 할 일에 시간 또는 반복 알림을 설정할 수 있어요.
+              각 액션에 시간 또는 반복 알림을 설정할 수 있어요.
             </Text>
           </View>
           {todoEditorContent}

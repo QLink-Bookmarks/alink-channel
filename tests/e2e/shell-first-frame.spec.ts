@@ -74,7 +74,7 @@ async function expectServerHtmlWithoutShell(page: Page, path: string) {
     "⌘/Ctrl + K",
     'aria-label="새 링크"',
     'aria-label="검색"',
-    ">할일<",
+    ">액션<",
     ">전체<",
   ]) {
     expect(root, marker).not.toContain(marker);
@@ -89,8 +89,8 @@ const wideTopbarSearch = (page: Page) => page.getByText("⌘/Ctrl + K").first();
 const mobileFab = (page: Page) => page.getByRole("button", { name: "새 링크", exact: true });
 const backButton = (page: Page) => page.getByRole("button", { name: "뒤로", exact: true });
 
-const TAB_LABELS = ["홈", "폴더", "할일", "설정"];
-const TODOS_TITLE = "투두";
+const TAB_LABELS = ["홈", "폴더", "액션", "설정"];
+const TODOS_TITLE = "액션";
 const mobileHeader = (page: Page) => page.getByTestId("app-header").first();
 const bottomTab = (page: Page, label: string) => page.getByText(label, { exact: true }).last();
 
@@ -381,7 +381,7 @@ test.describe("mobile tab roots have no back button", () => {
 
     const tabs = [
       { label: "폴더", path: /\/folders$/ },
-      { label: "할일", path: /\/todos$/ },
+      { label: "액션", path: /\/todos$/ },
       { label: "설정", path: /\/settings$/ },
       { label: "홈", path: /\/home$/ },
     ];
@@ -395,7 +395,7 @@ test.describe("mobile tab roots have no back button", () => {
 
   for (const [path, label] of [
     ["/folders", "폴더"],
-    ["/todos", "할일"],
+    ["/todos", "액션"],
     ["/settings", "설정"],
   ]) {
     test(`opening ${path} directly shows no back button`, async ({ page }) => {

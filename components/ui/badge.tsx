@@ -65,7 +65,7 @@ const badgeTextVariants = cva("text-xs font-medium", {
       success: "text-success",
       warning: "text-warning",
       secondary: "text-secondary-foreground",
-      destructive: "text-white",
+      destructive: "text-destructive-foreground",
       outline: "text-foreground",
     },
   },

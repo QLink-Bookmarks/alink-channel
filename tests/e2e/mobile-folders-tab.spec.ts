@@ -51,7 +51,7 @@ async function scrollTop(list: Locator) {
 
 function bottomTabBar(page: Page) {
   let bar = page.locator("div");
-  for (const label of ["홈", "폴더", "할일", "설정"]) {
+  for (const label of ["홈", "폴더", "액션", "설정"]) {
     bar = bar.filter({ has: page.getByText(label, { exact: true }) });
   }
   return bar.last();
@@ -180,7 +180,7 @@ test.describe("mobile folder tab", () => {
     expect(ids).toEqual([...ids].sort((a, b) => b - a));
     expect((await boxOf(folderRow(mine, 11))).height).toBeGreaterThanOrEqual(60);
 
-    for (const tab of ["홈", "폴더", "할일", "설정"]) {
+    for (const tab of ["홈", "폴더", "액션", "설정"]) {
       await expect(page.getByText(tab, { exact: true }).last()).toBeVisible();
     }
   });
@@ -403,7 +403,7 @@ test.describe("mobile folder tab", () => {
       page.evaluate(() => JSON.parse(localStorage.getItem("qlink-folder-navigation") ?? "{}"));
     const before = await stored();
 
-    await page.getByText("할일", { exact: true }).last().click();
+    await page.getByText("액션", { exact: true }).last().click();
     await expect(page).toHaveURL(/\/todos$/);
     await expect(page.getByText("할일 1", { exact: true })).toBeVisible();
     expect((await scrollableOffsets(page)).length).toBeGreaterThan(1);
@@ -411,7 +411,7 @@ test.describe("mobile folder tab", () => {
     await page.getByText("폴더", { exact: true }).last().click();
     await expect.poll(() => scrollTop(sectionList(page, "내 폴더"))).toBe(300);
 
-    await page.getByText("할일", { exact: true }).last().click();
+    await page.getByText("액션", { exact: true }).last().click();
     await expect(page.getByText("할일 1", { exact: true })).toBeVisible();
     await expect.poll(() => maxScrollOffset(page)).toBe(0);
 
@@ -594,7 +594,7 @@ test.describe("mobile folder tab states", () => {
     await area.getByRole("button", { name: "다시 시도" }).click();
     await expect(folderRow(sectionList(page, "내 폴더"), 11)).toBeVisible();
 
-    await page.getByText("할일", { exact: true }).last().click();
+    await page.getByText("액션", { exact: true }).last().click();
     await expect(page).toHaveURL(/\/todos$/);
     await page.getByText("홈", { exact: true }).last().click();
     await expect(page).toHaveURL(/\/home$/);

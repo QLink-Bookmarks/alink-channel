@@ -30,12 +30,31 @@ function Toast({
   onDismiss?: () => void;
 }) {
   const isSolidVariant = variant === "success" || variant === "error" || variant === "warning";
+  const solidTextClassName =
+    variant === "success"
+      ? "text-success-foreground"
+      : variant === "error"
+        ? "text-destructive-foreground"
+        : variant === "warning"
+          ? "text-warning-foreground"
+          : "text-background";
   const titleClassName =
-    isSolidVariant || variant === "gradient" ? "text-background" : "text-foreground";
-  const descriptionClassName =
-    isSolidVariant || variant === "gradient" ? "text-background/80" : "text-muted-foreground";
+    isSolidVariant || variant === "gradient" ? solidTextClassName : "text-foreground";
+  const descriptionClassName = isSolidVariant
+    ? solidTextClassName
+    : variant === "gradient"
+      ? "text-background/80"
+      : "text-muted-foreground";
   const dismissClassName =
-    isSolidVariant || variant === "gradient" ? "text-background" : "text-muted-foreground";
+    isSolidVariant || variant === "gradient" ? solidTextClassName : "text-muted-foreground";
+  const actionBorderClassName =
+    variant === "success"
+      ? "border-success-foreground/40"
+      : variant === "error"
+        ? "border-destructive-foreground/40"
+        : variant === "warning"
+          ? "border-warning-foreground/40"
+          : "border-white/60";
 
   return (
     <View
@@ -92,7 +111,7 @@ function Toast({
               className={cn(
                 "mt-2 h-8 min-h-0 self-start rounded-full px-3",
                 isSolidVariant || variant === "gradient"
-                  ? "border-white/60 bg-transparent"
+                  ? cn(actionBorderClassName, "bg-transparent")
                   : "border-border",
               )}
               size="xs"

@@ -26,7 +26,7 @@ type TodoDraftEditorItem = {
 };
 
 function TodoDraftListEditor({
-  addLabel = "할 일 추가",
+  addLabel = "액션 추가",
   pickerMode = "wide",
   todos,
   onAddTodo,

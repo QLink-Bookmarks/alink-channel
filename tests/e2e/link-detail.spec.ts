@@ -391,8 +391,8 @@ test.describe("todos in the detail", () => {
     const section = page.getByTestId("link-detail-todos");
     const cards = section.getByTestId(/^todo-item(-overdue)?$/);
     await expect(cards).toHaveCount(3);
-    await expect(section.getByText("할 일 2개")).toBeVisible();
-    await expect(section.getByRole("button", { name: "+ 할 일 추가 / 수정" })).toBeVisible();
+    await expect(section.getByText("액션 2개")).toBeVisible();
+    await expect(section.getByRole("button", { name: "+ 액션 추가 / 수정" })).toBeVisible();
     await expect(cards.first().getByTestId("todo-item-link")).toContainText("youtube.com");
     const tops = await cards.evaluateAll((nodes) =>
       nodes.map((node) => Math.round(node.getBoundingClientRect().top)),

@@ -181,7 +181,7 @@ test.describe("wide sidebar folder sections", () => {
       page.getByRole("button", { name: /새 링크/ }).first(),
       page.getByRole("button", { name: /^홈$/ }),
       page.getByRole("button", { name: /^전체$/ }),
-      page.getByRole("button", { name: /^할일$/ }),
+      page.getByRole("button", { name: /^액션$/ }),
       toggle(page, "내 폴더"),
       toggle(page, "공유 폴더"),
       uncategorized(page),
@@ -197,7 +197,7 @@ test.describe("wide sidebar folder sections", () => {
 
     await toggle(page, "공유 폴더").click();
     await expect(toggle(page, "공유 폴더")).toHaveAttribute("aria-expanded", "true");
-    await page.getByRole("button", { name: /^할일$/ }).click();
+    await page.getByRole("button", { name: /^액션$/ }).click();
     await expect(page).toHaveURL(/\/todos$/);
   });
 
@@ -405,7 +405,7 @@ test.describe("wide sidebar folder sections", () => {
     for (const [name, url] of [
       [/^홈$/, /\/home$/],
       [/^전체$/, /\/links/],
-      [/^할일$/, /\/todos$/],
+      [/^액션$/, /\/todos$/],
     ] as const) {
       await page.getByRole("button", { name }).click();
       await expect(page).toHaveURL(url);
@@ -511,7 +511,7 @@ test.describe("wide sidebar folder states", () => {
     await expect(uncategorized(page)).toHaveAccessibleName("미분류");
     for (const [name, url] of [
       [/^전체$/, /\/links/],
-      [/^할일$/, /\/todos$/],
+      [/^액션$/, /\/todos$/],
       [/^홈$/, /\/home$/],
     ] as const) {
       await page.getByRole("button", { name }).click();
@@ -734,7 +734,7 @@ test.describe("wide sidebar folder states", () => {
     await expect(folderRow(page, 5)).toHaveAccessibleName("폴더 5, 링크 0개");
     await expect(folderRow(page, 5)).toHaveAttribute("aria-current", "page");
     await expect(folderRow(page, 4)).not.toHaveAttribute("aria-current", "page");
-    for (const name of [/^홈$/, /^전체$/, /^할일$/]) {
+    for (const name of [/^홈$/, /^전체$/, /^액션$/]) {
       await expect(page.getByRole("button", { name })).not.toHaveAttribute("aria-selected");
     }
     await expect(folderRow(page, 5)).not.toHaveAttribute("aria-selected");
@@ -961,7 +961,7 @@ test.describe("wide sidebar at low heights", () => {
     await expect(page).toHaveURL(/\/folders\/7$/);
   });
 
-  test("no path shows on 홈, 전체, 할일 or 미분류, nor while folders first load", async ({
+  test("no path shows on 홈, 전체, 액션 or 미분류, nor while folders first load", async ({
     page,
   }) => {
     await mockApi(page, { folders: makeFolders(10, 3), folderPages: { delayMs: { 0: 3000 } } });
@@ -979,7 +979,7 @@ test.describe("wide sidebar at low heights", () => {
     for (const [name, url] of [
       [/^홈$/, /\/home$/],
       [/^전체$/, /\/links/],
-      [/^할일$/, /\/todos$/],
+      [/^액션$/, /\/todos$/],
       [/^미분류/, /\/folders\/0$/],
     ] as const) {
       await page.getByRole("button", { name }).click();

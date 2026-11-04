@@ -7,7 +7,7 @@ import { TodoItem } from "./todo-item";
 import { useArgs } from "storybook/preview-api";
 
 const meta = {
-  title: "기능/할 일/할 일 항목",
+  title: "기능/액션/액션 항목",
   component: TodoItem,
   args: {
     text: "ALINK 테마 토큰 검토",
@@ -43,7 +43,7 @@ export const Basic: Story = {
 };
 
 export const Display: Story = {
-  name: "할 일 카드",
+  name: "액션 카드",
   render: (args) => (
     <>
       <TodoItem
@@ -84,13 +84,13 @@ export const States: Story = {
       <TodoItem
         {...args}
         done
-        text="완료된 할 일"
+        text="완료된 액션"
       />
       <TodoItem
         {...args}
         overdue
         badge="기한 초과"
-        text="기한이 지난 할 일"
+        text="기한이 지난 액션"
       />
     </>
   ),

@@ -102,7 +102,7 @@ function LinkCard({
         onPress={onPress}
       >
         <Text
-          className="h-9 text-[13px] font-semibold leading-[18px] text-foreground web:break-keep"
+          className="h-9 text-[13px] font-semibold leading-[18px] text-foreground"
           numberOfLines={2}
           testID="link-card-title"
         >
@@ -140,7 +140,7 @@ function LinkCard({
                 className="max-w-full shrink rounded-lg border border-border-soft bg-surface-elevated px-1.5 py-px"
               >
                 <Text
-                  className="text-[10.5px] font-medium text-muted-foreground"
+                  className="text-xs font-medium text-muted-foreground"
                   numberOfLines={1}
                 >
                   {formatTagLabel(tag)}

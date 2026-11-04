@@ -30,7 +30,7 @@ type NotificationFilter = "all" | "TODO" | "ANNOUNCE";
 
 const NOTIFICATION_SEGMENTS = [
   { label: "전체", value: "all" },
-  { label: "할일", value: "TODO" },
+  { label: "액션", value: "TODO" },
   { label: "공지사항", value: "ANNOUNCE" },
 ];
 

@@ -29,7 +29,7 @@ function TodoHistoryStory({
 }
 
 const meta = {
-  title: "기능/할 일/할 일 기록",
+  title: "기능/액션/액션 기록",
   args: {
     open: true,
     entries: [

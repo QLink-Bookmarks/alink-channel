@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Platform, Text, View, type ViewProps } from "react-native";
+import { Platform, View, type ViewProps } from "react-native";
 import { FadeIn, FadeOut } from "react-native-reanimated";
 import { FullWindowOverlay as RNFullWindowOverlay } from "react-native-screens";
 
@@ -81,21 +81,19 @@ function DialogContent({
           <>{children}</>
           {hideCloseButton ? null : (
             <DialogPrimitive.Close
+              aria-label="닫기"
+              role="button"
               className={cn(
-                "absolute right-4 top-4 rounded opacity-70 active:opacity-100",
+                "absolute right-0.5 top-0.5 size-11 items-center justify-center rounded-md opacity-70 active:opacity-100",
                 Platform.select({
                   web: "ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 data-[state=open]:bg-accent",
                 }),
               )}
-              hitSlop={12}
             >
-              <View>
-                <Icon
-                  as={X}
-                  className={cn("size-4 shrink-0 text-accent-foreground web:pointer-events-none")}
-                />
-                <Text className="sr-only">닫기</Text>
-              </View>
+              <Icon
+                as={X}
+                className={cn("size-4 shrink-0 text-accent-foreground web:pointer-events-none")}
+              />
             </DialogPrimitive.Close>
           )}
         </DialogPrimitive.Content>

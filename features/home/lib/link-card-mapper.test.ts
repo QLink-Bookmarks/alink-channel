@@ -24,7 +24,7 @@ describe("mapTodoCounts", () => {
       dueSoon: 1,
       overdue: 2,
       allDone: false,
-      label: "할 일 2개, 임박 1개, 기한 지남 2개",
+      label: "액션 2개, 임박 1개, 기한 지남 2개",
     });
   });
 
@@ -33,10 +33,10 @@ describe("mapTodoCounts", () => {
       "임박 1개",
     );
     expect(mapTodoCounts({ open: 2, dueSoon: 0, overdue: 1, completed: 4 })?.label).toBe(
-      "할 일 1개, 기한 지남 1개",
+      "액션 1개, 기한 지남 1개",
     );
     expect(mapTodoCounts({ open: 3, dueSoon: 0, overdue: 0, completed: 0 })?.label).toBe(
-      "할 일 3개",
+      "액션 3개",
     );
   });
 
@@ -46,7 +46,7 @@ describe("mapTodoCounts", () => {
       dueSoon: 0,
       overdue: 0,
       allDone: true,
-      label: "할 일 모두 완료",
+      label: "액션 모두 완료",
     });
   });
 

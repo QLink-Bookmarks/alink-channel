@@ -75,7 +75,7 @@ function BottomTabs({
             </View>
             <Text
               className={cn(
-                "text-2xs font-medium",
+                "text-xs font-medium",
                 active ? "text-primary" : "text-muted-foreground",
               )}
             >

@@ -32,6 +32,16 @@
 }
 
 @layer base {
+  html {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  html [dir="auto"],
+  html [dir="auto"] * {
+    overflow-wrap: anywhere;
+  }
+
   :root {
     --background: 240 6% 98%;
     --foreground: 217 33% 17%;
@@ -47,8 +57,9 @@
     --muted-foreground: 220 9% 46%;
     --accent: 220 14% 91%;
     --accent-foreground: 217 33% 17%;
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 100%;
+    --destructive-text: 0 74% 42%;
     --border: 220 13% 84%;
     --input: 220 13% 84%;
     --ring: 220 9% 46%;
@@ -71,9 +82,11 @@
     --sidebar-surface-2: 220 14% 91%;
     --primary-2: 220 9% 64%;
     --success: 160 84% 39%;
-    --success-foreground: 0 0% 100%;
+    --success-foreground: 166 91% 9%;
+    --success-text: 163 94% 22%;
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning-foreground: 26 83% 14%;
+    --warning-text: 25 90% 32%;
     --accent-yellow: 50 100% 62%;
     --border-soft: 220 9% 91%;
     --surface: 0 0% 100%;
@@ -108,7 +121,8 @@
     --accent: 222 14% 20%;
     --accent-foreground: 218 16% 79%;
     --destructive: 0 70% 59%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive-foreground: 225 17% 10%;
+    --destructive-text: 0 91% 71%;
     --border: 222 14% 25%;
     --input: 220 14% 18%;
     --ring: 218 16% 79%;
@@ -130,9 +144,11 @@
     --sidebar-surface-2: 221 16% 20%;
     --primary-2: 215 19% 65%;
     --success: 160 60% 55%;
-    --success-foreground: 0 0% 100%;
+    --success-foreground: 166 91% 9%;
+    --success-text: 160 60% 55%;
     --warning: 38 92% 60%;
     --warning-foreground: 225 17% 10%;
+    --warning-text: 38 92% 60%;
     --accent-yellow: 50 100% 70%;
     --border-soft: 220 14% 18%;
     --surface: 220 16% 15%;

@@ -130,7 +130,7 @@ function TaskSlide() {
         <View className="gap-3 border-t border-dashed border-border-soft pt-4">
           <View className="flex-row items-center gap-2">
             <Badge variant="todo">
-              <Text className="text-xs font-semibold">할 일 2/3 완료</Text>
+              <Text className="text-xs font-semibold">액션 2/3 완료</Text>
             </Badge>
           </View>
           <ChecklistRow
@@ -362,7 +362,7 @@ const SLIDES: Slide[] = [
     key: "task",
     subject: "Action",
     title: "저장하고, 행동까지.",
-    description: "북마크에 할 일과 알림을 더해\n저장을 넘어 행동까지.",
+    description: "북마크에 액션과 알림을 더해\n저장을 넘어 행동까지.",
     render: () => <TaskSlide />,
   },
   {
@@ -501,7 +501,7 @@ function OnboardingScreen({ onDone }: { onDone: () => void }) {
               </View>
             </View>
             {slide.footnote ? (
-              <Text className="absolute inset-x-0 bottom-1 px-8 text-center text-[10px] leading-4 text-muted-foreground/60">
+              <Text className="absolute inset-x-0 bottom-1 px-8 text-center text-xs leading-4 text-muted-foreground">
                 {slide.footnote}
               </Text>
             ) : null}

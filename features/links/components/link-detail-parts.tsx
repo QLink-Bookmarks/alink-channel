@@ -121,7 +121,7 @@ function DetailActionButton({
           fill={active ? "currentColor" : "none"}
           className={cn(
             tone === "destructive" ? "text-destructive" : "text-foreground",
-            active && "text-warning",
+            active && "text-warning-icon",
           )}
         />
       </Pressable>

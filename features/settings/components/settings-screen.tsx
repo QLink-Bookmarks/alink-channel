@@ -671,7 +671,7 @@ function BehaviorSection() {
       <View className="flex-row items-center justify-between gap-3">
         <View className="min-w-0 flex-1 gap-1">
           <Text className="text-sm font-semibold text-foreground">리마인더 알림</Text>
-          <Text className="text-xs text-muted-foreground">할 일이 다가오면 알림을 보내요.</Text>
+          <Text className="text-xs text-muted-foreground">액션 기한이 다가오면 알림을 보내요.</Text>
         </View>
         <Switch
           checked={allowsReminder}
@@ -874,7 +874,7 @@ function AppInfoSection({ mode }: { mode: SettingsScreenMode }) {
           <AlertDialogHeader>
             <AlertDialogTitle>회원 탈퇴할까요?</AlertDialogTitle>
             <AlertDialogDescription>
-              탈퇴하면 저장한 링크와 폴더, 할 일이 모두 삭제되며 되돌릴 수 없어요.
+              탈퇴하면 저장한 링크와 폴더, 액션이 모두 삭제되며 되돌릴 수 없어요.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row justify-end">

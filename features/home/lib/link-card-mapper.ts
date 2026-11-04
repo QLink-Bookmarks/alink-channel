@@ -12,7 +12,7 @@ function getDomainFromUrl(url: string): string {
 /**
  * Card-ready todo counts. `normal` excludes the due-soon and overdue todos, so the three
  * kinds never overlap. `allDone` is true when every linked todo is completed.
- * `label` is the tooltip text and the accessible name, e.g. "할 일 1개, 임박 1개, 기한 지남 1개".
+ * `label` is the tooltip text and the accessible name, e.g. "액션 1개, 임박 1개, 기한 지남 1개".
  */
 type TodoCountSummary = {
   normal: number;
@@ -33,13 +33,13 @@ function mapTodoCounts(counts: LinkTodoCounts | null | undefined): TodoCountSumm
     return null;
   }
   if (open === 0) {
-    return { normal: 0, dueSoon: 0, overdue: 0, allDone: true, label: "할 일 모두 완료" };
+    return { normal: 0, dueSoon: 0, overdue: 0, allDone: true, label: "액션 모두 완료" };
   }
   const dueSoon = Math.min(Math.max(counts.dueSoon, 0), open);
   const overdue = Math.min(Math.max(counts.overdue, 0), open - dueSoon);
   const normal = open - dueSoon - overdue;
   const label = [
-    [normal, "할 일"],
+    [normal, "액션"],
     [dueSoon, "임박"],
     [overdue, "기한 지남"],
   ]
