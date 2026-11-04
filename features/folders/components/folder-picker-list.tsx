@@ -36,6 +36,7 @@ type FolderPickerListProps = {
   visibleSections?: FolderSection[];
   listMaxHeight?: number;
   isAddDisabled?: boolean;
+  isHeightFixed?: boolean;
   onSelect: (selection: FolderPickerSelection) => void;
   onAddDialogOpenChange?: (open: boolean) => void;
   className?: string;
@@ -61,6 +62,7 @@ function FolderPickerList({
   visibleSections = ALL_SECTIONS,
   listMaxHeight,
   isAddDisabled = false,
+  isHeightFixed = false,
   onSelect,
   onAddDialogOpenChange,
   className,
@@ -129,6 +131,8 @@ function FolderPickerList({
       ) : null}
       <NestedListBoundary>
         <FolderSections
+          availableHeight={isHeightFixed ? "container" : undefined}
+          className={isHeightFixed ? "min-h-0 flex-1" : undefined}
           extraData={selectedFolderId}
           filterFolder={filterFolder}
           hasLeadingDivider={noneOption != null}

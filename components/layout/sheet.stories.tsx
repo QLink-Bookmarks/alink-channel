@@ -1,12 +1,14 @@
 import * as React from "react";
 import { View } from "react-native";
+import { Easing, useAnimatedReaction } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { type AccentName, type ThemeMode } from "@/lib/theme";
 import type { Meta, StoryObj } from "@storybook/react-native";
 
-import { Sheet } from "./sheet";
+import { Sheet, useSheetMotion } from "./sheet";
 
 type SheetStoryProps = {
   open: boolean;
@@ -303,6 +305,57 @@ export const ClosedByCaller: Story = {
   name: "코드로 닫기",
   render: (_args, context) => (
     <ClosedByCallerStory
+      accent={(context.globals.accent ?? "gray") as AccentName}
+      mode={(context.globals.mode ?? "light") as ThemeMode}
+    />
+  ),
+};
+
+const RESIZE_TIMING = { duration: 240, easing: Easing.bezier(0.4, 0, 0.2, 1) };
+
+function SheetMotionReadout() {
+  const motion = useSheetMotion();
+  const [label, setLabel] = React.useState("멈춰 있음");
+  useAnimatedReaction(
+    () => motion?.target.value ?? null,
+    (target) => {
+      scheduleOnRN(setLabel, target == null ? "멈춰 있음" : `${Math.round(target)}px로 바뀌는 중`);
+    },
+    [motion],
+  );
+  return <Text className="text-sm text-muted-foreground">시트: {label}</Text>;
+}
+
+function ResizeTimingStory({ accent, mode }: Pick<SheetStoryProps, "accent" | "mode">) {
+  const [isLong, setIsLong] = React.useState(false);
+
+  return (
+    <Sheet
+      open
+      title="240ms로 크기를 바꾸는 시트"
+      fitContent
+      resizeTiming={RESIZE_TIMING}
+      accent={accent}
+      mode={mode}
+      onOpenChange={() => {}}
+    >
+      <SheetMotionReadout />
+      <Button
+        variant="outline"
+        onPress={() => setIsLong((value) => !value)}
+      >
+        <Text>{isLong ? "짧게" : "길게"}</Text>
+      </Button>
+      {isLong ? <LongContent /> : <ShortContent />}
+    </Sheet>
+  );
+}
+
+/** resizeTiming: 콘텐츠 높이가 바뀔 때 스프링 대신 240ms 타이밍으로 크기를 바꾼다. 안쪽에서는 useSheetMotion으로 시트가 향하는 위치를 읽는다. */
+export const ResizeTiming: Story = {
+  name: "크기 전환 타이밍",
+  render: (_args, context) => (
+    <ResizeTimingStory
       accent={(context.globals.accent ?? "gray") as AccentName}
       mode={(context.globals.mode ?? "light") as ThemeMode}
     />

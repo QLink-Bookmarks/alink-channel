@@ -1,6 +1,10 @@
 import * as React from "react";
 import { Pressable, type StyleProp, View, type ViewStyle } from "react-native";
-import Animated from "react-native-reanimated";
+import Animated, {
+  type EasingFunctionFactory,
+  type SharedValue,
+  useDerivedValue,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/icon";
@@ -10,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useDisplaySettings } from "@/stores/display-settings";
 import { useSheetTracker } from "@/stores/sheet-tracker";
 import {
+  ANIMATION_STATUS,
   BottomSheetBackdrop,
   type BottomSheetBackdropProps,
   type BottomSheetBackgroundProps,
@@ -17,6 +22,8 @@ import {
   type BottomSheetFooterProps,
   BottomSheetModal,
   BottomSheetScrollView,
+  useBottomSheetInternal,
+  useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
 
 import { X } from "lucide-react-native/icons";
@@ -32,6 +39,32 @@ const SheetContext = React.createContext<boolean>(false);
 function useIsInsideSheet() {
   return React.useContext(SheetContext);
 }
+
+type SheetMotion = {
+  position: SharedValue<number>;
+  target: SharedValue<number | null>;
+};
+
+const SheetMotionContext = React.createContext<SheetMotion | null>(null);
+
+function useSheetMotion() {
+  return React.use(SheetMotionContext);
+}
+
+function SheetMotionProvider({ children }: { children: React.ReactNode }) {
+  const { animatedPosition, animatedAnimationState } = useBottomSheetInternal();
+  const target = useDerivedValue(() => {
+    const { status, nextPosition } = animatedAnimationState.value;
+    return status === ANIMATION_STATUS.RUNNING && nextPosition != null ? nextPosition : null;
+  });
+  const motion = React.useMemo(
+    () => ({ position: animatedPosition, target }),
+    [animatedPosition, target],
+  );
+  return <SheetMotionContext.Provider value={motion}>{children}</SheetMotionContext.Provider>;
+}
+
+type SheetResizeTiming = { duration: number; easing: EasingFunctionFactory };
 
 // View scope: 모바일 전용. md >= 769px에서는 사용하지 않는다.
 
@@ -93,6 +126,11 @@ type SheetProps = {
    * inside an already-open editor sheet).
    */
   stackBehavior?: "switch" | "push" | "replace";
+  /**
+   * Timing for every move of the sheet (open, close, content resize) instead of the default
+   * spring, so a sheet whose content animates its height can follow it frame for frame.
+   */
+  resizeTiming?: SheetResizeTiming;
 };
 
 function Sheet({
@@ -112,8 +150,13 @@ function Sheet({
   footer,
   onOpenChange,
   stackBehavior = "switch",
+  resizeTiming,
 }: SheetProps) {
   const [footerHeight, setFooterHeight] = React.useState(0);
+  const resizeConfigs = useBottomSheetTimingConfigs({
+    duration: resizeTiming?.duration,
+    easing: resizeTiming?.easing,
+  });
   const sheetRef = React.useRef<BottomSheetModal>(null);
   const insets = useSafeAreaInsets();
   // Default to the active app theme so sheets follow dark mode even when the
@@ -354,6 +397,7 @@ function Sheet({
       enableContentPanningGesture={false}
       enablePanDownToClose={dismissible}
       stackBehavior={stackBehavior}
+      animationConfigs={resizeTiming ? resizeConfigs : undefined}
       backdropComponent={renderBackdrop}
       backgroundComponent={renderBackground}
       footerComponent={hasFooter ? renderFooter : undefined}
@@ -363,16 +407,18 @@ function Sheet({
       onDismiss={handleDismiss}
     >
       <SheetContext.Provider value={true}>
-        <BottomSheetScrollView
-          className="scrollbar-none"
-          showsVerticalScrollIndicator={false}
-        >
-          {content}
-        </BottomSheetScrollView>
+        <SheetMotionProvider>
+          <BottomSheetScrollView
+            className="scrollbar-none"
+            showsVerticalScrollIndicator={false}
+          >
+            {content}
+          </BottomSheetScrollView>
+        </SheetMotionProvider>
       </SheetContext.Provider>
     </BottomSheetModal>
   );
 }
 
-export { Sheet, useIsInsideSheet };
-export type { SheetProps };
+export { Sheet, useIsInsideSheet, useSheetMotion };
+export type { SheetMotion, SheetProps };

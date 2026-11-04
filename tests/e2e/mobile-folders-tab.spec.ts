@@ -9,6 +9,7 @@ import {
   mockApi,
   settingsHandler,
 } from "./support/mock-api";
+import { settleSections } from "./support/section-motion";
 
 const PIN_TOP = /0px 6px 10px -8px/;
 
@@ -82,6 +83,7 @@ async function settle(page: Page) {
       ),
     )
     .toBe(0);
+  await settleSections(page);
 }
 
 async function scrollableOffsets(page: Page) {
@@ -721,6 +723,7 @@ test.describe("mobile folder tab states", () => {
     await toggle(page, "공유 폴더").click();
     const shared = sectionList(page, "공유 폴더");
     await expect(folderRow(shared, 80)).toBeVisible();
+    await settle(page);
 
     await scrollTo(shared, 120);
     const anchor = folderRow(shared, 74);

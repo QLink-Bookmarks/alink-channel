@@ -12,6 +12,7 @@ import {
   mockApi,
   settingsHandler,
 } from "./support/mock-api";
+import { settleSections } from "./support/section-motion";
 
 const DARK_SETTINGS = {
   "GET /api/users/me/settings": (route: Route) =>
@@ -75,6 +76,7 @@ async function settle(page: Page) {
       ),
     )
     .toBe(0);
+  await settleSections(page);
 }
 
 function windowScope(page: Page, title: string): Locator | Page {
