@@ -249,6 +249,35 @@ describe("FolderSectionsView", () => {
     expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
   });
 
+  it("cancels the pending motion start when it unmounts mid-switch", () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    const request = jest.spyOn(global, "requestAnimationFrame").mockImplementation((callback) => {
+      const id = frames.size + 1;
+      frames.set(id, callback);
+      return id;
+    });
+    const cancel = jest.spyOn(global, "cancelAnimationFrame").mockImplementation((id) => {
+      frames.delete(id);
+    });
+    try {
+      const view = render(<Harness />);
+      fireEvent.press(screen.getByRole("button", { name: "새 폴더 펼치기" }));
+      measureOpening("new", 48);
+      const started = [...frames.keys()];
+      expect(started.length).toBeGreaterThan(0);
+
+      view.unmount();
+
+      for (const id of started) {
+        expect(cancel).toHaveBeenCalledWith(id);
+      }
+      expect(frames.size).toBe(0);
+    } finally {
+      request.mockRestore();
+      cancel.mockRestore();
+    }
+  });
+
   it("switches at once with reduced motion", () => {
     mockReducedMotion = true;
     render(<Harness />);

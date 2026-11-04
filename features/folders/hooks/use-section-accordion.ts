@@ -119,6 +119,8 @@ function useSectionAccordion<K extends string>({
   const visibleRef = React.useRef<SectionHeights>({});
   const targetRef = React.useRef<SectionHeights>({});
   const settledMinRef = React.useRef(minHeight);
+  const isMountedRef = React.useRef(true);
+  const framesRef = React.useRef(new Set<number>());
   const latestRef = React.useRef({
     openKey,
     minHeight,
@@ -147,7 +149,7 @@ function useSectionAccordion<K extends string>({
   );
 
   const finishTransition = React.useCallback((token: number) => {
-    if (token !== tokenRef.current) {
+    if (!isMountedRef.current || token !== tokenRef.current) {
       return;
     }
     const key = latestRef.current.openKey;
@@ -186,6 +188,18 @@ function useSectionAccordion<K extends string>({
     onArrive: finishWithSheet,
     onStop: continueOnTiming,
   });
+
+  React.useEffect(() => {
+    isMountedRef.current = true;
+    const frames = framesRef.current;
+    return () => {
+      isMountedRef.current = false;
+      for (const frame of frames) {
+        cancelAnimationFrame(frame);
+      }
+      frames.clear();
+    };
+  }, []);
 
   const getAvailableList = React.useCallback(() => {
     const {
@@ -380,7 +394,12 @@ function useSectionAccordion<K extends string>({
       run();
       return;
     }
-    requestAnimationFrame(run);
+    const frames = framesRef.current;
+    const frame = requestAnimationFrame(() => {
+      frames.delete(frame);
+      run();
+    });
+    frames.add(frame);
   }, [runRetarget, runStart, state.request]);
 
   React.useLayoutEffect(() => {
