@@ -1,4 +1,4 @@
-import { type Page, expect, test } from "@playwright/test";
+import { type Locator, type Page, expect, test } from "@playwright/test";
 
 import { boxOf, isWideProject } from "./support/helpers";
 import { type MockFolder, makeDetail, makeLink, mockApi } from "./support/mock-api";
@@ -244,6 +244,46 @@ test.describe("wide", () => {
     expect(sample.final.lists.shared).toBeNull();
     await context.close();
   });
+
+  for (const state of [
+    {
+      name: "still loading",
+      options: { folderPages: { delayMs: { 0: 60_000 } } },
+      notice: (scope: Locator) => scope.getByRole("progressbar", { name: "폴더를 불러오는 중" }),
+    },
+    {
+      name: "without folders",
+      options: { folders: mixedFolders(30, 0) },
+      notice: (scope: Locator) => scope.getByText("아직 공유 폴더가 없어요", { exact: true }),
+    },
+  ] as const) {
+    test(`sidebar: a section ${state.name} opens and closes with the same motion and keeps its notice`, async ({
+      page,
+    }) => {
+      await prepare(page, "sidebar", "mine", state.options);
+      await page.goto("/home");
+      const sidebar = page.locator(SIDEBAR);
+      await ready(page, "mine", SIDEBAR);
+
+      const switched = await sampleSectionMotion(page, {
+        scope: SIDEBAR,
+        clicks: [{ at: 0, section: "shared" }],
+      });
+      expectSwitchTogether(switched, "shared", "mine");
+      expect(lastMotion(switched)).toBeLessThanOrEqual(340);
+      await expect(
+        state.notice(sidebar.getByLabel("공유 폴더 목록", { exact: true })).first(),
+      ).toBeVisible();
+
+      const closed = await sampleSectionMotion(page, {
+        scope: SIDEBAR,
+        clicks: [{ at: 0, section: "shared" }],
+      });
+      expect(movingFrames(closed, "shared")).toBeGreaterThanOrEqual(5);
+      expect(headerJump(closed, "shared")).toBeLessThan(0.35);
+      expect(closed.final.lists.shared).toBeNull();
+    });
+  }
 
   test("sidebar: sections that failed to load switch with the same motion", async ({ page }) => {
     await prepare(page, "sidebar", "mine", { folderPages: { failAll: true } });
