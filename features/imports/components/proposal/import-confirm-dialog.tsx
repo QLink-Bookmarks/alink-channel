@@ -14,9 +14,21 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 
+import { getImportErrorName } from "../../api";
 import { formatNumber } from "../../lib/split-import-ranges";
 
 import { CircleAlert, RotateCw } from "lucide-react-native/icons";
+
+type StartErrorKind = "retry" | "nothing-to-import";
+
+const START_ERROR_COPY: Record<StartErrorKind, string> = {
+  retry: "잠시 후 다시 시도해 주세요.",
+  "nothing-to-import": "이미 모두 저장된 링크라 새로 가져올 링크가 없어요",
+};
+
+function getStartErrorKind(error: unknown): StartErrorKind {
+  return getImportErrorName(error) === "IMPORT_NOTHING_TO_IMPORT" ? "nothing-to-import" : "retry";
+}
 
 type ImportConfirmDialogProps = {
   open: boolean;
@@ -36,14 +48,14 @@ function ImportConfirmDialog({
   onPendingChange,
 }: ImportConfirmDialogProps) {
   const [isPending, setIsPending] = React.useState(false);
-  const [hasError, setHasError] = React.useState(false);
+  const [errorKind, setErrorKind] = React.useState<StartErrorKind | null>(null);
   const pendingRef = React.useRef(false);
   const [wasOpen, setWasOpen] = React.useState(open);
 
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
-      setHasError(false);
+      setErrorKind(null);
       setIsPending(false);
     }
   }
@@ -59,20 +71,23 @@ function ImportConfirmDialog({
   }, [isPending, onPendingChange]);
 
   const handleStart = React.useCallback(async () => {
-    if (pendingRef.current) {
+    if (pendingRef.current || errorKind === "nothing-to-import") {
       return;
     }
     pendingRef.current = true;
     setIsPending(true);
-    setHasError(false);
+    setErrorKind(null);
     try {
       await onStart();
-    } catch {
+    } catch (error) {
       pendingRef.current = false;
       setIsPending(false);
-      setHasError(true);
+      setErrorKind(getStartErrorKind(error));
     }
-  }, [onStart]);
+  }, [errorKind, onStart]);
+
+  const isRetry = errorKind === "retry";
+  const isStartBlocked = isPending || errorKind === "nothing-to-import";
 
   const handleOpenChange = React.useCallback(
     (next: boolean) => {
@@ -92,14 +107,14 @@ function ImportConfirmDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>가져오기를 시작할까요?</AlertDialogTitle>
         </AlertDialogHeader>
-        {hasError ? (
+        {errorKind ? (
           <Alert
             icon={CircleAlert}
             variant="danger"
           >
             <AlertTitle className="font-semibold">가져오기를 시작하지 못했어요</AlertTitle>
             <AlertDescription className="text-muted-foreground">
-              잠시 후 다시 시도해 주세요.
+              {START_ERROR_COPY[errorKind]}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -122,21 +137,21 @@ function ImportConfirmDialog({
             <Text className="text-sm font-semibold">취소</Text>
           </Button>
           <Button
-            accessibilityState={{ busy: isPending, disabled: isPending }}
+            accessibilityState={{ busy: isPending, disabled: isStartBlocked }}
             aria-busy={isPending}
             className="h-10 flex-row gap-2 rounded-xl px-4"
-            disabled={isPending}
+            disabled={isStartBlocked}
             onPress={() => void handleStart()}
           >
             {isPending ? <ActivityIndicator tone="onPrimary" /> : null}
-            {hasError && !isPending ? (
+            {isRetry && !isPending ? (
               <Icon
                 as={RotateCw}
                 className="size-4 text-primary-foreground"
               />
             ) : null}
             <Text className="text-sm font-semibold">
-              {isPending ? "가져오는 중…" : hasError ? "다시 시도" : "시작"}
+              {isPending ? "가져오는 중…" : isRetry ? "다시 시도" : "시작"}
             </Text>
           </Button>
         </AlertDialogFooter>
@@ -145,4 +160,5 @@ function ImportConfirmDialog({
   );
 }
 
-export { ImportConfirmDialog };
+export { ImportConfirmDialog, getStartErrorKind };
+export type { StartErrorKind };
