@@ -73,11 +73,7 @@ test.describe("home entry", () => {
     ).toHaveCount(isWideProject() ? 1 : 0);
 
     await empty.getByRole("button", { name: "링크 추가" }).click();
-    await expect(
-      page.getByRole("textbox", {
-        name: isWideProject() ? "https://www.example.com" : "https://...",
-      }),
-    ).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "URL", exact: true })).toBeVisible();
     await expect(page).toHaveURL(/\/home$/);
   });
 
