@@ -32,6 +32,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CircleAlert,
+  CircleCheck,
   Copy,
   Undo2,
 } from "lucide-react-native";
@@ -43,9 +45,47 @@ type ImportDetailViewProps = {
   onReverse: (detail: ImportDetail) => void;
 };
 
+const COPY_NOTICE_MS = 3000;
+const COPY_SUCCESS = "주소를 복사했어요.";
+const COPY_FAILURE = "주소를 복사하지 못했어요.";
+
+type CopyNotice = { isSuccess: boolean; key: number };
+
+function useCopyFeedback(isPage: boolean) {
+  const showToast = useToastStore((state) => state.showToast);
+  const [notice, setNotice] = React.useState<CopyNotice | null>(null);
+
+  React.useEffect(() => {
+    if (!notice) {
+      return;
+    }
+    const timer = setTimeout(() => setNotice(null), COPY_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  const report = React.useCallback(
+    (isSuccess: boolean) => {
+      if (isPage) {
+        setNotice({ isSuccess, key: Date.now() });
+        return;
+      }
+      showToast({
+        durationMs: COPY_NOTICE_MS,
+        sourceKey: "import-failure-copy",
+        title: isSuccess ? COPY_SUCCESS : COPY_FAILURE,
+        variant: isSuccess ? "success" : "error",
+      });
+    },
+    [isPage, showToast],
+  );
+
+  return { notice, report };
+}
+
 function ImportDetailView({ importId, mode, onBack, onReverse }: ImportDetailViewProps) {
   const router = useRouter();
   const detailQuery = useImportQuery(importId);
+  const copyFeedback = useCopyFeedback(mode === "page");
   const detail = detailQuery.data;
   const isNotFound =
     !Number.isFinite(importId) ||
@@ -173,17 +213,38 @@ function ImportDetailView({ importId, mode, onBack, onReverse }: ImportDetailVie
         showsVerticalScrollIndicator={false}
       >
         <DetailSummary detail={detail} />
-        <DetailFailures detail={detail} />
+        <DetailFailures
+          detail={detail}
+          onCopyResult={copyFeedback.report}
+        />
         <DetailFolders detail={detail} />
       </ScrollView>
 
-      {openLinksButton || reverseButton ? (
+      {openLinksButton || reverseButton || copyFeedback.notice ? (
         <View
           className={cn(
             "border-t border-border bg-background px-4 py-3",
             isPage ? "gap-2" : "flex-row justify-end gap-2",
           )}
         >
+          {isPage && copyFeedback.notice ? (
+            <View
+              key={copyFeedback.notice.key}
+              role="status"
+              accessibilityLiveRegion="polite"
+              className="flex-row items-center justify-center gap-1.5 py-1"
+              testID="import-copy-notice"
+            >
+              <Icon
+                as={copyFeedback.notice.isSuccess ? CircleCheck : CircleAlert}
+                size={16}
+                className={copyFeedback.notice.isSuccess ? "text-success" : "text-destructive"}
+              />
+              <Text className="text-base font-medium text-foreground">
+                {copyFeedback.notice.isSuccess ? COPY_SUCCESS : COPY_FAILURE}
+              </Text>
+            </View>
+          ) : null}
           {isPage ? openLinksButton : reverseButton}
           {isPage ? reverseButton : openLinksButton}
         </View>
@@ -295,7 +356,13 @@ function SummaryCell({
   );
 }
 
-function DetailFailures({ detail }: { detail: ImportDetail }) {
+function DetailFailures({
+  detail,
+  onCopyResult,
+}: {
+  detail: ImportDetail;
+  onCopyResult: (isSuccess: boolean) => void;
+}) {
   if (detail.failures.length === 0) {
     return null;
   }
@@ -314,6 +381,7 @@ function DetailFailures({ detail }: { detail: ImportDetail }) {
             key={`${failure.url}-${index}`}
             failure={failure}
             isFirst={index === 0}
+            onCopyResult={onCopyResult}
           />
         ))}
       </View>
@@ -321,30 +389,20 @@ function DetailFailures({ detail }: { detail: ImportDetail }) {
   );
 }
 
-function DetailFailureRow({ failure, isFirst }: { failure: ImportFailure; isFirst: boolean }) {
-  const showToast = useToastStore((state) => state.showToast);
+function DetailFailureRow({
+  failure,
+  isFirst,
+  onCopyResult,
+}: {
+  failure: ImportFailure;
+  isFirst: boolean;
+  onCopyResult: (isSuccess: boolean) => void;
+}) {
   const name = failure.title || failure.url;
   const handleCopy = () => {
     Clipboard.setStringAsync(failure.url)
-      .then((copied) => {
-        if (copied === false) {
-          throw new Error("clipboard refused");
-        }
-        showToast({
-          durationMs: 3000,
-          sourceKey: "import-failure-copy",
-          title: "주소를 복사했어요.",
-          variant: "success",
-        });
-      })
-      .catch(() => {
-        showToast({
-          durationMs: 3000,
-          sourceKey: "import-failure-copy",
-          title: "주소를 복사하지 못했어요.",
-          variant: "error",
-        });
-      });
+      .then((copied) => onCopyResult(copied !== false))
+      .catch(() => onCopyResult(false));
   };
 
   return (

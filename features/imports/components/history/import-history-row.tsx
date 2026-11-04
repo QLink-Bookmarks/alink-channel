@@ -94,7 +94,7 @@ function ImportHistoryRow({
               accessibilityLabel={`${summary.fileName} 되돌리기`}
               onPress={handleReverse}
             >
-              <Text className="text-base font-semibold">되돌리기</Text>
+              <Text className="text-base font-medium">되돌리기</Text>
             </Button>
           )
         ) : null}

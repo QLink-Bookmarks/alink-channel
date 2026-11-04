@@ -695,6 +695,11 @@ test.describe("record detail", () => {
     await expect(copy).toHaveText("");
     await copy.click();
     await expect(page.getByText("주소를 복사했어요.")).toBeVisible();
+    if (!isWideProject()) {
+      const notice = await boxOf(page.getByTestId("import-copy-notice"));
+      const footerButton = await boxOf(page.getByRole("button", { name: "가져온 링크 보기" }));
+      expect(notice.y + notice.height).toBeLessThanOrEqual(footerButton.y + 1);
+    }
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
       "https://vpn.example-corp.internal/login",
     );

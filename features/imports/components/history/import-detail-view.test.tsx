@@ -183,3 +183,39 @@ describe("ImportDetailView footer", () => {
     expect(screen.getByText("일부 실패 · 썸네일 채우는 중")).toBeTruthy();
   });
 });
+
+describe("ImportDetailView copy feedback on the page", () => {
+  it("shows the result above the footer buttons instead of a toast", async () => {
+    mockDetail(detail());
+    mockedSetString.mockResolvedValue(true);
+    render(
+      <ImportDetailView
+        importId={9}
+        mode="page"
+        onBack={jest.fn()}
+        onReverse={jest.fn()}
+      />,
+    );
+
+    fireEvent.press(screen.getByRole("button", { name: "사내 위키 주소 복사" }));
+    await waitFor(() => expect(screen.getByTestId("import-copy-notice")).toBeTruthy());
+    expect(screen.getByText("주소를 복사했어요.")).toBeTruthy();
+    expect(lastToastTitle()).toBeUndefined();
+  });
+
+  it("says when copying failed", async () => {
+    mockDetail(detail());
+    mockedSetString.mockRejectedValue(new Error("denied"));
+    render(
+      <ImportDetailView
+        importId={9}
+        mode="page"
+        onBack={jest.fn()}
+        onReverse={jest.fn()}
+      />,
+    );
+
+    fireEvent.press(screen.getByRole("button", { name: "사내 위키 주소 복사" }));
+    await waitFor(() => expect(screen.getByText("주소를 복사하지 못했어요.")).toBeTruthy());
+  });
+});

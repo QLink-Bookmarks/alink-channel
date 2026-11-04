@@ -19,7 +19,7 @@ function ImportBreadcrumb() {
         href={SETTINGS_PATH}
         asChild
       >
-        <Text className="-ml-1 rounded-md px-1 py-1 text-sm text-muted-foreground web:hover:text-foreground web:hover:underline web:focus-visible:underline">
+        <Text className="-ml-1.5 rounded-md px-1.5 py-1.5 text-sm text-muted-foreground web:outline-none web:hover:text-foreground web:hover:underline web:focus-visible:ring-2 web:focus-visible:ring-ring">
           설정
         </Text>
       </Link>
