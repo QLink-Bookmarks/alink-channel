@@ -18,7 +18,7 @@ import { makeLink } from "./support/mock-api";
 
 // #22 unit 4: home CTA, upload modal, file checks, preview loading and the 3,000 link ranges.
 
-const PREVIEW_LOADING = "가져오기의 미리보기를 생성 중입니다.";
+const PREVIEW_LOADING = "가져오기 미리보기를 만들고 있어요";
 
 function previewBodies(api: Awaited<ReturnType<typeof setupImportFlow>>["api"]) {
   return api.requests
@@ -112,6 +112,31 @@ test.describe("upload window", () => {
     }
   });
 
+  test("mobile shows a plain file card, wide a dashed drop area; both pick a file", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    await openUploadFromHome(page);
+    const zone = page.getByTestId("import-drop-zone");
+    const borderStyle = await zone.evaluate((node) => getComputedStyle(node).borderTopStyle);
+    const hint = zone.getByText(".html · .htm · 10MB 이하");
+    await expect(hint).toBeVisible();
+    expect(
+      Number.parseFloat(await hint.evaluate((node) => getComputedStyle(node).fontSize)),
+    ).toBeGreaterThanOrEqual(12);
+    if (isWideProject()) {
+      expect(borderStyle).toBe("dashed");
+      await expect(zone.getByText("파일을 끌어다 놓거나 북마크 파일을 골라 주세요")).toBeVisible();
+    } else {
+      expect(borderStyle).toBe("solid");
+      await expect(zone.getByText("북마크 파일", { exact: true })).toBeVisible();
+      const pick = await zone.getByRole("button", { name: "파일 선택" }).boundingBox();
+      expect(pick?.height ?? 0).toBeGreaterThanOrEqual(44);
+    }
+    await chooseFile(page, "chrome-export.html");
+    await expect(page.getByText(PROPOSAL_TITLE)).toBeVisible();
+  });
+
   test("dragging a file over the drop area highlights it, and dropping it starts the preview", async ({
     page,
   }) => {
@@ -156,8 +181,10 @@ test.describe("upload window", () => {
       mimeType: "text/plain",
       buffer: Buffer.from("메모"),
     });
-    await expect(page.getByText("HTML 파일만 가져올 수 있어요.")).toBeVisible();
-    await expect(page.getByText("북마크 파일이 아니에요")).toBeVisible();
+    await expect(page.getByText("HTML 파일이 아니에요")).toBeVisible();
+    await expect(
+      page.getByText("‘notes.txt’ 파일은 가져올 수 없어요. HTML 파일만 가져올 수 있어요."),
+    ).toBeVisible();
     expect(countRequests(api, "POST", "/api/import-previews")).toBe(0);
 
     await chooseFile(page, "chrome-export.html");

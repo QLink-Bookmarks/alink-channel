@@ -15,6 +15,7 @@ import {
 import { toLinkTitle } from "../../lib/build-import-candidates";
 import type { ProposalTarget } from "../../lib/proposal-state";
 import { formatNumber } from "../../lib/split-import-ranges";
+import { getRoParticle } from "./proposal-copy";
 import { FolderEmoji, PlusBadge, UNFILED_EMOJI } from "./proposal-folder-list";
 import type { ProposalFolderEntries } from "./proposal-folders";
 
@@ -28,6 +29,8 @@ const FIXED_FILL = {
   zIndex: 60,
 } as unknown as React.ComponentProps<typeof View>["style"];
 const TRAY_HEIGHT_RATIO = 0.55;
+const DRAG_CARD_MAX_WIDTH = 280;
+const DRAG_CARD_EDGE = 8;
 const DRAG_LAYER_STYLE = {
   position: "fixed",
   inset: 0,
@@ -35,9 +38,7 @@ const DRAG_LAYER_STYLE = {
 } as unknown as React.ComponentProps<typeof View>["style"];
 
 function getDropText(name: string) {
-  const code = name.trim().codePointAt(name.trim().length - 1) ?? 0;
-  const final = code >= 0xac00 && code <= 0xd7a3 ? (code - 0xac00) % 28 : -1;
-  return `${name}${final > 0 && final !== 8 ? "으로" : "로"} 옮겨요`;
+  return `${name}${getRoParticle(name)} 옮겨요`;
 }
 
 function DragCard() {
@@ -45,9 +46,12 @@ function DragCard() {
   const x = useLinkDragStore((state) => state.x);
   const y = useLinkDragStore((state) => state.y);
   const over = useLinkDragStore((state) => state.over);
+  const { width } = useWindowDimensions();
   if (!link) {
     return null;
   }
+  const cardWidth = Math.min(DRAG_CARD_MAX_WIDTH, width - DRAG_CARD_EDGE * 2);
+  const left = Math.max(DRAG_CARD_EDGE, Math.min(x + 12, width - DRAG_CARD_EDGE - cardWidth));
   const isBlocked = over?.kind === "shared";
   const hint = isBlocked
     ? "공유 폴더에는 넣을 수 없어요"
@@ -60,10 +64,10 @@ function DragCard() {
       style={
         {
           position: "fixed",
-          left: x + 12,
+          left,
           top: y + 10,
           zIndex: 70,
-          maxWidth: 280,
+          maxWidth: cardWidth,
         } as unknown as React.ComponentProps<typeof View>["style"]
       }
     >

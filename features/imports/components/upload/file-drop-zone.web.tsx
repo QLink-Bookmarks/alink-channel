@@ -144,7 +144,7 @@ function FileDropZone({ canDrop, onFile }: FileDropZoneProps) {
           <Text className="text-[13px] text-muted-foreground">.html · .htm · 10MB 이하</Text>
         </View>
         <Button
-          className="h-11 shrink-0 rounded-xl px-3.5"
+          className="h-11 shrink-0 rounded-xl px-3.5 sm:h-11"
           variant="outline"
           onPress={handlePick}
         >

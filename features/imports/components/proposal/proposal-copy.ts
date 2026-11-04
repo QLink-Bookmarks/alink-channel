@@ -5,12 +5,32 @@ const HANGUL_START = 0xac00;
 const HANGUL_END = 0xd7a3;
 const RIEUL_FINAL = 8;
 
+const SPOKEN_FINALS: Record<string, number> = {
+  "0": 21,
+  "1": RIEUL_FINAL,
+  "3": 16,
+  "6": 1,
+  "7": RIEUL_FINAL,
+  "8": RIEUL_FINAL,
+  l: RIEUL_FINAL,
+  m: 16,
+  n: 4,
+  r: RIEUL_FINAL,
+};
+
 function getFinalConsonant(word: string) {
-  const code = word.trim().codePointAt(word.trim().length - 1) ?? 0;
-  if (code < HANGUL_START || code > HANGUL_END) {
-    return -1;
+  const trimmed = word.trim();
+  const code = trimmed.codePointAt(trimmed.length - 1) ?? 0;
+  if (code >= HANGUL_START && code <= HANGUL_END) {
+    return (code - HANGUL_START) % 28;
   }
-  return (code - HANGUL_START) % 28;
+  const last = trimmed.slice(-1).toLowerCase();
+  return /[0-9a-z]/.test(last) ? (SPOKEN_FINALS[last] ?? 0) : -1;
+}
+
+function getRoParticle(word: string) {
+  const final = getFinalConsonant(word);
+  return final > 0 && final !== RIEUL_FINAL ? "으로" : "로";
 }
 
 function withEul(word: string) {
@@ -18,8 +38,7 @@ function withEul(word: string) {
 }
 
 function withRo(word: string) {
-  const final = getFinalConsonant(word);
-  return `‘${word}’${final > 0 && final !== RIEUL_FINAL ? "으로" : "로"}`;
+  return `‘${word}’${getRoParticle(word)}`;
 }
 
 function withWa(word: string) {
@@ -102,6 +121,7 @@ function getConflictNote(name: string, conflictWith: string) {
 }
 
 export {
+  getRoParticle,
   getAddCaption,
   getChangeMessage,
   getConflictNote,

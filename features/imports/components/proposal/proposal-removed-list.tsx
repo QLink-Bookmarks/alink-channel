@@ -80,7 +80,7 @@ function RemovedGroupHeader({
       {group.links.length > 1 ? (
         <Button
           accessibilityLabel={`‘${name}’에서 뺀 링크 ${formatNumber(group.links.length)}개 모두 넣기`}
-          className="h-9 flex-row gap-1.5 rounded-lg px-2.5"
+          className="h-9 flex-row gap-1.5 self-center rounded-lg px-2.5 sm:h-9"
           size="sm"
           variant="outline"
           onPress={() => proposal.restoreAll(group.target)}
@@ -126,7 +126,7 @@ function RemovedLinkRow({
       </View>
       <Button
         accessibilityLabel={`${link.title} 다시 넣기`}
-        className="h-11 flex-row gap-1.5 rounded-lg px-2.5"
+        className="h-11 flex-row gap-1.5 self-center rounded-lg px-2.5 sm:h-11"
         size="sm"
         variant="ghost"
         onPress={() => onRestore(link.key)}

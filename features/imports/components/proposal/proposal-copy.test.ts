@@ -17,6 +17,19 @@ describe("Korean particles", () => {
     expect(withRo("자바")).toBe("‘자바’로");
     expect(withRo("서울")).toBe("‘서울’로");
     expect(withRo("주식")).toBe("‘주식’으로");
+  });
+
+  it("reads digits and Latin letters aloud to pick the particle", () => {
+    expect(withEul("미분류 링크 1")).toBe("‘미분류 링크 1’을");
+    expect(withEul("Java 21")).toBe("‘Java 21’을");
+    expect(withEul("Java 2")).toBe("‘Java 2’를");
+    expect(withEul("aws")).toBe("‘aws’를");
+    expect(withRo("취업 3")).toBe("‘취업 3’으로");
+    expect(withRo("취업 2")).toBe("‘취업 2’로");
+    expect(withRo("Spring 7")).toBe("‘Spring 7’로");
+    expect(withRo("HTML")).toBe("‘HTML’로");
+    expect(withWa("Vue 3")).toBe("‘Vue 3’과");
+    expect(withEul("📚")).toBe("‘📚’를");
     expect(withWa("취업")).toBe("‘취업’과");
     expect(withWa("aws")).toBe("‘aws’와");
   });

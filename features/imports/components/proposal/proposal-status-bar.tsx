@@ -45,7 +45,10 @@ function ProposalStatusBar({ line, isWide, onUndo, onDismiss }: ProposalStatusBa
       {undoLabel ? (
         <Button
           accessibilityLabel={`${undoLabel}, 되돌릴 수 있는 변경 ${depth}개`}
-          className={cn("shrink-0 flex-row gap-1.5 px-2.5", isWide ? "h-9" : "h-11")}
+          className={cn(
+            "shrink-0 flex-row gap-1.5 self-center px-2.5",
+            isWide ? "h-9 sm:h-9" : "h-11 sm:h-11",
+          )}
           size="sm"
           variant="ghost"
           onPress={onUndo}

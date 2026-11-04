@@ -318,7 +318,9 @@ function ProposalModal({
         renderActions={(wide) => (
           <>
             <Button
-              className={wide ? "h-10 rounded-xl px-4" : "h-12 min-w-0 flex-1 rounded-xl"}
+              className={
+                wide ? "h-10 rounded-xl px-4 sm:h-10" : "h-12 min-w-0 flex-1 rounded-xl sm:h-12"
+              }
               variant="outline"
               onPress={() => setIsDiscardOpen(false)}
             >
@@ -327,7 +329,9 @@ function ProposalModal({
               </Text>
             </Button>
             <Button
-              className={wide ? "h-10 rounded-xl px-4" : "h-12 min-w-0 flex-1 rounded-xl"}
+              className={
+                wide ? "h-10 rounded-xl px-4 sm:h-10" : "h-12 min-w-0 flex-1 rounded-xl sm:h-12"
+              }
               variant="destructive"
               onPress={() => {
                 setIsDiscardOpen(false);
@@ -343,7 +347,7 @@ function ProposalModal({
         onOpenChange={setIsDiscardOpen}
       >
         <Text className="text-sm leading-5 text-muted-foreground">
-          지금 닫으면 옮기거나 지운 내용과 바꾼 폴더 이름이 모두 사라져요.
+          지금 닫으면 옮기거나 뺀 내용과 바꾼 폴더 이름이 모두 사라져요.
         </Text>
       </ProposalConfirmSurface>
     </>
@@ -457,7 +461,7 @@ function ProposalModal({
         footer={
           <View className="flex-row gap-2">
             <Button
-              className="h-12 min-w-0 flex-1 rounded-xl"
+              className="h-12 min-w-0 flex-1 rounded-xl sm:h-12"
               disabled={isSaving}
               variant="outline"
               onPress={requestClose}
@@ -466,7 +470,7 @@ function ProposalModal({
             </Button>
             {hasNothingToAdd ? (
               <Button
-                className="h-12 min-w-0 flex-[1.6] rounded-xl"
+                className="h-12 min-w-0 flex-[1.6] rounded-xl sm:h-12"
                 onPress={onChooseOtherFile}
               >
                 <Text className="text-base font-semibold">다른 파일 선택</Text>
@@ -474,7 +478,7 @@ function ProposalModal({
             ) : (
               <Button
                 accessibilityHint={caption}
-                className="h-12 min-w-0 flex-[1.6] rounded-xl"
+                className="h-12 min-w-0 flex-[1.6] rounded-xl sm:h-12"
                 disabled={!canImport}
                 onPress={() => setIsConfirmOpen(true)}
               >

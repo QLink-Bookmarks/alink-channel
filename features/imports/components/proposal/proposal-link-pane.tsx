@@ -240,7 +240,7 @@ function FolderActions({
       {activeCount > 0 ? (
         <Button
           accessibilityLabel={`‘${name}’의 링크 모두 빼기`}
-          className="h-9 flex-row gap-1.5 rounded-lg px-2.5"
+          className="h-9 flex-row gap-1.5 self-center rounded-lg px-2.5 sm:h-9"
           size="sm"
           variant="ghost"
           onPress={() => removeAll(target)}
@@ -255,7 +255,7 @@ function FolderActions({
       {removedCount > 0 ? (
         <Button
           accessibilityLabel={`‘${name}’에서 뺀 링크 ${restoreLabel}`}
-          className="h-9 flex-row gap-1.5 rounded-lg px-2.5"
+          className="h-9 flex-row gap-1.5 self-center rounded-lg px-2.5 sm:h-9"
           size="sm"
           variant="outline"
           onPress={() => restoreAll(target)}
@@ -301,7 +301,7 @@ function RemovedNote({
       </Text>
       <Button
         accessibilityLabel="뺀 링크 보기"
-        className="h-9 rounded-lg px-3"
+        className="h-9 self-center rounded-lg px-3 sm:h-9"
         size="sm"
         variant="ghost"
         onPress={onShow}

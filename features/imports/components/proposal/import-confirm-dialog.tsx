@@ -98,7 +98,7 @@ function ImportConfirmDialog({
   );
 
   const actionClass = (isWide: boolean) =>
-    isWide ? "h-10 rounded-xl px-4" : "h-12 min-w-0 flex-1 rounded-xl";
+    isWide ? "h-10 rounded-xl px-4 sm:h-10" : "h-12 min-w-0 flex-1 rounded-xl sm:h-12";
   const labelClass = (isWide: boolean) =>
     isWide ? "text-sm font-semibold" : "text-base font-semibold";
 
