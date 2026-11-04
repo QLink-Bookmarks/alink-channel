@@ -9,7 +9,7 @@ import { Fab } from "@/components/layout/fab";
 import { Sheet } from "@/components/layout/sheet";
 import { Topbar } from "@/components/layout/topbar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Emoji } from "@/components/ui/emoji";
+import { Icon } from "@/components/ui/icon";
 import { IconButton } from "@/components/ui/icon-button";
 import { Kbd } from "@/components/ui/kbd";
 import { Text } from "@/components/ui/text";
@@ -42,13 +42,14 @@ import { useAddLinkSheet } from "../hooks/use-add-link-sheet";
 import { useLinkOverlayState } from "../hooks/use-link-overlay-state";
 import { type ShellActions, ShellActionsContext } from "../hooks/use-shell-actions";
 import { useShellRouteState } from "../hooks/use-shell-route-state";
+import { useWideShellInsets } from "../hooks/use-wide-shell-insets";
 import { getFolderIdFromPath } from "../lib/folder-path";
 import { isNewLinkShortcut, suppressNextTextInput } from "../lib/new-link-shortcut";
 import { canOpenWideOverlayInPlace } from "../routes";
 import type { MobileTabKey } from "../types";
 import { WideSidebarColumn } from "./wide-sidebar-column";
 
-import { type Href, Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { type Href, Redirect, useGlobalSearchParams, useRouter } from "expo-router";
 import { Folder, House, ListTodo, Plus, Search, Settings } from "lucide-react-native";
 
 const mobileTabItems = [
@@ -61,6 +62,7 @@ const mobileTabItems = [
 function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const routeState = useShellRouteState();
+  const wideInsets = useWideShellInsets();
   const {
     close: closeAddLinkSheet,
     handleOpenChange: handleAddLinkSheetOpenChange,
@@ -75,6 +77,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const openSearchDialog = useSearchDialog((state) => state.open);
   const setSearchDialogOpen = useSearchDialog((state) => state.setOpen);
   const [isAddLinkDialogOpen, setIsAddLinkDialogOpen] = React.useState(false);
+  const [addLinkFormKey, setAddLinkFormKey] = React.useState(0);
   const [isAddLinkSheetSubStep, setIsAddLinkSheetSubStep] = React.useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = React.useState(false);
   const [createFolderSection, setCreateFolderSection] = React.useState<FolderSection>("mine");
@@ -83,7 +86,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const [pendingMobileLinkId, setPendingMobileLinkId] = React.useState<number | null>(null);
   const [sharedLinkUrl, setSharedLinkUrl] = React.useState<string | null>(null);
   const wasAddLinkOpenRef = React.useRef(false);
-  const { linkUrl: linkUrlParam } = useLocalSearchParams<{ linkUrl?: string }>();
+  const { linkUrl: linkUrlParam } = useGlobalSearchParams<{ linkUrl?: string }>();
   const openFolderSection = useFolderNavigation((state) => state.openSectionOn);
   const isAnnouncementsListRoute = routeState.pathname === "/announcements";
   const mobileFolderId = getFolderIdFromPath(routeState.pathname) ?? Number.NaN;
@@ -99,6 +102,15 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     overlayLinkId: routeState.overlayLinkId,
   });
 
+  const lastPathnameRef = React.useRef(routeState.pathname);
+  React.useEffect(() => {
+    if (lastPathnameRef.current === routeState.pathname) {
+      return;
+    }
+    lastPathnameRef.current = routeState.pathname;
+    setIsAddLinkDialogOpen(false);
+  }, [routeState.pathname]);
+
   React.useEffect(() => {
     const url = linkUrlParam?.trim();
     if (!url) {
@@ -106,6 +118,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     }
     setSharedLinkUrl(url);
     if (routeState.isWideView) {
+      setAddLinkFormKey((key) => key + 1);
       setIsAddLinkDialogOpen(true);
     } else {
       setHasOpenedAddLinkSheet(true);
@@ -331,13 +344,22 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
             onProfilePress={handleProfilePress}
           />
 
-          <View className="flex-1 bg-background">
+          <View
+            className="flex-1 bg-background"
+            style={{ paddingTop: wideInsets.top, paddingBottom: wideInsets.bottom }}
+          >
             <Topbar
               className="flex"
               placeholder="링크 · 요약 · 태그 검색…"
               variant="default"
               searchReadOnly
-              searchLeftSlot={<Emoji className="text-xl">🔍</Emoji>}
+              searchLeftSlot={
+                <Icon
+                  as={Search}
+                  size={16}
+                  className="text-muted-foreground"
+                />
+              }
               searchRightSlot={<Kbd size="sm">⌘/Ctrl + K</Kbd>}
               onSearchPress={handleWideSearchPress}
               actions={
@@ -414,6 +436,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
                 <DialogTitle className="text-xl">새 링크 추가</DialogTitle>
               </DialogHeader>
               <RouteErrorBoundary
+                key={addLinkFormKey}
                 className="mx-8 my-6"
                 description="링크 추가 시트를 다시 열어 시도해주세요."
                 resetKeys={[isAddLinkDialogOpen]}
