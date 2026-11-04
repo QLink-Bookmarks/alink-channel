@@ -179,8 +179,8 @@ describe("ImportHistoryScreen", () => {
   it("keeps each meta number with its unit", () => {
     mockList([summary({ id: 4, linkCount: 11, folderCount: 3, failedCount: 2 })]);
     render(<ImportHistoryScreen />);
-    expect(screen.getByText("링크 11개 ·")).toBeTruthy();
-    expect(screen.getByText("새 폴더 3개 ·")).toBeTruthy();
+    expect(screen.getByText("링크 11개\u00a0·")).toBeTruthy();
+    expect(screen.getByText("새 폴더 3개\u00a0·")).toBeTruthy();
     expect(screen.getByText("실패 2개")).toBeTruthy();
   });
 

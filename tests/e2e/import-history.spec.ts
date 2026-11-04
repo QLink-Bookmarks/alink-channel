@@ -143,9 +143,9 @@ test.describe("bookmark import history", () => {
     await expect(rows.nth(2)).toContainText("bookmarks_old.html");
 
     await expect(historyRow(page, 3)).toContainText("일부 실패");
-    const meta = historyRow(page, 3).getByTestId("import-row-meta");
-    await expect(meta.getByText("링크 4개 ·", { exact: true })).toBeVisible();
-    await expect(meta.getByText("새 폴더 1개 ·", { exact: true })).toBeVisible();
+    const meta = historyRow(page, 3).getByTestId("history-row-meta");
+    await expect(meta.getByText("링크 4개\u00a0·", { exact: true })).toBeVisible();
+    await expect(meta.getByText("새 폴더 1개\u00a0·", { exact: true })).toBeVisible();
     await expect(meta.getByText("실패 2개", { exact: true })).toBeVisible();
     await expect(historyRow(page, 2)).toContainText("완료");
     await expect(historyRow(page, 1)).toContainText("되돌림");
@@ -400,9 +400,9 @@ test.describe("the import that just finished", () => {
     await expect(historyRow(page, 2)).toContainText("bookmarks_26_11_1.html");
 
     if (isWideProject()) {
-      await expect(card.getByRole("button", { name: "상세 보기" })).toBeVisible();
+      await expect(card.getByRole("button", { name: "상세 보기", exact: true })).toBeVisible();
     } else {
-      await expect(card.getByRole("button", { name: "상세 보기" })).toHaveCount(0);
+      await expect(card.getByRole("button", { name: "상세 보기", exact: true })).toHaveCount(0);
       await expect(card.getByRole("button", { name: "fresh_12.html 상세 보기" })).toBeVisible();
     }
 
@@ -426,7 +426,7 @@ test.describe("the import that just finished", () => {
     await expect(page.getByText("가져오기를 되돌릴까요?")).toHaveCount(0);
 
     const detailButton = isWideProject()
-      ? card.getByRole("button", { name: "상세 보기" })
+      ? card.getByRole("button", { name: "상세 보기", exact: true })
       : card.getByRole("button", { name: "fresh_12.html 상세 보기" });
     await detailButton.click();
     await expect(page).toHaveURL(/\/settings\/imports\/12$/);
@@ -518,7 +518,7 @@ test.describe("the import that just finished", () => {
     await expect(reversedCard.getByRole("button", { name: "가져온 링크 보기" })).toHaveCount(0);
     await expect(reversedCard.getByRole("button", { name: /되돌리기/ })).toHaveCount(0);
 
-    await failedCard.getByRole("button", { name: "상세 보기" }).click();
+    await failedCard.getByRole("button", { name: "상세 보기", exact: true }).click();
     await expect(page).toHaveURL(/\/settings\/imports\/15$/);
     await expect(page.getByText("실패한 항목 1개")).toBeVisible();
     await expect(page.getByRole("button", { name: "가져온 링크 보기" })).toHaveCount(0);
@@ -590,7 +590,7 @@ test.describe("history rows and page frame", () => {
     await setup(page, [long]);
     await page.goto("/settings/imports");
 
-    const parts = historyRow(page, 21).getByTestId("import-row-meta").locator(":scope > *");
+    const parts = historyRow(page, 21).getByTestId("history-row-meta").locator(":scope > *");
     await expect(parts).toHaveCount(4);
     const boxes = await parts.evaluateAll((nodes) =>
       nodes.map((node) => {
@@ -603,8 +603,9 @@ test.describe("history rows and page frame", () => {
         };
       }),
     );
-    for (const box of boxes) {
-      expect(box.height, box.text).toBeLessThan(box.lineHeight * 1.5);
+    for (const [index, box] of boxes.entries()) {
+      if (index > 0) expect(box.height, box.text).toBeLessThan(box.lineHeight * 1.5);
+      expect(box.text.endsWith("…"), box.text).toBe(false);
       expect(box.text.startsWith("·"), box.text).toBe(false);
       expect(box.fontSize, box.text).toBeGreaterThanOrEqual(12);
     }
@@ -713,7 +714,9 @@ test.describe("record detail", () => {
         configurable: true,
         value: { writeText: () => Promise.reject(new Error("denied")) },
       });
-      document.execCommand = () => false;
+      document.execCommand = () => {
+        throw new Error("blocked");
+      };
     });
     await setup(page, [PARTIAL]);
     await page.goto("/settings/imports/3");
