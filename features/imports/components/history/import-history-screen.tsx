@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { openImportFlow } from "@/stores/import-flow";
 
 import { useImportProgressRefresh } from "../../hooks/use-import-progress-refresh";
+import { useJustImportedIds } from "../../hooks/use-just-imported-ids";
+import { useOpenImportedLinks } from "../../hooks/use-open-imported-links";
 import { isImportAvailable } from "../../lib/import-availability";
 import { IMPORTS_PATH, getImportDetailPath } from "../../lib/import-paths";
 import { useImportsQuery } from "../../queries";
@@ -21,6 +23,7 @@ import {
   markDetailOpenedFromList,
   wasDetailOpenedFromList,
 } from "./detail-navigation";
+import { ImportBreadcrumb } from "./import-breadcrumb";
 import { ImportDetailView } from "./import-detail-view";
 import { ImportHistoryList } from "./import-history-list";
 
@@ -62,6 +65,8 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
     [importsQuery.data],
   );
   useImportProgressRefresh(importsQuery.data ? summaries : undefined);
+  const justImportedIds = useJustImportedIds(importsQuery.data ? summaries : undefined);
+  const { openImportedLinks, pendingId: openingLinksId } = useOpenImportedLinks();
   const [reversalTarget, setReversalTarget] = React.useState<ReversalTarget | null>(null);
 
   const handleOpenDetail = React.useCallback(
@@ -85,6 +90,12 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
     setReversalTarget(target);
   }, []);
   const handleCloseReversal = React.useCallback(() => setReversalTarget(null), []);
+  const handleOpenLinks = React.useCallback(
+    (summary: ImportSummary) => {
+      void openImportedLinks(summary.id);
+    },
+    [openImportedLinks],
+  );
   const handleNewImport = React.useCallback(() => {
     openImportFlow({ from: "settings" });
   }, []);
@@ -110,6 +121,7 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
         showsVerticalScrollIndicator={false}
       >
         <View className="mx-auto w-full gap-6 px-4 pb-12 pt-4 md:max-w-3xl md:px-6 md:pt-8">
+          {isWide && process.env.EXPO_OS === "web" ? <ImportBreadcrumb /> : null}
           <View className="gap-4 md:flex-row md:items-center md:justify-between">
             <View className="gap-1 md:flex-1">
               <Text
@@ -151,6 +163,8 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
             </Text>
             <ImportHistoryList
               summaries={summaries}
+              justImportedIds={justImportedIds}
+              openingLinksId={openingLinksId}
               isWide={isWide}
               isLoading={importsQuery.isLoading}
               isError={importsQuery.isError}
@@ -159,6 +173,7 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
               onRetry={() => void importsQuery.refetch()}
               onLoadMore={() => void importsQuery.fetchNextPage()}
               onOpenDetail={handleOpenDetail}
+              onOpenLinks={handleOpenLinks}
               onReverse={handleReverse}
             />
           </View>

@@ -8,20 +8,35 @@ import { Icon } from "@/components/ui/icon";
 import { IconButton } from "@/components/ui/icon-button";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
+import { useToastStore } from "@/stores/toast-store";
 
 import { getImportErrorName } from "../../api";
 import {
   UNFILED_FOLDER_EMOJI,
   UNFILED_FOLDER_LABEL,
+  canOpenImportedLinks,
   getImportFailureReasonLabel,
   getImportStartedCopy,
+  getImportedLinksFolderId,
+  isFillingThumbnails,
 } from "../../lib/import-status-copy";
 import { useImportQuery } from "../../queries";
-import type { ImportDetail, ImportDetailFolder } from "../../types";
+import type { ImportDetail, ImportDetailFolder, ImportFailure } from "../../types";
 import { ChangeMark } from "./change-mark";
 import { ImportStatusBadge } from "./import-status-badge";
 
-import { ChevronDown, ChevronLeft, ChevronRight, Undo2 } from "lucide-react-native";
+import * as Clipboard from "expo-clipboard";
+import { type Href, useRouter } from "expo-router";
+import {
+  ArrowRight,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  CircleCheck,
+  Copy,
+  Undo2,
+} from "lucide-react-native";
 
 type ImportDetailViewProps = {
   importId: number;
@@ -30,8 +45,47 @@ type ImportDetailViewProps = {
   onReverse: (detail: ImportDetail) => void;
 };
 
+const COPY_NOTICE_MS = 3000;
+const COPY_SUCCESS = "주소를 복사했어요.";
+const COPY_FAILURE = "주소를 복사하지 못했어요.";
+
+type CopyNotice = { isSuccess: boolean; key: number };
+
+function useCopyFeedback(isPage: boolean) {
+  const showToast = useToastStore((state) => state.showToast);
+  const [notice, setNotice] = React.useState<CopyNotice | null>(null);
+
+  React.useEffect(() => {
+    if (!notice) {
+      return;
+    }
+    const timer = setTimeout(() => setNotice(null), COPY_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  const report = React.useCallback(
+    (isSuccess: boolean) => {
+      if (isPage) {
+        setNotice({ isSuccess, key: Date.now() });
+        return;
+      }
+      showToast({
+        durationMs: COPY_NOTICE_MS,
+        sourceKey: "import-failure-copy",
+        title: isSuccess ? COPY_SUCCESS : COPY_FAILURE,
+        variant: isSuccess ? "success" : "error",
+      });
+    },
+    [isPage, showToast],
+  );
+
+  return { notice, report };
+}
+
 function ImportDetailView({ importId, mode, onBack, onReverse }: ImportDetailViewProps) {
+  const router = useRouter();
   const detailQuery = useImportQuery(importId);
+  const copyFeedback = useCopyFeedback(mode === "page");
   const detail = detailQuery.data;
   const isNotFound =
     !Number.isFinite(importId) ||
@@ -75,12 +129,59 @@ function ImportDetailView({ importId, mode, onBack, onReverse }: ImportDetailVie
     );
   }
 
+  const linksFolderId = canOpenImportedLinks(detail) ? getImportedLinksFolderId(detail) : null;
+  const handleOpenLinks = () => {
+    if (linksFolderId != null) {
+      router.push(`/folders/${linksFolderId}` as Href);
+    }
+  };
+  const statusBadge = (
+    <ImportStatusBadge
+      status={detail.status}
+      isFillingThumbnails={isFillingThumbnails(detail)}
+    />
+  );
+  const isPage = mode === "page";
+  const openLinksButton =
+    linksFolderId != null ? (
+      <Button
+        size={isPage ? "lg" : "default"}
+        className={isPage ? "w-full" : undefined}
+        onPress={handleOpenLinks}
+      >
+        <Text>가져온 링크 보기</Text>
+        <Icon
+          as={ArrowRight}
+          size={16}
+          className="text-primary-foreground"
+        />
+      </Button>
+    ) : null;
+  const reverseButton = detail.isReversible ? (
+    <Button
+      variant="outline"
+      size={isPage ? "lg" : "default"}
+      className={isPage ? "w-full" : undefined}
+      accessibilityLabel="이 가져오기 되돌리기"
+      onPress={() => onReverse(detail)}
+    >
+      <Icon
+        as={Undo2}
+        size={16}
+        className="text-foreground"
+      />
+      <Text>되돌리기</Text>
+    </Button>
+  ) : null;
+
   return (
     <View className="flex-1">
       <View
         className={cn(
-          "flex-row items-center gap-2",
-          mode === "panel" ? "border-b border-border px-3 py-3" : "px-4 pb-1 pt-4",
+          "gap-2",
+          isPage
+            ? "items-start px-4 pb-1 pt-4"
+            : "flex-row items-center border-b border-border px-3 py-3",
         )}
       >
         {mode === "panel" ? (
@@ -94,12 +195,15 @@ function ImportDetailView({ importId, mode, onBack, onReverse }: ImportDetailVie
         ) : null}
         <Text
           role="heading"
-          className="min-w-0 flex-1 text-lg font-semibold text-foreground"
+          className={cn(
+            "min-w-0 text-lg font-semibold text-foreground",
+            isPage ? "self-stretch" : "flex-1",
+          )}
           numberOfLines={1}
         >
           {detail.fileName}
         </Text>
-        <ImportStatusBadge status={detail.status} />
+        {statusBadge}
       </View>
 
       <ScrollView
@@ -109,30 +213,40 @@ function ImportDetailView({ importId, mode, onBack, onReverse }: ImportDetailVie
         showsVerticalScrollIndicator={false}
       >
         <DetailSummary detail={detail} />
-        <DetailFailures detail={detail} />
+        <DetailFailures
+          detail={detail}
+          onCopyResult={copyFeedback.report}
+        />
         <DetailFolders detail={detail} />
       </ScrollView>
 
-      {detail.isReversible ? (
+      {openLinksButton || reverseButton || copyFeedback.notice ? (
         <View
           className={cn(
             "border-t border-border bg-background px-4 py-3",
-            mode === "panel" ? "items-end" : "items-stretch",
+            isPage ? "gap-2" : "flex-row justify-end gap-2",
           )}
         >
-          <Button
-            variant="outline"
-            className={mode === "page" ? "w-full" : "self-end"}
-            accessibilityLabel="이 가져오기 되돌리기"
-            onPress={() => onReverse(detail)}
-          >
-            <Icon
-              as={Undo2}
-              size={16}
-              className="text-foreground"
-            />
-            <Text>되돌리기</Text>
-          </Button>
+          {isPage && copyFeedback.notice ? (
+            <View
+              key={copyFeedback.notice.key}
+              role="status"
+              accessibilityLiveRegion="polite"
+              className="flex-row items-center justify-center gap-1.5 py-1"
+              testID="import-copy-notice"
+            >
+              <Icon
+                as={copyFeedback.notice.isSuccess ? CircleCheck : CircleAlert}
+                size={16}
+                className={copyFeedback.notice.isSuccess ? "text-success" : "text-destructive"}
+              />
+              <Text className="text-base font-medium text-foreground">
+                {copyFeedback.notice.isSuccess ? COPY_SUCCESS : COPY_FAILURE}
+              </Text>
+            </View>
+          ) : null}
+          {isPage ? openLinksButton : reverseButton}
+          {isPage ? reverseButton : openLinksButton}
         </View>
       ) : null}
     </View>
@@ -234,7 +348,7 @@ function SummaryCell({
       role="group"
       aria-label={label}
     >
-      <Text className="text-xs text-muted-foreground">{label}</Text>
+      <Text className="text-sm text-muted-foreground">{label}</Text>
       <Text className={cn("text-lg font-bold", isAdded ? "text-success" : "text-foreground")}>
         {value}
       </Text>
@@ -242,7 +356,13 @@ function SummaryCell({
   );
 }
 
-function DetailFailures({ detail }: { detail: ImportDetail }) {
+function DetailFailures({
+  detail,
+  onCopyResult,
+}: {
+  detail: ImportDetail;
+  onCopyResult: (isSuccess: boolean) => void;
+}) {
   if (detail.failures.length === 0) {
     return null;
   }
@@ -257,32 +377,68 @@ function DetailFailures({ detail }: { detail: ImportDetail }) {
         aria-label="실패한 항목"
       >
         {detail.failures.map((failure, index) => (
-          <View
+          <DetailFailureRow
             key={`${failure.url}-${index}`}
-            role="listitem"
-            className={cn(
-              "min-w-0 gap-0.5 overflow-hidden px-3 py-2.5",
-              index > 0 && "border-t border-border",
-            )}
-          >
-            <Text
-              className="text-sm font-medium text-foreground"
-              numberOfLines={1}
-            >
-              {failure.title || failure.url}
-            </Text>
-            <Text
-              className="text-xs text-muted-foreground"
-              numberOfLines={1}
-            >
-              {failure.url}
-            </Text>
-            <Text className="text-xs text-destructive">
-              {getImportFailureReasonLabel(failure.reason)}
-            </Text>
-          </View>
+            failure={failure}
+            isFirst={index === 0}
+            onCopyResult={onCopyResult}
+          />
         ))}
       </View>
+    </View>
+  );
+}
+
+function DetailFailureRow({
+  failure,
+  isFirst,
+  onCopyResult,
+}: {
+  failure: ImportFailure;
+  isFirst: boolean;
+  onCopyResult: (isSuccess: boolean) => void;
+}) {
+  const name = failure.title || failure.url;
+  const handleCopy = () => {
+    Clipboard.setStringAsync(failure.url)
+      .then((copied) => onCopyResult(copied !== false))
+      .catch(() => onCopyResult(false));
+  };
+
+  return (
+    <View
+      role="listitem"
+      className={cn(
+        "min-w-0 flex-row items-center gap-2 overflow-hidden py-1.5 pl-3 pr-1",
+        !isFirst && "border-t border-border",
+      )}
+    >
+      <View className="min-w-0 flex-1 gap-0.5 py-1">
+        <Text
+          className="text-base font-medium text-foreground"
+          numberOfLines={1}
+        >
+          {name}
+        </Text>
+        {failure.title ? (
+          <Text
+            className="text-sm text-muted-foreground"
+            numberOfLines={1}
+          >
+            {failure.url}
+          </Text>
+        ) : null}
+        <Text className="text-sm text-destructive">
+          {getImportFailureReasonLabel(failure.reason)}
+        </Text>
+      </View>
+      <IconButton
+        accessibilityLabel={`${name} 주소 복사`}
+        icon={Copy}
+        size="md"
+        variant="ghost"
+        onPress={handleCopy}
+      />
     </View>
   );
 }
@@ -349,11 +505,14 @@ function DetailFolder({
           {name}
         </Text>
         {tag ? (
-          <Badge variant="private">
-            <Text>{tag}</Text>
+          <Badge
+            variant="private"
+            className="border-border bg-card"
+          >
+            <Text className="text-sm text-foreground/70">{tag}</Text>
           </Badge>
         ) : null}
-        <Text className="ml-auto text-xs font-semibold text-success">+{folder.links.length}</Text>
+        <Text className="ml-auto text-sm font-semibold text-success">+{folder.links.length}</Text>
       </Pressable>
       {isExpanded ? (
         <View role="list">

@@ -3,12 +3,12 @@ import { Pressable, View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { IconButton } from "@/components/ui/icon-button";
-import { Progress } from "@/components/ui/progress";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
-import { getImportRowMeta } from "../../lib/import-status-copy";
+import { getImportRowMetaParts, isFillingThumbnails } from "../../lib/import-status-copy";
 import type { ImportSummary } from "../../types";
+import { ImportRowMeta } from "./import-row-meta";
 import { ImportStatusBadge } from "./import-status-badge";
 
 import { ChevronRight, FileText, Undo2 } from "lucide-react-native";
@@ -28,9 +28,15 @@ function ImportHistoryRow({
   onOpenDetail,
   onReverse,
 }: ImportHistoryRowProps) {
-  const isFillingThumbnails = summary.progress < 1;
+  const isFilling = isFillingThumbnails(summary);
   const handleOpenDetail = () => onOpenDetail(summary);
   const handleReverse = () => onReverse(summary);
+  const badge = (
+    <ImportStatusBadge
+      status={summary.status}
+      isFillingThumbnails={isFilling}
+    />
+  );
 
   return (
     <View
@@ -58,32 +64,14 @@ function ImportHistoryRow({
             >
               {summary.fileName}
             </Text>
-            {isWide ? <ImportStatusBadge status={summary.status} /> : null}
+            {isWide ? badge : null}
           </View>
-          <Text className="text-xs text-muted-foreground">{getImportRowMeta(summary)}</Text>
-          {isWide ? null : (
-            <View className="flex-row">
-              <ImportStatusBadge status={summary.status} />
-            </View>
-          )}
-          {isFillingThumbnails ? (
-            <View
-              className="gap-1 pt-1"
-              testID={`import-progress-${summary.id}`}
-            >
-              <Progress
-                size="sm"
-                value={Math.round(summary.progress * 100)}
-                className="bg-muted"
-                indicatorClassName="bg-muted-foreground"
-              />
-              <Text className="text-[11px] text-muted-foreground">썸네일 채우는 중</Text>
-            </View>
-          ) : null}
+          <ImportRowMeta parts={getImportRowMetaParts(summary)} />
+          {isWide ? null : <View className="flex-row pt-0.5">{badge}</View>}
         </View>
       </Pressable>
 
-      <View className="flex-row items-center gap-1">
+      <View className={cn("flex-row items-center", isWide ? "gap-1" : "gap-2")}>
         {summary.isReversible ? (
           isWide ? (
             <Button
@@ -100,13 +88,14 @@ function ImportHistoryRow({
               <Text>되돌리기</Text>
             </Button>
           ) : (
-            <IconButton
+            <Pressable
+              accessibilityRole="button"
               accessibilityLabel={`${summary.fileName} 되돌리기`}
-              icon={Undo2}
-              size="md"
-              variant="ghost"
+              className="h-11 justify-center rounded-lg px-2 active:bg-accent web:hover:bg-accent"
               onPress={handleReverse}
-            />
+            >
+              <Text className="text-base font-medium text-foreground">되돌리기</Text>
+            </Pressable>
           )
         ) : null}
         <IconButton

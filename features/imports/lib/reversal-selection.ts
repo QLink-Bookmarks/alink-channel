@@ -46,6 +46,7 @@ type ReversalCounts = {
   links: number;
   folders: number;
   moved: number;
+  edited: number;
 };
 
 const EMPTY_EXCLUSIONS: ReversalExclusions = { linkIds: new Set() };
@@ -137,6 +138,11 @@ function getFolderSelectedCount(folder: ReversalFolderItem, exclusions: Reversal
   return folder.links.filter((link) => isLinkSelected(link, exclusions)).length;
 }
 
+function getFolderEditedSelectedCount(folder: ReversalFolderItem, exclusions: ReversalExclusions) {
+  return folder.links.filter((link) => link.state === "EDITED" && isLinkSelected(link, exclusions))
+    .length;
+}
+
 function isFolderRemoved(folder: ReversalFolderItem, exclusions: ReversalExclusions) {
   return folder.isRemovable && getFolderSelectedCount(folder, exclusions) > 0;
 }
@@ -209,16 +215,18 @@ function getReversalCounts(
   let links = 0;
   let removedFolders = 0;
   let moved = 0;
+  let edited = 0;
   for (const folder of folders) {
     const removed = isFolderRemoved(folder, exclusions);
     if (removed) removedFolders += 1;
+    edited += getFolderEditedSelectedCount(folder, exclusions);
     for (const link of folder.links) {
       const outcome = getReversalLinkOutcome(folder, link, exclusions);
       if (outcome === "remove") links += 1;
       if (outcome === "unfiled") moved += 1;
     }
   }
-  return { links, folders: removedFolders, moved };
+  return { links, folders: removedFolders, moved, edited };
 }
 
 function buildReverseRequest(
@@ -285,6 +293,7 @@ export {
   buildReverseRequest,
   findReversedSince,
   getFolderCheck,
+  getFolderEditedSelectedCount,
   getFolderSelectedCount,
   getReversalCounts,
   getReversalLinkOutcome,

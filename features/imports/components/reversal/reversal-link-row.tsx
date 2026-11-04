@@ -33,12 +33,9 @@ function ReversalLinkRow({ folder, link, exclusions, disabled, onToggle }: Rever
   const isSelected = isLinkSelected(link, exclusions);
   const isMuted = !isSelectable || outcome === "keep" || outcome === "unfiled";
   const host = getHostLabel(link.url);
+  const isEdited = link.state === "EDITED";
   const subtitle =
-    link.state === "ADDED_LATER"
-      ? "가져온 뒤 직접 저장한 링크라 지우지 않아요"
-      : link.state === "EDITED"
-        ? `가져온 뒤 수정됨 · ${host}`
-        : host;
+    link.state === "ADDED_LATER" ? "가져온 뒤 직접 저장한 링크라 지우지 않아요" : host;
   const handleToggle = () => onToggle(folder, link.linkId);
 
   return (
@@ -64,12 +61,22 @@ function ReversalLinkRow({ folder, link, exclusions, disabled, onToggle }: Rever
         >
           {link.title || host}
         </Text>
-        <Text
-          className="text-xs text-muted-foreground"
-          numberOfLines={1}
-        >
-          {subtitle}
-        </Text>
+        <View className="min-w-0 flex-row items-center gap-1.5">
+          {isEdited ? (
+            <Badge
+              variant="warning"
+              className="py-0"
+            >
+              <Text className="text-sm font-semibold">가져온 뒤 수정됨</Text>
+            </Badge>
+          ) : null}
+          <Text
+            className="min-w-0 shrink text-sm text-muted-foreground"
+            numberOfLines={1}
+          >
+            {subtitle}
+          </Text>
+        </View>
       </Pressable>
       <LinkOutcome outcome={outcome} />
     </View>
@@ -79,8 +86,11 @@ function ReversalLinkRow({ folder, link, exclusions, disabled, onToggle }: Rever
 function LinkOutcome({ outcome }: { outcome: ReturnType<typeof getReversalLinkOutcome> }) {
   if (outcome === "deleted") {
     return (
-      <Badge variant="private">
-        <Text>이미 삭제됨</Text>
+      <Badge
+        variant="private"
+        className="border-border bg-card"
+      >
+        <Text className="text-sm text-foreground/70">이미 삭제됨</Text>
       </Badge>
     );
   }
@@ -92,7 +102,7 @@ function LinkOutcome({ outcome }: { outcome: ReturnType<typeof getReversalLinkOu
           size={12}
           className="text-muted-foreground"
         />
-        <Text className="text-xs text-muted-foreground">지웠어요</Text>
+        <Text className="text-sm text-muted-foreground">지웠어요</Text>
       </View>
     );
   }
@@ -100,7 +110,7 @@ function LinkOutcome({ outcome }: { outcome: ReturnType<typeof getReversalLinkOu
     return (
       <View className="flex-row items-center gap-1">
         <ChangeMark kind="remove" />
-        <Text className="text-xs font-semibold text-destructive">지워요</Text>
+        <Text className="text-sm font-semibold text-destructive">지워요</Text>
       </View>
     );
   }
@@ -108,11 +118,11 @@ function LinkOutcome({ outcome }: { outcome: ReturnType<typeof getReversalLinkOu
     return (
       <View className="flex-row items-center gap-1">
         <ChangeMark kind="add" />
-        <Text className="text-xs font-semibold text-success">미분류</Text>
+        <Text className="text-sm font-semibold text-success">미분류</Text>
       </View>
     );
   }
-  return <Text className="text-xs text-muted-foreground">남겨요</Text>;
+  return <Text className="text-sm text-muted-foreground">남겨요</Text>;
 }
 
 export { ReversalLinkRow };

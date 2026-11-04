@@ -118,7 +118,7 @@ function ReversalSession({
   const hasSelection = counts.links > 0 || counts.folders > 0;
   const isRetry = error?.kind === "failed" && hasRemaining;
   const hint = !hasRemaining
-    ? "더 지울 항목이 없어요."
+    ? { text: "더 지울 항목이 없어요.", editedNote: null }
     : getReversalHint(counts, { hasError: error != null });
   const submitLabel = isSubmitting ? "되돌리는 중…" : isRetry ? "남은 항목 다시 시도" : "되돌리기";
   const errorCopy = error
@@ -235,7 +235,15 @@ function ReversalSession({
             )}
           </View>
           <View className="flex-row items-center gap-3 border-t border-border px-6 py-4">
-            <Text className="flex-1 text-sm text-muted-foreground">{hint}</Text>
+            <Text
+              className="flex-1 text-sm text-muted-foreground"
+              testID="reversal-hint"
+            >
+              {hint.text}
+              {hint.editedNote ? (
+                <Text className="text-sm font-semibold text-warning"> {hint.editedNote}</Text>
+              ) : null}
+            </Text>
             {cancelButton}
             {submitButton}
           </View>
@@ -251,10 +259,20 @@ function ReversalSession({
       defaultSize="88%"
       maxSize="92%"
       footer={
-        <View className="gap-2">
-          {submitButton}
-          {cancelButton}
-          <Text className="text-center text-xs text-muted-foreground">{hint}</Text>
+        <View className="gap-3">
+          <View
+            className="gap-0.5"
+            testID="reversal-hint"
+          >
+            <Text className="text-sm text-muted-foreground">{hint.text}</Text>
+            {hint.editedNote ? (
+              <Text className="text-sm font-semibold text-warning">{hint.editedNote}</Text>
+            ) : null}
+          </View>
+          <View className="flex-row gap-2">
+            <View className="flex-1">{cancelButton}</View>
+            <View className="flex-1">{submitButton}</View>
+          </View>
         </View>
       }
       onOpenChange={handleOpenChange}
