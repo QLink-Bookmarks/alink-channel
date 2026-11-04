@@ -60,8 +60,7 @@ function DetailPanelBody({
   return (
     <View
       className={cn(
-        "h-full w-[clamp(420px,34vw,560px)] max-w-[560px] border-l border-border bg-surface",
-        process.env.EXPO_OS !== "web" && "bg-background",
+        "native:bg-background h-full w-[clamp(420px,34vw,560px)] max-w-[560px] border-l border-border bg-surface",
         className,
       )}
       style={style}

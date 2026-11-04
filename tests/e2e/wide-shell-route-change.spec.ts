@@ -78,6 +78,36 @@ test.describe("wide new link dialog on a route change", () => {
   });
 });
 
+test.describe("shared address entry", () => {
+  const SHARED = "https://example.com/shared";
+  const SHARED_HOME = `/home?linkUrl=${encodeURIComponent(SHARED)}`;
+
+  test("entering the home address with a shared link opens the new link dialog filled, and it stays open", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "wide dialog");
+    await mockApi(page, { folders: makeFolders(3, 0) });
+    await page.goto("/links");
+    await expect(page.getByRole("main")).toBeVisible();
+
+    await page.goto(SHARED_HOME);
+
+    await expect(newLinkDialog(page)).toBeVisible();
+    await expect(newLinkDialog(page).getByPlaceholder(URL_PLACEHOLDER)).toHaveValue(SHARED);
+    await expect(page).toHaveURL(/\/home(\?linkUrl=)?$/);
+    await page.waitForTimeout(500);
+    await expect(newLinkDialog(page)).toBeVisible();
+  });
+
+  test("on mobile the same address opens the new link sheet filled", async ({ page }) => {
+    test.skip(isWideProject(), "mobile sheet");
+    await mockApi(page, { folders: makeFolders(3, 0) });
+    await page.goto(SHARED_HOME);
+
+    await expect(page.getByPlaceholder("https://...")).toHaveValue(SHARED);
+  });
+});
+
 test.describe("wide top bar search icon", () => {
   test.beforeEach(() => {
     test.skip(!isWideProject(), "wide top bar");

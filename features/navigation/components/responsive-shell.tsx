@@ -49,7 +49,7 @@ import { canOpenWideOverlayInPlace } from "../routes";
 import type { MobileTabKey } from "../types";
 import { WideSidebarColumn } from "./wide-sidebar-column";
 
-import { type Href, Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { type Href, Redirect, useGlobalSearchParams, useRouter } from "expo-router";
 import { Folder, House, ListTodo, Plus, Search, Settings } from "lucide-react-native";
 
 const mobileTabItems = [
@@ -77,6 +77,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const openSearchDialog = useSearchDialog((state) => state.open);
   const setSearchDialogOpen = useSearchDialog((state) => state.setOpen);
   const [isAddLinkDialogOpen, setIsAddLinkDialogOpen] = React.useState(false);
+  const [addLinkFormKey, setAddLinkFormKey] = React.useState(0);
   const [isAddLinkSheetSubStep, setIsAddLinkSheetSubStep] = React.useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = React.useState(false);
   const [createFolderSection, setCreateFolderSection] = React.useState<FolderSection>("mine");
@@ -85,7 +86,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const [pendingMobileLinkId, setPendingMobileLinkId] = React.useState<number | null>(null);
   const [sharedLinkUrl, setSharedLinkUrl] = React.useState<string | null>(null);
   const wasAddLinkOpenRef = React.useRef(false);
-  const { linkUrl: linkUrlParam } = useLocalSearchParams<{ linkUrl?: string }>();
+  const { linkUrl: linkUrlParam } = useGlobalSearchParams<{ linkUrl?: string }>();
   const openFolderSection = useFolderNavigation((state) => state.openSectionOn);
   const isAnnouncementsListRoute = routeState.pathname === "/announcements";
   const mobileFolderId = getFolderIdFromPath(routeState.pathname) ?? Number.NaN;
@@ -107,11 +108,8 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
       return;
     }
     lastPathnameRef.current = routeState.pathname;
-    if (linkUrlParam?.trim()) {
-      return;
-    }
     setIsAddLinkDialogOpen(false);
-  }, [linkUrlParam, routeState.pathname]);
+  }, [routeState.pathname]);
 
   React.useEffect(() => {
     const url = linkUrlParam?.trim();
@@ -120,6 +118,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     }
     setSharedLinkUrl(url);
     if (routeState.isWideView) {
+      setAddLinkFormKey((key) => key + 1);
       setIsAddLinkDialogOpen(true);
     } else {
       setHasOpenedAddLinkSheet(true);
@@ -437,6 +436,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
                 <DialogTitle className="text-xl">새 링크 추가</DialogTitle>
               </DialogHeader>
               <RouteErrorBoundary
+                key={addLinkFormKey}
                 className="mx-8 my-6"
                 description="링크 추가 시트를 다시 열어 시도해주세요."
                 resetKeys={[isAddLinkDialogOpen]}

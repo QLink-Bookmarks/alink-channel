@@ -11,6 +11,12 @@ jest.mock("react-native-reanimated", () => require("react-native-reanimated/mock
 /* eslint-enable @typescript-eslint/no-require-imports */
 jest.mock("../link-detail-view", () => ({ LinkDetailView: () => null }));
 
+const mockWindowWidth = { current: 820 };
+jest.mock("react-native/Libraries/Utilities/useWindowDimensions", () => ({
+  __esModule: true,
+  default: () => ({ width: mockWindowWidth.current, height: 1024, scale: 2, fontScale: 1 }),
+}));
+
 const metrics = {
   frame: { x: 0, y: 0, width: 820, height: 1180 },
   insets: { top: 24, bottom: 20, left: 0, right: 0 },
@@ -21,6 +27,24 @@ function withSafeArea(children: React.ReactNode) {
 }
 
 describe("DetailPanel", () => {
+  beforeEach(() => {
+    mockWindowWidth.current = 820;
+  });
+
+  it("follows 34% of a wide window on native", () => {
+    mockWindowWidth.current = 1366;
+    render(
+      withSafeArea(
+        <DetailPanel
+          mode="overlay"
+          isLoading
+          open
+        />,
+      ),
+    );
+    expect(screen.getByTestId("detail-panel")).toHaveStyle({ width: 464 });
+  });
+
   it("keeps one native width while the detail replaces the loading state", () => {
     const { rerender } = render(
       withSafeArea(
