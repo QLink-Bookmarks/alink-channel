@@ -1,6 +1,7 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
 import { boxOf, isWideProject } from "./support/helpers";
+import { makeLink } from "./support/mock-api";
 import { type ApiHandler, mockSignedInApi } from "./support/mock-save-flow-api";
 
 const PAGE_WITH_IMAGE = "https://example.com/article";
@@ -13,9 +14,15 @@ const SAVE_FAILED = "링크 저장에 실패했습니다. 잠시 후 다시 시�
 
 type FormServer = {
   linkCreates: Record<string, unknown>[];
+  savedLinks: Record<string, unknown>[];
+  aiRequests: Record<string, unknown>[];
   failNextCreates: number;
+  failNextAi: number;
   createDelayMs: number;
+  folders: (typeof PICKABLE_FOLDER)[];
 };
+
+const LONG_FOLDER_NAME = "캠핑 모임 공유 폴더 이름이 아주 길어서 한 줄에 다 들어가지 않는 경우";
 
 const PICKABLE_FOLDER = {
   id: 2,
@@ -28,15 +35,51 @@ const PICKABLE_FOLDER = {
 };
 
 async function setUpFormServer(page: Page): Promise<FormServer> {
-  const server: FormServer = { linkCreates: [], failNextCreates: 0, createDelayMs: 0 };
+  const server: FormServer = {
+    linkCreates: [],
+    savedLinks: [],
+    aiRequests: [],
+    failNextCreates: 0,
+    failNextAi: 0,
+    createDelayMs: 0,
+    folders: [PICKABLE_FOLDER],
+  };
   const handler: ApiHandler = async ({ path, request, respond }) => {
     if (path === "/api/folders" && request.method() === "GET") {
       await respond({
         isEmpty: false,
-        contents: [PICKABLE_FOLDER],
+        contents: server.folders,
         nextCursor: null,
         hasNext: false,
       });
+      return true;
+    }
+    if (path === "/api/links" && request.method() === "GET") {
+      const folderId = new URL(request.url()).searchParams.get("folderId");
+      const contents = server.savedLinks
+        .map((payload, index) =>
+          makeLink({
+            id: 101 + index,
+            url: String(payload.url),
+            title: String(payload.title),
+            folderId: (payload.folderId as number | null) ?? null,
+            folderName: payload.folderId ? PICKABLE_FOLDER.name : null,
+            folderEmoji: payload.folderId ? PICKABLE_FOLDER.emoji : null,
+          }),
+        )
+        .filter((link) => folderId == null || String(link.folderId) === folderId);
+      await respond({ isEmpty: contents.length === 0, contents, nextCursor: null, hasNext: false });
+      return true;
+    }
+    if (path === "/api/links/ai" && request.method() === "PUT") {
+      server.aiRequests.push(request.postDataJSON() as Record<string, unknown>);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      if (server.failNextAi > 0) {
+        server.failNextAi -= 1;
+        await respond(null, 500);
+        return true;
+      }
+      await respond({ id: 102 });
       return true;
     }
     if (path === "/api/link-previews" && request.method() === "POST") {
@@ -64,7 +107,8 @@ async function setUpFormServer(page: Page): Promise<FormServer> {
         await respond(null, 500);
         return true;
       }
-      await respond({ id: 101 }, 201);
+      server.savedLinks.push(server.linkCreates[server.linkCreates.length - 1]);
+      await respond({ id: 100 + server.savedLinks.length }, 201);
       return true;
     }
     return false;
@@ -258,10 +302,16 @@ test.describe("new link form actions and copy (#46)", () => {
 
     const alert = page.getByRole("alert").filter({ hasText: SAVE_FAILED });
     await expect(alert).toBeVisible();
-    const alertBox = await boxOf(alert);
-    const saveBox = await boxOf(saveButton(page));
-    expect(alertBox.y + alertBox.height).toBeLessThanOrEqual(saveBox.y + 1);
-    expect(saveBox.y - (alertBox.y + alertBox.height)).toBeLessThan(24);
+    await expect
+      .poll(async () => {
+        const alertBox = await boxOf(alert);
+        const saveBox = await boxOf(saveButton(page));
+        const gap = saveBox.y - (alertBox.y + alertBox.height);
+        return (
+          gap >= -1 && gap < 24 && saveBox.y + saveBox.height <= (page.viewportSize()?.height ?? 0)
+        );
+      })
+      .toBe(true);
     await expect(titleInput(page)).toHaveValue("실패 뒤 다시 저장");
 
     await saveButton(page).click();
@@ -280,6 +330,104 @@ test.describe("new link form actions and copy (#46)", () => {
     await saveButton(page).dblclick();
     await expectClosed(page);
     expect(server.linkCreates).toHaveLength(1);
+  });
+
+  test("a saved link shows up in the list and in its folder without a reload", async ({ page }) => {
+    const server = await setUpFormServer(page);
+    await openForm(page);
+    await urlInput(page).fill("https://example.com/plain");
+    await titleInput(page).fill("폴더에 저장한 새 링크");
+    if (isWide(page)) {
+      await form(page)
+        .getByRole("button", { name: /^폴더, / })
+        .click();
+    } else {
+      await form(page).getByRole("button", { name: "변경" }).first().click();
+    }
+    await page.getByRole("radio", { name: /가볼 곳/ }).click();
+    await expect(saveButton(page)).toBeEnabled();
+    await saveButton(page).click();
+    await expectClosed(page);
+    expect(server.linkCreates[0]?.folderId).toBe(2);
+
+    if (isWide(page)) {
+      await page.keyboard.press("Escape");
+      await expect(page.getByText("폴더에 저장한 새 링크").first()).toBeVisible();
+      await page
+        .getByRole("button", { name: /가볼 곳, 링크/ })
+        .first()
+        .click();
+    } else {
+      await page.getByText("홈", { exact: true }).last().click();
+      await expect(page).toHaveURL(/\/home$/);
+      await expect(page.getByText("폴더에 저장한 새 링크").first()).toBeVisible();
+      await page.getByText("폴더", { exact: true }).last().click();
+      await page
+        .getByRole("button", { name: /가볼 곳, 링크/ })
+        .first()
+        .click();
+    }
+    await expect(page).toHaveURL(/\/folders\/2/);
+    await expect(page.getByText("폴더에 저장한 새 링크").first()).toBeVisible();
+  });
+
+  test("a failed AI 정리 shows the failure notice and keeps the form and the input", async ({
+    page,
+  }) => {
+    const server = await setUpFormServer(page);
+    server.failNextAi = 1;
+    await openForm(page);
+    await urlInput(page).fill("https://example.com/plain");
+    await expect(aiButton(page)).toBeEnabled();
+    await aiButton(page).click();
+    await expect(page.getByText("AI 정리 실패").first()).toBeVisible();
+    await expect(form(page)).toBeVisible();
+    await expect(urlInput(page)).toHaveValue("https://example.com/plain");
+    expect(server.aiRequests).toHaveLength(1);
+  });
+
+  test("a double press on AI 정리 sends one request", async ({ page }) => {
+    const server = await setUpFormServer(page);
+    await openForm(page);
+    await urlInput(page).fill("https://example.com/plain");
+    await expect(aiButton(page)).toBeEnabled();
+    await aiButton(page).dblclick();
+    await expect(page.getByText("AI 정리 시작").first()).toBeVisible();
+    expect(server.aiRequests).toHaveLength(1);
+  });
+
+  test("a very long folder name stays on one line and the buttons keep their shape", async ({
+    page,
+  }) => {
+    const server = await setUpFormServer(page);
+    server.folders = [{ ...PICKABLE_FOLDER, name: LONG_FOLDER_NAME }];
+    await openForm(page);
+
+    if (isWide(page)) {
+      await form(page)
+        .getByRole("button", { name: /^폴더, / })
+        .click();
+    } else {
+      await form(page).getByRole("button", { name: "변경" }).first().click();
+    }
+    await page.getByRole("radio", { name: new RegExp(LONG_FOLDER_NAME.slice(0, 8)) }).click();
+    const label = form(page).getByText(`☕ ${LONG_FOLDER_NAME}`, { exact: true });
+    await expect(label).toBeVisible();
+    const fontSize = await label.evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
+    expect((await boxOf(label)).height).toBeLessThan(fontSize * 2);
+    const buttonHeight = isWide(page) ? 40 : 48;
+    await expect
+      .poll(async () => {
+        const save = await boxOf(saveButton(page));
+        const ai = await boxOf(aiButton(page));
+        return (
+          Math.round(save.height) === buttonHeight &&
+          Math.round(ai.height) === buttonHeight &&
+          Math.abs(ai.y - save.y) <= 1 &&
+          ai.width > save.width
+        );
+      })
+      .toBe(true);
   });
 
   test("closing with × empties the form for the next open", async ({ page }) => {
