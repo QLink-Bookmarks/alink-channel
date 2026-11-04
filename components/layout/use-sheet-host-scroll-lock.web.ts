@@ -30,6 +30,14 @@ function useSheetHostScrollLock(): React.RefCallback<View> {
   const contentRef = React.useRef<HTMLElement | null>(null);
 
   React.useEffect(() => {
+    let isPointerDown = false;
+    let isResetPending = false;
+    const resetAfterPress = () => {
+      const content = contentRef.current;
+      if (content) {
+        resetHosts(content);
+      }
+    };
     const handleScroll = (event: Event) => {
       const content = contentRef.current;
       const target = event.target;
@@ -43,6 +51,10 @@ function useSheetHostScrollLock(): React.RefCallback<View> {
       if (isEditable(focused) && target.contains(focused)) {
         return;
       }
+      if (isPointerDown) {
+        isResetPending = true;
+        return;
+      }
       target.scrollTop = 0;
     };
     const handleFocusOut = (event: FocusEvent) => {
@@ -54,13 +66,33 @@ function useSheetHostScrollLock(): React.RefCallback<View> {
       if (isEditable(event.relatedTarget as Element | null)) {
         return;
       }
-      resetHosts(content);
+      if (isPointerDown) {
+        isResetPending = true;
+        return;
+      }
+      resetAfterPress();
+    };
+    const handlePointerDown = () => {
+      isPointerDown = true;
+    };
+    const handlePointerEnd = () => {
+      isPointerDown = false;
+      if (isResetPending) {
+        isResetPending = false;
+        setTimeout(resetAfterPress, 0);
+      }
     };
     document.addEventListener("scroll", handleScroll, true);
     document.addEventListener("focusout", handleFocusOut, true);
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("pointerup", handlePointerEnd, true);
+    document.addEventListener("pointercancel", handlePointerEnd, true);
     return () => {
       document.removeEventListener("scroll", handleScroll, true);
       document.removeEventListener("focusout", handleFocusOut, true);
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("pointerup", handlePointerEnd, true);
+      document.removeEventListener("pointercancel", handlePointerEnd, true);
     };
   }, []);
 
