@@ -8,7 +8,7 @@ import { Text } from "@/components/ui/text";
 import { type AccentName, type ThemeMode } from "@/lib/theme";
 import type { Meta, StoryObj } from "@storybook/react-native";
 
-import { Sheet, useSheetMotion } from "./sheet";
+import { Sheet, SheetFooter, useSheetMotion } from "./sheet";
 
 type SheetStoryProps = {
   open: boolean;
@@ -259,6 +259,70 @@ export const WithFooter: Story = {
     >
       <LongContent />
     </Sheet>
+  ),
+};
+
+function ContentFooterStory({ accent, mode }: Pick<SheetStoryProps, "accent" | "mode">) {
+  const [step, setStep] = React.useState<"form" | "picker">("form");
+  const [count, setCount] = React.useState(0);
+  return (
+    <Sheet
+      open
+      fitContent
+      accent={accent}
+      mode={mode}
+      onOpenChange={() => {}}
+    >
+      {step === "form" ? (
+        <>
+          <Text className="text-base text-foreground">
+            내용이 하단 줄을 채운다. 하위 단계로 가면 줄이 사라진다.
+          </Text>
+          <Button
+            className="h-12"
+            variant="outline"
+            onPress={() => setStep("picker")}
+          >
+            <Text>하위 단계로</Text>
+          </Button>
+          <SheetFooter>
+            <View className="flex-row gap-2">
+              <Button
+                className="h-12 flex-1 rounded-xl"
+                variant="outline"
+                onPress={() => setCount((value) => value + 1)}
+              >
+                <Text>저장 {count}</Text>
+              </Button>
+              <Button
+                className="h-12 flex-[2] rounded-xl"
+                variant="gradient"
+              >
+                <Text>AI 정리</Text>
+              </Button>
+            </View>
+          </SheetFooter>
+        </>
+      ) : (
+        <Button
+          className="h-12"
+          variant="outline"
+          onPress={() => setStep("form")}
+        >
+          <Text>뒤로</Text>
+        </Button>
+      )}
+    </Sheet>
+  );
+}
+
+export const ContentFooter: Story = {
+  name: "내용이 채우는 하단 줄",
+  render: (_args, context) => (
+    <ContentFooterStory
+      accent={(context.globals.accent ?? "gray") as AccentName}
+      mode={(context.globals.mode ?? "light") as ThemeMode}
+    />
   ),
 };
 

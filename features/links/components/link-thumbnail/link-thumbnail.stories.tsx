@@ -61,8 +61,18 @@ export const DomainOnly: Story = {
 };
 
 export const DetailNoImage: Story = {
-  name: "상세 이미지 없음 (도메인만)",
+  name: "상세 이미지 없음 (도메인만, 가운데 표시 없음)",
   args: { thumbnailUrl: null, showHint: true, fallback: "domain" },
+};
+
+export const DetailImage: Story = {
+  name: "상세 이미지 (가운데 표시 없음)",
+  args: {
+    domain: "tkdodo.eu",
+    thumbnailUrl: "https://picsum.photos/seed/alink-detail/640/360",
+    showHint: true,
+    fallback: "domain",
+  },
 };
 
 export const Broken: Story = {

@@ -878,12 +878,11 @@ test.describe("window fit, width and marks (#27)", () => {
     await page.goto("/home");
     await page.getByLabel("새 링크").click();
     const sheet = page.getByLabel("Bottom Sheet", { exact: true });
-    await expect(sheet.getByText("AI 자동 분류", { exact: true })).toBeVisible();
-    await expect(sheet.getByText("✨", { exact: true })).toHaveCount(1);
+    await expect(sheet.getByText("없음 - ✨ AI 자동 분류", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "변경" }).first().click();
     await radio(page, 43).click();
     await expect(sheet.getByText("📁 폴더 43", { exact: true })).toBeVisible();
-    await expect(sheet.getByText("✨", { exact: true })).toHaveCount(0);
+    await expect(sheet.getByText(/✨/)).toHaveCount(0);
   });
 
   test("the move window keeps one 420px width across sections, a long name and the failure message", async ({

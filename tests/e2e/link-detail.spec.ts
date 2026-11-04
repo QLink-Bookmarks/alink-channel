@@ -216,7 +216,7 @@ test.describe("layout", () => {
     }
   });
 
-  test("a play icon for video links and a pointer icon for the rest, with no text", async ({
+  test("a play icon for video links and no icon on an image or a missing image (#46)", async ({
     page,
   }) => {
     const { links, details } = buildFixtures();
@@ -224,9 +224,14 @@ test.describe("layout", () => {
     await openDetail(page, 1);
     await expect(page.getByTestId("link-thumbnail-hint-play")).toBeVisible();
     await expect(page.getByTestId("link-thumbnail-hint-play")).toHaveText("");
-    await openDetail(page, 4);
-    await expect(page.getByTestId("link-thumbnail-hint-open")).toBeVisible();
-    await expect(page.getByTestId("link-thumbnail-hint-open")).toHaveText("");
+    await openDetail(page, 5);
+    await expect(page.getByTestId("link-detail-thumbnail-image")).toBeVisible();
+    await expect(page.getByTestId("link-thumbnail-hint-play")).toHaveCount(0);
+    await expect(page.getByTestId("link-thumbnail-hint-open")).toHaveCount(0);
+    await openDetail(page, 3);
+    await expect(page.getByTestId("link-detail-thumbnail-fallback")).toBeVisible();
+    await expect(page.getByTestId("link-thumbnail-hint-play")).toHaveCount(0);
+    await expect(page.getByTestId("link-thumbnail-hint-open")).toHaveCount(0);
   });
 
   test("pressing the image opens the original and the same detail stays", async ({ page }) => {

@@ -47,6 +47,24 @@ type SheetMotion = {
 
 const SheetMotionContext = React.createContext<SheetMotion | null>(null);
 
+type SetSheetFooter = (footer: React.ReactNode) => void;
+
+const SheetFooterSlotContext = React.createContext<SetSheetFooter | null>(null);
+
+function SheetFooter({ children }: { children: React.ReactNode }) {
+  const setFooter = React.use(SheetFooterSlotContext);
+  React.useLayoutEffect(() => {
+    setFooter?.(children);
+  }, [children, setFooter]);
+  React.useLayoutEffect(() => {
+    return () => setFooter?.(null);
+  }, [setFooter]);
+  if (!setFooter) {
+    return <>{children}</>;
+  }
+  return null;
+}
+
 function useSheetMotion() {
   return React.use(SheetMotionContext);
 }
@@ -63,6 +81,9 @@ function SheetMotionProvider({ children }: { children: React.ReactNode }) {
   );
   return <SheetMotionContext.Provider value={motion}>{children}</SheetMotionContext.Provider>;
 }
+
+const WEB_NO_SCROLL_ANCHOR_STYLE =
+  process.env.EXPO_OS === "web" ? ({ overflowAnchor: "none" } as ViewStyle) : {};
 
 type SheetResizeTiming = { duration: number; easing: EasingFunctionFactory };
 
@@ -153,6 +174,8 @@ function Sheet({
   resizeTiming,
 }: SheetProps) {
   const [footerHeight, setFooterHeight] = React.useState(0);
+  const [slotFooter, setSlotFooter] = React.useState<React.ReactNode>(null);
+  const resolvedFooter = footer ?? slotFooter;
   const resizeConfigs = useBottomSheetTimingConfigs({
     duration: resizeTiming?.duration,
     easing: resizeTiming?.easing,
@@ -256,6 +279,7 @@ function Sheet({
       shadowOpacity: 0.25,
       shadowRadius: 32,
       elevation: 12,
+      ...WEB_NO_SCROLL_ANCHOR_STYLE,
     }),
     [sheetTokens],
   );
@@ -361,7 +385,7 @@ function Sheet({
   );
 
   const safeBottomInset = Math.max(insets.bottom, 16);
-  const hasFooter = footer != null;
+  const hasFooter = resolvedFooter != null;
   const renderFooter = React.useCallback(
     (props: BottomSheetFooterProps) => (
       <BottomSheetFooter {...props}>
@@ -370,11 +394,11 @@ function Sheet({
           style={{ paddingBottom: safeBottomInset }}
           onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
         >
-          {footer}
+          {resolvedFooter}
         </View>
       </BottomSheetFooter>
     ),
-    [footer, safeBottomInset],
+    [resolvedFooter, safeBottomInset],
   );
   const content = (
     <View
@@ -407,18 +431,20 @@ function Sheet({
       onDismiss={handleDismiss}
     >
       <SheetContext.Provider value={true}>
-        <SheetMotionProvider>
-          <BottomSheetScrollView
-            className="scrollbar-none"
-            showsVerticalScrollIndicator={false}
-          >
-            {content}
-          </BottomSheetScrollView>
-        </SheetMotionProvider>
+        <SheetFooterSlotContext value={setSlotFooter}>
+          <SheetMotionProvider>
+            <BottomSheetScrollView
+              className="scrollbar-none"
+              showsVerticalScrollIndicator={false}
+            >
+              {content}
+            </BottomSheetScrollView>
+          </SheetMotionProvider>
+        </SheetFooterSlotContext>
       </SheetContext.Provider>
     </BottomSheetModal>
   );
 }
 
-export { Sheet, useIsInsideSheet, useSheetMotion };
+export { Sheet, SheetFooter, useIsInsideSheet, useSheetMotion };
 export type { SheetMotion, SheetProps };

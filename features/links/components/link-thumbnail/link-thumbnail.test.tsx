@@ -129,7 +129,7 @@ describe("LinkThumbnail", () => {
     expect(screen.queryByText("영상")).toBeNull();
   });
 
-  it("puts a play hint on video links and a pointer hint on the rest", () => {
+  it("puts a play hint on video links and no hint on the rest", () => {
     const { rerender } = render(
       <LinkThumbnail
         domain="youtube.com"
@@ -147,7 +147,19 @@ describe("LinkThumbnail", () => {
         showHint
       />,
     );
-    expect(screen.getByTestId("link-thumbnail-hint-open")).toBeOnTheScreen();
+    expect(screen.queryByTestId("link-thumbnail-hint-play")).toBeNull();
+    expect(screen.queryByTestId("link-thumbnail-hint-open")).toBeNull();
+    expect(screen.getByText("notion.so")).toBeOnTheScreen();
+
+    rerender(
+      <LinkThumbnail
+        domain="tkdodo.eu"
+        showHint
+        thumbnailUrl={IMAGE}
+      />,
+    );
+    expect(screen.queryByTestId("link-thumbnail-hint-play")).toBeNull();
+    expect(screen.queryByTestId("link-thumbnail-hint-open")).toBeNull();
   });
 
   it("fits a portrait image inside the frame when fit is auto", () => {

@@ -8,7 +8,7 @@ function dialog(page: Page) {
 }
 
 function actions(page: Page) {
-  return ["취소", "저장", "AI 정리"].map((label) =>
+  return ["저장", "AI 정리"].map((label) =>
     dialog(page).getByRole("button", { name: label, exact: true }),
   );
 }
@@ -32,7 +32,7 @@ test.describe("wide new link dialog actions (#27)", () => {
   });
 
   for (const height of [620, 800]) {
-    test(`at 1280×${height} 취소, 저장 and AI 정리 are on screen from the start and stay put while the fields scroll`, async ({
+    test(`at 1280×${height} 저장 and AI 정리 are on screen from the start and stay put while the fields scroll`, async ({
       page,
     }) => {
       await page.setViewportSize({ width: 1280, height });
@@ -57,7 +57,7 @@ test.describe("wide new link dialog actions (#27)", () => {
       for (const [index, button] of actions(page).entries()) {
         expect(Math.round((await boxOf(button)).y)).toBe(before[index]);
       }
-      await expect(dialog(page).getByText("✅ 할 일 (선택, 여러 개 가능)")).toBeInViewport();
+      await expect(dialog(page).getByText("✅ 액션 (선택, 여러 개 가능)")).toBeInViewport();
     });
   }
 });

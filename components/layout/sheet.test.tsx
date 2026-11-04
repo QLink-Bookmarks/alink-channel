@@ -1,8 +1,9 @@
 import * as React from "react";
+import { Text } from "react-native";
 
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, within } from "@testing-library/react-native";
 
-import { Sheet } from "./sheet";
+import { Sheet, SheetFooter } from "./sheet";
 
 type MockModalStatus = "unmounted" | "presented" | "closing" | "minimized" | "stuck";
 
@@ -33,12 +34,13 @@ jest.mock("@gorhom/bottom-sheet", () => {
     onDismiss?: () => void;
     handleComponent?: () => React.ReactNode;
     backdropComponent?: (props: object) => React.ReactNode;
+    footerComponent?: (props: object) => React.ReactNode;
   };
   type MockModalHandle = { present: () => void; dismiss: () => void };
 
   const BottomSheetModal = ReactModule.forwardRef<MockModalHandle, MockModalProps>(
     function MockBottomSheetModal(
-      { children, onChange, onDismiss, handleComponent, backdropComponent },
+      { children, onChange, onDismiss, handleComponent, backdropComponent, footerComponent },
       ref,
     ) {
       const [mounted, setMounted] = ReactModule.useState(false);
@@ -104,7 +106,8 @@ jest.mock("@gorhom/bottom-sheet", () => {
             accessibilityRole="button"
             accessibilityLabel="시트 내용"
           />
-          {children}
+          <View testID="mock-sheet-content">{children}</View>
+          {footerComponent ? <View testID="mock-sheet-footer">{footerComponent({})}</View> : null}
         </View>
       );
     },
@@ -287,5 +290,50 @@ describe("Sheet", () => {
 
     expect(isSheetShown()).toBe(true);
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  describe("SheetFooter", () => {
+    function renderWithFooter(label: string | null) {
+      return (
+        <Sheet open>
+          <Text>본문</Text>
+          {label ? (
+            <SheetFooter>
+              <Text>{label}</Text>
+            </SheetFooter>
+          ) : null}
+        </Sheet>
+      );
+    }
+
+    it("renders its children in the fixed footer, not in the scrolling content", () => {
+      render(renderWithFooter("저장"));
+
+      expect(within(screen.getByTestId("mock-sheet-footer")).getByText("저장")).toBeOnTheScreen();
+      expect(within(screen.getByTestId("mock-sheet-content")).queryByText("저장")).toBeNull();
+      expect(within(screen.getByTestId("mock-sheet-content")).getByText("본문")).toBeOnTheScreen();
+    });
+
+    it("follows the content's updates and removes the footer when it unmounts", () => {
+      const { rerender } = render(renderWithFooter("저장"));
+
+      rerender(renderWithFooter("저장 중"));
+      expect(
+        within(screen.getByTestId("mock-sheet-footer")).getByText("저장 중"),
+      ).toBeOnTheScreen();
+
+      rerender(renderWithFooter(null));
+      expect(screen.queryByTestId("mock-sheet-footer")).toBeNull();
+    });
+
+    it("renders in place when it is not inside a sheet", () => {
+      render(
+        <SheetFooter>
+          <Text>저장</Text>
+        </SheetFooter>,
+      );
+
+      expect(screen.getByText("저장")).toBeOnTheScreen();
+    });
   });
 });

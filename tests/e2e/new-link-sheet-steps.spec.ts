@@ -40,7 +40,7 @@ async function openFolderStep(page: Page) {
   await mockApi(page, { folders: makeFolders(12, 3) });
   await page.goto("/home");
   await page.getByRole("button", { name: "새 링크", exact: true }).click();
-  await expect(sheet(page).getByText("링크 추가", { exact: true })).toBeVisible();
+  await expect(sheet(page).getByText("새 링크 추가", { exact: true })).toBeVisible();
   await settledSheetTop(page);
   await expect(closeButton(page)).toBeVisible();
   await expect(backButton(page)).toHaveCount(0);
@@ -68,7 +68,7 @@ test.describe("new link sheet folder step (#27)", () => {
     await expect(closeButton(page)).toHaveCount(0);
 
     await backButton(page).click();
-    await expect(sheet(page).getByText("링크 추가", { exact: true })).toBeVisible();
+    await expect(sheet(page).getByText("새 링크 추가", { exact: true })).toBeVisible();
     await expect(closeButton(page)).toBeVisible();
     await expect(backButton(page)).toHaveCount(0);
   });
@@ -76,15 +76,15 @@ test.describe("new link sheet folder step (#27)", () => {
   test("the AI provider step also shows only 뒤로, and 뒤로 brings 닫기 back", async ({ page }) => {
     await openFolderStep(page);
     await backButton(page).click();
-    await expect(sheet(page).getByText("링크 추가", { exact: true })).toBeVisible();
+    await expect(sheet(page).getByText("새 링크 추가", { exact: true })).toBeVisible();
 
     await sheet(page).getByRole("button", { name: "변경" }).nth(1).click();
-    await expect(sheet(page).getByText("AI 제공자 모델", { exact: true })).toBeVisible();
+    await expect(sheet(page).getByText("AI 제공자 선택", { exact: true })).toBeVisible();
     await expect(backButton(page)).toBeVisible();
     await expect(closeButton(page)).toHaveCount(0);
 
     await backButton(page).click();
-    await expect(sheet(page).getByText("링크 추가", { exact: true })).toBeVisible();
+    await expect(sheet(page).getByText("새 링크 추가", { exact: true })).toBeVisible();
     await expect(closeButton(page)).toBeVisible();
     await expect(backButton(page)).toHaveCount(0);
   });
@@ -115,7 +115,7 @@ test.describe("new link sheet folder step (#27)", () => {
     await expectSheetClosed(page);
 
     await page.getByRole("button", { name: "새 링크", exact: true }).click();
-    await expect(sheet(page).getByText("링크 추가", { exact: true })).toBeVisible();
+    await expect(sheet(page).getByText("새 링크 추가", { exact: true })).toBeVisible();
     await expect(closeButton(page)).toBeVisible();
     await expect(backButton(page)).toHaveCount(0);
   });
