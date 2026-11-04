@@ -57,6 +57,7 @@ import { logoutNaver } from "@/features/auth/lib/native-naver-logout";
 import { FeedbackEditor } from "@/features/feedback/components/feedback-editor";
 import { useUploadImageMutation } from "@/features/images/mutations";
 import type { ImageUploadInput } from "@/features/images/types";
+import { IMPORTS_PATH } from "@/features/imports/lib/import-paths";
 import { DeviceNotificationNotice } from "@/features/notifications/components/device-notification-notice";
 import { unregisterDevice } from "@/features/notifications/lib/unregister-device";
 import { reportError } from "@/lib/error-reporting";
@@ -79,6 +80,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Upload,
   UserRoundX,
   X,
 } from "lucide-react-native/icons";
@@ -134,6 +136,8 @@ function SettingsScreen({ mode }: { mode: SettingsScreenMode }) {
           <AiProviderSection mode={mode} />
 
           <BehaviorSection />
+
+          <DataSection />
 
           <AppInfoSection mode={mode} />
         </View>
@@ -674,6 +678,34 @@ function BehaviorSection() {
           onCheckedChange={setAllowsReminder}
         />
       </View>
+    </SettingsSectionCard>
+  );
+}
+
+function DataSection() {
+  const router = useRouter();
+
+  return (
+    <SettingsSectionCard title="데이터">
+      <Pressable
+        accessibilityRole="button"
+        className="-mx-2 flex-row items-center justify-between gap-3 rounded-xl px-2 py-1.5 active:bg-accent web:hover:bg-accent"
+        onPress={() => router.push(IMPORTS_PATH as Href)}
+      >
+        <View className="flex-row items-center gap-2">
+          <Icon
+            as={Upload}
+            size={16}
+            className="text-muted-foreground"
+          />
+          <Text className="text-sm font-semibold text-foreground">북마크 가져오기</Text>
+        </View>
+        <Icon
+          as={ChevronRight}
+          size={18}
+          className="text-muted-foreground"
+        />
+      </Pressable>
     </SettingsSectionCard>
   );
 }

@@ -48,7 +48,7 @@ type MockImportFolder = {
   kind: ImportFolderKind;
   state: ReversalFolderState;
   folderId: number | null;
-  name: string;
+  name: string | null;
   emoji: string | null;
   links: MockImportLink[];
 };
@@ -177,7 +177,6 @@ const IMPORT_FOLDER_NAME_MAX = 100;
 const IMPORT_FILE_NAME_MAX = 255;
 const IMPORT_LINK_URL_MAX = 2048;
 const IMPORT_PAGE_SIZE = 15;
-const UNFILED_NAME = "미분류";
 const TRACKING_PARAM = /^(utm_.*|fbclid|gclid|igshid|mc_cid|mc_eid)$/;
 const REMOVABLE_LINK_STATES: ReversalLinkState[] = ["IMPORTED", "EDITED"];
 const LEFT_IN_IMPORT_FOLDER_LINK_STATES: ReversalLinkState[] = ["REVERSED", "DELETED"];
@@ -260,7 +259,7 @@ function makeImportRecord(
       kind: "UNFILED",
       state: "ACTIVE",
       folderId: null,
-      name: UNFILED_NAME,
+      name: null,
       emoji: null,
       links: [
         {
@@ -364,7 +363,7 @@ function toReversalPreview(record: MockImportRecord): ImportReversalPreview {
       kind: "UNFILED",
       state: "ACTIVE",
       folderId: null,
-      name: UNFILED_NAME,
+      name: null,
       emoji: null,
       links: unfiled.map(toLink),
     });
@@ -465,7 +464,7 @@ function createMockImportApi(options: MockImportApiOptions = {}) {
       record.folders
         .filter((folder) => folder.kind === "NEW" && folder.state === "ACTIVE")
         .flatMap((folder) =>
-          folder.folderId == null
+          folder.folderId == null || folder.name == null
             ? []
             : [
                 {
@@ -681,7 +680,7 @@ function createMockImportApi(options: MockImportApiOptions = {}) {
       kind: "UNFILED",
       state: "ACTIVE",
       folderId: null,
-      name: UNFILED_NAME,
+      name: null,
       emoji: null,
       links: [],
     };

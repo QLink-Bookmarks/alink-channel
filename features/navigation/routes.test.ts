@@ -1,4 +1,12 @@
-import { getRedirectHref, isMobileTabRootPath } from "./routes";
+import {
+  getBackHref,
+  getMobileTabActiveItem,
+  getRedirectHref,
+  getRouteTitle,
+  getWideSidebarActiveItem,
+  isKnownShellPath,
+  isMobileTabRootPath,
+} from "./routes";
 import type { RouteParams } from "./types";
 
 function redirect(isWideView: boolean, pathname: string, searchParams: RouteParams = {}) {
@@ -108,5 +116,40 @@ describe("isMobileTabRootPath", () => {
     "/homepage",
   ])("does not treat %s as a bottom tab root", (pathname) => {
     expect(isMobileTabRootPath(pathname)).toBe(false);
+  });
+});
+
+describe("bookmark import routes", () => {
+  it.each(["/settings/imports", "/settings/imports/12"])("knows %s as a shell path", (pathname) => {
+    expect(isKnownShellPath(pathname)).toBe(true);
+  });
+
+  it("does not know deeper import paths", () => {
+    expect(isKnownShellPath("/settings/imports/12/more")).toBe(false);
+  });
+
+  it("titles the list and the detail", () => {
+    expect(getRouteTitle("/settings/imports", {}, false)).toBe("북마크 가져오기");
+    expect(getRouteTitle("/settings/imports/", {}, true)).toBe("북마크 가져오기");
+    expect(getRouteTitle("/settings/imports/12", { id: "12" }, false)).toBe("가져오기 기록");
+  });
+
+  it("goes back from the detail to the list and from the list to settings", () => {
+    expect(getBackHref("/settings/imports/12")).toBe("/settings/imports");
+    expect(getBackHref("/settings/imports")).toBe("/settings");
+  });
+
+  it.each(["/settings/imports", "/settings/imports/12"])(
+    "keeps the settings tab active on %s",
+    (pathname) => {
+      expect(getMobileTabActiveItem(pathname)).toBe("settings");
+      expect(isMobileTabRootPath(pathname)).toBe(false);
+      expect(getWideSidebarActiveItem(pathname)).toBeNull();
+    },
+  );
+
+  it.each(["/settings/imports", "/settings/imports/12"])("keeps %s in place", (pathname) => {
+    expect(redirect(true, pathname)).toBeUndefined();
+    expect(redirect(false, pathname)).toBeUndefined();
   });
 });

@@ -50,6 +50,14 @@ function isFeedbackDetailPath(pathname: string) {
   return /^\/feedbacks\/[^/]+$/.test(pathname);
 }
 
+function isImportsPath(pathname: string) {
+  return pathname === "/settings/imports";
+}
+
+function isImportDetailPath(pathname: string) {
+  return /^\/settings\/imports\/[^/]+$/.test(pathname);
+}
+
 function isKnownShellPath(pathname: string) {
   return (
     pathname === "/home" ||
@@ -64,6 +72,8 @@ function isKnownShellPath(pathname: string) {
     pathname === "/feedbacks" ||
     isFeedbackDetailPath(pathname) ||
     pathname === "/settings" ||
+    isImportsPath(pathname) ||
+    isImportDetailPath(pathname) ||
     pathname === "/invite" ||
     pathname === "/share"
   );
@@ -112,7 +122,7 @@ function getMobileTabActiveItem(pathname: string): MobileTabKey | null {
     return "todos";
   }
 
-  if (pathname === "/settings") {
+  if (pathname === "/settings" || isImportsPath(pathname) || isImportDetailPath(pathname)) {
     return "settings";
   }
 
@@ -152,6 +162,8 @@ function getRouteTitle(pathname: string, params: RouteParams, isWideView: boolea
       return "피드백";
     case "/settings":
       return "설정";
+    case "/settings/imports":
+      return "북마크 가져오기";
     case "/invite":
       return "초대 확인";
     case "/share":
@@ -173,6 +185,10 @@ function getRouteTitle(pathname: string, params: RouteParams, isWideView: boolea
         return "피드백";
       }
 
+      if (isImportDetailPath(normalizedPathname)) {
+        return "가져오기 기록";
+      }
+
       return "페이지를 찾을 수 없음";
   }
 }
@@ -192,6 +208,14 @@ function getBackHref(pathname: string) {
 
   if (isFeedbackDetailPath(pathname)) {
     return "/feedbacks";
+  }
+
+  if (isImportDetailPath(pathname)) {
+    return "/settings/imports";
+  }
+
+  if (isImportsPath(pathname)) {
+    return "/settings";
   }
 
   if (pathname === "/notifications") {
