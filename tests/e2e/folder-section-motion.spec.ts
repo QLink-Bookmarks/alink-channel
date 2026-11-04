@@ -17,7 +17,7 @@ type Surface = "sidebar" | "mobileTab" | "picker";
 
 const SIDEBAR = '[data-testid="wide-sidebar-column"]';
 const LABEL: Record<SectionKey, string> = { mine: "내 폴더", shared: "공유 폴더" };
-const SLIDING_IN_MIN_HEADER_TRAVEL = 10;
+const SLIDING_IN_MIN_HEADER_TRAVEL = 16;
 
 function mixedFolders(mine: number, shared: number): MockFolder[] {
   const total = mine + shared;
