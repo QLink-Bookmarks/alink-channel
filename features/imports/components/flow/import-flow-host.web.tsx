@@ -87,6 +87,7 @@ function ImportFlowHost() {
           fileName={step.fileName}
           input={step.input}
           isWide={isWide}
+          onChooseOtherFile={flow.chooseOtherFile}
           onClose={handleClose}
           onStarted={handleStarted}
         />

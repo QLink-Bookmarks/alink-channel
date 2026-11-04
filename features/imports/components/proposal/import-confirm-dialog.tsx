@@ -3,21 +3,16 @@ import { View } from "react-native";
 
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
+import { cn } from "@/lib/utils";
 
 import { getImportErrorName } from "../../api";
 import { formatNumber } from "../../lib/split-import-ranges";
+import { ProposalConfirmSurface } from "./proposal-confirm-surface";
 
-import { CircleAlert, RotateCw } from "lucide-react-native/icons";
+import { Check, CircleAlert, RotateCw, Undo2 } from "lucide-react-native/icons";
 
 type StartErrorKind = "retry" | "nothing-to-import";
 
@@ -32,8 +27,10 @@ function getStartErrorKind(error: unknown): StartErrorKind {
 
 type ImportConfirmDialogProps = {
   open: boolean;
+  isWide: boolean;
   linkCount: number;
   folderCount: number;
+  skipCount: number;
   onCancel: () => void;
   onStart: () => Promise<void>;
   onPendingChange: (isPending: boolean) => void;
@@ -41,8 +38,10 @@ type ImportConfirmDialogProps = {
 
 function ImportConfirmDialog({
   open,
+  isWide,
   linkCount,
   folderCount,
+  skipCount,
   onCancel,
   onStart,
   onPendingChange,
@@ -98,48 +97,32 @@ function ImportConfirmDialog({
     [onCancel],
   );
 
+  const actionClass = (isWide: boolean) =>
+    isWide ? "h-10 rounded-xl px-4" : "h-12 min-w-0 flex-1 rounded-xl";
+  const labelClass = (isWide: boolean) =>
+    isWide ? "text-sm font-semibold" : "text-base font-semibold";
+
   return (
-    <AlertDialog
+    <ProposalConfirmSurface
+      isLocked={isPending}
+      isWide={isWide}
       open={open}
-      onOpenChange={handleOpenChange}
-    >
-      <AlertDialogContent className="w-[440px] max-w-[92vw] gap-5 sm:max-w-[92vw]">
-        <AlertDialogHeader>
-          <AlertDialogTitle>가져오기를 시작할까요?</AlertDialogTitle>
-        </AlertDialogHeader>
-        {errorKind ? (
-          <Alert
-            icon={CircleAlert}
-            variant="danger"
-          >
-            <AlertTitle className="font-semibold">가져오기를 시작하지 못했어요</AlertTitle>
-            <AlertDescription className="text-muted-foreground">
-              {START_ERROR_COPY[errorKind]}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        <View className="gap-3">
-          <Text className="text-[15px] text-foreground">
-            링크 <Text className="font-bold">{formatNumber(linkCount)}개</Text>와 새 폴더{" "}
-            <Text className="font-bold">{formatNumber(folderCount)}개</Text>를 추가할게요.
-          </Text>
-          <Text className="text-[13px] leading-5 text-muted-foreground">
-            가져오는 동안 잠시 기다려 주세요. 결과는 ‘가져오기 기록’에서 볼 수 있어요.
-          </Text>
-        </View>
-        <AlertDialogFooter className="flex-row justify-end gap-2">
+      testID="import-confirm"
+      title="가져오기를 시작할까요?"
+      renderActions={(wide) => (
+        <>
           <Button
-            className="h-10 rounded-xl px-4"
+            className={actionClass(wide)}
             disabled={isPending}
             variant="outline"
             onPress={onCancel}
           >
-            <Text className="text-sm font-semibold">취소</Text>
+            <Text className={labelClass(wide)}>취소</Text>
           </Button>
           <Button
             accessibilityState={{ busy: isPending, disabled: isStartBlocked }}
             aria-busy={isPending}
-            className="h-10 flex-row gap-2 rounded-xl px-4"
+            className={cn(actionClass(wide), "flex-row gap-2")}
             disabled={isStartBlocked}
             onPress={() => void handleStart()}
           >
@@ -150,13 +133,63 @@ function ImportConfirmDialog({
                 className="size-4 text-primary-foreground"
               />
             ) : null}
-            <Text className="text-sm font-semibold">
+            <Text className={labelClass(wide)}>
               {isPending ? "가져오는 중…" : isRetry ? "다시 시도" : "시작"}
             </Text>
           </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+        </>
+      )}
+      onOpenChange={handleOpenChange}
+    >
+      {errorKind ? (
+        <Alert
+          icon={CircleAlert}
+          variant="danger"
+        >
+          <AlertTitle className="font-semibold">가져오기를 시작하지 못했어요</AlertTitle>
+          <AlertDescription className="text-muted-foreground">
+            {START_ERROR_COPY[errorKind]}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      <View className="gap-2">
+        <Text className="text-[15px] text-foreground">
+          링크 <Text className="font-bold">{formatNumber(linkCount)}개</Text>
+          {folderCount > 0 ? (
+            <>
+              와 새 폴더 <Text className="font-bold">{formatNumber(folderCount)}개</Text>를
+            </>
+          ) : (
+            "를"
+          )}{" "}
+          추가할게요.
+        </Text>
+        {skipCount > 0 ? (
+          <ConfirmLine icon={Check}>
+            이미 저장된 링크 {formatNumber(skipCount)}개는 건너뛰어요.
+          </ConfirmLine>
+        ) : null}
+        <ConfirmLine icon={Undo2}>나중에 ‘가져오기 기록’에서 되돌릴 수 있어요.</ConfirmLine>
+      </View>
+    </ProposalConfirmSurface>
+  );
+}
+
+function ConfirmLine({
+  icon,
+  children,
+}: {
+  icon: React.ComponentProps<typeof Icon>["as"];
+  children: React.ReactNode;
+}) {
+  return (
+    <View className="flex-row items-start gap-2">
+      <Icon
+        as={icon}
+        className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+      />
+      <Text className="min-w-0 flex-1 text-[13px] leading-5 text-muted-foreground">{children}</Text>
+    </View>
   );
 }
 
