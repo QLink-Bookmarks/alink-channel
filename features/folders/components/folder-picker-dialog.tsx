@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import type { FolderSection } from "@/stores/folder-navigation";
 
 import { useFolderPickerConfirm } from "../hooks/use-folder-picker-confirm";
+import { FOLDER_SECTIONS_SHEET_TIMING } from "../hooks/use-section-accordion";
 import {
   type FolderPickerId,
   FolderPickerList,
@@ -47,6 +48,7 @@ type FolderPickerListSlot<Id> = {
   isPending: boolean;
   listMaxHeight?: number;
   className: string;
+  isHeightFixed: boolean;
   onSelect: (selection: FolderPickerSelection<Id>) => void;
 };
 
@@ -81,6 +83,7 @@ function renderDefaultList(
     <FolderPickerList
       className={slot.className}
       isAddDisabled={slot.isPending}
+      isHeightFixed={slot.isHeightFixed}
       listMaxHeight={slot.listMaxHeight}
       noneOption={options.noneOption}
       selectedFolderId={slot.selectedId}
@@ -124,6 +127,7 @@ function FolderPickerDialog<Id = FolderPickerId>(props: FolderPickerDialogProps<
     isPending,
     listMaxHeight: isSheet ? getSheetListMaxHeight(height) : undefined,
     className: isSheet ? "min-h-0 shrink" : "min-h-0 flex-1",
+    isHeightFixed: !isSheet,
     onSelect: select,
   };
   const list = renderList
@@ -176,6 +180,7 @@ function FolderPickerDialog<Id = FolderPickerId>(props: FolderPickerDialogProps<
       footer={footer}
       hideCloseButton
       maxDynamicContentSize={Math.round(height * SHEET_MAX_HEIGHT_RATIO)}
+      resizeTiming={FOLDER_SECTIONS_SHEET_TIMING}
       stackBehavior={stackBehavior}
       onOpenChange={requestOpenChange}
     >

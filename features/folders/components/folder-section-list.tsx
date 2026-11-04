@@ -27,6 +27,7 @@ import {
 import { CircleAlert, RotateCw } from "lucide-react-native/icons";
 
 const EDGE_TOLERANCE = 1;
+const REVEALING_WINDOW_SIZE = 1;
 const FOLDER_LIST_ROW_GAP = 2;
 const FOLDER_LIST_PADDING: Record<FolderSectionSize, number> = { compact: 8, large: 12 };
 const SKELETON_ROWS: Record<FolderSection, number> = { mine: 5, shared: 3 };
@@ -44,6 +45,7 @@ type FolderListEdges = {
 
 type FolderSectionListBaseProps<T> = {
   size?: FolderSectionSize;
+  isRevealing?: boolean;
   className?: string;
   style?: React.ComponentProps<typeof FlatList>["style"];
   renderRow: (row: T) => React.ReactElement;
@@ -129,6 +131,7 @@ function FolderSectionList({
   size = "compact",
   tone = "sidebar",
   scrollSurface,
+  isRevealing = false,
   className,
   style,
   extraData,
@@ -183,7 +186,8 @@ function FolderSectionList({
 
   const handleScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      recordScrollOffset(event.nativeEvent.contentOffset.y);
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+      recordScrollOffset(contentOffset.y, contentSize.height - layoutMeasurement.height);
       trackScroll(event);
     },
     [recordScrollOffset, trackScroll],
@@ -221,6 +225,7 @@ function FolderSectionList({
       style={style}
       showsVerticalScrollIndicator={false}
       initialNumToRender={20}
+      windowSize={isRevealing ? REVEALING_WINDOW_SIZE : undefined}
       nestedScrollEnabled
       onContentSizeChange={handleContentSizeChange}
       onEndReached={handleEndReached}
@@ -267,6 +272,7 @@ function FolderSectionLocalList<T>({
   label,
   rows,
   size = "compact",
+  isRevealing = false,
   className,
   style,
   extraData,
@@ -292,6 +298,7 @@ function FolderSectionLocalList<T>({
       style={style}
       showsVerticalScrollIndicator={false}
       initialNumToRender={20}
+      windowSize={isRevealing ? REVEALING_WINDOW_SIZE : undefined}
       nestedScrollEnabled
       onContentSizeChange={handleContentSizeChange}
       onLayout={handleLayout}

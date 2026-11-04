@@ -19,6 +19,7 @@ import {
   type CreatedFolder,
 } from "@/features/folders/components/create-folder-dialog";
 import { FolderHeaderActions } from "@/features/folders/components/folder-header-actions";
+import { FOLDER_SECTIONS_SHEET_TIMING } from "@/features/folders/hooks/use-section-accordion";
 import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
 import { useFolderQuery } from "@/features/folders/queries";
 import { DetailPanel } from "@/features/links/components/detail-panel/detail-panel";
@@ -508,6 +509,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
             open={isAddLinkSheetOpen}
             fitContent
             hideCloseButton={isAddLinkSheetSubStep}
+            resizeTiming={FOLDER_SECTIONS_SHEET_TIMING}
             onOpenChange={handleAddLinkSheetOpenChange}
           >
             <RouteErrorBoundary

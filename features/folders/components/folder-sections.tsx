@@ -1,12 +1,8 @@
 import * as React from "react";
-import { View } from "react-native";
-import Animated, {
-  FadeIn,
-  FadeOut,
-  LinearTransition,
-  useReducedMotion,
-} from "react-native-reanimated";
+import { type LayoutChangeEvent, View } from "react-native";
+import { useAnimatedStyle, useReducedMotion } from "react-native-reanimated";
 
+import { useIsInsideSheet, useSheetMotion } from "@/components/layout/sheet";
 import { cn } from "@/lib/utils";
 import {
   type FolderScrollSurface,
@@ -16,7 +12,14 @@ import {
 } from "@/stores/folder-navigation";
 
 import { useFolderSectionData } from "../hooks/use-folder-section-data";
+import { type SectionMotion, useSectionAccordion } from "../hooks/use-section-accordion";
+import {
+  MODE_MOVING,
+  getChevronRotation,
+  interpolateSectionOpenness,
+} from "../lib/section-accordion";
 import type { Folder } from "../types";
+import { FolderSectionBody } from "./folder-section-body";
 import {
   FOLDER_SECTION_HEADER_HEIGHT,
   FOLDER_SECTION_LABELS,
@@ -34,7 +37,6 @@ import {
   FolderSectionLocalList,
 } from "./folder-section-list";
 
-const SECTION_TRANSITION_MS = 220;
 const ALL_SECTIONS: FolderSection[] = ["mine", "shared"];
 
 type FolderSectionDefinition<K extends string, T> = {
@@ -47,6 +49,7 @@ type FolderSectionDefinition<K extends string, T> = {
 };
 
 type FolderSectionListSlotProps<T> = {
+  isRevealing: boolean;
   onEdgesChange: (edges: FolderListEdges) => void;
   renderRow: (row: T) => React.ReactElement;
 };
@@ -61,6 +64,10 @@ type FolderSectionsViewListProps<K extends string, T> =
     }
   | { renderList?: undefined; getRowKey: (row: T) => string };
 
+type FolderSectionsAvailableHeight = "container" | (() => number | undefined);
+
+const NO_EDGES: FolderListEdges = { atTop: true, atBottom: true };
+
 type FolderSectionsViewProps<K extends string, T> = FolderSectionsViewListProps<K, T> & {
   sections: readonly FolderSectionDefinition<K, T>[];
   openSection: K | null;
@@ -71,6 +78,7 @@ type FolderSectionsViewProps<K extends string, T> = FolderSectionsViewListProps<
   listMaxHeight?: number;
   listKey?: React.Key;
   className?: string;
+  availableHeight?: FolderSectionsAvailableHeight;
   isAddDisabled?: boolean;
   isToggleDisabled?: boolean;
   hasLeadingDivider?: boolean;
@@ -95,6 +103,7 @@ type FolderSectionsProps = {
   listKey?: React.Key;
   currentFolder?: Folder | null;
   className?: string;
+  availableHeight?: FolderSectionsAvailableHeight;
   isAddDisabled?: boolean;
   hasLeadingDivider?: boolean;
   extraData?: unknown;
@@ -119,6 +128,7 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
     listMaxHeight,
     listKey,
     className,
+    availableHeight,
     isAddDisabled = false,
     isToggleDisabled = false,
     hasLeadingDivider = false,
@@ -131,26 +141,27 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
     onMinHeightChange,
   } = props;
   const isReducedMotion = useReducedMotion();
-  const [edges, setEdges] = React.useState<FolderListEdges>({ atTop: true, atBottom: true });
+  const [edgeState, setEdgeState] = React.useState<{ key: K | null; edges: FolderListEdges }>({
+    key: openSection,
+    edges: NO_EDGES,
+  });
+  const edges = edgeState.key === openSection ? edgeState.edges : NO_EDGES;
+  const containerHeightRef = React.useRef<number | undefined>(undefined);
   const openIndex = openSection ? sections.findIndex((section) => section.key === openSection) : -1;
   const openDefinition = openIndex < 0 ? null : sections[openIndex];
   const openRowCount = openDefinition?.rows.length ?? 0;
-
-  React.useEffect(() => {
-    setEdges({ atTop: true, atBottom: true });
-  }, [openSection]);
-
   const openKey = openDefinition?.key ?? null;
-  const renderOpenRow = React.useCallback(
-    (row: T) => renderRow(row, openKey as K),
-    [openKey, renderRow],
+  const headersHeight = sections.length * FOLDER_SECTION_HEADER_HEIGHT[size];
+
+  const handleEdgesChange = React.useCallback(
+    (next: FolderListEdges) => setEdgeState({ key: openKey, edges: next }),
+    [openKey],
   );
 
   const minHeight = React.useMemo(() => {
     if (minVisibleRows == null || rowHeight == null) {
       return undefined;
     }
-    const headersHeight = sections.length * FOLDER_SECTION_HEADER_HEIGHT[size];
     if (openIndex < 0) {
       return headersHeight;
     }
@@ -160,13 +171,42 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
       Math.min(rows, minVisibleRows) * (rowHeight + FOLDER_LIST_ROW_GAP) +
       FOLDER_LIST_PADDING[size]
     );
-  }, [isListPending, minVisibleRows, openIndex, openRowCount, rowHeight, sections.length, size]);
+  }, [headersHeight, isListPending, minVisibleRows, openIndex, openRowCount, rowHeight, size]);
+
+  const getAvailableHeight = React.useCallback(
+    () =>
+      availableHeight === "container"
+        ? containerHeightRef.current
+        : availableHeight
+          ? availableHeight()
+          : undefined,
+    [availableHeight],
+  );
+
+  const isInsideSheet = useIsInsideSheet();
+  const sheet = useSheetMotion();
+  const accordion = useSectionAccordion<K>({
+    openKey,
+    isReady: !isListDeferred,
+    isReducedMotion,
+    minHeight,
+    headersHeight,
+    listMaxHeight,
+    sheet,
+    getAvailableHeight,
+  });
+  const displayMinHeight = accordion.displayMinHeight;
+  const reportedMinHeight = accordion.reportedMinHeight;
 
   React.useEffect(() => {
-    if (minHeight != null) {
-      onMinHeightChange?.(minHeight);
+    if (reportedMinHeight != null) {
+      onMinHeightChange?.(reportedMinHeight);
     }
-  }, [minHeight, onMinHeightChange]);
+  }, [onMinHeightChange, reportedMinHeight]);
+
+  const handleContainerLayout = React.useCallback((event: LayoutChangeEvent) => {
+    containerHeightRef.current = event.nativeEvent.layout.height;
+  }, []);
 
   function getHeaderShadow(index: number): FolderSectionHeaderShadow {
     if (openIndex < 0) {
@@ -181,9 +221,27 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
     return null;
   }
 
-  function renderOpenList(section: FolderSectionDefinition<K, T>) {
+  const sectionRowRenderers = React.useMemo(() => {
+    const renderers = new Map<K, (row: T) => React.ReactElement>();
+    for (const section of sections) {
+      renderers.set(section.key, (row: T) => renderRow(row, section.key));
+    }
+    return renderers;
+  }, [renderRow, sections]);
+
+  function renderSectionList(
+    section: FolderSectionDefinition<K, T>,
+    isOpen: boolean,
+    isRevealing: boolean,
+  ) {
+    const sectionRenderRow = sectionRowRenderers.get(section.key)!;
+    const onEdgesChange = isOpen ? handleEdgesChange : noopEdges;
     if (props.renderList !== undefined) {
-      return props.renderList(section, { onEdgesChange: setEdges, renderRow: renderOpenRow });
+      return props.renderList(section, {
+        isRevealing,
+        onEdgesChange,
+        renderRow: sectionRenderRow,
+      });
     }
     return (
       <FolderSectionLocalList
@@ -191,11 +249,12 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
         emptyComponent={section.emptyComponent}
         extraData={extraData}
         getRowKey={props.getRowKey}
+        isRevealing={isRevealing}
         label={section.label}
         rows={section.rows}
         size={size}
-        renderRow={renderOpenRow}
-        onEdgesChange={setEdges}
+        renderRow={sectionRenderRow}
+        onEdgesChange={onEdgesChange}
       />
     );
   }
@@ -203,50 +262,86 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
   return (
     <View
       className={cn("min-h-0 shrink", className)}
-      style={minHeight == null ? undefined : { minHeight }}
+      style={
+        isInsideSheet && accordion.transitionHeight != null
+          ? { height: accordion.transitionHeight }
+          : displayMinHeight == null
+            ? undefined
+            : { minHeight: displayMinHeight }
+      }
+      onLayout={availableHeight === "container" ? handleContainerLayout : undefined}
     >
       {sections.map((section, index) => {
         const isOpen = openSection === section.key;
+        const isMounted = !isListDeferred && accordion.mounted.includes(section.key);
         return (
           <React.Fragment key={section.key}>
-            <Animated.View
-              layout={
-                isReducedMotion ? undefined : LinearTransition.duration(SECTION_TRANSITION_MS)
-              }
-            >
-              <FolderSectionHeader
-                canAdd={section.canAdd ?? true}
-                hasDivider={index > 0 || hasLeadingDivider}
+            <FolderSectionMotionHeader
+              motion={accordion.motion}
+              canAdd={section.canAdd ?? true}
+              hasDivider={index > 0 || hasLeadingDivider}
+              isOpen={isOpen}
+              label={section.label}
+              section={section.key}
+              shadow={getHeaderShadow(index)}
+              currentFolder={section.currentFolder ?? null}
+              size={size}
+              tone={tone}
+              isAddDisabled={isAddDisabled}
+              isToggleDisabled={isToggleDisabled}
+              onAddPress={onAddPress}
+              onToggle={onToggle}
+            />
+            {isMounted ? (
+              <FolderSectionBody
+                frozenHeight={accordion.frozen[section.key]}
+                isOpening={accordion.opening === section.key}
+                isShrinkLocked={isInsideSheet && accordion.isMoving}
+                openingCap={accordion.openingCap}
+                openingTarget={accordion.openingTarget}
                 isOpen={isOpen}
-                label={section.label}
-                section={section.key}
-                shadow={getHeaderShadow(index)}
-                currentFolder={section.currentFolder ?? null}
-                size={size}
-                tone={tone}
-                isAddDisabled={isAddDisabled}
-                isToggleDisabled={isToggleDisabled}
-                onAddPress={onAddPress}
-                onToggle={onToggle}
-              />
-            </Animated.View>
-            {isOpen && !isListDeferred ? (
-              <Animated.View
-                entering={isReducedMotion ? undefined : FadeIn.duration(SECTION_TRANSITION_MS)}
-                exiting={
-                  isReducedMotion || process.env.EXPO_OS === "web"
-                    ? undefined
-                    : FadeOut.duration(SECTION_TRANSITION_MS)
-                }
-                style={{ flexShrink: 1, minHeight: 0, maxHeight: listMaxHeight }}
+                isSettledOpen={isOpen && !accordion.isMoving}
+                listMaxHeight={listMaxHeight}
+                motion={accordion.motion}
+                sectionKey={section.key}
+                onMeasure={accordion.handleMeasure}
+                onVisibleLayout={accordion.handleVisibleLayout}
               >
-                {renderOpenList(section)}
-              </Animated.View>
+                {renderSectionList(
+                  section,
+                  isOpen,
+                  accordion.isMoving && accordion.opening === section.key,
+                )}
+              </FolderSectionBody>
             ) : null}
           </React.Fragment>
         );
       })}
     </View>
+  );
+}
+
+function noopEdges() {}
+
+function FolderSectionMotionHeader<K extends string>({
+  motion,
+  ...props
+}: React.ComponentProps<typeof FolderSectionHeader<K>> & { motion: SectionMotion }) {
+  const sectionKey = props.section;
+  const chevronStyle = useAnimatedStyle(() => {
+    const openness =
+      motion.mode.value === MODE_MOVING
+        ? interpolateSectionOpenness(motion.plan.value, sectionKey, motion.progress.value)
+        : motion.settledKey.value === sectionKey
+          ? 1
+          : 0;
+    return { transform: [{ rotate: `${getChevronRotation(openness)}deg` }] };
+  });
+  return (
+    <FolderSectionHeader
+      {...props}
+      chevronStyle={chevronStyle}
+    />
   );
 }
 
@@ -261,6 +356,7 @@ function FolderSections({
   listKey,
   currentFolder = null,
   className,
+  availableHeight,
   isAddDisabled = false,
   hasLeadingDivider = false,
   extraData,
@@ -333,6 +429,7 @@ function FolderSections({
       key={listKey}
       extraData={extraData}
       folders={section.rows}
+      isRevealing={slot.isRevealing}
       scrollSurface={getScrollSurface(surface)}
       section={section.key}
       size={size}
@@ -347,6 +444,7 @@ function FolderSections({
 
   return (
     <FolderSectionsView
+      availableHeight={availableHeight}
       className={className}
       hasLeadingDivider={hasLeadingDivider}
       isAddDisabled={isAddDisabled}
@@ -369,5 +467,7 @@ function FolderSections({
   );
 }
 
-export { FolderSections, FolderSectionsView };
+const MemoFolderSections = React.memo(FolderSections);
+
+export { MemoFolderSections as FolderSections, FolderSectionsView };
 export type { FolderSectionDefinition, FolderSectionsProps };

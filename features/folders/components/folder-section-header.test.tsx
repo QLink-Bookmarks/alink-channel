@@ -2,6 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react-native";
 
 import { FolderSectionHeader } from "./folder-section-header";
 
+/* eslint-disable @typescript-eslint/no-require-imports -- jest.mock factories must require */
+jest.mock("react-native-worklets", () => require("react-native-worklets/src/mock"));
+jest.mock("react-native-reanimated", () => require("react-native-reanimated/mock"));
+/* eslint-enable @typescript-eslint/no-require-imports */
+
 describe("FolderSectionHeader", () => {
   it("names the toggle by the action it takes and reports the expanded state", () => {
     const onToggle = jest.fn();

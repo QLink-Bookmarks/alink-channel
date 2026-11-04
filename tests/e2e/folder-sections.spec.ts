@@ -2,6 +2,7 @@ import { type Locator, type Page, expect, test } from "@playwright/test";
 
 import { boxOf, isWideProject } from "./support/helpers";
 import { type MockFolder, makeFolders, makeLink, mockApi } from "./support/mock-api";
+import { settleSections } from "./support/section-motion";
 
 const PIN_TOP = /0px 6px 10px -8px/;
 const PIN_BOTTOM = /0px -6px 10px -8px/;
@@ -82,43 +83,7 @@ async function settle(page: Page) {
       ),
     )
     .toBe(0);
-}
-
-async function recordSectionAnimations(page: Page) {
-  await page.evaluate(() => {
-    const names: string[] = [];
-    (window as unknown as { __sectionAnimations: string[] }).__sectionAnimations = names;
-    document.addEventListener(
-      "animationstart",
-      (event) => {
-        const target = event.target as HTMLElement;
-        const isSectionList = target.querySelector('[aria-label$="폴더 목록"]') !== null;
-        const isSectionTitle =
-          target.querySelector('[aria-label$="폴더 접기"], [aria-label$="폴더 펼치기"]') !== null &&
-          target.querySelectorAll('[aria-label$="폴더 접기"], [aria-label$="폴더 펼치기"]')
-            .length === 1;
-        if (isSectionList || isSectionTitle) {
-          names.push(event.animationName);
-        }
-      },
-      true,
-    );
-  });
-}
-
-function sectionAnimationCount(page: Page) {
-  return page.evaluate(
-    () => (window as unknown as { __sectionAnimations: string[] }).__sectionAnimations.length,
-  );
-}
-
-function nextFrames(page: Page) {
-  return page.evaluate(
-    () =>
-      new Promise((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve(null))),
-      ),
-  );
+  await settleSections(page);
 }
 
 async function headerShadow(page: Page, label: "내 폴더" | "공유 폴더") {
@@ -302,33 +267,6 @@ test.describe("wide sidebar folder sections", () => {
     await expect(toggle(page, "공유 폴더")).toHaveAccessibleName("공유 폴더 펼치기");
     await expect(page.getByLabel(/폴더 목록$/)).toHaveCount(0);
     await expect(uncategorized(page)).toBeVisible();
-  });
-
-  test("switching sections animates, and reduced motion switches without animation", async ({
-    browser,
-  }) => {
-    for (const reducedMotion of ["no-preference", "reduce"] as const) {
-      const context = await browser.newContext({
-        reducedMotion,
-        viewport: { width: 1280, height: 800 },
-      });
-      const page = await context.newPage();
-      await mockApi(page, { folders: makeFolders(12, 3) });
-      await page.goto("/home");
-      await expect(folderRow(sectionList(page, "내 폴더"), 11)).toBeVisible();
-      await settle(page);
-      await recordSectionAnimations(page);
-
-      await toggle(page, "공유 폴더").click();
-      await expect(folderRow(sectionList(page, "공유 폴더"), 12)).toBeVisible();
-      if (reducedMotion === "reduce") {
-        await nextFrames(page);
-        expect(await sectionAnimationCount(page)).toBe(0);
-      } else {
-        await expect.poll(() => sectionAnimationCount(page)).toBeGreaterThan(0);
-      }
-      await context.close();
-    }
   });
 
   test("each section reopens where it was left, and a section opened for the first time starts at the top", async ({
@@ -708,6 +646,7 @@ test.describe("wide sidebar folder states", () => {
     await toggle(page, "공유 폴더").click();
     const shared = sectionList(page, "공유 폴더");
     await expect(folderRow(shared, 80)).toBeVisible();
+    await settle(page);
 
     await scrollTo(shared, 120);
     const anchor = folderRow(shared, 70);

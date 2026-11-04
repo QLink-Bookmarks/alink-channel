@@ -121,6 +121,12 @@ jest.mock("@gorhom/bottom-sheet", () => {
     BottomSheetFooter: ({ children }: { children?: React.ReactNode }) => children,
     BottomSheetModal,
     BottomSheetScrollView: ({ children }: { children?: React.ReactNode }) => children,
+    useBottomSheetTimingConfigs: (configs: object) => configs,
+    useBottomSheetInternal: () => ({
+      animatedPosition: { value: 0 },
+      animatedAnimationState: { value: { status: 0 } },
+    }),
+    ANIMATION_STATUS: { UNDETERMINED: 0, RUNNING: 1, STOPPED: 2, INTERRUPTED: 3 },
   };
 });
 /* eslint-enable @typescript-eslint/no-require-imports */

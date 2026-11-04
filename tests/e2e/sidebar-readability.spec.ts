@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { textContrast } from "./support/color";
+import { textContrast, waitForSettledColors } from "./support/color";
 import { isWideProject } from "./support/helpers";
 import { makeFolders, mockApi, settingsHandler } from "./support/mock-api";
 
@@ -55,6 +55,7 @@ test.describe("light sidebar text contrast (#27)", () => {
           4.5,
         );
 
+        await waitForSettledColors(home);
         const [iconColor, barColor] = await home.evaluate((node) => {
           const icon = node.querySelector("svg");
           const bar = Array.from(node.querySelectorAll<HTMLElement>("div")).find(
