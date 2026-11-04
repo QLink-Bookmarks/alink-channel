@@ -158,6 +158,29 @@ describe("buildStartRequest", () => {
     });
   });
 
+  it("leaves out a folder emptied with 모두 빼기, and sends links put back into their folder", () => {
+    let state = proposalReducer(setup(), { type: "remove-all", target: "new:f3" });
+    state = proposalReducer(state, { type: "remove", linkKey: "l1" });
+    state = proposalReducer(state, { type: "restore", linkKey: "l4" });
+    const request = buildStartRequest({ state, clientRequestId: "id", fileName: "a.html" });
+
+    expect(request.folders.map((item) => item.key)).toEqual(["existing:10", "new:f2", "new:f3"]);
+    expect(request.links.map((link) => [link.key, link.folderKey])).toEqual([
+      ["l2", "existing:10"],
+      ["l3", "new:f2"],
+      ["l4", "new:f3"],
+    ]);
+
+    const emptied = proposalReducer(setup(), { type: "remove-all", target: "new:f3" });
+    const emptiedRequest = buildStartRequest({
+      state: emptied,
+      clientRequestId: "id",
+      fileName: "a.html",
+    });
+    expect(emptiedRequest.folders.map((item) => item.key)).not.toContain("new:f3");
+    expect(emptiedRequest.links.map((link) => link.key)).not.toContain("l5");
+  });
+
   it("cuts a long file name at 255 units", () => {
     const request = buildStartRequest({
       state: setup(),

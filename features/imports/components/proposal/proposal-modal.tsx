@@ -245,9 +245,10 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
     [handleSelect],
   );
 
-  const statusBar = state.lastChange ? (
+  const statusBar = proposal.statusLine ? (
     <ProposalStatusBar
-      change={state.lastChange}
+      isWide={isWide}
+      line={proposal.statusLine}
       onDismiss={proposal.dismissChange}
       onUndo={proposal.undo}
     />

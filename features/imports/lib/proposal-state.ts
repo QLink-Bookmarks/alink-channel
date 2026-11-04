@@ -5,6 +5,8 @@ import type { ImportCandidates, ImportUnsupportedLink } from "./build-import-can
 import type { RenameCheck } from "./rename-check";
 
 const UNFILED_TARGET = "unfiled";
+const UNDO_LIMIT = 10;
+const RECENT_LIMIT = 3;
 
 type ProposalTarget = string;
 
@@ -39,26 +41,42 @@ type ProposalChange =
   | { type: "remove"; linkTitle: string; excludedFolder: string | null }
   | { type: "move"; linkTitle: string; toName: string; excludedFolder: string | null }
   | { type: "merge"; fromName: string; count: number; toKind: "existing" | "new"; toName: string }
-  | { type: "rename-blocked"; name: string };
+  | { type: "remove-all"; folderName: string; count: number; excludedFolder: string | null }
+  | { type: "restore-all"; folderName: string; count: number; includedFolder: string | null }
+  | { type: "restore"; linkTitle: string; toName: string; includedFolder: string | null };
+
+type ProposalNotice = { type: "rename-blocked"; name: string };
 
 type ProposalSnapshot = {
   links: ProposalLink[];
   newFolders: ProposalNewFolder[];
 };
 
+type ProposalHistoryEntry = {
+  snapshot: ProposalSnapshot;
+  change: ProposalChange;
+};
+
+type ProposalStatusMode = "change" | "undone" | "notice" | "hidden";
+
 type ProposalState = ProposalSnapshot & {
   existingNames: Record<number, string>;
   skipped: ProposalSkippedLink[];
   unsupported: ImportUnsupportedLink[];
   initialSignature: string;
-  undo: ProposalSnapshot | null;
-  lastChange: ProposalChange | null;
+  history: ProposalHistoryEntry[];
+  statusMode: ProposalStatusMode;
+  notice: ProposalNotice | null;
+  recentTargets: ProposalTarget[];
   nextPickerIndex: number;
 };
 
 type ProposalAction =
   | { type: "move"; linkKey: string; target: ProposalTarget; targetName: string }
   | { type: "remove"; linkKey: string }
+  | { type: "remove-all"; target: ProposalTarget }
+  | { type: "restore-all"; target: ProposalTarget }
+  | { type: "restore"; linkKey: string }
   | { type: "rename"; target: ProposalTarget; check: RenameCheck }
   | { type: "add-picker-folder"; name: string }
   | { type: "discard-unused-picker-folders" }
@@ -70,6 +88,18 @@ type ProposalSummary = {
   newFolderCount: number;
   skipCount: number;
   unsupportedCount: number;
+  removedCount: number;
+};
+
+type ProposalStatusLine =
+  | { kind: "change"; change: ProposalChange; isAfterUndo: boolean; depth: number }
+  | { kind: "notice"; notice: ProposalNotice };
+
+type ProposalRemovedGroup = {
+  target: ProposalTarget;
+  restoreTarget: ProposalTarget;
+  isGone: boolean;
+  links: ProposalLink[];
 };
 
 function getExistingTarget(folderId: number) {
@@ -188,8 +218,10 @@ function createProposalState({
     skipped,
     unsupported: candidates.unsupported,
     initialSignature: getSignature(snapshot),
-    undo: null,
-    lastChange: null,
+    history: [],
+    statusMode: "hidden",
+    notice: null,
+    recentTargets: [],
     nextPickerIndex: 1,
   };
 }
@@ -216,6 +248,51 @@ function takeSnapshot(state: ProposalState): ProposalSnapshot {
   return { links: state.links, newFolders: state.newFolders };
 }
 
+function isReceivingTarget(state: ProposalState, target: ProposalTarget) {
+  if (target === UNFILED_TARGET) {
+    return true;
+  }
+  const existingId = getExistingFolderId(target);
+  if (existingId != null) {
+    return state.existingNames[existingId] != null;
+  }
+  return state.newFolders.some((folder) => folder.target === target);
+}
+
+function getRestoreTarget(state: ProposalState, target: ProposalTarget) {
+  return isReceivingTarget(state, target) ? target : UNFILED_TARGET;
+}
+
+function getIncludedFolderName(state: ProposalState, destination: ProposalTarget) {
+  if (!isNewTarget(destination) || countTargetLinks(state, destination) > 0) {
+    return null;
+  }
+  return state.newFolders.find((folder) => folder.target === destination)?.name ?? null;
+}
+
+function pushChange(
+  state: ProposalState,
+  next: Partial<ProposalState>,
+  change: ProposalChange,
+): ProposalState {
+  const history = [...state.history, { snapshot: takeSnapshot(state), change }].slice(-UNDO_LIMIT);
+  return { ...state, ...next, history, statusMode: "change", notice: null };
+}
+
+function rememberTarget(recent: ProposalTarget[], target: ProposalTarget) {
+  return [target, ...recent.filter((item) => item !== target)].slice(0, RECENT_LIMIT);
+}
+
+function restoreSnapshot(state: ProposalState, snapshot: ProposalSnapshot): ProposalSnapshot {
+  const currentNames = new Map(state.newFolders.map((folder) => [folder.target, folder.name]));
+  const newFolders = snapshot.newFolders.map((folder) => {
+    const name = currentNames.get(folder.target);
+    return name == null || name === folder.name ? folder : { ...folder, name };
+  });
+  const restored = { links: snapshot.links, newFolders };
+  return { links: restored.links, newFolders: dropUnusedPickerFolders(restored) };
+}
+
 function dropUnusedPickerFolders(state: ProposalSnapshot): ProposalNewFolder[] {
   return state.newFolders.filter(
     (folder) => folder.origin === "file" || countTargetLinks(state, folder.target) > 0,
@@ -233,17 +310,16 @@ function proposalReducer(state: ProposalState, action: ProposalAction): Proposal
         item.key === action.linkKey ? { ...item, target: action.target } : item,
       );
       const next = { links, newFolders: state.newFolders };
-      return {
-        ...state,
-        links,
-        undo: takeSnapshot(state),
-        lastChange: {
+      return pushChange(
+        state,
+        { links, recentTargets: rememberTarget(state.recentTargets, action.target) },
+        {
           type: "move",
           linkTitle: link.title,
           toName: action.targetName,
           excludedFolder: getExcludedFolderName(next, link.target),
         },
-      };
+      );
     }
     case "remove": {
       const link = state.links.find((item) => item.key === action.linkKey);
@@ -254,16 +330,78 @@ function proposalReducer(state: ProposalState, action: ProposalAction): Proposal
         item.key === action.linkKey ? { ...item, isRemoved: true } : item,
       );
       const next = { links, newFolders: state.newFolders };
-      return {
-        ...state,
-        links,
-        undo: takeSnapshot(state),
-        lastChange: {
+      return pushChange(
+        state,
+        { links },
+        {
           type: "remove",
           linkTitle: link.title,
           excludedFolder: getExcludedFolderName(next, link.target),
         },
-      };
+      );
+    }
+    case "remove-all": {
+      const count = countTargetLinks(state, action.target);
+      if (count === 0) {
+        return state;
+      }
+      const links = state.links.map((item) =>
+        !item.isRemoved && item.target === action.target ? { ...item, isRemoved: true } : item,
+      );
+      return pushChange(
+        state,
+        { links },
+        {
+          type: "remove-all",
+          folderName: getTargetName(state, action.target),
+          count,
+          excludedFolder: isNewTarget(action.target) ? getTargetName(state, action.target) : null,
+        },
+      );
+    }
+    case "restore-all": {
+      const destination = getRestoreTarget(state, action.target);
+      let count = 0;
+      const links = state.links.map((item) => {
+        if (!item.isRemoved || item.target !== action.target) {
+          return item;
+        }
+        count += 1;
+        return { ...item, target: destination, isRemoved: false };
+      });
+      if (count === 0) {
+        return state;
+      }
+      return pushChange(
+        state,
+        { links },
+        {
+          type: "restore-all",
+          folderName: getTargetName(state, destination),
+          count,
+          includedFolder: getIncludedFolderName(state, destination),
+        },
+      );
+    }
+    case "restore": {
+      const link = state.links.find((item) => item.key === action.linkKey);
+      if (!link || !link.isRemoved) {
+        return state;
+      }
+      const destination = getRestoreTarget(state, link.target);
+      const links = state.links.map((item) =>
+        item.key === action.linkKey ? { ...item, target: destination, isRemoved: false } : item,
+      );
+      return pushChange(
+        state,
+        { links },
+        {
+          type: "restore",
+          linkTitle: link.title,
+          toName: getTargetName(state, destination),
+          includedFolder: getIncludedFolderName(state, destination),
+        },
+      );
     }
     case "rename": {
       const folder = state.newFolders.find((item) => item.target === action.target);
@@ -275,7 +413,11 @@ function proposalReducer(state: ProposalState, action: ProposalAction): Proposal
         return state;
       }
       if (check.type === "blocked") {
-        return { ...state, lastChange: { type: "rename-blocked", name: folder.name } };
+        return {
+          ...state,
+          statusMode: "notice",
+          notice: { type: "rename-blocked", name: folder.name },
+        };
       }
       if (check.type === "ok") {
         return {
@@ -283,8 +425,6 @@ function proposalReducer(state: ProposalState, action: ProposalAction): Proposal
           newFolders: state.newFolders.map((item) =>
             item.target === action.target ? { ...item, name: check.name } : item,
           ),
-          undo: null,
-          lastChange: null,
         };
       }
       const destination =
@@ -302,23 +442,27 @@ function proposalReducer(state: ProposalState, action: ProposalAction): Proposal
       if (check.type === "merge-existing" && state.existingNames[check.folderId] == null) {
         return state;
       }
-      return {
-        ...state,
-        links,
-        newFolders: state.newFolders.filter((item) => item.target !== action.target),
-        existingNames:
-          check.type === "merge-existing"
-            ? { ...state.existingNames, [check.folderId]: check.name }
-            : state.existingNames,
-        undo: takeSnapshot(state),
-        lastChange: {
+      return pushChange(
+        state,
+        {
+          links,
+          newFolders: state.newFolders.filter((item) => item.target !== action.target),
+          existingNames:
+            check.type === "merge-existing"
+              ? { ...state.existingNames, [check.folderId]: check.name }
+              : state.existingNames,
+          recentTargets: state.recentTargets.map((item) =>
+            item === action.target ? destination : item,
+          ),
+        },
+        {
           type: "merge",
           fromName: folder.name,
           count,
           toKind: check.type === "merge-existing" ? "existing" : "new",
           toName: check.name,
         },
-      };
+      );
     }
     case "add-picker-folder": {
       const target = getNewTarget(`p${state.nextPickerIndex}`);
@@ -344,20 +488,23 @@ function proposalReducer(state: ProposalState, action: ProposalAction): Proposal
       return newFolders.length === state.newFolders.length ? state : { ...state, newFolders };
     }
     case "undo": {
-      if (!state.undo) {
+      const entry = state.history[state.history.length - 1];
+      if (!entry) {
         return state;
       }
-      const restored = { links: state.undo.links, newFolders: state.undo.newFolders };
+      const history = state.history.slice(0, -1);
       return {
         ...state,
-        links: restored.links,
-        newFolders: dropUnusedPickerFolders(restored),
-        undo: null,
-        lastChange: null,
+        ...restoreSnapshot(state, entry.snapshot),
+        history,
+        statusMode: history.length > 0 ? "undone" : "hidden",
+        notice: null,
       };
     }
     case "dismiss-change":
-      return state.lastChange ? { ...state, lastChange: null, undo: null } : state;
+      return state.statusMode === "hidden"
+        ? state
+        : { ...state, statusMode: "hidden", notice: null };
     default:
       return state;
   }
@@ -381,7 +528,62 @@ function getProposalSummary(state: ProposalState): ProposalSummary {
     newFolderCount: state.newFolders.filter((folder) => activeTargets.has(folder.target)).length,
     skipCount: state.skipped.length,
     unsupportedCount: state.unsupported.length,
+    removedCount: state.links.length - addCount,
   };
+}
+
+function getStatusLine(state: ProposalState): ProposalStatusLine | null {
+  if (state.statusMode === "notice" && state.notice) {
+    return { kind: "notice", notice: state.notice };
+  }
+  const entry = state.history[state.history.length - 1];
+  if (!entry || (state.statusMode !== "change" && state.statusMode !== "undone")) {
+    return null;
+  }
+  return {
+    kind: "change",
+    change: entry.change,
+    isAfterUndo: state.statusMode === "undone",
+    depth: state.history.length,
+  };
+}
+
+function getRemovedLinkCount(state: ProposalState, target: ProposalTarget) {
+  let count = 0;
+  for (const link of state.links) {
+    if (link.isRemoved && link.target === target) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function getRemovedGroups(
+  state: ProposalState,
+  order: readonly ProposalTarget[],
+): ProposalRemovedGroup[] {
+  const byTarget = new Map<ProposalTarget, ProposalLink[]>();
+  for (const link of state.links) {
+    if (link.isRemoved) {
+      const list = byTarget.get(link.target);
+      if (list) {
+        list.push(link);
+      } else {
+        byTarget.set(link.target, [link]);
+      }
+    }
+  }
+  const rank = new Map(order.map((target, index) => [target, index]));
+  return [...byTarget.entries()]
+    .sort(([a], [b]) => (rank.get(a) ?? order.length) - (rank.get(b) ?? order.length))
+    .map(([target, links]) => {
+      const restoreTarget = getRestoreTarget(state, target);
+      return { target, restoreTarget, isGone: restoreTarget !== target, links };
+    });
+}
+
+function getRecentTargets(state: ProposalState) {
+  return state.recentTargets.filter((target) => isReceivingTarget(state, target));
 }
 
 function isProposalDirty(state: ProposalState) {
@@ -389,6 +591,7 @@ function isProposalDirty(state: ProposalState) {
 }
 
 export {
+  UNDO_LIMIT,
   UNFILED_TARGET,
   countTargetLinks,
   createProposalState,
@@ -398,6 +601,10 @@ export {
   getLastPickerTarget,
   getNewTarget,
   getProposalSummary,
+  getRecentTargets,
+  getRemovedGroups,
+  getRemovedLinkCount,
+  getStatusLine,
   getTargetName,
   isNewTarget,
   isProposalDirty,
@@ -407,11 +614,15 @@ export type {
   CreateProposalStateInput,
   ProposalAction,
   ProposalChange,
+  ProposalHistoryEntry,
   ProposalLink,
   ProposalNewFolder,
   ProposalNewFolderOrigin,
+  ProposalNotice,
+  ProposalRemovedGroup,
   ProposalSkippedLink,
   ProposalState,
+  ProposalStatusLine,
   ProposalSummary,
   ProposalTarget,
 };
