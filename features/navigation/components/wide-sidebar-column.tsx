@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { FolderSection } from "@/stores/folder-navigation";
 import { useFolderNavigation } from "@/stores/folder-navigation";
 
+import { useWideShellInsets } from "../hooks/use-wide-shell-insets";
 import type { WideSidebarKey } from "../types";
 import { WideSidebar } from "./wide-sidebar";
 import { WideSidebarRail } from "./wide-sidebar-rail";
@@ -59,6 +60,8 @@ function WideSidebarColumn({
   const toggleSidebarCollapsed = useFolderNavigation((state) => state.toggleSidebarCollapsed);
   const { isMounted, canAnimate } = useMountStages();
   const isReady = hasHydrated && isMounted;
+  const insets = useWideShellInsets();
+  const hasInsets = insets.top > 0 || insets.bottom > 0;
 
   const handleToggle = React.useCallback(() => {
     toggleSidebarCollapsed();
@@ -74,7 +77,9 @@ function WideSidebarColumn({
           canAnimate &&
           "web:transition-[width,min-width,max-width] web:duration-220 web:ease-out web:motion-reduce:transition-none",
         isOverlayOpen && "z-20",
+        hasInsets && "bg-sidebar",
       )}
+      style={hasInsets ? { paddingTop: insets.top, paddingBottom: insets.bottom } : undefined}
     >
       <View
         aria-hidden={isOverlayOpen}
@@ -105,6 +110,12 @@ function WideSidebarColumn({
           )
         ) : null}
       </View>
+      {hasInsets ? (
+        <View
+          className="absolute bottom-0 right-0 top-0 w-px bg-sidebar-border"
+          pointerEvents="none"
+        />
+      ) : null}
       {isOverlayOpen ? (
         <>
           <Pressable
@@ -115,6 +126,7 @@ function WideSidebarColumn({
           />
           <View
             className={cn("absolute top-3", isCollapsed ? "left-0 right-0 items-center" : "left-3")}
+            style={hasInsets ? { marginTop: insets.top } : undefined}
           >
             <SidebarRailItem
               aria-expanded={!isCollapsed}

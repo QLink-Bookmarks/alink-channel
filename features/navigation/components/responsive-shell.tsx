@@ -9,7 +9,7 @@ import { Fab } from "@/components/layout/fab";
 import { Sheet } from "@/components/layout/sheet";
 import { Topbar } from "@/components/layout/topbar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Emoji } from "@/components/ui/emoji";
+import { Icon } from "@/components/ui/icon";
 import { IconButton } from "@/components/ui/icon-button";
 import { Kbd } from "@/components/ui/kbd";
 import { Text } from "@/components/ui/text";
@@ -42,6 +42,7 @@ import { useAddLinkSheet } from "../hooks/use-add-link-sheet";
 import { useLinkOverlayState } from "../hooks/use-link-overlay-state";
 import { type ShellActions, ShellActionsContext } from "../hooks/use-shell-actions";
 import { useShellRouteState } from "../hooks/use-shell-route-state";
+import { useWideShellInsets } from "../hooks/use-wide-shell-insets";
 import { getFolderIdFromPath } from "../lib/folder-path";
 import { isNewLinkShortcut, suppressNextTextInput } from "../lib/new-link-shortcut";
 import { canOpenWideOverlayInPlace } from "../routes";
@@ -61,6 +62,7 @@ const mobileTabItems = [
 function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const routeState = useShellRouteState();
+  const wideInsets = useWideShellInsets();
   const {
     close: closeAddLinkSheet,
     handleOpenChange: handleAddLinkSheetOpenChange,
@@ -98,6 +100,18 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     overlayBaseHref: routeState.overlayBaseHref,
     overlayLinkId: routeState.overlayLinkId,
   });
+
+  const lastPathnameRef = React.useRef(routeState.pathname);
+  React.useEffect(() => {
+    if (lastPathnameRef.current === routeState.pathname) {
+      return;
+    }
+    lastPathnameRef.current = routeState.pathname;
+    if (linkUrlParam?.trim()) {
+      return;
+    }
+    setIsAddLinkDialogOpen(false);
+  }, [linkUrlParam, routeState.pathname]);
 
   React.useEffect(() => {
     const url = linkUrlParam?.trim();
@@ -331,13 +345,22 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
             onProfilePress={handleProfilePress}
           />
 
-          <View className="flex-1 bg-background">
+          <View
+            className="flex-1 bg-background"
+            style={{ paddingTop: wideInsets.top, paddingBottom: wideInsets.bottom }}
+          >
             <Topbar
               className="flex"
               placeholder="링크 · 요약 · 태그 검색…"
               variant="default"
               searchReadOnly
-              searchLeftSlot={<Emoji className="text-xl">🔍</Emoji>}
+              searchLeftSlot={
+                <Icon
+                  as={Search}
+                  size={16}
+                  className="text-muted-foreground"
+                />
+              }
               searchRightSlot={<Kbd size="sm">⌘/Ctrl + K</Kbd>}
               onSearchPress={handleWideSearchPress}
               actions={

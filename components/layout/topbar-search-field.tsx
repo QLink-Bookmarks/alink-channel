@@ -59,6 +59,7 @@ function TopbarSearchField({
       <Input
         ref={inputRef}
         editable={!readOnly}
+        pointerEvents={readOnly ? "none" : undefined}
         variant="inline"
         className={cn(
           "h-7 flex-1 border-none px-0 py-0",
