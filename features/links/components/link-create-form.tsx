@@ -737,7 +737,7 @@ function LinkCreateForm({
 
         <View className="flex-row gap-4">
           <View className="min-w-0 flex-1 gap-2">
-            <Text className="text-sm font-semibold text-muted-foreground">폴더</Text>
+            <Text className="text-sm font-semibold leading-5 text-muted-foreground">폴더</Text>
             <Popover>
               <PopoverTrigger asChild>
                 <WideSelectTrigger
@@ -759,7 +759,7 @@ function LinkCreateForm({
             </Popover>
           </View>
           <View className="min-w-0 flex-1 gap-2">
-            <Text className="text-sm font-semibold text-muted-foreground">AI 제공자</Text>
+            <Text className="text-sm font-semibold leading-5 text-muted-foreground">AI 제공자</Text>
             <Popover>
               <PopoverTrigger asChild>
                 <WideSelectTrigger

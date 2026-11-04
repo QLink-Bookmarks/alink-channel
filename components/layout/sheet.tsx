@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Pressable, type StyleProp, View, type ViewStyle } from "react-native";
+import { Keyboard, Pressable, type StyleProp, View, type ViewStyle } from "react-native";
 import Animated, {
   type EasingFunctionFactory,
   type SharedValue,
@@ -52,6 +52,23 @@ const SheetMotionContext = React.createContext<SheetMotion | null>(null);
 type SetSheetFooter = (footer: React.ReactNode) => void;
 
 const SheetFooterSlotContext = React.createContext<SetSheetFooter | null>(null);
+
+function useIsKeyboardShown(active: boolean) {
+  const [isShown, setIsShown] = React.useState(false);
+  React.useEffect(() => {
+    if (!active) {
+      setIsShown(false);
+      return;
+    }
+    const showSubscription = Keyboard.addListener("keyboardWillShow", () => setIsShown(true));
+    const hideSubscription = Keyboard.addListener("keyboardWillHide", () => setIsShown(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [active]);
+  return isShown;
+}
 
 function SheetFooter({ children }: { children: React.ReactNode }) {
   const setFooter = React.use(SheetFooterSlotContext);
@@ -384,20 +401,22 @@ function Sheet({
   );
 
   const safeBottomInset = Math.max(insets.bottom, 16);
+  const isKeyboardShown = useIsKeyboardShown(resolvedFooter != null);
+  const footerBottomInset = isKeyboardShown ? 12 : safeBottomInset;
   const hasFooter = resolvedFooter != null;
   const renderFooter = React.useCallback(
     (props: BottomSheetFooterProps) => (
       <BottomSheetFooter {...props}>
         <View
           className="border-t border-border-soft bg-background px-4 pt-3"
-          style={{ paddingBottom: safeBottomInset }}
+          style={{ paddingBottom: footerBottomInset }}
           onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
         >
           {resolvedFooter}
         </View>
       </BottomSheetFooter>
     ),
-    [resolvedFooter, safeBottomInset],
+    [footerBottomInset, resolvedFooter],
   );
   const content = (
     <View
