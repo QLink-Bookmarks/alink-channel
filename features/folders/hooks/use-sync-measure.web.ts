@@ -1,6 +1,8 @@
 import * as React from "react";
 import type { View } from "react-native";
 
+const MEASURE_FALLBACK_FRAMES = 6;
+
 function isListMeasurable(ref: React.RefObject<View | null>) {
   const node = ref.current as unknown as HTMLElement | null;
   const list = node?.querySelector('[aria-label$="목록"]');
@@ -13,12 +15,30 @@ function useSyncMeasure(
   onMeasure: (height: number) => void,
 ) {
   React.useLayoutEffect(() => {
-    if (!isActive || !isListMeasurable(ref)) {
+    if (!isActive) {
       return;
     }
-    const node = ref.current as unknown as HTMLElement;
-    onMeasure(node.getBoundingClientRect().height);
+    const measure = () => {
+      const node = ref.current as unknown as HTMLElement | null;
+      if (node) {
+        onMeasure(node.getBoundingClientRect().height);
+      }
+    };
+    if (isListMeasurable(ref)) {
+      measure();
+      return;
+    }
+    let frames = 0;
+    let frame = requestAnimationFrame(function retry() {
+      frames += 1;
+      if (isListMeasurable(ref) || frames >= MEASURE_FALLBACK_FRAMES) {
+        measure();
+        return;
+      }
+      frame = requestAnimationFrame(retry);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [isActive, onMeasure, ref]);
 }
 
-export { isListMeasurable, useSyncMeasure };
+export { MEASURE_FALLBACK_FRAMES, isListMeasurable, useSyncMeasure };
