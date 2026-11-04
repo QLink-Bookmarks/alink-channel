@@ -64,6 +64,7 @@ test.describe("home entry", () => {
     ).toBeVisible();
     await expect(empty.getByRole("button", { name: "링크 추가" })).toBeVisible();
     await expect(empty.getByRole("button", { name: "브라우저 북마크 가져오기" })).toBeVisible();
+    await expect(empty.getByText("북마크 가져오기는 웹에서 할 수 있어요")).toHaveCount(0);
     await expect(page.getByText("최근 저장 링크가 없어요")).toHaveCount(0);
     await expect(page.getByText("아직 링크가 없어요")).toHaveCount(0);
     await expect(page.getByPlaceholder("웹 검색 또는 내 링크 검색…")).toHaveCount(0);

@@ -6,6 +6,9 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 import { openImportFlow } from "@/stores/import-flow";
 
+import { isImportAvailable } from "../../lib/import-availability";
+import { WebOnlyImportNote } from "./web-only-import-note";
+
 import { Link, Plus, Upload } from "lucide-react-native/icons";
 
 type HomeEmptyStateProps = {
@@ -48,16 +51,20 @@ function HomeEmptyState({ className, onAddLink }: HomeEmptyStateProps) {
             <Text className="text-sm font-semibold">링크 추가</Text>
           </Button>
         ) : null}
-        <Button
-          className="h-10 flex-row gap-1.5 rounded-xl px-4"
-          onPress={() => openImportFlow({ from: "home" })}
-        >
-          <Icon
-            as={Upload}
-            className="size-4 text-primary-foreground"
-          />
-          <Text className="text-sm font-semibold">브라우저 북마크 가져오기</Text>
-        </Button>
+        {isImportAvailable() ? (
+          <Button
+            className="h-10 flex-row gap-1.5 rounded-xl px-4"
+            onPress={() => openImportFlow({ from: "home" })}
+          >
+            <Icon
+              as={Upload}
+              className="size-4 text-primary-foreground"
+            />
+            <Text className="text-sm font-semibold">브라우저 북마크 가져오기</Text>
+          </Button>
+        ) : (
+          <WebOnlyImportNote className="h-10 px-1" />
+        )}
       </View>
     </View>
   );

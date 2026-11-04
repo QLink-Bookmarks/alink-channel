@@ -128,6 +128,7 @@ test.describe("bookmark import history", () => {
 
     await expect(page).toHaveURL(/\/settings\/imports$/);
     await expect(page.getByRole("button", { name: "새로 가져오기" })).toBeVisible();
+    await expect(page.getByText("북마크 가져오기는 웹에서 할 수 있어요")).toHaveCount(0);
     await expect(page.getByText("가져오기 기록", { exact: true })).toBeVisible();
 
     const rows = page.locator('[data-testid^="import-row-"]');
