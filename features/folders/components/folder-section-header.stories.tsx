@@ -1,9 +1,17 @@
 import * as React from "react";
 import { View } from "react-native";
+import {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
 import type { FolderSection } from "@/stores/folder-navigation";
 import type { Meta, StoryObj } from "@storybook/react-native";
 
+import { getChevronRotation } from "../lib/section-accordion";
 import { FOLDER_SECTION_LABELS, FolderSectionHeader } from "./folder-section-header";
 
 const meta = {
@@ -108,6 +116,52 @@ function CurrentFolderPathPreview() {
 export const CurrentFolderPath: Story = {
   name: "접힌 섹션의 현재 폴더 경로",
   render: () => <CurrentFolderPathPreview />,
+};
+
+function AnimatedChevronPreview() {
+  const [openSection, setOpenSection] = React.useState<FolderSection>("mine");
+  const isReducedMotion = useReducedMotion();
+  const mineOpenness = useSharedValue(1);
+  const mineChevron = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${getChevronRotation(mineOpenness.value)}deg` }],
+  }));
+  const sharedChevron = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${getChevronRotation(1 - mineOpenness.value)}deg` }],
+  }));
+  const handleToggle = (section: FolderSection) => {
+    setOpenSection(section);
+    const next = section === "mine" ? 1 : 0;
+    mineOpenness.value = isReducedMotion
+      ? next
+      : withTiming(next, { duration: 240, easing: Easing.bezier(0.4, 0, 0.2, 1) });
+  };
+  return (
+    <View>
+      <FolderSectionHeader
+        chevronStyle={mineChevron}
+        isOpen={openSection === "mine"}
+        label={FOLDER_SECTION_LABELS.mine}
+        section="mine"
+        onAddPress={() => {}}
+        onToggle={handleToggle}
+      />
+      <FolderSectionHeader
+        chevronStyle={sharedChevron}
+        hasDivider
+        isOpen={openSection === "shared"}
+        label={FOLDER_SECTION_LABELS.shared}
+        section="shared"
+        onAddPress={() => {}}
+        onToggle={handleToggle}
+      />
+    </View>
+  );
+}
+
+/** chevronStyle: 펼침 정도에 따라 화살표가 목록과 같은 진행도로 돈다. 동작 줄이기에서는 바로 바뀐다. */
+export const AnimatedChevron: Story = {
+  name: "목록과 함께 도는 화살표",
+  render: () => <AnimatedChevronPreview />,
 };
 
 export const Large: Story = {
