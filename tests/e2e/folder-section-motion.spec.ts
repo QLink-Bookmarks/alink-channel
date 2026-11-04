@@ -408,6 +408,24 @@ test.describe("mobile", () => {
     expect(maxOverlap(sample)).toBeLessThanOrEqual(1);
   });
 
+  test.describe("reduced motion", () => {
+    test.use({ contextOptions: { reducedMotion: "reduce" } });
+
+    test("move sheet: reduced motion switches the lists in one frame", async ({ page }) => {
+      await prepare(page, "picker", "shared", { folders: mixedFolders(30, 10) });
+      await SHEETS["move sheet"](page);
+      await ready(page, "shared");
+
+      const sample = await sampleSectionMotion(page, { clicks: [{ at: 0, section: "mine" }] });
+
+      expect(movingFrames(sample, "mine")).toBeLessThanOrEqual(1);
+      expect(movingFrames(sample, "shared")).toBeLessThanOrEqual(1);
+      expect(sample.final.lists.mine?.height ?? 0).toBeGreaterThan(40);
+      expect(sample.final.lists.shared).toBeNull();
+      await expect(toggle(page, "mine")).toHaveAttribute("aria-expanded", "true");
+    });
+  });
+
   for (const [sheet, openSheet] of Object.entries(SHEETS)) {
     for (const [from, to] of [
       ["shared", "mine"],
