@@ -1228,4 +1228,189 @@ test.describe("bulk remove, removed links and undo steps (#49)", () => {
     await chooseFile(page, "chrome-export.html");
     await expect(page.getByText(PROPOSAL_TITLE)).toBeVisible();
   });
+
+  async function touchDrag(page: Page, handle: Locator) {
+    const from = await center(handle);
+    const cdp = await page.context().newCDPSession(page);
+    let at = from;
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: from.x, y: from.y }],
+    });
+    for (let step = 1; step <= 4; step += 1) {
+      at = { x: from.x + step * 4, y: from.y + step * 4 };
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [at] });
+    }
+    const moveToPoint = async (to: { x: number; y: number }) => {
+      const start = at;
+      for (let step = 1; step <= 8; step += 1) {
+        at = {
+          x: start.x + ((to.x - start.x) * step) / 8,
+          y: start.y + ((to.y - start.y) * step) / 8,
+        };
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [at] });
+      }
+    };
+    return {
+      moveToPoint,
+      moveTo: async (target: Locator) => moveToPoint(await center(target)),
+      end: () => cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }),
+    };
+  }
+
+  test("dragging over a shared folder marks its row with a dashed red border and 넣을 수 없어요", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "the wide screen drags onto the folder list");
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await expect(scope.getByTestId("import-folder-row-refused")).toHaveCount(0);
+    await startMouseDrag(page, linkHandle(scope, "오늘의 뉴스"));
+    await mouseMoveTo(page, folderRow(scope, /^취업, 공유 중인 폴더라/));
+    const refused = scope.getByTestId("import-folder-row-refused");
+    await expect(refused).toBeVisible();
+    await expect(refused).toContainText("넣을 수 없어요");
+    expect(await refused.evaluate((node) => getComputedStyle(node).borderTopStyle)).toBe("dashed");
+    await page.mouse.up();
+    await expect(scope.getByTestId("import-folder-row-refused")).toHaveCount(0);
+    await expect(folderRow(scope, "미분류")).toContainText("+3");
+  });
+
+  test("the mobile tray splits folders into sections and puts the last folder moved to on top", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "the tray is the mobile drop target");
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "미분류");
+
+    const first = await touchDrag(page, linkHandle(scope, "오늘의 뉴스"));
+    const tray = page.getByTestId("import-drop-tray");
+    await expect(tray).toBeVisible();
+    await expect(tray.getByRole("heading", { name: "미분류 · 내 폴더" })).toBeVisible();
+    await expect(tray.getByRole("heading", { name: "새 폴더" })).toBeVisible();
+    await expect(tray.getByText("3개", { exact: true })).toBeVisible();
+    await expect(tray.getByText("최근 옮긴 곳")).toHaveCount(0);
+    await first.moveTo(tray.getByLabel("자바", { exact: true }));
+    await first.end();
+    await expect(tray).toHaveCount(0);
+
+    const second = await touchDrag(page, linkHandle(scope, "팀 캘린더"));
+    await expect(tray.getByRole("heading", { name: "최근 옮긴 곳" })).toBeVisible();
+    const tiles = tray.getByTestId("import-drop-tray-tile");
+    await expect(tiles.first()).toHaveAccessibleName("자바");
+    await second.moveTo(tiles.first());
+    await expect(page.getByTestId("import-drag-card")).toContainText("자바로 옮겨요");
+    await second.end();
+    await expect(linkHandle(scope, "팀 캘린더")).toHaveCount(0);
+    await backToFolders(page);
+    await expect(folderRow(scope, "새 폴더 자바")).toContainText("+5");
+  });
+
+  test("with many new folders the mobile tray scrolls during a drag, and long names stay on one line", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "the tray is the mobile drop target");
+    await setupImportFlow(page);
+    const longName = "아주 긴 이름을 가진 폴더 하나로 트레이 칸을 넘치게 만들어 보기";
+    const folders = [
+      { name: longName, count: 1 },
+      ...Array.from({ length: 23 }, (_, index) => ({ name: `주제 ${index + 1}`, count: 1 })),
+    ];
+    const scope = await openProposal(
+      page,
+      htmlFile("many.html", makeBookmarkExport({ unfiled: 2, folders })),
+    );
+    await openFolder(scope, "미분류");
+    const drag = await touchDrag(page, linkHandle(scope, "미분류 링크 1"));
+    const tray = page.getByTestId("import-drop-tray");
+    await expect(tray.getByText("24개", { exact: true })).toBeVisible();
+
+    const longTile = tray.getByLabel(longName, { exact: true });
+    const longBox = await longTile.boundingBox();
+    const trayBox = await tray.boundingBox();
+    expect(longBox?.height ?? 0).toBeLessThanOrEqual(41);
+    expect((longBox?.x ?? 0) + (longBox?.width ?? 0)).toBeLessThanOrEqual(
+      (trayBox?.x ?? 0) + (trayBox?.width ?? 0),
+    );
+
+    const last = tray.getByLabel("주제 23", { exact: true });
+    await expect(last).not.toBeInViewport();
+    const viewport = page.viewportSize();
+    await drag.moveToPoint({ x: (viewport?.width ?? 390) / 2, y: (viewport?.height ?? 844) - 6 });
+    await expect(last).toBeInViewport({ timeout: 8000 });
+    await drag.moveTo(last);
+    await expect(page.getByTestId("import-drag-card")).toContainText("주제 23");
+    await drag.end();
+    await backToFolders(page);
+    await expect(folderRow(scope, "새 폴더 주제 23")).toContainText("+2");
+  });
+
+  test("on a wide screen, opening 뺀 링크 scrolls the long folder list to its selected row", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "the wide screen keeps the folder list beside the links");
+    await setupImportFlow(page);
+    const folders = Array.from({ length: 30 }, (_, index) => ({
+      name: `주제 ${index + 1}`,
+      count: 1,
+    }));
+    const scope = await openProposal(
+      page,
+      htmlFile("many.html", makeBookmarkExport({ unfiled: 2, folders })),
+    );
+    await openFolder(scope, "미분류");
+    await linkRemove(scope, "미분류 링크 1").click();
+    const removedRow = folderRow(scope, "뺀 링크 1개");
+    await expect(removedRow).not.toBeInViewport();
+    await scope.getByRole("button", { name: "뺀 링크 보기" }).click();
+    await expect(scope.getByText("다시 넣으면 원래 폴더로 돌아가요.")).toBeVisible();
+    await expect(removedRow).toBeInViewport();
+    await expect(removedRow).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("a long folder name is cut to one line in its 뺀 링크 group and keeps 모두 넣기 in place", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    const longName =
+      "아주 긴 이름을 가진 폴더라서 한 줄에 다 들어가지 않는 새 폴더 이름입니다 넓은 화면에서도 끝까지 보이지 않도록 조금 더 길게 적어 둔 이름이에요";
+    const scope = await openProposal(
+      page,
+      htmlFile(
+        "long.html",
+        makeBookmarkExport({ unfiled: 1, folders: [{ name: longName, count: 2 }] }),
+      ),
+    );
+    await openFolder(scope, `새 폴더 ${longName}`);
+    await pressButton(scope.getByRole("button", { name: `‘${longName}’의 링크 모두 빼기` }));
+    await pressButton(scope.getByRole("button", { name: "뺀 링크 보기" }));
+    const group = scope.getByTestId("import-removed-group");
+    await expect(group).toBeVisible();
+    const groupBox = await group.boundingBox();
+    expect(groupBox?.height ?? 0).toBeLessThanOrEqual(57);
+    const heading = group.getByRole("heading", { name: longName });
+    expect(await heading.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
+    const restore = group.getByRole("button", { name: `‘${longName}’에서 뺀 링크 2개 모두 넣기` });
+    await expect(restore).toBeInViewport({ ratio: 1 });
+    const restoreBox = await restore.boundingBox();
+    expect((restoreBox?.x ?? 0) + (restoreBox?.width ?? 0)).toBeLessThanOrEqual(
+      (groupBox?.x ?? 0) + (groupBox?.width ?? 0) + 1,
+    );
+  });
+
+  test("the wide handle is 40px and the handle hint is at least 12px", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "미분류");
+    if (isWideProject()) {
+      const box = await linkHandle(scope, "오늘의 뉴스").boundingBox();
+      expect(box?.width ?? 0).toBeGreaterThanOrEqual(40);
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(40);
+    }
+    const hint = scope.getByText("손잡이를 누르거나 끌어서 폴더를 옮길 수 있어요.");
+    await expect(hint).toBeVisible();
+    const size = await hint.evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
+    expect(size).toBeGreaterThanOrEqual(12);
+  });
 });
