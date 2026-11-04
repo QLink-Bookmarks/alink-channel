@@ -269,7 +269,9 @@ test.describe("actions", () => {
     const deleteBox = await boxOf(deleteButton);
     expect(rowBox.x + rowBox.width - (deleteBox.x + deleteBox.width)).toBeLessThanOrEqual(1);
     const color = await cssOf(deleteButton.locator("svg"), "color");
-    expect(color).toMatch(/rgb\((2[0-9]{2}), (\d{1,2}|1[0-2]\d), (\d{1,2}|1[0-2]\d)\)/);
+    const [red, green, blue] = color.match(/\d+/g)!.map(Number);
+    expect(red, color).toBeGreaterThanOrEqual(150);
+    expect(Math.max(green, blue), color).toBeLessThanOrEqual(red / 3);
   });
 
   test("a link in a shared folder shows add to personal folder instead of edit, and a long folder name keeps the row on screen", async ({
