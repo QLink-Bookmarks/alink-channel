@@ -47,16 +47,14 @@ async function holdStillFor(list: Locator, offset: number, ms: number) {
 }
 
 async function settledScrollTop(list: Locator) {
-  let last = await scrollTop(list);
   await expect
     .poll(async () => {
-      const now = await scrollTop(list);
-      const isStill = now === last;
-      last = now;
-      return isStill;
+      const first = await scrollTop(list);
+      await list.page().waitForTimeout(200);
+      return (await scrollTop(list)) === first;
     })
     .toBe(true);
-  return last;
+  return scrollTop(list);
 }
 
 /**

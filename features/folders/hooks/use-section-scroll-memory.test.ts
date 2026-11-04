@@ -80,6 +80,7 @@ describe("useSectionScrollMemory", () => {
     });
     expect(scrollTo).toHaveBeenLastCalledWith(760);
 
+    act(() => result.current.recordScrollOffset(760, 760));
     act(() => result.current.recordScrollOffset(500, 760));
     expect(getFolderScrollOffset("sidebar", "mine")).toBe(500);
 
@@ -156,7 +157,45 @@ describe("useSectionScrollMemory", () => {
       expect(getFolderScrollOffset("sidebar", "mine")).toBe(1462);
     });
 
-    it("keeps restoring when the saved position was only reachable over the loading row", () => {
+    it("takes the clamped scroll as progress even when more rows were drawn before its event", () => {
+      setFolderScrollOffset("sidebar", "mine", 1460);
+      const scrollTo = jest.fn();
+      const staleHeight = rowsHeight + loadingRowHeight;
+      const { result, rerender } = renderMemory(scrollTo, {
+        contentHeight: staleHeight,
+        viewportHeight,
+      });
+      expect(scrollTo).toHaveBeenLastCalledWith(staleHeight - viewportHeight);
+
+      act(() => result.current.recordScrollOffset(rowsHeight - viewportHeight, 1336));
+      expect(getFolderScrollOffset("sidebar", "mine")).toBe(1460);
+
+      rerender({ contentHeight: 1874, viewportHeight });
+      expect(scrollTo).toHaveBeenLastCalledWith(1336);
+      act(() => result.current.recordScrollOffset(1336, 1336));
+      rerender({ contentHeight: 2494, viewportHeight });
+      expect(scrollTo).toHaveBeenLastCalledWith(1460);
+    });
+
+    it("treats a scroll well after the restore's own scroll as the user's", () => {
+      setFolderScrollOffset("sidebar", "mine", 1460);
+      const scrollTo = jest.fn();
+      const now = jest.spyOn(Date, "now").mockReturnValue(1_000);
+      const { result, rerender } = renderMemory(scrollTo, {
+        contentHeight: rowsHeight,
+        viewportHeight,
+      });
+      expect(scrollTo).toHaveBeenLastCalledWith(rowsHeight - viewportHeight);
+
+      now.mockReturnValue(2_000);
+      act(() => result.current.recordScrollOffset(300, rowsHeight - viewportHeight));
+      now.mockRestore();
+      expect(getFolderScrollOffset("sidebar", "mine")).toBe(300);
+      rerender({ contentHeight: 2494, viewportHeight });
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+    });
+
+    it("ends a restore that landed during a fetch once the fetch ends, so later changes do not scroll back", () => {
       const saved = rowsHeight - viewportHeight + 40;
       setFolderScrollOffset("sidebar", "mine", saved);
       const scrollTo = jest.fn();
@@ -169,17 +208,36 @@ describe("useSectionScrollMemory", () => {
       expect(scrollTo).toHaveBeenLastCalledWith(saved);
       act(() => result.current.recordScrollOffset(saved, saved + 12));
 
-      rerender({ contentHeight: rowsHeight + loadingRowHeight, viewportHeight });
-      const realMax = rowsHeight - viewportHeight;
-      act(() => result.current.recordScrollOffset(realMax, realMax));
-      expect(getFolderScrollOffset("sidebar", "mine")).toBe(saved);
+      rerender({ contentHeight: rowsHeight + 6 * 62, viewportHeight });
+      const shrunkMax = rowsHeight - 2 * 62 - viewportHeight;
+      rerender({ contentHeight: rowsHeight - 2 * 62, viewportHeight });
+      act(() => result.current.recordScrollOffset(shrunkMax, shrunkMax));
+      expect(getFolderScrollOffset("sidebar", "mine")).toBe(shrunkMax);
 
-      rerender({ contentHeight: rowsHeight, viewportHeight });
-      rerender({ contentHeight: 1800, viewportHeight });
-      expect(scrollTo).toHaveBeenLastCalledWith(saved);
+      rerender({ contentHeight: 2400, viewportHeight });
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(getFolderScrollOffset("sidebar", "mine")).toBe(shrunkMax);
+    });
+
+    it("scrolls again when an earlier scroll did not move the list", () => {
+      setFolderScrollOffset("sidebar", "mine", 600);
+      const scrollTo = jest.fn();
+      const { result, rerender } = renderMemory(scrollTo, {
+        contentHeight: rowsHeight + loadingRowHeight,
+        viewportHeight,
+        hasNextPage: true,
+        isFetchingNextPage: true,
+      });
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+
+      rerender({ contentHeight: rowsHeight + 6 * 62, viewportHeight });
       expect(scrollTo).toHaveBeenCalledTimes(2);
-      act(() => result.current.recordScrollOffset(saved, 1800 - viewportHeight));
-      expect(getFolderScrollOffset("sidebar", "mine")).toBe(saved);
+      expect(scrollTo).toHaveBeenLastCalledWith(600);
+      act(() => result.current.recordScrollOffset(600, rowsHeight + 6 * 62 - viewportHeight));
+
+      rerender({ contentHeight: 2400, viewportHeight });
+      expect(scrollTo).toHaveBeenCalledTimes(2);
+      expect(getFolderScrollOffset("sidebar", "mine")).toBe(600);
     });
 
     it("stops restoring when the user scrolls up from the held bottom", () => {
