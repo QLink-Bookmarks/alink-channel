@@ -564,6 +564,25 @@ test.describe("mobile new link sheet (#46)", () => {
     expect(mark).toBe(46);
   });
 
+  test("going to the QR scanner and back keeps the sheet open with what was typed", async ({
+    page,
+  }) => {
+    await setUpFormServer(page);
+    await openForm(page);
+    await urlInput(page).fill("https://example.com/plain");
+    await titleInput(page).fill("QR 다녀온 제목");
+
+    await form(page).getByRole("button", { name: /QR/ }).click();
+    await expect(page).toHaveURL(/\/qr-scan$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/home$/);
+
+    await expect(page.getByText("새 링크 추가", { exact: true }).first()).toBeVisible();
+    await expect(urlInput(page)).toHaveValue("https://example.com/plain");
+    await expect(titleInput(page)).toHaveValue("QR 다녀온 제목");
+    await expect(saveButton(page)).toBeVisible();
+  });
+
   test("sub-steps hide the buttons and 닫기, and coming back brings them again", async ({
     page,
   }) => {
