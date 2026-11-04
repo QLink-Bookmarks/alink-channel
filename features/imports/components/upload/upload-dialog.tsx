@@ -43,7 +43,13 @@ const UPLOAD_ERROR_COPY: Record<
   UploadError,
   { title: string; description: (file?: string) => string }
 > = {
-  type: { title: "북마크 파일이 아니에요", description: () => "HTML 파일만 가져올 수 있어요." },
+  type: {
+    title: "HTML 파일이 아니에요",
+    description: (file) =>
+      file
+        ? `‘${file}’ 파일은 가져올 수 없어요. HTML 파일만 가져올 수 있어요.`
+        : "HTML 파일만 가져올 수 있어요.",
+  },
   size: { title: "파일이 너무 커요", description: () => "10MB 이하 파일만 가져올 수 있어요." },
   format: {
     title: "북마크를 읽을 수 없어요",
@@ -277,7 +283,7 @@ function UploadDialog({
       body = (
         <CenteredState
           isLoading
-          title="가져오기의 미리보기를 생성 중입니다."
+          title="가져오기 미리보기를 만들고 있어요"
           description={
             step.name === "reading"
               ? `${step.fileName} · 북마크를 읽고 있어요.`

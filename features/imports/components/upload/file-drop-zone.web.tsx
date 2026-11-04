@@ -114,6 +114,47 @@ function FileDropZone({ canDrop, onFile }: FileDropZoneProps) {
     }
   }, []);
 
+  const fileInput = (
+    <input
+      ref={inputRef}
+      aria-label="북마크 파일"
+      type="file"
+      accept=".html,.htm,text/html"
+      data-testid="import-file-input"
+      style={{ display: "none" }}
+      onChange={handleChange}
+    />
+  );
+
+  if (!canDrop) {
+    return (
+      <View
+        ref={zoneRef}
+        className="flex-row items-center gap-3.5 rounded-2xl border border-border bg-card p-4"
+        testID="import-drop-zone"
+      >
+        <View className="size-11 shrink-0 items-center justify-center rounded-xl bg-muted">
+          <Icon
+            as={FileText}
+            className="size-5 text-muted-foreground"
+          />
+        </View>
+        <View className="min-w-0 flex-1 gap-0.5">
+          <Text className="text-sm font-semibold text-foreground">북마크 파일</Text>
+          <Text className="text-[13px] text-muted-foreground">.html · .htm · 10MB 이하</Text>
+        </View>
+        <Button
+          className="h-11 shrink-0 rounded-xl px-3.5"
+          variant="outline"
+          onPress={handlePick}
+        >
+          <Text className="text-sm font-semibold">파일 선택</Text>
+        </Button>
+        {fileInput}
+      </View>
+    );
+  }
+
   return (
     <View
       ref={zoneRef}
@@ -136,11 +177,9 @@ function FileDropZone({ canDrop, onFile }: FileDropZoneProps) {
       ) : (
         <>
           <Text className="text-center text-sm font-semibold text-foreground">
-            {canDrop
-              ? "파일을 끌어다 놓거나 북마크 파일을 선택해 주세요"
-              : "북마크 파일을 선택해 주세요"}
+            파일을 끌어다 놓거나 북마크 파일을 골라 주세요
           </Text>
-          <Text className="text-xs text-muted-foreground">.html · .htm · 10MB 이하</Text>
+          <Text className="text-[13px] text-muted-foreground">.html · .htm · 10MB 이하</Text>
           <Button
             className="mt-2 h-9 flex-row gap-1.5 self-center rounded-lg px-3.5"
             size="sm"
@@ -155,15 +194,7 @@ function FileDropZone({ canDrop, onFile }: FileDropZoneProps) {
           </Button>
         </>
       )}
-      <input
-        ref={inputRef}
-        aria-label="북마크 파일"
-        type="file"
-        accept=".html,.htm,text/html"
-        data-testid="import-file-input"
-        style={{ display: "none" }}
-        onChange={handleChange}
-      />
+      {fileInput}
     </View>
   );
 }
