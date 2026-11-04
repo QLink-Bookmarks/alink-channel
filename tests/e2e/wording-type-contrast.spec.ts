@@ -562,6 +562,31 @@ test.describe("status colours meet AA", () => {
   }
 
   for (const [theme, accent] of THEMES) {
+    test(`overdue and due-soon text on actions and cards — mobile ${theme} ${accent}`, async ({
+      page,
+    }) => {
+      test.skip(isWideProject(), "the wide layout is covered above");
+      await setup(page, theme, accent);
+      await page.goto("/todos");
+      await expect(page.getByText("토요일 2시 방문")).toBeVisible({ timeout: 30_000 });
+      await expectTheme(page, theme, accent);
+      await settle(page);
+      let findings = await statusContrast(page);
+      expect(findings.map((f) => f.text)).toEqual(
+        expect.arrayContaining([expect.stringMatching(/\(지남\)$/)]),
+      );
+      expect(failing(findings)).toEqual([]);
+
+      await page.goto("/links");
+      await expect(page.getByLabel(CARD_BADGE_LABEL).first()).toBeAttached({ timeout: 30_000 });
+      await settle(page);
+      findings = await statusContrast(page);
+      expect(findings.length).toBeGreaterThanOrEqual(1);
+      expect(failing(findings)).toEqual([]);
+    });
+  }
+
+  for (const [theme, accent] of THEMES) {
     test(`success and error toasts — ${theme} ${accent}`, async ({ page }) => {
       test.skip(isWideProject(), "the edit sheet flow is the mobile one");
       await setup(page, theme, accent);
