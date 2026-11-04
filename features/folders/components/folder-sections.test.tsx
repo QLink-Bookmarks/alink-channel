@@ -3,7 +3,7 @@ import { Pressable } from "react-native";
 
 import { Text } from "@/components/ui/text";
 import { useFolderNavigation } from "@/stores/folder-navigation";
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 import { type FolderSectionDefinition, FolderSectionsView } from "./folder-sections";
 
@@ -116,6 +116,14 @@ async function finishMotion() {
   });
 }
 
+const SETTLE_TIMEOUT_MS = 5000;
+
+async function waitForListsRemoved(label: string | RegExp) {
+  await waitFor(() => expect(screen.queryAllByLabelText(label, HIDDEN)).toHaveLength(0), {
+    timeout: SETTLE_TIMEOUT_MS,
+  });
+}
+
 function measureOpening(section: SectionKey, height: number) {
   fireEvent(screen.getByTestId(`folder-section-body-inner-${section}`, HIDDEN), "layout", {
     nativeEvent: { layout: { x: 0, y: 0, width: 300, height } },
@@ -219,7 +227,7 @@ describe("FolderSectionsView", () => {
     expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
 
     measureOpening("new", 48);
-    await finishMotion();
+    await waitForListsRemoved("내 폴더 목록");
 
     expect(screen.queryByLabelText("내 폴더 목록", HIDDEN)).toBeNull();
     expect(screen.getByRole("radio", { name: "읽을거리" })).toBeTruthy();
@@ -230,7 +238,7 @@ describe("FolderSectionsView", () => {
 
     fireEvent.press(screen.getByRole("button", { name: "내 폴더 접기" }));
     expect(screen.getByLabelText("내 폴더 목록", HIDDEN)).toBeTruthy();
-    await finishMotion();
+    await waitForListsRemoved(/폴더 목록$/);
 
     expect(screen.queryByLabelText(/폴더 목록$/, HIDDEN)).toBeNull();
   });
@@ -242,7 +250,8 @@ describe("FolderSectionsView", () => {
     fireEvent.press(screen.getByRole("button", { name: "내 폴더 펼치기" }));
     fireEvent.press(screen.getByRole("button", { name: "새 폴더 펼치기" }));
     measureOpening("new", 48);
-    await finishMotion();
+    expect(screen.getByLabelText("내 폴더 목록", HIDDEN)).toBeTruthy();
+    await waitForListsRemoved("내 폴더 목록");
 
     expect(screen.getByRole("button", { name: "새 폴더 접기", expanded: true })).toBeTruthy();
     expect(screen.queryByLabelText("내 폴더 목록", HIDDEN)).toBeNull();
