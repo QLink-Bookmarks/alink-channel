@@ -1,7 +1,7 @@
 import { type Page, expect, test } from "@playwright/test";
 
 import { isWideProject } from "./support/helpers";
-import { makeFolders, mockApi } from "./support/mock-api";
+import { makeDetail, makeFolders, makeLink, mockApi } from "./support/mock-api";
 
 // #45 the wide new link dialog follows the route, and the top bar search uses a line icon.
 
@@ -47,6 +47,34 @@ test.describe("wide new link dialog on a route change", () => {
 
     await page.getByText("새 링크", { exact: true }).first().click();
     await expect(newLinkDialog(page).getByPlaceholder(URL_PLACEHOLDER)).toHaveValue("");
+  });
+
+  test("saving from another screen closes the dialog and opens the new link's detail", async ({
+    page,
+  }) => {
+    const saved = makeLink({ id: 41, url: "https://example.com/saved", title: "저장한 링크" });
+    await mockApi(page, {
+      links: [saved],
+      details: { 41: makeDetail(saved) },
+      folders: makeFolders(3, 0),
+      handlers: {
+        "POST /api/links": (route) =>
+          route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({ success: true, data: { id: 41 }, error: null }),
+          }),
+      },
+    });
+    await page.goto("/settings");
+    await page.getByText("새 링크", { exact: true }).first().click();
+    await newLinkDialog(page).getByPlaceholder(URL_PLACEHOLDER).fill("https://example.com/saved");
+    await newLinkDialog(page).getByPlaceholder("AI 생성으로 자동 정리해보세요").fill("저장한 링크");
+
+    await newLinkDialog(page).getByRole("button", { name: "저장", exact: true }).click();
+
+    await expect(page).toHaveURL(/\/links\?linkId=41$/);
+    await expect(newLinkDialog(page)).toHaveCount(0);
+    await expect(page.getByTestId("link-detail-title")).toHaveText("저장한 링크");
   });
 });
 
