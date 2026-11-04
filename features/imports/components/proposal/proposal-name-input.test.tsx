@@ -1,21 +1,26 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 
-import { type NameHint, ProposalNameInput } from "./proposal-name-input";
+import { KEYBOARD_HINT, type NameHint, ProposalNameInput } from "./proposal-name-input";
 
 /* eslint-disable @typescript-eslint/no-require-imports -- jest.mock factories must require */
 jest.mock("react-native-worklets", () => require("react-native-worklets/src/mock"));
 jest.mock("react-native-reanimated", () => require("react-native-reanimated/mock"));
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-const HINT: NameHint = { text: "Enter로 저장, Esc로 취소", tone: "muted" };
+jest.mock("@/lib/hooks/use-wide-view", () => ({
+  useWideView: () => true,
+}));
 
-function setup(onSubmit: (value: string) => boolean | void = jest.fn()) {
+function setup(
+  onSubmit: (value: string) => boolean | void = jest.fn(),
+  getHint: (value: string) => NameHint = () => KEYBOARD_HINT,
+) {
   const onCancel = jest.fn();
   const submit = jest.fn(onSubmit);
   render(
     <ProposalNameInput
       accessibilityLabel="새 폴더 이름"
-      getHint={() => HINT}
+      getHint={getHint}
       initialValue="자바"
       onCancel={onCancel}
       onSubmit={submit}
@@ -72,5 +77,17 @@ describe("ProposalNameInput", () => {
     fireEvent.changeText(input, "가".repeat(120));
     fireEvent.press(screen.getByLabelText("이름 확정"));
     expect(onSubmit).toHaveBeenCalledWith("가".repeat(100));
+  });
+
+  it("native hides the Enter and Esc hint even on a wide window, but keeps the other hints and the count", () => {
+    const { input } = setup(undefined, (value) =>
+      value === "취업"
+        ? { text: "공유 폴더와 같은 이름은 쓸 수 없어요", tone: "danger" }
+        : KEYBOARD_HINT,
+    );
+    expect(screen.queryByText("Enter로 저장, Esc로 취소")).toBeNull();
+    expect(screen.getByText("2/100")).toBeTruthy();
+    fireEvent.changeText(input, "취업");
+    expect(screen.getByText("공유 폴더와 같은 이름은 쓸 수 없어요")).toBeTruthy();
   });
 });

@@ -226,7 +226,11 @@ test.describe("folder move picker", () => {
     await picker.getByRole("button", { name: "새 폴더에 폴더 추가" }).click();
     const input = picker.getByLabel("새 폴더 이름");
     await expect(input).toBeFocused();
-    await expect(picker.getByText("Enter로 저장, Esc로 취소")).toBeVisible();
+    if (isWideProject()) {
+      await expect(picker.getByText("Enter로 저장, Esc로 취소")).toBeVisible();
+    } else {
+      await expect(picker.getByText("Enter로 저장, Esc로 취소")).toHaveCount(0);
+    }
     await input.fill("인프라");
     await expect(picker.getByText("3/100")).toBeVisible();
     await input.press("Enter");

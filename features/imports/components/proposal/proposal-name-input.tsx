@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { useWideView } from "@/lib/hooks/use-wide-view";
 import { cn } from "@/lib/utils";
 
 import { FOLDER_NAME_MAX, truncateUtf16 } from "../../lib/build-import-candidates";
@@ -13,7 +14,13 @@ import { Check, X } from "lucide-react-native/icons";
 
 type NameHintTone = "muted" | "info" | "danger";
 
-type NameHint = { text: string; tone: NameHintTone };
+type NameHint = { text: string; tone: NameHintTone; isKeyboardOnly?: boolean };
+
+const KEYBOARD_HINT: NameHint = {
+  text: "Enter로 저장, Esc로 취소",
+  tone: "muted",
+  isKeyboardOnly: true,
+};
 
 type ProposalNameInputProps = {
   initialValue: string;
@@ -119,7 +126,9 @@ function ProposalNameInput({
     return () => clearTimeout(timer);
   }, []);
 
+  const isWide = useWideView();
   const hint = getHint(value);
+  const isHintShown = !hint.isKeyboardOnly || (process.env.EXPO_OS === "web" && isWide);
 
   return (
     <View
@@ -175,7 +184,7 @@ function ProposalNameInput({
           accessibilityLiveRegion="polite"
           className={cn("min-w-0 flex-1 text-xs", HINT_TONE_CLASS[hint.tone])}
         >
-          {hint.text}
+          {isHintShown ? hint.text : null}
         </Text>
         <Text className="text-xs tabular-nums text-muted-foreground">
           {value.length}/{FOLDER_NAME_MAX}
@@ -185,5 +194,5 @@ function ProposalNameInput({
   );
 }
 
-export { ProposalNameInput };
+export { KEYBOARD_HINT, ProposalNameInput };
 export type { NameHint, NameHintTone };

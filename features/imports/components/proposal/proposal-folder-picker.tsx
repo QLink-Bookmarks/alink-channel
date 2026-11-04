@@ -23,7 +23,7 @@ import {
   isNewTarget,
 } from "../../lib/proposal-state";
 import { withRo, withWa } from "./proposal-copy";
-import { type NameHint, ProposalNameInput } from "./proposal-name-input";
+import { KEYBOARD_HINT, type NameHint, ProposalNameInput } from "./proposal-name-input";
 
 type PickerSectionKey = "existing" | "new";
 
@@ -117,7 +117,7 @@ function ProposalPickerList({
       case "merge-new":
         return { text: `새 폴더 ${withWa(check.name)} 합쳐져요`, tone: "info" };
       default:
-        return { text: "Enter로 저장, Esc로 취소", tone: "muted" };
+        return KEYBOARD_HINT;
     }
   }, []);
 

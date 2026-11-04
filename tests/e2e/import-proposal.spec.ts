@@ -787,6 +787,30 @@ test.describe("layout", () => {
     });
   }
 
+  for (const [width, isHintShown] of [
+    [768, false],
+    [769, true],
+  ] as const) {
+    test(`at ${width}px the name field ${isHintShown ? "shows" : "hides"} the Enter and Esc hint and keeps the count`, async ({
+      page,
+    }) => {
+      test.skip(!isWideProject(), "checked once with the desktop project");
+      await page.setViewportSize({ width, height: 900 });
+      await setupImportFlow(page);
+      await openProposal(page);
+      const scope = isHintShown ? page.getByRole("dialog", { name: PROPOSAL_TITLE }) : page;
+      await startRename(scope, "자바");
+      await expect(scope.getByText("2/100")).toBeVisible();
+      if (isHintShown) {
+        await expect(scope.getByText("Enter로 저장, Esc로 취소")).toBeVisible();
+      } else {
+        await expect(scope.getByText("Enter로 저장, Esc로 취소")).toHaveCount(0);
+      }
+      await scope.getByLabel("새 폴더 이름").fill("취업");
+      await expect(scope.getByText("공유 폴더와 같은 이름은 쓸 수 없어요")).toBeVisible();
+    });
+  }
+
   test("on mobile the handle, remove, folder rows and footer buttons are finger sized and clear the bottom edge", async ({
     page,
   }) => {

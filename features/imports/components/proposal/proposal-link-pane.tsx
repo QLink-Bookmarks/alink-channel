@@ -24,7 +24,7 @@ import { FolderEmoji, PlusBadge } from "./proposal-folder-list";
 import type { ProposalSelection } from "./proposal-folders";
 import { ProposalLinkRow, getHost } from "./proposal-link-row";
 import { useLinkWindow } from "./proposal-link-window";
-import { type NameHint, ProposalNameInput } from "./proposal-name-input";
+import { KEYBOARD_HINT, type NameHint, ProposalNameInput } from "./proposal-name-input";
 
 import {
   ChevronLeft,
@@ -299,7 +299,7 @@ function NewFolderHeader({
         case "merge-new":
           return { text: `새 폴더 ${withWa(check.name)} 합쳐져요`, tone: "info" };
         default:
-          return { text: "Enter로 저장, Esc로 취소", tone: "muted" };
+          return KEYBOARD_HINT;
       }
     },
     [folder.name, folder.target, proposal],
