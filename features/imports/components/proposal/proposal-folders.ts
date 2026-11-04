@@ -19,7 +19,8 @@ type ProposalSelection =
   | { kind: "target"; target: ProposalTarget }
   | { kind: "shared"; folderId: number }
   | { kind: "skipped" }
-  | { kind: "unsupported" };
+  | { kind: "unsupported" }
+  | { kind: "removed" };
 
 function getProposalFolders(
   state: ProposalState,

@@ -68,6 +68,7 @@ type ProposalState = ProposalSnapshot & {
   statusMode: ProposalStatusMode;
   notice: ProposalNotice | null;
   recentTargets: ProposalTarget[];
+  pickerNames: Record<ProposalTarget, string>;
   nextPickerIndex: number;
 };
 
@@ -222,6 +223,7 @@ function createProposalState({
     statusMode: "hidden",
     notice: null,
     recentTargets: [],
+    pickerNames: {},
     nextPickerIndex: 1,
   };
 }
@@ -234,7 +236,11 @@ function getTargetName(state: ProposalState, target: ProposalTarget) {
   if (existingId != null) {
     return state.existingNames[existingId] ?? "";
   }
-  return state.newFolders.find((folder) => folder.target === target)?.name ?? "";
+  return (
+    state.newFolders.find((folder) => folder.target === target)?.name ??
+    state.pickerNames[target] ??
+    ""
+  );
 }
 
 function getExcludedFolderName(next: ProposalSnapshot, source: ProposalTarget) {
@@ -425,6 +431,10 @@ function proposalReducer(state: ProposalState, action: ProposalAction): Proposal
           newFolders: state.newFolders.map((item) =>
             item.target === action.target ? { ...item, name: check.name } : item,
           ),
+          pickerNames:
+            folder.origin === "picker"
+              ? { ...state.pickerNames, [action.target]: check.name }
+              : state.pickerNames,
         };
       }
       const destination =
@@ -468,6 +478,7 @@ function proposalReducer(state: ProposalState, action: ProposalAction): Proposal
       const target = getNewTarget(`p${state.nextPickerIndex}`);
       return {
         ...state,
+        pickerNames: { ...state.pickerNames, [target]: action.name },
         nextPickerIndex: state.nextPickerIndex + 1,
         newFolders: [
           ...state.newFolders,

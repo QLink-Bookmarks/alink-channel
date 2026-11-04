@@ -175,7 +175,12 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
   useLinkDragDrop(proposal.moveLink);
 
   const initialSelection = React.useMemo(() => getInitialSelection(entries), [entries]);
-  const validSelection = selection && isSelectionValid(selection, entries) ? selection : null;
+  const validSelection =
+    selection &&
+    isSelectionValid(selection, entries) &&
+    !(selection.kind === "removed" && summary.removedCount === 0)
+      ? selection
+      : null;
   const activeSelection = isWide ? (validSelection ?? initialSelection) : validSelection;
 
   const requestClose = React.useCallback(() => {
@@ -268,6 +273,7 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
       entries={entries}
       isWide={isWide}
       selection={activeSelection}
+      removedCount={summary.removedCount}
       skipCount={summary.skipCount}
       unsupportedCount={summary.unsupportedCount}
       onRename={handleRenameStart}

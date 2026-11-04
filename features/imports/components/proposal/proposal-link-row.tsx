@@ -70,7 +70,7 @@ function ProposalLinkRowView({ link, isWide, onOpenPicker, onRemove }: ProposalL
             accessibilityRole="button"
             className={cn(
               "items-center justify-center rounded-lg active:bg-muted web:hover:bg-muted",
-              isWide ? "h-10 w-8" : "size-11",
+              isWide ? "size-10" : "size-11",
             )}
             onPress={handleHandlePress}
           >

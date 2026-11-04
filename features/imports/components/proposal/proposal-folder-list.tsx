@@ -18,21 +18,25 @@ import type { ProposalFolderEntries, ProposalSelection } from "./proposal-folder
 import { isSameSelection } from "./proposal-folders";
 
 import {
+  Ban,
   ChevronRight,
   CircleSlash,
   Folder as FolderIcon,
-  Inbox,
   Link2,
+  ListX,
   Pencil,
   Plus,
   Users,
 } from "lucide-react-native/icons";
+
+const UNFILED_EMOJI = "🗂️";
 
 type ProposalFolderListProps = {
   entries: ProposalFolderEntries;
   selection: ProposalSelection | null;
   skipCount: number;
   unsupportedCount: number;
+  removedCount: number;
   isWide: boolean;
   onSelect: (selection: ProposalSelection) => void;
   onRename: (target: string) => void;
@@ -52,6 +56,22 @@ function PlusBadge({ isMuted = false }: { isMuted?: boolean }) {
         strokeWidth={3}
       />
     </View>
+  );
+}
+
+function formatExistingCount(count: number | string) {
+  if (typeof count === "number") {
+    return `${formatNumber(count)}개`;
+  }
+  return count.endsWith("+") ? `${count.slice(0, -1)}개+` : `${count}개`;
+}
+
+function ExistingCount({ count }: { count: number | string | null | undefined }) {
+  if (count == null) {
+    return null;
+  }
+  return (
+    <Text className="text-xs tabular-nums text-muted-foreground">{formatExistingCount(count)}</Text>
   );
 }
 
@@ -93,16 +113,38 @@ function FolderRow({
   const isOver = useIsDropOver(drop?.id ?? "");
   const isDragActive = useIsLinkDragActive();
   const isTarget = isWide && isDragActive && drop?.kind === "folder";
+  const isRefused = isOver && drop?.kind === "shared";
+  const rowRef = React.useRef<View | null>(null);
+
+  React.useEffect(() => {
+    if (!isSelected || !isWide) {
+      return;
+    }
+    const node = rowRef.current as unknown as HTMLElement | null;
+    if (node && typeof node.scrollIntoView === "function") {
+      node.scrollIntoView({ block: "nearest" });
+    }
+  }, [isSelected, isWide]);
+
+  const setRefs = React.useCallback(
+    (node: View | null) => {
+      rowRef.current = node;
+      dropRef(node);
+    },
+    [dropRef],
+  );
 
   return (
     <View
-      ref={dropRef}
+      ref={setRefs}
       className={cn(
         "flex-row items-center rounded-xl border web:transition-colors web:motion-reduce:transition-none",
         isSelected && isWide ? "border-border bg-card" : "border-transparent",
         isTarget && "border-border bg-card",
-        isOver && "border-primary bg-accent",
+        isOver && !isRefused && "border-primary bg-accent",
+        isRefused && "border-dashed border-destructive/60 bg-destructive/5",
       )}
+      testID={isRefused ? "import-folder-row-refused" : undefined}
     >
       <Pressable
         accessibilityLabel={accessibilityLabel}
@@ -128,7 +170,19 @@ function FolderRow({
         >
           {label}
         </Text>
-        <View className="shrink-0 flex-row items-center gap-1.5">{trailing}</View>
+        <View className="shrink-0 flex-row items-center gap-1.5">
+          {isRefused ? (
+            <>
+              <Icon
+                as={Ban}
+                className="size-3.5 text-destructive"
+              />
+              <Text className="text-xs font-medium text-destructive">넣을 수 없어요</Text>
+            </>
+          ) : (
+            trailing
+          )}
+        </View>
         {isWide ? null : (
           <Icon
             as={ChevronRight}
@@ -172,6 +226,7 @@ function ProposalFolderList({
   selection,
   skipCount,
   unsupportedCount,
+  removedCount,
   isWide,
   onSelect,
   onRename,
@@ -194,17 +249,10 @@ function ProposalFolderList({
         isSelected={isSelected({ kind: "target", target: entries.unfiled.target })}
         isWide={isWide}
         label="미분류"
-        leading={
-          <Icon
-            as={Inbox}
-            className="size-[18px] text-muted-foreground"
-          />
-        }
+        leading={<FolderEmoji emoji={UNFILED_EMOJI} />}
         trailing={
           <>
-            {uncategorizedCount ? (
-              <Text className="text-xs text-muted-foreground">{uncategorizedCount}</Text>
-            ) : null}
+            <ExistingCount count={uncategorizedCount} />
             <AddCount count={entries.unfiled.addCount} />
           </>
         }
@@ -226,9 +274,7 @@ function ProposalFolderList({
           leading={<FolderEmoji emoji={entry.folder.emoji} />}
           trailing={
             <>
-              <Text className="text-xs text-muted-foreground">
-                {formatNumber(entry.folder.linkCounts)}
-              </Text>
+              <ExistingCount count={entry.folder.linkCounts} />
               <AddCount count={entry.addCount} />
             </>
           }
@@ -338,8 +384,25 @@ function ProposalFolderList({
         </>
       ) : null}
 
-      {skipCount > 0 || unsupportedCount > 0 ? (
+      {skipCount > 0 || unsupportedCount > 0 || removedCount > 0 ? (
         <View className="mx-2.5 my-2 h-px bg-border" />
+      ) : null}
+      {removedCount > 0 ? (
+        <FolderRow
+          accessibilityLabel={`뺀 링크 ${removedCount}개`}
+          drop={null}
+          isSelected={isSelected({ kind: "removed" })}
+          isWide={isWide}
+          label="뺀 링크"
+          leading={
+            <Icon
+              as={ListX}
+              className="size-[18px] text-muted-foreground"
+            />
+          }
+          trailing={<ExistingCount count={removedCount} />}
+          onPress={() => onSelect({ kind: "removed" })}
+        />
       ) : null}
       {skipCount > 0 ? (
         <FolderRow
@@ -354,9 +417,7 @@ function ProposalFolderList({
               className="size-[18px] text-muted-foreground"
             />
           }
-          trailing={
-            <Text className="text-xs text-muted-foreground">{formatNumber(skipCount)}</Text>
-          }
+          trailing={<ExistingCount count={skipCount} />}
           onPress={() => onSelect({ kind: "skipped" })}
         />
       ) : null}
@@ -373,9 +434,7 @@ function ProposalFolderList({
               className="size-[18px] text-muted-foreground"
             />
           }
-          trailing={
-            <Text className="text-xs text-muted-foreground">{formatNumber(unsupportedCount)}</Text>
-          }
+          trailing={<ExistingCount count={unsupportedCount} />}
           onPress={() => onSelect({ kind: "unsupported" })}
         />
       ) : null}
@@ -383,4 +442,4 @@ function ProposalFolderList({
   );
 }
 
-export { FolderEmoji, PlusBadge, ProposalFolderList };
+export { FolderEmoji, PlusBadge, ProposalFolderList, UNFILED_EMOJI };

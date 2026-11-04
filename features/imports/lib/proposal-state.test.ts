@@ -461,6 +461,7 @@ describe("bulk remove and put back", () => {
     expect(groups).toEqual([
       expect.objectContaining({ target, restoreTarget: UNFILED_TARGET, isGone: true }),
     ]);
+    expect(getTargetName(state, target)).toBe("인프라");
 
     state = proposalReducer(state, { type: "restore-all", target });
     expect(getActiveLinks(state, UNFILED_TARGET).map((link) => link.key)).toEqual(["l1"]);

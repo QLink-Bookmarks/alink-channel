@@ -41,7 +41,7 @@ function getLinkWindowRange(input: {
   return { start: Math.min(start, Math.max(0, count - 1)), end };
 }
 
-function useLinkWindow(count: number, windowKey: string) {
+function useLinkWindow(count: number, windowKey: string, rowSelector = ROW_SELECTOR) {
   const isWindowed = count > LINK_WINDOW_THRESHOLD && typeof window !== "undefined";
   const listRef = React.useRef<View | null>(null);
   const rowHeightRef = React.useRef(ESTIMATED_ROW_HEIGHT);
@@ -63,7 +63,7 @@ function useLinkWindow(count: number, windowKey: string) {
 
     const update = () => {
       frame = null;
-      const row = list.querySelector<HTMLElement>(ROW_SELECTOR);
+      const row = list.querySelector<HTMLElement>(rowSelector);
       const measured = row ? row.offsetHeight : 0;
       if (measured > 0) {
         rowHeightRef.current = measured;
@@ -104,7 +104,7 @@ function useLinkWindow(count: number, windowKey: string) {
         cancelAnimationFrame(frame);
       }
     };
-  }, [count, isWindowed, windowKey]);
+  }, [count, isWindowed, rowSelector, windowKey]);
 
   return {
     listRef,
