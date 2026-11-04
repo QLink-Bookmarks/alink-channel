@@ -1031,3 +1031,53 @@ test.describe("member removal icon", () => {
     });
   }
 });
+
+test.describe("warning toast", () => {
+  for (const [theme, accent] of THEMES) {
+    test(`login expiry shows a readable warning toast — ${theme} ${accent}`, async ({ page }) => {
+      test.skip(!isWideProject(), "one layout is enough for the toast colours");
+      await setup(page, theme, accent);
+      await page.goto("/home");
+      await expect(page.getByText("TanStack Query v5 마이그레이션 정리").first()).toBeVisible({
+        timeout: 30_000,
+      });
+      await expectTheme(page, theme, accent);
+
+      const expired = {
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          data: null,
+          error: { code: "AUTH_401_0001", message: "토큰이 만료됐어요" },
+        }),
+      };
+      await page.route(
+        (url) => url.pathname === "/api/auth/token/refresh/web",
+        (route) => route.fulfill(expired),
+      );
+      await page.route(
+        (url) => url.pathname === "/api/todos",
+        (route) => route.fulfill(expired),
+      );
+      await page
+        .getByRole("button", { name: /^액션$/ })
+        .first()
+        .click();
+
+      const title = page.getByText("다시 로그인해주세요", { exact: true });
+      await expect(title).toBeVisible({ timeout: 30_000 });
+      await settle(page);
+      await expectTheme(page, theme, accent);
+      const findings = await statusContrast(page, [
+        title,
+        page.getByText("인증 정보가 만료됐어요.", { exact: true }),
+        page.getByText("닫기", { exact: true }).last(),
+      ]);
+      expect(findings.map((f) => f.text)).toEqual(
+        expect.arrayContaining(["다시 로그인해주세요", "인증 정보가 만료됐어요.", "닫기"]),
+      );
+      expect(failing(findings)).toEqual([]);
+    });
+  }
+});
