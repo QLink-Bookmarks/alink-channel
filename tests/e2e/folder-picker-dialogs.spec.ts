@@ -851,7 +851,8 @@ test.describe("window fit, width and marks (#27)", () => {
       const mine = sectionList(scope, "내 폴더");
       expect(await mine.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
       const listHeight = (await boxOf(mine)).height;
-      if (height === 620) {
+      expect(listHeight).toBeLessThanOrEqual(200);
+      if (popover.y + popover.height >= height - 16 - 1) {
         expect(listHeight).toBeLessThan(200);
       }
     }

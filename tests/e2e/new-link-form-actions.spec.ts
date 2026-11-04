@@ -88,6 +88,7 @@ function form(page: Page): Locator {
 
 async function openForm(page: Page) {
   await page.goto("/home");
+  await page.evaluate(() => navigator.clipboard.writeText(""));
   if (isWide(page)) {
     await page.getByText("새 링크", { exact: true }).first().click();
   } else {
@@ -155,10 +156,14 @@ test.describe("new link form actions and copy (#46)", () => {
     await expect(page.getByRole("button", { name: "취소", exact: true })).toHaveCount(0);
     await expect(saveButton(page)).toBeVisible();
     await expect(aiButton(page)).toBeVisible();
+    await expect
+      .poll(async () =>
+        Math.abs((await boxOf(aiButton(page))).y - (await boxOf(saveButton(page))).y),
+      )
+      .toBeLessThanOrEqual(1);
     const save = await boxOf(saveButton(page));
     const ai = await boxOf(aiButton(page));
     expect(ai.width).toBeGreaterThan(save.width);
-    expect(Math.abs(ai.y - save.y)).toBeLessThanOrEqual(1);
     expect(ai.x).toBeGreaterThan(save.x);
 
     const saveBorder = await saveButton(page).evaluate(

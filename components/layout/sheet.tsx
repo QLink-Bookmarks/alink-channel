@@ -26,6 +26,8 @@ import {
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
 
+import { useSheetHostScrollLock } from "./use-sheet-host-scroll-lock";
+
 import { X } from "lucide-react-native/icons";
 
 /**
@@ -81,9 +83,6 @@ function SheetMotionProvider({ children }: { children: React.ReactNode }) {
   );
   return <SheetMotionContext.Provider value={motion}>{children}</SheetMotionContext.Provider>;
 }
-
-const WEB_NO_SCROLL_ANCHOR_STYLE =
-  process.env.EXPO_OS === "web" ? ({ overflowAnchor: "none" } as ViewStyle) : {};
 
 type SheetResizeTiming = { duration: number; easing: EasingFunctionFactory };
 
@@ -176,6 +175,7 @@ function Sheet({
   const [footerHeight, setFooterHeight] = React.useState(0);
   const [slotFooter, setSlotFooter] = React.useState<React.ReactNode>(null);
   const resolvedFooter = footer ?? slotFooter;
+  const contentRef = useSheetHostScrollLock();
   const resizeConfigs = useBottomSheetTimingConfigs({
     duration: resizeTiming?.duration,
     easing: resizeTiming?.easing,
@@ -279,7 +279,6 @@ function Sheet({
       shadowOpacity: 0.25,
       shadowRadius: 32,
       elevation: 12,
-      ...WEB_NO_SCROLL_ANCHOR_STYLE,
     }),
     [sheetTokens],
   );
@@ -402,6 +401,7 @@ function Sheet({
   );
   const content = (
     <View
+      ref={contentRef}
       className={cn("gap-4 p-4", className)}
       style={{
         paddingBottom: hasFooter ? footerHeight + 16 : safeBottomInset,
