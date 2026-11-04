@@ -393,6 +393,8 @@ test.describe("new link form actions and copy (#46)", () => {
     await expect(aiButton(page)).toBeEnabled();
     await aiButton(page).dblclick();
     await expect(page.getByText("AI 정리 시작").first()).toBeVisible();
+    await expectClosed(page);
+    await expect(page).toHaveURL(isWide(page) ? /linkId=102/ : /\/links\/102$/);
     expect(server.aiRequests).toHaveLength(1);
   });
 
@@ -435,12 +437,26 @@ test.describe("new link form actions and copy (#46)", () => {
     await openForm(page);
     await urlInput(page).fill("https://example.com/plain");
     await titleInput(page).fill("버릴 제목");
+    if (isWide(page)) {
+      await form(page)
+        .getByRole("button", { name: /^폴더, / })
+        .click();
+    } else {
+      await form(page).getByRole("button", { name: "변경" }).first().click();
+    }
+    await page.getByRole("radio", { name: /가볼 곳/ }).click();
+    await expect(form(page).getByText("☕ 가볼 곳", { exact: true })).toBeVisible();
+    const generateAction = form(page).getByRole("switch");
+    await generateAction.click();
+    await expect(generateAction).toBeChecked();
 
     await closeButton(page).click();
     await expectClosed(page);
     await openForm(page);
     await expect(urlInput(page)).toHaveValue("");
     await expect(titleInput(page)).toHaveValue("");
+    await expect(form(page).getByText("없음 - ✨ AI 자동 분류", { exact: true })).toBeVisible();
+    await expect(form(page).getByRole("switch")).not.toBeChecked();
   });
 });
 
