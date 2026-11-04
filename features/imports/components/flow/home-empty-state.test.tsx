@@ -27,23 +27,29 @@ describe("HomeEmptyState", () => {
     render(<HomeEmptyState onAddLink={onAddLink} />);
 
     expect(screen.queryByText(NOTE)).toBeNull();
+    expect(
+      screen.getByText(
+        "링크를 직접 추가하거나, 브라우저에 모아 둔 북마크를 한 번에 가져올 수 있어요.",
+      ),
+    ).toBeTruthy();
     fireEvent.press(screen.getByText("브라우저 북마크 가져오기"));
     expect(useImportFlowStore.getState().request).toMatchObject({ from: "home" });
     fireEvent.press(screen.getByText("링크 추가"));
     expect(onAddLink).toHaveBeenCalledTimes(1);
   });
 
-  it("on native keeps 링크 추가 and shows the web-only note in place of the import button", () => {
+  it("on native shows only the icon, the title and 링크 추가, with nothing about bookmarks", () => {
     mockedIsImportAvailable.mockReturnValue(false);
     const onAddLink = jest.fn();
     render(<HomeEmptyState onAddLink={onAddLink} />);
 
+    expect(screen.getByText("아직 저장한 링크가 없어요")).toBeTruthy();
+    expect(screen.queryAllByText(/북마크/)).toHaveLength(0);
+    expect(screen.queryByText(NOTE)).toBeNull();
+    expect(screen.queryByTestId("web-only-import-note")).toBeNull();
     expect(screen.queryByText("브라우저 북마크 가져오기")).toBeNull();
-    expect(screen.getByText(NOTE)).toBeTruthy();
-    expect(screen.getByTestId("web-only-import-note").props.accessibilityRole).toBeUndefined();
-    fireEvent.press(screen.getByText(NOTE));
-    expect(useImportFlowStore.getState().request).toBeNull();
     fireEvent.press(screen.getByText("링크 추가"));
     expect(onAddLink).toHaveBeenCalledTimes(1);
+    expect(useImportFlowStore.getState().request).toBeNull();
   });
 });

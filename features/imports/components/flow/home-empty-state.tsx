@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import { openImportFlow } from "@/stores/import-flow";
 
 import { isImportAvailable } from "../../lib/import-availability";
-import { WebOnlyImportNote } from "./web-only-import-note";
 
 import { Link, Plus, Upload } from "lucide-react-native/icons";
 
@@ -17,6 +16,7 @@ type HomeEmptyStateProps = {
 };
 
 function HomeEmptyState({ className, onAddLink }: HomeEmptyStateProps) {
+  const isImportShown = isImportAvailable();
   return (
     <View
       testID="home-empty-state"
@@ -34,9 +34,11 @@ function HomeEmptyState({ className, onAddLink }: HomeEmptyStateProps) {
       >
         아직 저장한 링크가 없어요
       </Text>
-      <Text className="max-w-[340px] text-center text-[13px] leading-5 text-muted-foreground">
-        링크를 직접 추가하거나, 브라우저에 모아 둔 북마크를 한 번에 가져올 수 있어요.
-      </Text>
+      {isImportShown ? (
+        <Text className="max-w-[340px] text-center text-[13px] leading-5 text-muted-foreground">
+          링크를 직접 추가하거나, 브라우저에 모아 둔 북마크를 한 번에 가져올 수 있어요.
+        </Text>
+      ) : null}
       <View className="mt-2.5 flex-row flex-wrap justify-center gap-2">
         {onAddLink ? (
           <Button
@@ -51,7 +53,7 @@ function HomeEmptyState({ className, onAddLink }: HomeEmptyStateProps) {
             <Text className="text-sm font-semibold">링크 추가</Text>
           </Button>
         ) : null}
-        {isImportAvailable() ? (
+        {isImportShown ? (
           <Button
             className="h-10 flex-row gap-1.5 rounded-xl px-4"
             onPress={() => openImportFlow({ from: "home" })}
@@ -62,9 +64,7 @@ function HomeEmptyState({ className, onAddLink }: HomeEmptyStateProps) {
             />
             <Text className="text-sm font-semibold">브라우저 북마크 가져오기</Text>
           </Button>
-        ) : (
-          <WebOnlyImportNote className="h-10 px-1" />
-        )}
+        ) : null}
       </View>
     </View>
   );
