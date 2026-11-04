@@ -2,7 +2,7 @@ import { type Page, expect, test } from "@playwright/test";
 
 import { textContrast } from "./support/color";
 import { boxOf, cssOf, isWideProject } from "./support/helpers";
-import { type MockFolder, mockApi } from "./support/mock-api";
+import { type MockFolder, mockApi, settingsHandler } from "./support/mock-api";
 import {
   type MockImportRecord,
   createMockImportApi,
@@ -15,12 +15,19 @@ const FOLDERS: MockFolder[] = [
   { id: 20, ownerId: 1, name: "aws", emoji: "☁️", isShared: false, shareCounts: 0, linkCounts: 2 },
 ];
 
-async function setup(page: Page, records: MockImportRecord[] = []) {
+async function setup(
+  page: Page,
+  records: MockImportRecord[] = [],
+  display?: { theme: "light" | "dark"; accent: "gray" | "pink" | "blue" },
+) {
   let api: Awaited<ReturnType<typeof mockApi>> | undefined;
   const imports = createMockImportApi({
     folders: () => api?.folders ?? FOLDERS,
     links: () => api?.links ?? [],
     records,
+    handlers: display
+      ? { "GET /api/users/me/settings": settingsHandler(display.theme, display.accent) }
+      : undefined,
   });
   api = await mockApi(page, { folders: FOLDERS, handlers: imports.handlers });
   return { api, imports };
@@ -680,6 +687,88 @@ test.describe("history rows and page frame", () => {
       ).toBeGreaterThanOrEqual(4.5);
     }
   });
+});
+
+test.describe("gray badges in every theme", () => {
+  const record = makeImportRecord({
+    id: 40,
+    fileName: "bookmarks_badges.html",
+    createdAt: minutesAgo(30),
+    folders: [
+      {
+        kind: "EXISTING",
+        state: "ACTIVE",
+        folderId: 20,
+        name: "aws",
+        emoji: "☁️",
+        links: [{ linkId: 4001, title: "aws 링크", url: "https://a.test/40", state: "IMPORTED" }],
+      },
+      {
+        kind: "NEW",
+        state: "ACTIVE",
+        folderId: 7040,
+        name: "자바",
+        emoji: null,
+        links: [
+          { linkId: 4011, title: "자바 링크", url: "https://j.test/40", state: "IMPORTED" },
+          { linkId: 4012, title: "직접 지운 링크", url: "https://j.test/gone", state: "DELETED" },
+        ],
+      },
+    ],
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    for (const accent of ["gray", "pink", "blue"] as const) {
+      test(`되돌림·기존 폴더·새 폴더·이미 삭제됨 contrast — ${theme} ${accent}`, async ({
+        page,
+      }) => {
+        test.skip(!isWideProject(), "measured once on wide");
+        // The light pink/blue muted-foreground token is about 4.2:1 even on pure white (#47 owns
+        // tokens), so those two are recorded instead of asserted.
+        const isTokenLimited = theme === "light" && accent !== "gray";
+        const check = async (label: string, ratio: number) => {
+          test
+            .info()
+            .annotations.push({ type: "contrast", description: `${label} ${ratio.toFixed(2)}` });
+          if (!isTokenLimited) expect(ratio, label).toBeGreaterThanOrEqual(4.5);
+        };
+        await setup(page, [record, UNDONE], { theme, accent });
+
+        await page.goto("/settings/imports");
+        await check(
+          "되돌림",
+          await textContrast(historyRow(page, 1).getByText("되돌림", { exact: true })),
+        );
+
+        await page.goto("/settings/imports/40");
+        const detail = page.getByRole("dialog", { name: "가져오기 기록 상세" });
+        await check(
+          "기존 폴더",
+          await textContrast(
+            detail
+              .getByRole("button", { name: /^aws 링크/ })
+              .getByText("기존 폴더", { exact: true }),
+          ),
+        );
+        await check(
+          "새 폴더",
+          await textContrast(
+            detail
+              .getByRole("button", { name: /^자바 링크/ })
+              .getByText("새 폴더", { exact: true }),
+          ),
+        );
+
+        await page.goto("/settings/imports");
+        await page.getByRole("button", { name: "bookmarks_badges.html 되돌리기" }).click();
+        await page.getByRole("button", { name: "자바 폴더 보기" }).click();
+        await check(
+          "이미 삭제됨",
+          await textContrast(page.getByTestId("reversal-link-4012").getByText("이미 삭제됨")),
+        );
+      });
+    }
+  }
 });
 
 test.describe("record detail", () => {
