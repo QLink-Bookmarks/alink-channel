@@ -17,14 +17,19 @@ function serverError(code: string, status: number) {
   };
 }
 
-function renderDialog(onStart: () => Promise<void>) {
+function renderDialog(
+  onStart: () => Promise<void>,
+  counts: { linkCount?: number; folderCount?: number; skipCount?: number } = {},
+) {
   const onCancel = jest.fn();
   render(
     <>
       <ImportConfirmDialog
-        folderCount={0}
-        linkCount={2}
+        isWide
+        folderCount={counts.folderCount ?? 0}
+        linkCount={counts.linkCount ?? 2}
         open
+        skipCount={counts.skipCount ?? 0}
         onCancel={onCancel}
         onPendingChange={jest.fn()}
         onStart={onStart}
@@ -45,6 +50,29 @@ describe("getStartErrorKind", () => {
 });
 
 describe("ImportConfirmDialog", () => {
+  it("says what is added, how many saved links are skipped, and that it can be undone", () => {
+    renderDialog(
+      jest.fn(() => Promise.resolve()),
+      { linkCount: 11, folderCount: 3, skipCount: 2 },
+    );
+
+    expect(screen.getByText(/링크 11개와 새 폴더 3개를 추가할게요/)).toBeTruthy();
+    expect(screen.getByText("이미 저장된 링크 2개는 건너뛰어요.")).toBeTruthy();
+    expect(screen.getByText("나중에 ‘가져오기 기록’에서 되돌릴 수 있어요.")).toBeTruthy();
+    expect(screen.queryByText(/잠시 기다려/)).toBeNull();
+  });
+
+  it("drops the zero folder count and the skip line when there is nothing to skip", () => {
+    renderDialog(
+      jest.fn(() => Promise.resolve()),
+      { linkCount: 3 },
+    );
+
+    expect(screen.getByText(/링크 3개를 추가할게요/)).toBeTruthy();
+    expect(screen.queryByText(/새 폴더/)).toBeNull();
+    expect(screen.queryByText(/건너뛰어요/)).toBeNull();
+  });
+
   it("on nothing to import shows the message, blocks 시작 without 다시 시도, and 취소 still closes", async () => {
     const onStart = jest.fn(() => Promise.reject(serverError("IMPORT_422_0003", 422)));
     const { onCancel } = renderDialog(onStart);

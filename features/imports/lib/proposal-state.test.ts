@@ -9,6 +9,10 @@ import {
   getActiveLinks,
   getLastPickerTarget,
   getProposalSummary,
+  getRecentTargets,
+  getRemovedGroups,
+  getRemovedLinkCount,
+  getStatusLine,
   getTargetName,
   isProposalDirty,
   proposalReducer,
@@ -116,6 +120,11 @@ function rename(state: ProposalState, target: string, name: string) {
   return proposalReducer(state, { type: "rename", target, check });
 }
 
+function lastChange(state: ProposalState) {
+  const line = getStatusLine(state);
+  return line?.kind === "change" ? line.change : null;
+}
+
 function targetsOf(state: ProposalState) {
   return Object.fromEntries(state.links.map((link) => [link.key, link.target]));
 }
@@ -166,6 +175,7 @@ describe("createProposalState", () => {
       newFolderCount: 2,
       skipCount: 1,
       unsupportedCount: 1,
+      removedCount: 0,
     });
   });
 });
@@ -176,12 +186,13 @@ describe("proposalReducer", () => {
     const removed = proposalReducer(state, { type: "remove", linkKey: "l2" });
 
     expect(getProposalSummary(removed).addCount).toBe(4);
-    expect(removed.lastChange).toEqual({ type: "remove", linkTitle: "VPC", excludedFolder: null });
+    expect(getProposalSummary(removed).removedCount).toBe(1);
+    expect(lastChange(removed)).toEqual({ type: "remove", linkTitle: "VPC", excludedFolder: null });
     expect(isProposalDirty(removed)).toBe(true);
 
     const restored = proposalReducer(removed, { type: "undo" });
     expect(getProposalSummary(restored).addCount).toBe(5);
-    expect(restored.lastChange).toBeNull();
+    expect(getStatusLine(restored)).toBeNull();
     expect(isProposalDirty(restored)).toBe(false);
   });
 
@@ -194,7 +205,7 @@ describe("proposalReducer", () => {
       targetName: "미분류",
     });
 
-    expect(state.lastChange).toEqual({
+    expect(lastChange(state)).toEqual({
       type: "move",
       linkTitle: "취업 공고",
       toName: "미분류",
@@ -212,41 +223,71 @@ describe("proposalReducer", () => {
     expect(getProposalSummary(state).newFolderCount).toBe(2);
   });
 
-  it("only remembers the last change for undo", () => {
+  it("undoes changes one by one, newest first, showing the previous change", () => {
     let state = setup();
     state = proposalReducer(state, { type: "remove", linkKey: "l1" });
-    state = proposalReducer(state, { type: "remove", linkKey: "l2" });
-    state = proposalReducer(state, { type: "undo" });
+    state = proposalReducer(state, {
+      type: "move",
+      linkKey: "l2",
+      target: "new:f3",
+      targetName: "자바",
+    });
+    state = proposalReducer(state, { type: "remove-all", target: "new:f2" });
+    expect(getStatusLine(state)).toMatchObject({ kind: "change", isAfterUndo: false, depth: 3 });
 
-    expect(getActiveLinks(state, UNFILED_TARGET)).toHaveLength(0);
+    state = proposalReducer(state, { type: "undo" });
+    expect(getActiveLinks(state, "new:f2")).toHaveLength(1);
+    expect(getStatusLine(state)).toEqual({
+      kind: "change",
+      change: { type: "move", linkTitle: "VPC", toName: "자바", excludedFolder: null },
+      isAfterUndo: true,
+      depth: 2,
+    });
+
+    state = proposalReducer(state, { type: "undo" });
     expect(getActiveLinks(state, "existing:10")).toHaveLength(1);
+    state = proposalReducer(state, { type: "undo" });
+    expect(getActiveLinks(state, UNFILED_TARGET)).toHaveLength(1);
+    expect(getStatusLine(state)).toBeNull();
+    expect(isProposalDirty(state)).toBe(false);
     expect(proposalReducer(state, { type: "undo" })).toBe(state);
   });
 
-  it("renames a new folder without an undo entry", () => {
-    const state = rename(setup(), "new:f3", "  자바 정리 ");
-
-    expect(getTargetName(state, "new:f3")).toBe("자바 정리");
-    expect(state.undo).toBeNull();
-    expect(isProposalDirty(state)).toBe(true);
+  it("keeps at most ten undo steps", () => {
+    let state = setup();
+    for (let index = 0; index < 12; index += 1) {
+      const target = index % 2 === 0 ? "new:f3" : UNFILED_TARGET;
+      state = proposalReducer(state, { type: "move", linkKey: "l1", target, targetName: "x" });
+    }
+    expect(state.history).toHaveLength(10);
+    expect(getStatusLine(state)).toMatchObject({ depth: 10 });
+    for (let index = 0; index < 10; index += 1) {
+      state = proposalReducer(state, { type: "undo" });
+    }
+    expect(targetsOf(state).l1).toBe(UNFILED_TARGET);
+    expect(proposalReducer(state, { type: "undo" })).toBe(state);
   });
 
-  it("a rename replaces an older undo, so undo after it does not revert the rename", () => {
-    let state = proposalReducer(setup(), {
+  it("renames a new folder without adding or clearing an undo step", () => {
+    let state = rename(setup(), "new:f3", "  자바 정리 ");
+
+    expect(getTargetName(state, "new:f3")).toBe("자바 정리");
+    expect(state.history).toHaveLength(0);
+    expect(isProposalDirty(state)).toBe(true);
+
+    state = proposalReducer(setup(), {
       type: "move",
       linkKey: "l1",
       target: "new:f3",
       targetName: "자바",
     });
-    expect(state.undo).not.toBeNull();
     state = rename(state, "new:f3", "자바 정리");
+    expect(state.history).toHaveLength(1);
+    expect(getStatusLine(state)).toMatchObject({ kind: "change", depth: 1 });
 
-    expect(state.undo).toBeNull();
-    expect(state.lastChange).toBeNull();
     const after = proposalReducer(state, { type: "undo" });
-    expect(after).toBe(state);
     expect(getTargetName(after, "new:f3")).toBe("자바 정리");
-    expect(getActiveLinks(after, "new:f3").map((link) => link.key)).toEqual(["l1", "l4", "l5"]);
+    expect(getActiveLinks(after, "new:f3").map((link) => link.key)).toEqual(["l4", "l5"]);
   });
 
   it("ignores a blank or unchanged name", () => {
@@ -259,7 +300,11 @@ describe("proposalReducer", () => {
     const state = rename(setup(), "new:f3", "취업");
 
     expect(getTargetName(state, "new:f3")).toBe("자바");
-    expect(state.lastChange).toEqual({ type: "rename-blocked", name: "자바" });
+    expect(getStatusLine(state)).toEqual({
+      kind: "notice",
+      notice: { type: "rename-blocked", name: "자바" },
+    });
+    expect(state.history).toHaveLength(0);
   });
 
   it("merges into my folder with the same name and undoes the merge", () => {
@@ -271,7 +316,7 @@ describe("proposalReducer", () => {
       "l5",
     ]);
     expect(merged.newFolders.some((item) => item.target === "new:f3")).toBe(false);
-    expect(merged.lastChange).toEqual({
+    expect(lastChange(merged)).toEqual({
       type: "merge",
       fromName: "자바",
       count: 2,
@@ -290,7 +335,7 @@ describe("proposalReducer", () => {
 
     expect(getActiveLinks(merged, "new:f2").map((link) => link.key)).toEqual(["l3", "l4", "l5"]);
     expect(merged.newFolders.map((item) => item.target)).toEqual(["new:f2"]);
-    expect(merged.lastChange).toMatchObject({ type: "merge", toKind: "new", toName: "취업 2" });
+    expect(lastChange(merged)).toMatchObject({ type: "merge", toKind: "new", toName: "취업 2" });
   });
 
   it("adds a folder from the picker, and drops it when nothing moved into it", () => {
@@ -325,11 +370,138 @@ describe("proposalReducer", () => {
     expect(state.newFolders.some((item) => item.target === target)).toBe(false);
   });
 
-  it("closes the status line and forgets the undo entry", () => {
+  it("closes the status line but keeps the undo steps for the next change", () => {
     let state = proposalReducer(setup(), { type: "remove", linkKey: "l1" });
     state = proposalReducer(state, { type: "dismiss-change" });
 
-    expect(state.lastChange).toBeNull();
-    expect(state.undo).toBeNull();
+    expect(getStatusLine(state)).toBeNull();
+    expect(state.history).toHaveLength(1);
+
+    state = proposalReducer(state, { type: "remove", linkKey: "l2" });
+    expect(getStatusLine(state)).toMatchObject({ depth: 2 });
+    state = proposalReducer(state, { type: "undo" });
+    state = proposalReducer(state, { type: "undo" });
+    expect(getActiveLinks(state, UNFILED_TARGET)).toHaveLength(1);
+  });
+});
+
+describe("bulk remove and put back", () => {
+  it("removes every link of a new folder and excludes it", () => {
+    const state = proposalReducer(setup(), { type: "remove-all", target: "new:f3" });
+
+    expect(getActiveLinks(state, "new:f3")).toHaveLength(0);
+    expect(getRemovedLinkCount(state, "new:f3")).toBe(2);
+    expect(getProposalSummary(state)).toMatchObject({
+      addCount: 3,
+      newFolderCount: 1,
+      removedCount: 2,
+    });
+    expect(lastChange(state)).toEqual({
+      type: "remove-all",
+      folderName: "자바",
+      count: 2,
+      excludedFolder: "자바",
+    });
+  });
+
+  it("removes every link of 미분류 or my folder without excluding a folder", () => {
+    const state = proposalReducer(setup(), { type: "remove-all", target: "existing:10" });
+
+    expect(getActiveLinks(state, "existing:10")).toHaveLength(0);
+    expect(lastChange(state)).toMatchObject({ folderName: "aws", count: 1, excludedFolder: null });
+    expect(proposalReducer(state, { type: "remove-all", target: "existing:10" })).toBe(state);
+  });
+
+  it("puts every removed link of a folder back and includes the new folder again", () => {
+    let state = proposalReducer(setup(), { type: "remove", linkKey: "l4" });
+    state = proposalReducer(state, { type: "remove", linkKey: "l5" });
+    state = proposalReducer(state, { type: "restore-all", target: "new:f3" });
+
+    expect(getActiveLinks(state, "new:f3").map((link) => link.key)).toEqual(["l4", "l5"]);
+    expect(getProposalSummary(state)).toMatchObject({ newFolderCount: 2, removedCount: 0 });
+    expect(lastChange(state)).toEqual({
+      type: "restore-all",
+      folderName: "자바",
+      count: 2,
+      includedFolder: "자바",
+    });
+    expect(state.history).toHaveLength(3);
+  });
+
+  it("puts one removed link back into its folder", () => {
+    let state = proposalReducer(setup(), { type: "remove", linkKey: "l1" });
+    state = proposalReducer(state, { type: "restore", linkKey: "l1" });
+
+    expect(getActiveLinks(state, UNFILED_TARGET).map((link) => link.key)).toEqual(["l1"]);
+    expect(lastChange(state)).toEqual({
+      type: "restore",
+      linkTitle: "미분류 1",
+      toName: "미분류",
+      includedFolder: null,
+    });
+    expect(proposalReducer(state, { type: "restore", linkKey: "l1" })).toBe(state);
+  });
+
+  it("follows a merge: a removed link goes back into the folder it was merged into", () => {
+    let state = proposalReducer(setup(), { type: "remove", linkKey: "l4" });
+    state = rename(state, "new:f3", "aws");
+    state = proposalReducer(state, { type: "restore", linkKey: "l4" });
+
+    expect(getActiveLinks(state, "existing:10").map((link) => link.key)).toContain("l4");
+  });
+
+  it("sends a link to 미분류 when its picker folder is gone", () => {
+    let state = proposalReducer(setup(), { type: "add-picker-folder", name: "인프라" });
+    const target = getLastPickerTarget(state);
+    state = proposalReducer(state, { type: "move", linkKey: "l1", target, targetName: "인프라" });
+    state = proposalReducer(state, { type: "remove", linkKey: "l1" });
+    state = proposalReducer(state, { type: "discard-unused-picker-folders" });
+
+    const groups = getRemovedGroups(state, [UNFILED_TARGET]);
+    expect(groups).toEqual([
+      expect.objectContaining({ target, restoreTarget: UNFILED_TARGET, isGone: true }),
+    ]);
+    expect(getTargetName(state, target)).toBe("인프라");
+
+    state = proposalReducer(state, { type: "restore-all", target });
+    expect(getActiveLinks(state, UNFILED_TARGET).map((link) => link.key)).toEqual(["l1"]);
+  });
+
+  it("groups removed links by their folder in list order", () => {
+    let state = proposalReducer(setup(), { type: "remove", linkKey: "l4" });
+    state = proposalReducer(state, { type: "remove", linkKey: "l1" });
+    state = proposalReducer(state, { type: "remove", linkKey: "l5" });
+
+    const groups = getRemovedGroups(state, [UNFILED_TARGET, "existing:10", "new:f2", "new:f3"]);
+    expect(groups.map((group) => [group.target, group.links.map((link) => link.key)])).toEqual([
+      [UNFILED_TARGET, ["l1"]],
+      ["new:f3", ["l4", "l5"]],
+    ]);
+    expect(groups.every((group) => !group.isGone)).toBe(true);
+  });
+
+  it("remembers recent move targets, newest first, and skips gone folders", () => {
+    let state = proposalReducer(setup(), {
+      type: "move",
+      linkKey: "l1",
+      target: "new:f3",
+      targetName: "자바",
+    });
+    state = proposalReducer(state, {
+      type: "move",
+      linkKey: "l2",
+      target: UNFILED_TARGET,
+      targetName: "미분류",
+    });
+    state = proposalReducer(state, {
+      type: "move",
+      linkKey: "l3",
+      target: "new:f3",
+      targetName: "자바",
+    });
+    expect(getRecentTargets(state)).toEqual(["new:f3", UNFILED_TARGET]);
+
+    state = rename(state, "new:f3", "aws");
+    expect(getRecentTargets(state)).toEqual(["existing:10", UNFILED_TARGET]);
   });
 });

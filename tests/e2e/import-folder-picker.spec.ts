@@ -21,13 +21,13 @@ async function openPicker(page: Page, scope: Scope, folder: string, title: strin
   await openFolder(scope, folder);
   await linkHandle(scope, title).click();
   const picker = isWideProject() ? page.getByRole("dialog", { name: "폴더 이동" }) : page;
-  await expect(picker.getByText("이동할 폴더를 선택해주세요.")).toBeVisible();
+  await expect(picker.getByText("이동할 폴더를 골라 주세요.")).toBeVisible();
   await expect(picker.getByRole("button", { name: "취소", exact: true }).last()).toBeInViewport();
   return picker;
 }
 
 async function expectPickerClosed(page: Page) {
-  await expect(page.getByText("이동할 폴더를 선택해주세요.")).not.toBeInViewport();
+  await expect(page.getByText("이동할 폴더를 골라 주세요.")).not.toBeInViewport();
   await expect(page.getByText("가져올 내용을 확인해 주세요")).toHaveCount(1);
 }
 
@@ -63,14 +63,29 @@ test.describe("folder move picker", () => {
     const scope = await openProposal(page);
     const picker = await openPicker(page, scope, "미분류", "오늘의 뉴스");
     await expect(radio(picker, "미분류")).toBeVisible();
-    await expect(picker.getByText("🗂️")).toBeVisible();
+    await expect(radio(picker, "미분류")).toContainText("🗂️");
     await expect(picker.getByRole("button", { name: /^내 폴더 (접기|펼치기)$/ })).toBeVisible();
     await expect(picker.getByRole("button", { name: /^새 폴더 (접기|펼치기)$/ })).toBeVisible();
-    const top = await radio(picker, "미분류").boundingBox();
-    const mine = await picker
-      .getByRole("button", { name: /^내 폴더 (접기|펼치기)$/ })
-      .boundingBox();
-    expect(top?.y ?? 0).toBeLessThan(mine?.y ?? 0);
+    const mineHeader = picker.getByRole("button", { name: /^내 폴더 (접기|펼치기)$/ });
+    await expect
+      .poll(async () => {
+        const [top, mine] = await Promise.all([
+          radio(picker, "미분류").boundingBox(),
+          mineHeader.boundingBox(),
+        ]);
+        return (top?.y ?? Infinity) < (mine?.y ?? 0);
+      })
+      .toBe(true);
+  });
+
+  test("new folders use the same folder icon as the proposal list, not 📁", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    const picker = await openPicker(page, scope, "새 폴더 자바", "Java 21 가상 스레드 정리");
+    const row = radio(picker, "자바");
+    await expect(row).toBeVisible();
+    await expect(row).not.toContainText("📁");
+    await expect(row.locator("svg").first()).toBeVisible();
   });
 
   test("it opens with the link's section expanded, its folder checked and 확인 off", async ({
@@ -115,7 +130,7 @@ test.describe("folder move picker", () => {
     await page.evaluate(() => {
       const frames: { mine: number | null; added: number | null }[] = [];
       const anchor = [...document.querySelectorAll("div")].find(
-        (node) => node.textContent === "이동할 폴더를 선택해주세요.",
+        (node) => node.textContent === "이동할 폴더를 골라 주세요.",
       );
       const root = anchor?.closest('[role="dialog"], [role="slider"]') ?? document;
       const read = (label: string) => {
@@ -235,7 +250,7 @@ test.describe("folder move picker", () => {
     await expect(picker.getByText("3/100")).toBeVisible();
     await input.press("Enter");
     await expect(radio(picker, "인프라")).toHaveAttribute("aria-checked", "true");
-    await expect(page.getByText("이동할 폴더를 선택해주세요.")).toBeVisible();
+    await expect(page.getByText("이동할 폴더를 골라 주세요.")).toBeVisible();
     await confirmButton(picker).click();
     await expectPickerClosed(page);
     await expect(summaryValue(scope, "새 폴더")).toContainText("+4");
@@ -272,7 +287,7 @@ test.describe("folder move picker", () => {
     await input.fill("취소할 이름");
     await input.press("Escape");
     await expect(input).toHaveCount(0);
-    await expect(page.getByText("이동할 폴더를 선택해주세요.")).toBeVisible();
+    await expect(page.getByText("이동할 폴더를 골라 주세요.")).toBeVisible();
     await expect(radio(picker, "취소할 이름")).toHaveCount(0);
   });
 
@@ -347,7 +362,7 @@ test.describe("folder move picker", () => {
     await input.fill("버릴 폴더");
     await pressButton(nameAction(picker, "취소"));
     await expect(input).toHaveCount(0);
-    await expect(page.getByText("이동할 폴더를 선택해주세요.")).toBeVisible();
+    await expect(page.getByText("이동할 폴더를 골라 주세요.")).toBeVisible();
     await expect(radio(picker, "버릴 폴더")).toHaveCount(0);
     await cancelButton(picker).click();
     await expectPickerClosed(page);
@@ -395,7 +410,7 @@ test.describe("folder move picker", () => {
     const boxBefore = await target.boundingBox();
 
     await target.click();
-    await expect(page.getByText("이동할 폴더를 선택해주세요.")).toBeVisible();
+    await expect(page.getByText("이동할 폴더를 골라 주세요.")).toBeVisible();
     await cancelButton(page).click();
     await expectPickerClosed(page);
 

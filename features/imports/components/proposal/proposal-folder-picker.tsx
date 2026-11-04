@@ -2,6 +2,7 @@ import * as React from "react";
 import { View } from "react-native";
 
 import { useIsInsideSheet } from "@/components/layout/sheet";
+import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { FolderPickerDialog } from "@/features/folders/components/folder-picker-dialog";
 import {
@@ -25,10 +26,12 @@ import {
 import { withRo, withWa } from "./proposal-copy";
 import { KEYBOARD_HINT, type NameHint, ProposalNameInput } from "./proposal-name-input";
 
+import { Folder as FolderIcon } from "lucide-react-native/icons";
+
 type PickerSectionKey = "existing" | "new";
 
 type PickerRow =
-  | { kind: "folder"; id: ProposalTarget; label: string; name: string; emoji: string }
+  | { kind: "folder"; id: ProposalTarget; label: string; name: string; emoji: string | null }
   | { kind: "draft" };
 
 type PickerListProps = {
@@ -85,7 +88,7 @@ function ProposalPickerList({
       id: folder.target,
       label: folder.name,
       name: folder.name,
-      emoji: DEFAULT_FOLDER_EMOJI,
+      emoji: null,
     }));
     return [
       { key: "existing" as const, label: "내 폴더", rows: existingRows, canAdd: false },
@@ -165,8 +168,18 @@ function ProposalPickerList({
       return (
         <FolderPickerRow
           accessibilityLabel={row.label}
-          emoji={row.emoji}
+          emoji={row.emoji ?? undefined}
           isLarge={large}
+          leading={
+            row.emoji ? undefined : (
+              <Icon
+                as={FolderIcon}
+                className={
+                  large ? "size-[18px] text-muted-foreground" : "size-4 text-muted-foreground"
+                }
+              />
+            )
+          }
           label={row.name}
           selected={current === row.id}
           onPress={() => select({ id: row.id, label: row.name })}
@@ -256,7 +269,7 @@ function ProposalFolderPicker({ link, proposal, isWide, onClose }: ProposalFolde
   return (
     <FolderPickerDialog<string>
       confirmLabel="확인"
-      description="이동할 폴더를 선택해주세요."
+      description="이동할 폴더를 골라 주세요."
       errorMessage="폴더를 옮기지 못했어요. 다시 시도해 주세요."
       initialFolderId={shownLink.target}
       open={link != null}

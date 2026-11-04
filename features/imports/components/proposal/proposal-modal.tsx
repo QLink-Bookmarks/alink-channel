@@ -2,16 +2,6 @@ import * as React from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
 import { Sheet } from "@/components/layout/sheet";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
@@ -31,6 +21,8 @@ import { type ProposalLink, getExistingTarget } from "../../lib/proposal-state";
 import { formatNumber } from "../../lib/split-import-ranges";
 import { useStartImportMutation } from "../../mutations";
 import { ImportConfirmDialog } from "./import-confirm-dialog";
+import { ProposalConfirmSurface } from "./proposal-confirm-surface";
+import { getAddCaption, getImportButtonLabel } from "./proposal-copy";
 import { ProposalDragLayer } from "./proposal-drop-tray";
 import { ProposalFolderList } from "./proposal-folder-list";
 import { ProposalFolderPicker } from "./proposal-folder-picker";
@@ -53,15 +45,10 @@ type ProposalModalProps = {
   isWide: boolean;
   onClose: () => void;
   onStarted: () => void;
+  onChooseOtherFile: () => void;
 };
 
 const TITLE = "가져올 내용을 확인해 주세요";
-
-function getFooterCaption(addCount: number, newFolderCount: number) {
-  return addCount > 0
-    ? `링크 ${formatNumber(addCount)}개와 새 폴더 ${formatNumber(newFolderCount)}개를 추가해요`
-    : "가져올 링크가 없어서 가져오기를 할 수 없어요";
-}
 
 function isSelectionValid(selection: ProposalSelection, entries: ProposalFolderEntries) {
   if (selection.kind !== "target") {
@@ -152,7 +139,14 @@ function CloseButton({ onPress }: { onPress: () => void }) {
   );
 }
 
-function ProposalModal({ fileName, input, isWide, onClose, onStarted }: ProposalModalProps) {
+function ProposalModal({
+  fileName,
+  input,
+  isWide,
+  onClose,
+  onStarted,
+  onChooseOtherFile,
+}: ProposalModalProps) {
   const proposal = useImportProposal(input);
   const { state, summary, isDirty } = proposal;
   const entries = React.useMemo(
@@ -175,7 +169,12 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
   useLinkDragDrop(proposal.moveLink);
 
   const initialSelection = React.useMemo(() => getInitialSelection(entries), [entries]);
-  const validSelection = selection && isSelectionValid(selection, entries) ? selection : null;
+  const validSelection =
+    selection &&
+    isSelectionValid(selection, entries) &&
+    !(selection.kind === "removed" && summary.removedCount === 0)
+      ? selection
+      : null;
   const activeSelection = isWide ? (validSelection ?? initialSelection) : validSelection;
 
   const requestClose = React.useCallback(() => {
@@ -245,9 +244,10 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
     [handleSelect],
   );
 
-  const statusBar = state.lastChange ? (
+  const statusBar = proposal.statusLine ? (
     <ProposalStatusBar
-      change={state.lastChange}
+      isWide={isWide}
+      line={proposal.statusLine}
       onDismiss={proposal.dismissChange}
       onUndo={proposal.undo}
     />
@@ -267,6 +267,7 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
       entries={entries}
       isWide={isWide}
       selection={activeSelection}
+      removedCount={summary.removedCount}
       skipCount={summary.skipCount}
       unsupportedCount={summary.unsupportedCount}
       onRename={handleRenameStart}
@@ -288,7 +289,7 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
     />
   ) : null;
 
-  const caption = getFooterCaption(summary.addCount, summary.newFolderCount);
+  const caption = getAddCaption(summary.addCount, summary.newFolderCount);
   const canImport = summary.addCount > 0 && !isSaving;
 
   const overlays = (
@@ -301,39 +302,54 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
       />
       <ImportConfirmDialog
         folderCount={summary.newFolderCount}
+        isWide={isWide}
         linkCount={summary.addCount}
         open={isConfirmOpen}
+        skipCount={summary.skipCount}
         onCancel={() => setIsConfirmOpen(false)}
         onPendingChange={setIsSaving}
         onStart={handleStart}
       />
-      <AlertDialog
+      <ProposalConfirmSurface
+        isWide={isWide}
         open={isDiscardOpen}
-        onOpenChange={setIsDiscardOpen}
-      >
-        <AlertDialogContent className="w-[400px] max-w-[92vw] sm:max-w-[92vw]">
-          <AlertDialogHeader>
-            <AlertDialogTitle>수정한 내용이 사라져요</AlertDialogTitle>
-            <AlertDialogDescription>
-              지금 닫으면 옮기거나 지운 내용과 바꾼 폴더 이름이 모두 사라져요.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row justify-end gap-2">
-            <AlertDialogCancel>
-              <Text>계속 수정하기</Text>
-            </AlertDialogCancel>
-            <AlertDialogAction
+        testID="import-discard"
+        title="수정한 내용이 사라져요"
+        renderActions={(wide) => (
+          <>
+            <Button
+              className={
+                wide ? "h-10 rounded-xl px-4 sm:h-10" : "h-12 min-w-0 flex-1 rounded-xl sm:h-12"
+              }
+              variant="outline"
+              onPress={() => setIsDiscardOpen(false)}
+            >
+              <Text className={wide ? "text-sm font-semibold" : "text-base font-semibold"}>
+                계속 수정하기
+              </Text>
+            </Button>
+            <Button
+              className={
+                wide ? "h-10 rounded-xl px-4 sm:h-10" : "h-12 min-w-0 flex-1 rounded-xl sm:h-12"
+              }
               variant="destructive"
               onPress={() => {
                 setIsDiscardOpen(false);
                 onClose();
               }}
             >
-              <Text>닫기</Text>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <Text className={wide ? "text-sm font-semibold" : "text-base font-semibold"}>
+                닫기
+              </Text>
+            </Button>
+          </>
+        )}
+        onOpenChange={setIsDiscardOpen}
+      >
+        <Text className="text-sm leading-5 text-muted-foreground">
+          지금 닫으면 옮기거나 뺀 내용과 바꾼 폴더 이름이 모두 사라져요.
+        </Text>
+      </ProposalConfirmSurface>
     </>
   );
 
@@ -341,6 +357,8 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
     <ProposalDragLayer
       entries={entries}
       isWide={isWide}
+      nameOf={proposal.nameOf}
+      recentTargets={proposal.recentTargets}
     />
   );
 
@@ -409,13 +427,22 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
               >
                 <Text className="text-sm font-semibold">{hasNothingToAdd ? "닫기" : "취소"}</Text>
               </Button>
-              <Button
-                className="h-10 rounded-xl px-4"
-                disabled={!canImport}
-                onPress={() => setIsConfirmOpen(true)}
-              >
-                <Text className="text-sm font-semibold">가져오기</Text>
-              </Button>
+              {hasNothingToAdd ? (
+                <Button
+                  className="h-10 rounded-xl px-4"
+                  onPress={onChooseOtherFile}
+                >
+                  <Text className="text-sm font-semibold">다른 파일 선택</Text>
+                </Button>
+              ) : (
+                <Button
+                  className="h-10 rounded-xl px-4"
+                  disabled={!canImport}
+                  onPress={() => setIsConfirmOpen(true)}
+                >
+                  <Text className="text-sm font-semibold">가져오기</Text>
+                </Button>
+              )}
             </View>
             {dragLayer}
           </DialogContent>
@@ -432,23 +459,34 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
         defaultSize="92%"
         dismissible={!isDirty && !isSaving}
         footer={
-          <View className="gap-2">
+          <View className="flex-row gap-2">
             <Button
-              className="h-12 w-full rounded-xl"
-              disabled={!canImport}
-              onPress={() => setIsConfirmOpen(true)}
-            >
-              <Text className="text-base font-semibold">가져오기</Text>
-            </Button>
-            <Button
-              className="h-12 w-full rounded-xl"
+              className="h-12 min-w-0 flex-1 rounded-xl sm:h-12"
               disabled={isSaving}
               variant="outline"
               onPress={requestClose}
             >
               <Text className="text-base font-semibold">{hasNothingToAdd ? "닫기" : "취소"}</Text>
             </Button>
-            <Text className="text-center text-xs text-muted-foreground">{caption}</Text>
+            {hasNothingToAdd ? (
+              <Button
+                className="h-12 min-w-0 flex-[1.6] rounded-xl sm:h-12"
+                onPress={onChooseOtherFile}
+              >
+                <Text className="text-base font-semibold">다른 파일 선택</Text>
+              </Button>
+            ) : (
+              <Button
+                accessibilityHint={caption}
+                className="h-12 min-w-0 flex-[1.6] rounded-xl sm:h-12"
+                disabled={!canImport}
+                onPress={() => setIsConfirmOpen(true)}
+              >
+                <Text className="text-base font-semibold">
+                  {getImportButtonLabel(summary.addCount)}
+                </Text>
+              </Button>
+            )}
           </View>
         }
         hideCloseButton

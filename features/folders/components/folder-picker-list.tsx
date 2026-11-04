@@ -162,6 +162,7 @@ function FolderPickerList({
 function FolderPickerRow({
   label,
   emoji,
+  leading,
   accessibilityLabel,
   selected,
   isLarge,
@@ -169,6 +170,7 @@ function FolderPickerRow({
 }: {
   label: string;
   emoji?: string;
+  leading?: React.ReactNode;
   accessibilityLabel?: string;
   selected: boolean;
   isLarge: boolean;
@@ -186,7 +188,14 @@ function FolderPickerRow({
       )}
       onPress={onPress}
     >
-      {emoji ? (
+      {leading ? (
+        <View
+          aria-hidden
+          className={cn("shrink-0 items-center", isLarge ? "w-6" : "w-[18px]")}
+        >
+          {leading}
+        </View>
+      ) : emoji ? (
         <Text
           aria-hidden
           className={cn("shrink-0 text-center", isLarge ? "w-6 text-base" : "w-[18px] text-sm")}

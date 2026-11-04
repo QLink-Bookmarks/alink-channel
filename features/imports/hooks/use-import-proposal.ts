@@ -6,6 +6,8 @@ import {
   createProposalState,
   getNewTarget,
   getProposalSummary,
+  getRecentTargets,
+  getStatusLine,
   getTargetName,
   isProposalDirty,
   proposalReducer,
@@ -29,6 +31,8 @@ function useImportProposal(input: ProposalInput) {
 
   const summary = React.useMemo(() => getProposalSummary(state), [state]);
   const isDirty = React.useMemo(() => isProposalDirty(state), [state]);
+  const statusLine = React.useMemo(() => getStatusLine(state), [state]);
+  const recentTargets = React.useMemo(() => getRecentTargets(state), [state]);
 
   const nameOf = React.useCallback(
     (target: ProposalTarget) => getTargetName(stateRef.current, target),
@@ -64,6 +68,18 @@ function useImportProposal(input: ProposalInput) {
     dispatch({ type: "remove", linkKey });
   }, []);
 
+  const removeAll = React.useCallback((target: ProposalTarget) => {
+    dispatch({ type: "remove-all", target });
+  }, []);
+
+  const restoreAll = React.useCallback((target: ProposalTarget) => {
+    dispatch({ type: "restore-all", target });
+  }, []);
+
+  const restoreLink = React.useCallback((linkKey: string) => {
+    dispatch({ type: "restore", linkKey });
+  }, []);
+
   const renameNewFolder = React.useCallback(
     (target: ProposalTarget, name: string) => {
       const check = checkName(target, name);
@@ -90,12 +106,17 @@ function useImportProposal(input: ProposalInput) {
     state,
     summary,
     isDirty,
+    statusLine,
+    recentTargets,
     myFolders,
     meId,
     nameOf,
     checkName,
     moveLink,
     removeLink,
+    removeAll,
+    restoreAll,
+    restoreLink,
     renameNewFolder,
     addPickerFolder,
     discardUnusedPickerFolders,

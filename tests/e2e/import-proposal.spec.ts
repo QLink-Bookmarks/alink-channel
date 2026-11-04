@@ -3,6 +3,7 @@ import { type Locator, type Page, expect, test } from "@playwright/test";
 import {
   PROPOSAL_TITLE,
   backToFolders,
+  chooseFile,
   countRequests,
   folderRow,
   htmlFile,
@@ -244,7 +245,7 @@ test.describe("editing the proposal", () => {
     await expectSummary(scope, { add: "+10", folders: "+3", skip: "1", bad: "0" });
     await expect(scope.getByText("‘오늘의 뉴스’를 가져오지 않아요.")).toBeVisible();
 
-    await scope.getByRole("button", { name: "다시 넣기" }).click();
+    await scope.getByRole("button", { name: /^다시 넣기, 되돌릴 수 있는 변경/ }).click();
     await expect(linkHandle(scope, "오늘의 뉴스")).toBeVisible();
     await expectSummary(scope, { add: "+11", folders: "+3", skip: "1", bad: "0" });
   });
@@ -283,7 +284,8 @@ test.describe("editing the proposal", () => {
     await setupImportFlow(page);
     const scope = await openProposal(page);
     await openFolder(scope, "새 폴더 자바");
-    await expect(scope.getByRole("button", { name: /자바.*(지우기|삭제|빼기)/ })).toHaveCount(0);
+    await expect(scope.getByRole("button", { name: /자바.*(지우기|삭제)/ })).toHaveCount(0);
+    await expect(scope.getByRole("button", { name: /폴더.*(지우기|삭제|빼기)/ })).toHaveCount(0);
   });
 
   test("a new folder left without links says it is excluded and the new folder count drops, and moving a link back includes it again", async ({
@@ -462,8 +464,10 @@ test.describe("editing the proposal", () => {
     const { api } = await setupImportFlow(page);
     const scope = await openProposal(page, "only-unsupported.html");
     await expect(scope.getByText("새로 추가할 링크가 없어요")).toBeVisible();
-    await expect(scope.getByRole("button", { name: "가져오기", exact: true })).toBeDisabled();
-    await expect(scope.getByText("가져올 링크가 없어서 가져오기를 할 수 없어요")).toBeVisible();
+    await expect(page.getByRole("button", { name: "다른 파일 선택" })).toBeEnabled();
+    await expect(
+      scope.getByRole("button", { name: /^(가져오기|링크 [\d,]+개 가져오기)$/ }),
+    ).toHaveCount(0);
     await expect(scope.getByText("이미 저장된 링크 1개는 건너뛰어요")).toBeVisible();
     expect(countRequests(api, "POST", "/api/import-previews")).toBe(1);
   });
@@ -665,7 +669,7 @@ test.describe("dragging links", () => {
     }
     const tray = page.getByTestId("import-drop-tray");
     await expect(tray).toBeVisible();
-    await expect(tray.getByTestId("import-drop-tray-title")).toHaveText("오늘의 뉴스");
+    await expect(tray.getByTestId("import-drop-tray-title")).toHaveText("‘오늘의 뉴스’ 옮기기");
     await expect(tray.getByText("옮길 폴더 위에서 손을 떼요")).toHaveCount(0);
     const to = await center(tray.getByLabel("자바", { exact: true }));
     for (let step = 1; step <= 8; step += 1) {
@@ -698,16 +702,18 @@ test.describe("closing the proposal", () => {
     await linkRemove(scope, "오늘의 뉴스").click();
 
     await scope.getByRole("button", { name: "취소", exact: true }).click();
-    const confirm = page.getByRole("dialog", { name: "수정한 내용이 사라져요" });
+    const confirm = isWideProject()
+      ? page.getByRole("dialog", { name: "수정한 내용이 사라져요" })
+      : page;
     await expect(confirm.getByText("수정한 내용이 사라져요")).toBeVisible();
     await confirm.getByRole("button", { name: "계속 수정하기" }).click();
-    await expect(confirm).toHaveCount(0);
+    await expect(page.getByText("수정한 내용이 사라져요")).toHaveCount(0);
     await expect(page.getByText(PROPOSAL_TITLE)).toBeVisible();
     await expectSummary(scope, { add: "+10", folders: "+3", skip: "1", bad: "0" });
 
     await page.getByTestId("import-proposal-close").click();
     await expect(confirm.getByText("수정한 내용이 사라져요")).toBeVisible();
-    await confirm.getByRole("button", { name: "닫기", exact: true }).click();
+    await confirm.getByRole("button", { name: "닫기", exact: true }).last().click();
     await expect(page.getByText(PROPOSAL_TITLE)).toHaveCount(0);
     await expect(page).toHaveURL(/\/settings\/imports$/);
   });
@@ -818,7 +824,7 @@ test.describe("layout", () => {
     await setupImportFlow(page);
     const scope = await openProposal(page);
     const viewport = page.viewportSize();
-    for (const name of ["가져오기", "취소"]) {
+    for (const name of ["링크 11개 가져오기", "취소"]) {
       const button = scope.getByRole("button", { name, exact: true }).last();
       await expect(button).toBeInViewport({ ratio: 1 });
       await expect
@@ -861,5 +867,550 @@ test.describe("layout", () => {
     const scope = await openProposal(page);
     const input = await startRename(scope, "자바");
     await expect(input).toBeInViewport({ ratio: 1 });
+  });
+});
+
+test.describe("bulk remove, removed links and undo steps (#49)", () => {
+  async function expectListClosedOnMobile(page: Page) {
+    if (!isWideProject()) {
+      await expect(page.getByRole("button", { name: "폴더 목록으로" })).toHaveCount(0);
+    }
+  }
+
+  function undoButton(scope: Scope, label: string) {
+    return scope.getByRole("button", {
+      name: new RegExp(`^${label}, 되돌릴 수 있는 변경 \\d+개$`),
+    });
+  }
+
+  test("모두 빼기 is on 미분류, my folders and new folders, not on shared folders", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    for (const folder of ["미분류", "aws", "새 폴더 자바"]) {
+      await openFolder(scope, folder);
+      await expect(scope.getByRole("button", { name: /의 링크 모두 빼기$/ })).toBeVisible();
+      await backToFolders(page);
+    }
+    await openFolder(scope, /^취업, 공유 중인 폴더라/);
+    await expect(scope.getByRole("button", { name: /모두 빼기/ })).toHaveCount(0);
+  });
+
+  test("모두 빼기 on a new folder excludes it at once, and 모두 넣기 brings every link back", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "새 폴더 자바");
+    await pressButton(scope.getByRole("button", { name: "‘자바’의 링크 모두 빼기" }));
+
+    await expect(scope.getByText("옮겨지는 링크가 없어요.")).toBeVisible();
+    await expect(scope.getByText("이 폴더는 가져오기에서 제외돼요.")).toBeVisible();
+    await expectSummary(scope, { add: "+8", folders: "+2", skip: "1", bad: "0" });
+    await expect(
+      scope.getByText(
+        "‘자바’의 링크 3개를 가져오지 않아요. 새 폴더 ‘자바’를 가져오기에서 제외해요.",
+      ),
+    ).toBeVisible();
+    await expect(undoButton(scope, "모두 빼기 취소")).toBeVisible();
+    await expect(
+      scope.getByText("이 폴더에서 뺀 링크 3개는 ‘뺀 링크’에 모여 있어요."),
+    ).toBeVisible();
+    if (isWideProject()) {
+      await expect(scope.getByText("링크 8개와 새 폴더 2개를 추가해요")).toBeVisible();
+    } else {
+      await expect(page.getByRole("button", { name: "링크 8개 가져오기" })).toBeVisible();
+    }
+
+    await pressButton(scope.getByRole("button", { name: "‘자바’에서 뺀 링크 3개 모두 넣기" }));
+    await expectSummary(scope, { add: "+11", folders: "+3", skip: "1", bad: "0" });
+    await expect(linkHandle(scope, "레코드 클래스 살펴보기")).toBeVisible();
+    await expect(
+      scope.getByText("‘자바’에 링크 3개를 다시 넣었어요. 새 폴더 ‘자바’를 다시 가져와요."),
+    ).toBeVisible();
+    await expect(undoButton(scope, "넣기 취소")).toBeVisible();
+  });
+
+  test("모두 빼기 on 미분류 leaves the row with its count only", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "미분류");
+    await pressButton(scope.getByRole("button", { name: "‘미분류’의 링크 모두 빼기" }));
+    await expectSummary(scope, { add: "+8", folders: "+3", skip: "1", bad: "0" });
+    await expect(scope.getByText("‘미분류’의 링크 3개를 가져오지 않아요.")).toBeVisible();
+    await backToFolders(page);
+    await expect(folderRow(scope, "미분류")).toContainText("0개");
+    await expect(folderRow(scope, "미분류")).not.toContainText("+");
+  });
+
+  test("folder rows show what is there now and what is added, like '8개 +2' and '0개 +3'", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await expect(folderRow(scope, "aws")).toContainText("8개");
+    await expect(folderRow(scope, "aws")).toContainText("+2");
+    await expect(folderRow(scope, "미분류")).toContainText("0개");
+    await expect(folderRow(scope, "미분류")).toContainText("+3");
+    await expect(folderRow(scope, "미분류")).toContainText("🗂️");
+  });
+
+  test("a removed link waits in 뺀 링크 under its folder and 다시 넣기 puts it back", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "미분류");
+    await pressButton(linkRemove(scope, "팀 캘린더"));
+    await backToFolders(page);
+    await openFolder(scope, "aws");
+    await pressButton(linkRemove(scope, "ECS 배포 전략 비교"));
+    await backToFolders(page);
+
+    const removedRow = folderRow(scope, "뺀 링크 2개");
+    await expect(removedRow).toBeVisible();
+    const removedBox = await removedRow.boundingBox();
+    const skippedBox = await folderRow(scope, "건너뛸 링크 1개").boundingBox();
+    expect(removedBox?.y ?? 0).toBeLessThan(skippedBox?.y ?? 0);
+
+    await pressButton(removedRow);
+    await expect(scope.getByText("다시 넣으면 원래 폴더로 돌아가요.")).toBeVisible();
+    const groups = scope.getByTestId("import-removed-group");
+    await expect(groups).toHaveCount(2);
+    await expect(groups.nth(0)).toContainText("미분류");
+    await expect(groups.nth(0)).toContainText("🗂️");
+    await expect(groups.nth(1)).toContainText("aws");
+    await expect(scope.getByTestId("import-removed-row")).toHaveCount(2);
+
+    await pressButton(scope.getByRole("button", { name: "팀 캘린더 다시 넣기" }));
+    await expect(scope.getByTestId("import-removed-row")).toHaveCount(1);
+    await expect(scope.getByText("‘팀 캘린더’를 ‘미분류’에 다시 넣었어요.")).toBeVisible();
+    await expectSummary(scope, { add: "+10", folders: "+3", skip: "1", bad: "0" });
+
+    await pressButton(scope.getByRole("button", { name: "ECS 배포 전략 비교 다시 넣기" }));
+    await expectListClosedOnMobile(page);
+    await expectSummary(scope, { add: "+11", folders: "+3", skip: "1", bad: "0" });
+    await expect(folderRow(scope, /^뺀 링크/)).toHaveCount(0);
+    await openFolder(scope, "미분류");
+    await expect(linkHandle(scope, "팀 캘린더")).toBeVisible();
+  });
+
+  test("the note under a folder opens 뺀 링크, and a group's 모두 넣기 puts the whole group back", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "새 폴더 자바");
+    await pressButton(linkRemove(scope, "Java 21 가상 스레드 정리"));
+    await pressButton(linkRemove(scope, "레코드 클래스 살펴보기"));
+    await expect(
+      scope.getByRole("button", { name: "‘자바’에서 뺀 링크 2개 모두 넣기" }),
+    ).toBeVisible();
+    await pressButton(scope.getByRole("button", { name: "뺀 링크 보기" }));
+    await expect(scope.getByTestId("import-removed-group")).toContainText("자바");
+    if (isWideProject()) {
+      await expect(folderRow(scope, "뺀 링크 2개")).toHaveAttribute("aria-selected", "true");
+      await expect(folderRow(scope, "뺀 링크 2개")).toBeInViewport();
+    }
+    await pressButton(scope.getByRole("button", { name: "‘자바’에서 뺀 링크 2개 모두 넣기" }));
+    await expectSummary(scope, { add: "+11", folders: "+3", skip: "1", bad: "0" });
+  });
+
+  test("a removed link follows its folder when the folder is merged into another", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "새 폴더 자바");
+    await pressButton(linkRemove(scope, "Java 21 가상 스레드 정리"));
+    await backToFolders(page);
+    const input = await startRename(scope, "자바");
+    await input.fill("aws");
+    await input.press("Enter");
+    await expect(scope.getByText(/기존 폴더 ‘aws’로 합쳤어요/)).toBeVisible();
+    await backToFolders(page);
+    await pressButton(folderRow(scope, "뺀 링크 1개"));
+    await expect(scope.getByTestId("import-removed-group")).toContainText("aws");
+    await pressButton(scope.getByRole("button", { name: "Java 21 가상 스레드 정리 다시 넣기" }));
+    await expectListClosedOnMobile(page);
+    await expect(folderRow(scope, "aws")).toContainText("+5");
+  });
+
+  test("a link whose picker folder is gone goes back to 미분류", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "미분류");
+    await linkHandle(scope, "팀 캘린더").click();
+    const picker = isWideProject() ? page.getByRole("dialog", { name: "폴더 이동" }) : page;
+    await picker.getByRole("button", { name: "새 폴더에 폴더 추가" }).click();
+    await picker.getByLabel("새 폴더 이름").fill("참고 자료");
+    await picker.getByLabel("새 폴더 이름").press("Enter");
+    await picker.getByRole("button", { name: "확인", exact: true }).last().click();
+    await backToFolders(page);
+    await openFolder(scope, "새 폴더 참고 자료");
+    await pressButton(linkRemove(scope, "팀 캘린더"));
+    await backToFolders(page);
+    await openFolder(scope, "미분류");
+    await linkHandle(scope, "오늘의 뉴스").click();
+    await picker.getByRole("button", { name: "취소", exact: true }).last().click();
+    await backToFolders(page);
+    await expect(folderRow(scope, /^새 폴더 참고 자료/)).toHaveCount(0);
+
+    await pressButton(folderRow(scope, "뺀 링크 1개"));
+    await expect(scope.getByTestId("import-removed-group")).toContainText("비어서 없어진 새 폴더");
+    await expect(scope.getByTestId("import-removed-row")).toContainText("미분류로 넣어요");
+    await pressButton(scope.getByRole("button", { name: "팀 캘린더 다시 넣기" }));
+    await expectListClosedOnMobile(page);
+    await expect(folderRow(scope, "미분류")).toContainText("+3");
+  });
+
+  test("undo walks back one change at a time and shows the previous one", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "미분류");
+    await pressButton(linkRemove(scope, "오늘의 뉴스"));
+    await pressButton(linkRemove(scope, "팀 캘린더"));
+    await pressButton(scope.getByRole("button", { name: "‘미분류’의 링크 모두 빼기" }));
+    const bar = scope.getByTestId("import-status-bar");
+    await expect(bar).toHaveAttribute("aria-live", "polite");
+    await expect(bar).not.toHaveAttribute("role", "alert");
+    await expect(
+      scope.getByRole("button", { name: "모두 빼기 취소, 되돌릴 수 있는 변경 3개" }),
+    ).toBeVisible();
+
+    await pressButton(undoButton(scope, "모두 빼기 취소"));
+    await expect(bar).toContainText("되돌렸어요. 이전 변경: ‘팀 캘린더’를 가져오지 않아요.");
+    await expect(
+      scope.getByRole("button", { name: "다시 넣기, 되돌릴 수 있는 변경 2개" }),
+    ).toBeVisible();
+    await expectSummary(scope, { add: "+9", folders: "+3", skip: "1", bad: "0" });
+
+    await pressButton(undoButton(scope, "다시 넣기"));
+    await pressButton(undoButton(scope, "다시 넣기"));
+    await expect(bar).toHaveCount(0);
+    await expectSummary(scope, { add: "+11", folders: "+3", skip: "1", bad: "0" });
+
+    await pressButton(page.getByTestId("import-proposal-close"));
+    await expect(page.getByText(PROPOSAL_TITLE)).toHaveCount(0);
+  });
+
+  test("undo keeps the last ten changes", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(
+      page,
+      htmlFile("twelve.html", makeBookmarkExport({ unfiled: 12 })),
+    );
+    await openFolder(scope, "미분류");
+    for (let index = 1; index <= 12; index += 1) {
+      await pressButton(linkRemove(scope, `미분류 링크 ${index}`));
+    }
+    await expect(
+      scope.getByRole("button", { name: "다시 넣기, 되돌릴 수 있는 변경 10개" }),
+    ).toBeVisible();
+    for (let index = 0; index < 10; index += 1) {
+      await pressButton(undoButton(scope, "다시 넣기"));
+    }
+    await expect(scope.getByTestId("import-status-bar")).toHaveCount(0);
+    await expect(summaryValue(scope, "추가할 링크")).toContainText("+10");
+  });
+
+  test("renaming adds no undo step, and undoing an earlier change keeps the new name", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "새 폴더 자바");
+    await pressButton(linkRemove(scope, "Java 21 가상 스레드 정리"));
+    await backToFolders(page);
+    const input = await startRename(scope, "자바");
+    await input.fill("자바 정리");
+    await input.press("Enter");
+    await expect(
+      scope.getByRole("button", { name: "다시 넣기, 되돌릴 수 있는 변경 1개" }),
+    ).toBeVisible();
+    await pressButton(undoButton(scope, "다시 넣기"));
+    await backToFolders(page);
+    await expect(folderRow(scope, "새 폴더 자바 정리")).toContainText("+3");
+  });
+
+  test("closing the status bar keeps the steps for the next change", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "미분류");
+    await pressButton(linkRemove(scope, "오늘의 뉴스"));
+    await pressButton(scope.getByRole("button", { name: "알림 닫기" }));
+    await expect(scope.getByTestId("import-status-bar")).toHaveCount(0);
+    await pressButton(linkRemove(scope, "팀 캘린더"));
+    await expect(
+      scope.getByRole("button", { name: "다시 넣기, 되돌릴 수 있는 변경 2개" }),
+    ).toBeVisible();
+    await pressButton(undoButton(scope, "다시 넣기"));
+    await pressButton(undoButton(scope, "다시 넣기"));
+    await expect(linkHandle(scope, "오늘의 뉴스")).toBeVisible();
+    await expect(linkHandle(scope, "팀 캘린더")).toBeVisible();
+  });
+
+  test("removing every link turns import off, and undo turns it back on", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(
+      page,
+      htmlFile("two.html", makeBookmarkExport({ unfiled: 2 })),
+    );
+    await openFolder(scope, "미분류");
+    await pressButton(scope.getByRole("button", { name: "‘미분류’의 링크 모두 빼기" }));
+    const importButton = isWideProject()
+      ? scope.getByRole("button", { name: "가져오기", exact: true })
+      : page.getByRole("button", { name: "가져오기", exact: true });
+    await expect(importButton).toBeDisabled();
+    if (isWideProject()) {
+      await expect(scope.getByText("가져올 링크가 없어요", { exact: true })).toBeVisible();
+    }
+    await pressButton(undoButton(scope, "모두 빼기 취소"));
+    if (isWideProject()) {
+      await expect(importButton).toBeEnabled();
+      await expect(scope.getByText("링크 2개를 추가해요")).toBeVisible();
+    } else {
+      await expect(page.getByRole("button", { name: "링크 2개 가져오기" })).toBeEnabled();
+    }
+  });
+
+  test("on mobile the footer is one row '취소 | 링크 N개 가져오기' and the status bar stays one line", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "mobile footer");
+    await setupImportFlow(page);
+    await openProposal(page);
+    const cancel = page.getByRole("button", { name: "취소", exact: true });
+    const start = page.getByRole("button", { name: "링크 11개 가져오기" });
+    await expect(start).toBeVisible();
+    const cancelBox = await cancel.boundingBox();
+    const startBox = await start.boundingBox();
+    expect(Math.abs((cancelBox?.y ?? 0) - (startBox?.y ?? 1))).toBeLessThan(2);
+    expect(startBox?.width ?? 0).toBeGreaterThan(cancelBox?.width ?? 0);
+    expect(cancelBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await expect(page.getByText("링크 11개와 새 폴더 3개를 추가해요")).toHaveCount(0);
+
+    await openFolder(page, "새 폴더 자바");
+    await pressButton(page.getByRole("button", { name: "‘자바’의 링크 모두 빼기" }));
+    await expect(page.getByRole("button", { name: "링크 8개 가져오기" })).toBeVisible();
+    const bar = page.getByTestId("import-status-bar");
+    const barBox = await bar.boundingBox();
+    expect(barBox?.height ?? 0).toBeLessThanOrEqual(48);
+    for (const name of [/^모두 빼기 취소, 되돌릴/, /^알림 닫기$/]) {
+      const box = await page.getByRole("button", { name }).boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    }
+    const summaryBox = await page.getByLabel("가져오기 요약").boundingBox();
+    expect(summaryBox?.height ?? 0).toBeGreaterThan(80);
+  });
+
+  test("the wide footer caption leaves out a zero count", async ({ page }) => {
+    test.skip(!isWideProject(), "wide footer caption");
+    await setupImportFlow(page);
+    const scope = await openProposal(
+      page,
+      htmlFile("three.html", makeBookmarkExport({ unfiled: 3 })),
+    );
+    await expect(scope.getByText("링크 3개를 추가해요")).toBeVisible();
+    await expect(scope.getByText(/새 폴더 0개/)).toHaveCount(0);
+  });
+
+  test("with nothing new to add, 다른 파일 선택 goes back to choosing a file", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page, "only-unsupported.html");
+    await expect(scope.getByText("새로 추가할 링크가 없어요")).toBeVisible();
+    await pressButton(page.getByRole("button", { name: "다른 파일 선택" }));
+    await expect(page.getByText(PROPOSAL_TITLE)).toHaveCount(0);
+    await expect(
+      page.getByText("브라우저에서 북마크를 HTML 파일로 내보낸 다음 올려 주세요."),
+    ).toBeVisible();
+    await chooseFile(page, "chrome-export.html");
+    await expect(page.getByText(PROPOSAL_TITLE)).toBeVisible();
+  });
+
+  async function touchDrag(page: Page, handle: Locator) {
+    const from = await center(handle);
+    const cdp = await page.context().newCDPSession(page);
+    let at = from;
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: from.x, y: from.y }],
+    });
+    for (let step = 1; step <= 4; step += 1) {
+      at = { x: from.x + step * 4, y: from.y + step * 4 };
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [at] });
+    }
+    const moveToPoint = async (to: { x: number; y: number }) => {
+      const start = at;
+      for (let step = 1; step <= 8; step += 1) {
+        at = {
+          x: start.x + ((to.x - start.x) * step) / 8,
+          y: start.y + ((to.y - start.y) * step) / 8,
+        };
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [at] });
+      }
+    };
+    return {
+      moveToPoint,
+      moveTo: async (target: Locator) => moveToPoint(await center(target)),
+      end: () => cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }),
+    };
+  }
+
+  test("dragging over a shared folder marks its row with a dashed red border and 넣을 수 없어요", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "the wide screen drags onto the folder list");
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await expect(scope.getByTestId("import-folder-row-refused")).toHaveCount(0);
+    await startMouseDrag(page, linkHandle(scope, "오늘의 뉴스"));
+    await mouseMoveTo(page, folderRow(scope, /^취업, 공유 중인 폴더라/));
+    const refused = scope.getByTestId("import-folder-row-refused");
+    await expect(refused).toBeVisible();
+    await expect(refused).toContainText("넣을 수 없어요");
+    expect(await refused.evaluate((node) => getComputedStyle(node).borderTopStyle)).toBe("dashed");
+    await page.mouse.up();
+    await expect(scope.getByTestId("import-folder-row-refused")).toHaveCount(0);
+    await expect(folderRow(scope, "미분류")).toContainText("+3");
+  });
+
+  test("the mobile tray splits folders into sections and puts the last folder moved to on top", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "the tray is the mobile drop target");
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "미분류");
+
+    const first = await touchDrag(page, linkHandle(scope, "오늘의 뉴스"));
+    const tray = page.getByTestId("import-drop-tray");
+    await expect(tray).toBeVisible();
+    await expect(tray.getByRole("heading", { name: "미분류 · 내 폴더" })).toBeVisible();
+    await expect(tray.getByRole("heading", { name: "새 폴더" })).toBeVisible();
+    await expect(tray.getByText("3개", { exact: true })).toBeVisible();
+    await expect(tray.getByText("최근 옮긴 곳")).toHaveCount(0);
+    await first.moveTo(tray.getByLabel("자바", { exact: true }));
+    await first.end();
+    await expect(tray).toHaveCount(0);
+
+    const second = await touchDrag(page, linkHandle(scope, "팀 캘린더"));
+    await expect(tray.getByRole("heading", { name: "최근 옮긴 곳" })).toBeVisible();
+    const tiles = tray.getByTestId("import-drop-tray-tile");
+    await expect(tiles.first()).toHaveAccessibleName("자바");
+    await second.moveTo(tiles.first());
+    await expect(page.getByTestId("import-drag-card")).toContainText("자바로 옮겨요");
+    await second.end();
+    await expect(linkHandle(scope, "팀 캘린더")).toHaveCount(0);
+    await backToFolders(page);
+    await expect(folderRow(scope, "새 폴더 자바")).toContainText("+5");
+  });
+
+  test("with many new folders the mobile tray scrolls during a drag, and long names stay on one line", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "the tray is the mobile drop target");
+    await setupImportFlow(page);
+    const longName = "아주 긴 이름을 가진 폴더 하나로 트레이 칸을 넘치게 만들어 보기";
+    const folders = [
+      { name: longName, count: 1 },
+      ...Array.from({ length: 23 }, (_, index) => ({ name: `주제 ${index + 1}`, count: 1 })),
+    ];
+    const scope = await openProposal(
+      page,
+      htmlFile("many.html", makeBookmarkExport({ unfiled: 2, folders })),
+    );
+    await openFolder(scope, "미분류");
+    const drag = await touchDrag(page, linkHandle(scope, "미분류 링크 1"));
+    const tray = page.getByTestId("import-drop-tray");
+    await expect(tray.getByText("24개", { exact: true })).toBeVisible();
+
+    const longTile = tray.getByLabel(longName, { exact: true });
+    const longBox = await longTile.boundingBox();
+    const trayBox = await tray.boundingBox();
+    expect(longBox?.height ?? 0).toBeLessThanOrEqual(41);
+    expect((longBox?.x ?? 0) + (longBox?.width ?? 0)).toBeLessThanOrEqual(
+      (trayBox?.x ?? 0) + (trayBox?.width ?? 0),
+    );
+
+    const last = tray.getByLabel("주제 23", { exact: true });
+    await expect(last).not.toBeInViewport();
+    const viewport = page.viewportSize();
+    await drag.moveToPoint({ x: (viewport?.width ?? 390) / 2, y: (viewport?.height ?? 844) - 6 });
+    await expect(last).toBeInViewport({ timeout: 8000 });
+    await drag.moveTo(last);
+    await expect(page.getByTestId("import-drag-card")).toContainText("주제 23");
+    await drag.end();
+    await backToFolders(page);
+    await expect(folderRow(scope, "새 폴더 주제 23")).toContainText("+2");
+  });
+
+  test("on a wide screen, opening 뺀 링크 scrolls the long folder list to its selected row", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "the wide screen keeps the folder list beside the links");
+    await setupImportFlow(page);
+    const folders = Array.from({ length: 30 }, (_, index) => ({
+      name: `주제 ${index + 1}`,
+      count: 1,
+    }));
+    const scope = await openProposal(
+      page,
+      htmlFile("many.html", makeBookmarkExport({ unfiled: 2, folders })),
+    );
+    await openFolder(scope, "미분류");
+    await linkRemove(scope, "미분류 링크 1").click();
+    const removedRow = folderRow(scope, "뺀 링크 1개");
+    await expect(removedRow).not.toBeInViewport();
+    await scope.getByRole("button", { name: "뺀 링크 보기" }).click();
+    await expect(scope.getByText("다시 넣으면 원래 폴더로 돌아가요.")).toBeVisible();
+    await expect(removedRow).toBeInViewport();
+    await expect(removedRow).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("a long folder name is cut to one line in its 뺀 링크 group and keeps 모두 넣기 in place", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    const longName =
+      "아주 긴 이름을 가진 폴더라서 한 줄에 다 들어가지 않는 새 폴더 이름입니다 넓은 화면에서도 끝까지 보이지 않도록 조금 더 길게 적어 둔 이름이에요";
+    const scope = await openProposal(
+      page,
+      htmlFile(
+        "long.html",
+        makeBookmarkExport({ unfiled: 1, folders: [{ name: longName, count: 2 }] }),
+      ),
+    );
+    await openFolder(scope, `새 폴더 ${longName}`);
+    await pressButton(scope.getByRole("button", { name: `‘${longName}’의 링크 모두 빼기` }));
+    await pressButton(scope.getByRole("button", { name: "뺀 링크 보기" }));
+    const group = scope.getByTestId("import-removed-group");
+    await expect(group).toBeVisible();
+    const groupBox = await group.boundingBox();
+    expect(groupBox?.height ?? 0).toBeLessThanOrEqual(57);
+    const heading = group.getByRole("heading", { name: longName });
+    expect(await heading.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
+    const restore = group.getByRole("button", { name: `‘${longName}’에서 뺀 링크 2개 모두 넣기` });
+    await expect(restore).toBeInViewport({ ratio: 1 });
+    const restoreBox = await restore.boundingBox();
+    expect((restoreBox?.x ?? 0) + (restoreBox?.width ?? 0)).toBeLessThanOrEqual(
+      (groupBox?.x ?? 0) + (groupBox?.width ?? 0) + 1,
+    );
+  });
+
+  test("the wide handle is 40px and the handle hint is at least 12px", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    await openFolder(scope, "미분류");
+    if (isWideProject()) {
+      const box = await linkHandle(scope, "오늘의 뉴스").boundingBox();
+      expect(box?.width ?? 0).toBeGreaterThanOrEqual(40);
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(40);
+    }
+    const hint = scope.getByText("손잡이를 누르거나 끌어서 폴더를 옮길 수 있어요.");
+    await expect(hint).toBeVisible();
+    const size = await hint.evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
+    expect(size).toBeGreaterThanOrEqual(12);
   });
 });

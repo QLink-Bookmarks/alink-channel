@@ -15,24 +15,30 @@ import {
   type ProposalLink,
   type ProposalNewFolder,
   type ProposalSkippedLink,
+  type ProposalTarget,
   getActiveLinks,
   getExistingFolderId,
+  getRemovedLinkCount,
+  getTargetName,
 } from "../../lib/proposal-state";
 import { formatNumber } from "../../lib/split-import-ranges";
 import { getConflictNote, withRo, withWa } from "./proposal-copy";
-import { FolderEmoji, PlusBadge } from "./proposal-folder-list";
+import { FolderEmoji, PlusBadge, UNFILED_EMOJI } from "./proposal-folder-list";
 import type { ProposalSelection } from "./proposal-folders";
 import { ProposalLinkRow, getHost } from "./proposal-link-row";
 import { useLinkWindow } from "./proposal-link-window";
 import { KEYBOARD_HINT, type NameHint, ProposalNameInput } from "./proposal-name-input";
+import { PaneHeader, PaneTitle } from "./proposal-pane-header";
+import { ProposalRemovedList } from "./proposal-removed-list";
 
 import {
-  ChevronLeft,
   CircleAlert,
+  CircleMinus,
+  CirclePlus,
   FileX,
   FolderOpen,
-  Inbox,
   Link2,
+  ListX,
   Pencil,
   Users,
 } from "lucide-react-native/icons";
@@ -50,54 +56,6 @@ type ProposalLinkPaneProps = {
 };
 
 const LINK_HINT = "손잡이를 누르거나 끌어서 폴더를 옮길 수 있어요.";
-
-function PaneHeader({
-  title,
-  description,
-  isWide,
-  onBack,
-}: {
-  title: React.ReactNode;
-  description?: React.ReactNode;
-  isWide: boolean;
-  onBack?: () => void;
-}) {
-  return (
-    <View className={cn("gap-2 border-b border-border", isWide ? "px-5 pb-4 pt-4" : "pb-3 pt-1")}>
-      <View className="min-h-9 flex-row items-center gap-2">
-        {onBack ? (
-          <Pressable
-            accessibilityLabel="폴더 목록으로"
-            accessibilityRole="button"
-            className="-ml-2 size-11 items-center justify-center rounded-lg active:bg-muted"
-            onPress={onBack}
-          >
-            <Icon
-              as={ChevronLeft}
-              className="size-5 text-foreground"
-            />
-          </Pressable>
-        ) : null}
-        <View className="min-w-0 flex-1 flex-row items-center gap-2">{title}</View>
-      </View>
-      {description ? (
-        <Text className="text-[13px] leading-5 text-muted-foreground">{description}</Text>
-      ) : null}
-    </View>
-  );
-}
-
-function PaneTitle({ children }: { children: string }) {
-  return (
-    <Text
-      accessibilityRole="header"
-      className="min-w-0 shrink text-lg font-bold text-foreground"
-      numberOfLines={1}
-    >
-      {children}
-    </Text>
-  );
-}
 
 function EmptyPane({
   icon,
@@ -174,7 +132,7 @@ function LinkList({
           />
         ) : null}
       </View>
-      <Text className="px-2 pt-3 text-xs text-muted-foreground">{LINK_HINT}</Text>
+      <Text className="px-2 pt-3 text-[13px] text-muted-foreground">{LINK_HINT}</Text>
     </View>
   );
 }
@@ -259,6 +217,105 @@ function UnsupportedList({ links }: { links: ImportUnsupportedLink[] }) {
   );
 }
 
+function FolderActions({
+  proposal,
+  target,
+  isWide,
+}: {
+  proposal: ImportProposal;
+  target: ProposalTarget;
+  isWide: boolean;
+}) {
+  const { state, removeAll, restoreAll } = proposal;
+  const activeCount = getActiveLinks(state, target).length;
+  const removedCount = getRemovedLinkCount(state, target);
+  const name = getTargetName(state, target);
+  if (activeCount === 0 && removedCount === 0) {
+    return null;
+  }
+  const restoreLabel =
+    removedCount === 1 ? "1개 다시 넣기" : `${formatNumber(removedCount)}개 모두 넣기`;
+  return (
+    <>
+      {activeCount > 0 ? (
+        <Button
+          accessibilityLabel={`‘${name}’의 링크 모두 빼기`}
+          className="h-9 flex-row gap-1.5 self-center rounded-lg px-2.5 sm:h-9"
+          size="sm"
+          variant="ghost"
+          onPress={() => removeAll(target)}
+        >
+          <Icon
+            as={CircleMinus}
+            className="size-4 text-foreground"
+          />
+          <Text className="text-[13px] font-semibold text-foreground">모두 빼기</Text>
+        </Button>
+      ) : null}
+      {removedCount > 0 ? (
+        <Button
+          accessibilityLabel={`‘${name}’에서 뺀 링크 ${restoreLabel}`}
+          className="h-9 flex-row gap-1.5 self-center rounded-lg px-2.5 sm:h-9"
+          size="sm"
+          variant="outline"
+          onPress={() => restoreAll(target)}
+        >
+          <Icon
+            as={CirclePlus}
+            className="size-4 text-foreground"
+          />
+          <Text className="text-[13px] font-semibold text-foreground">
+            {isWide ? `뺀 링크 ${restoreLabel}` : restoreLabel}
+          </Text>
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
+function RemovedNote({
+  count,
+  isWide,
+  onShow,
+}: {
+  count: number;
+  isWide: boolean;
+  onShow: () => void;
+}) {
+  if (count === 0) {
+    return null;
+  }
+  return (
+    <View
+      className={cn(
+        "mt-3 flex-row items-center gap-2 rounded-xl bg-muted py-1.5 pl-3 pr-1.5",
+        isWide && "mx-3",
+      )}
+    >
+      <Icon
+        as={ListX}
+        className="size-4 shrink-0 text-muted-foreground"
+      />
+      <Text className="min-w-0 flex-1 text-[13px] text-foreground">
+        이 폴더에서 뺀 링크 {formatNumber(count)}개는 ‘뺀 링크’에 모여 있어요.
+      </Text>
+      <Button
+        accessibilityLabel="뺀 링크 보기"
+        className="h-9 self-center rounded-lg px-3 sm:h-9"
+        size="sm"
+        variant="ghost"
+        onPress={onShow}
+      >
+        <Text className="text-[13px] font-semibold text-foreground">보기</Text>
+      </Button>
+    </View>
+  );
+}
+
+function getActiveMeta(count: number) {
+  return count > 0 ? `가져올 링크 ${formatNumber(count)}개` : "가져올 링크가 없어요";
+}
+
 function getNewFolderNote(folder: ProposalNewFolder) {
   if (folder.conflictWith) {
     return getConflictNote(folder.name, folder.conflictWith);
@@ -274,6 +331,8 @@ function NewFolderHeader({
   proposal,
   isWide,
   isRenaming,
+  actions,
+  meta,
   onBack,
   onRenameStart,
   onRenameEnd,
@@ -282,6 +341,8 @@ function NewFolderHeader({
   proposal: ImportProposal;
   isWide: boolean;
   isRenaming: boolean;
+  actions: React.ReactNode;
+  meta: string;
   onBack?: () => void;
   onRenameStart: (target: string) => void;
   onRenameEnd: (target: string, value: string | null) => void;
@@ -330,11 +391,13 @@ function NewFolderHeader({
 
   return (
     <PaneHeader
+      actions={actions}
       description={getNewFolderNote(folder)}
       isWide={isWide}
+      meta={meta}
       title={
         <>
-          <PlusBadge />
+          <PlusBadge isMuted={getActiveLinks(proposal.state, folder.target).length === 0} />
           <Pressable
             accessibilityLabel={`새 폴더 ${folder.name} 이름 바꾸기`}
             accessibilityRole="button"
@@ -452,6 +515,16 @@ function ProposalLinkPane({
     );
   }
 
+  if (selection.kind === "removed") {
+    return (
+      <ProposalRemovedList
+        isWide={isWide}
+        proposal={proposal}
+        onBack={onBack}
+      />
+    );
+  }
+
   if (selection.kind === "unsupported") {
     return (
       <>
@@ -495,12 +568,29 @@ function ProposalLinkPane({
   const existingId = getExistingFolderId(target);
   const existingFolder =
     existingId == null ? null : myFolders.find((item) => item.id === existingId);
+  const actions = (
+    <FolderActions
+      isWide={isWide}
+      proposal={proposal}
+      target={target}
+    />
+  );
+  const meta = getActiveMeta(links.length);
+  const removedNote = (
+    <RemovedNote
+      count={getRemovedLinkCount(state, target)}
+      isWide={isWide}
+      onShow={() => onSelect({ kind: "removed" })}
+    />
+  );
 
   let header: React.ReactNode;
   if (newFolder) {
     header = (
       <NewFolderHeader
+        actions={actions}
         folder={newFolder}
+        meta={meta}
         isRenaming={renamingTarget === target}
         isWide={isWide}
         proposal={proposal}
@@ -512,7 +602,9 @@ function ProposalLinkPane({
   } else if (existingFolder) {
     header = (
       <PaneHeader
+        actions={actions}
         isWide={isWide}
+        meta={meta}
         title={
           <>
             <FolderEmoji emoji={existingFolder.emoji} />
@@ -528,13 +620,12 @@ function ProposalLinkPane({
   } else {
     header = (
       <PaneHeader
+        actions={actions}
         isWide={isWide}
+        meta={meta}
         title={
           <>
-            <Icon
-              as={Inbox}
-              className="size-[18px] text-muted-foreground"
-            />
+            <FolderEmoji emoji={UNFILED_EMOJI} />
             <PaneTitle>미분류</PaneTitle>
           </>
         }
@@ -567,6 +658,7 @@ function ProposalLinkPane({
           title="이 폴더로 옮겨지는 링크가 없어요"
         />
       )}
+      {removedNote}
     </>
   );
 }
