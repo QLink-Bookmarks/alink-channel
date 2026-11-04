@@ -131,13 +131,13 @@ function movingFrames(sample: MotionSample, key: SectionKey) {
   return count;
 }
 
-function headerJump(sample: MotionSample, key: SectionKey) {
+function headerJump(sample: MotionSample, key: SectionKey, minTravel = 4) {
   const tops = sample.frames
     .map((frame) => frame.headers[key]?.top)
     .filter((v): v is number => v != null);
   const steps = tops.slice(1).map((top, index) => Math.abs(top - tops[index]));
   const travel = steps.reduce((sum, step) => sum + step, 0);
-  return travel < 4 ? 0 : Math.max(...steps) / travel;
+  return travel < minTravel ? 0 : Math.max(...steps) / travel;
 }
 
 function maxOverlap(sample: MotionSample) {
