@@ -1,4 +1,7 @@
 const SECTION_TRANSITION_MS = 240;
+const MIN_RETARGET_MS = 80;
+const MODE_SETTLED = 0;
+const MODE_MOVING = 1;
 const SETTLED_MAX_HEIGHT = 100_000;
 
 type SectionHeights = Record<string, number>;
@@ -59,6 +62,11 @@ function getChevronRotation(openness: number) {
   return -90 + 90 * openness;
 }
 
+function getRemainingDuration(progress: number) {
+  "worklet";
+  return Math.max(MIN_RETARGET_MS, (1 - progress) * SECTION_TRANSITION_MS);
+}
+
 function getTransitionMinHeight(settled: number | undefined, next: number | undefined) {
   if (settled == null || next == null) {
     return settled ?? next;
@@ -67,11 +75,14 @@ function getTransitionMinHeight(settled: number | undefined, next: number | unde
 }
 
 export {
+  MODE_MOVING,
+  MODE_SETTLED,
   SECTION_TRANSITION_MS,
   SETTLED_MAX_HEIGHT,
   getAvailableListHeight,
   getOpenTarget,
   getPlanTargets,
+  getRemainingDuration,
   getTransitionMinHeight,
   getChevronRotation,
   interpolateSectionHeight,

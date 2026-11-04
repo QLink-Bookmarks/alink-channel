@@ -2,9 +2,13 @@ import * as React from "react";
 import { type LayoutChangeEvent, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 
-import { MODE_MOVING, type SectionMotion } from "../hooks/use-section-accordion";
+import type { SectionMotion } from "../hooks/use-section-accordion";
 import { isListMeasurable, useSyncMeasure } from "../hooks/use-sync-measure";
-import { SETTLED_MAX_HEIGHT, interpolateSectionHeight } from "../lib/section-accordion";
+import {
+  MODE_MOVING,
+  SETTLED_MAX_HEIGHT,
+  interpolateSectionHeight,
+} from "../lib/section-accordion";
 
 const BODY_STYLE = { flexShrink: 1, minHeight: 0, overflow: "hidden" } as const;
 const LOCKED_BODY_STYLE = { flexShrink: 0 } as const;

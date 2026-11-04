@@ -2,7 +2,7 @@ import * as React from "react";
 import { type LayoutChangeEvent, View } from "react-native";
 import { useAnimatedStyle, useReducedMotion } from "react-native-reanimated";
 
-import { useIsInsideSheet, useSheetPosition } from "@/components/layout/sheet";
+import { useIsInsideSheet, useSheetMotion } from "@/components/layout/sheet";
 import { cn } from "@/lib/utils";
 import {
   type FolderScrollSurface,
@@ -12,12 +12,12 @@ import {
 } from "@/stores/folder-navigation";
 
 import { useFolderSectionData } from "../hooks/use-folder-section-data";
+import { type SectionMotion, useSectionAccordion } from "../hooks/use-section-accordion";
 import {
   MODE_MOVING,
-  type SectionMotion,
-  useSectionAccordion,
-} from "../hooks/use-section-accordion";
-import { getChevronRotation, interpolateSectionOpenness } from "../lib/section-accordion";
+  getChevronRotation,
+  interpolateSectionOpenness,
+} from "../lib/section-accordion";
 import type { Folder } from "../types";
 import { FolderSectionBody } from "./folder-section-body";
 import {
@@ -184,7 +184,7 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
   );
 
   const isInsideSheet = useIsInsideSheet();
-  const sheetPosition = useSheetPosition();
+  const sheet = useSheetMotion();
   const accordion = useSectionAccordion<K>({
     openKey,
     isReady: !isListDeferred,
@@ -192,7 +192,7 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
     minHeight,
     headersHeight,
     listMaxHeight,
-    sheetPosition,
+    sheet,
     getAvailableHeight,
   });
   const displayMinHeight = accordion.displayMinHeight;

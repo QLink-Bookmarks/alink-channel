@@ -3,7 +3,7 @@ import { Pressable, type StyleProp, View, type ViewStyle } from "react-native";
 import Animated, {
   type EasingFunctionFactory,
   type SharedValue,
-  useSharedValue,
+  useDerivedValue,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useDisplaySettings } from "@/stores/display-settings";
 import { useSheetTracker } from "@/stores/sheet-tracker";
 import {
+  ANIMATION_STATUS,
   BottomSheetBackdrop,
   type BottomSheetBackdropProps,
   type BottomSheetBackgroundProps,
@@ -21,6 +22,7 @@ import {
   type BottomSheetFooterProps,
   BottomSheetModal,
   BottomSheetScrollView,
+  useBottomSheetInternal,
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
 
@@ -38,10 +40,28 @@ function useIsInsideSheet() {
   return React.useContext(SheetContext);
 }
 
-const SheetPositionContext = React.createContext<SharedValue<number> | null>(null);
+type SheetMotion = {
+  position: SharedValue<number>;
+  target: SharedValue<number | null>;
+};
 
-function useSheetPosition() {
-  return React.use(SheetPositionContext);
+const SheetMotionContext = React.createContext<SheetMotion | null>(null);
+
+function useSheetMotion() {
+  return React.use(SheetMotionContext);
+}
+
+function SheetMotionProvider({ children }: { children: React.ReactNode }) {
+  const { animatedPosition, animatedAnimationState } = useBottomSheetInternal();
+  const target = useDerivedValue(() => {
+    const { status, nextPosition } = animatedAnimationState.value;
+    return status === ANIMATION_STATUS.RUNNING && nextPosition != null ? nextPosition : null;
+  });
+  const motion = React.useMemo(
+    () => ({ position: animatedPosition, target }),
+    [animatedPosition, target],
+  );
+  return <SheetMotionContext.Provider value={motion}>{children}</SheetMotionContext.Provider>;
 }
 
 type SheetResizeTiming = { duration: number; easing: EasingFunctionFactory };
@@ -138,7 +158,6 @@ function Sheet({
     easing: resizeTiming?.easing,
   });
   const sheetRef = React.useRef<BottomSheetModal>(null);
-  const sheetPosition = useSharedValue(0);
   const insets = useSafeAreaInsets();
   // Default to the active app theme so sheets follow dark mode even when the
   // caller doesn't pass mode/accent explicitly.
@@ -371,7 +390,6 @@ function Sheet({
   return (
     <BottomSheetModal
       ref={sheetRef}
-      animatedPosition={sheetPosition}
       snapPoints={snapPoints}
       topInset={safeTopInset}
       enableDynamicSizing={fitContent}
@@ -389,18 +407,18 @@ function Sheet({
       onDismiss={handleDismiss}
     >
       <SheetContext.Provider value={true}>
-        <SheetPositionContext.Provider value={sheetPosition}>
+        <SheetMotionProvider>
           <BottomSheetScrollView
             className="scrollbar-none"
             showsVerticalScrollIndicator={false}
           >
             {content}
           </BottomSheetScrollView>
-        </SheetPositionContext.Provider>
+        </SheetMotionProvider>
       </SheetContext.Provider>
     </BottomSheetModal>
   );
 }
 
-export { Sheet, useIsInsideSheet, useSheetPosition };
-export type { SheetProps };
+export { Sheet, useIsInsideSheet, useSheetMotion };
+export type { SheetMotion, SheetProps };

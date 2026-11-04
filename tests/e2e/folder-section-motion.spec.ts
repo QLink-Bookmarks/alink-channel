@@ -106,6 +106,21 @@ function lastMotion(sample: MotionSample) {
   return moving.length ? moving[moving.length - 1].t : 0;
 }
 
+const SHEETS: Record<string, (page: Page) => Promise<void>> = {
+  "move sheet": async (page) => {
+    await page.goto("/links/1");
+    await expect(page.getByTestId("link-detail-title")).toBeVisible();
+    await page.getByRole("button", { name: /^폴더 이동, 현재/ }).click();
+    await expect(page.getByRole("button", { name: "확인", exact: true })).toBeVisible();
+  },
+  "new link sheet folder step": async (page) => {
+    await page.goto("/home");
+    await page.getByLabel("새 링크").click();
+    await page.getByRole("button", { name: "변경" }).first().click();
+    await expect(page.getByRole("radio", { name: "없음 - ✨ AI 자동 분류" })).toBeVisible();
+  },
+};
+
 test.describe("wide", () => {
   test.beforeEach(() => {
     test.skip(!isWideProject(), "wide only");
@@ -387,31 +402,56 @@ test.describe("mobile", () => {
     expect(maxOverlap(sample)).toBeLessThanOrEqual(1);
   });
 
-  test("move sheet: switching sections moves the lists together", async ({ page }) => {
-    await prepare(page, "picker", "shared");
-    await page.goto("/links/1");
-    await expect(page.getByTestId("link-detail-title")).toBeVisible();
-    await page.getByRole("button", { name: /^폴더 이동, 현재/ }).click();
-    await expect(page.getByRole("button", { name: "확인", exact: true })).toBeVisible();
-    await ready(page, "shared");
+  for (const [sheet, openSheet] of Object.entries(SHEETS)) {
+    for (const [from, to] of [
+      ["shared", "mine"],
+      ["mine", "shared"],
+    ] as const) {
+      test(`${sheet}: switching ${LABEL[from]} → ${LABEL[to]} with many folders moves the lists together within 300 ms`, async ({
+        page,
+      }) => {
+        await prepare(page, "picker", from, { folders: mixedFolders(30, 10) });
+        await openSheet(page);
+        await ready(page, from);
 
-    const sample = await sampleSectionMotion(page, { clicks: [{ at: 0, section: "mine" }] });
+        const sample = await sampleSectionMotion(page, { clicks: [{ at: 0, section: to }] });
 
-    expectSwitchTogether(sample, "mine", "shared");
-  });
+        expectSwitchTogether(sample, to, from);
+        expect(lastMotion(sample)).toBeLessThanOrEqual(340);
+        await expect(toggle(page, to)).toHaveAttribute("aria-expanded", "true");
+      });
+    }
+  }
 
-  test("new link sheet folder step: switching sections moves the lists together", async ({
-    page,
-  }) => {
-    await prepare(page, "picker", "shared");
-    await page.goto("/home");
-    await page.getByLabel("새 링크").click();
-    await page.getByRole("button", { name: "변경" }).first().click();
-    await expect(page.getByRole("radio", { name: "없음 - ✨ AI 자동 분류" })).toBeVisible();
-    await ready(page, "shared");
+  for (const [sheet, openSheet] of Object.entries(SHEETS)) {
+    for (const [from, tap] of [
+      ["shared", "mine"],
+      ["mine", "mine"],
+      [null, "mine"],
+    ] as const) {
+      const action =
+        from === tap
+          ? `closing ${LABEL[tap]}`
+          : from == null
+            ? `opening ${LABEL[tap]} from all collapsed`
+            : `switching ${LABEL[from]} → ${LABEL[tap]}`;
+      test(`${sheet}: ${action} while the sheet is still sliding in finishes within 300 ms`, async ({
+        page,
+      }) => {
+        await prepare(page, "picker", from, { folders: mixedFolders(30, 10) });
+        await openSheet(page);
+        await expect(toggle(page, tap)).toBeVisible();
 
-    const sample = await sampleSectionMotion(page, { clicks: [{ at: 0, section: "mine" }] });
+        const sample = await sampleSectionMotion(page, { clicks: [{ at: 0, section: tap }] });
 
-    expectSwitchTogether(sample, "mine", "shared");
-  });
+        expect(lastMotion(sample)).toBeLessThanOrEqual(340);
+        expect(headerJump(sample, "shared")).toBeLessThan(0.35);
+        expect(maxOverlap(sample)).toBeLessThanOrEqual(1);
+        await expect(toggle(page, tap)).toHaveAttribute(
+          "aria-expanded",
+          from === tap ? "false" : "true",
+        );
+      });
+    }
+  }
 });
