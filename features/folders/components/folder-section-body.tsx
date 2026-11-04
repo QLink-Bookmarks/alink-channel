@@ -10,6 +10,7 @@ import {
   interpolateSectionHeight,
 } from "../lib/section-accordion";
 
+// 웹에서 NativeWind className은 Reanimated Animated.View에 적용되지 않아 클립과 shrink가 빠진다. 그래서 본문 레이아웃은 style로 둔다.
 const BODY_STYLE = { flexShrink: 1, minHeight: 0, overflow: "hidden" } as const;
 const LOCKED_BODY_STYLE = { flexShrink: 0 } as const;
 

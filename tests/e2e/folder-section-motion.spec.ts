@@ -284,9 +284,15 @@ test.describe("wide", () => {
         (scope) =>
           new Promise<{ mine: number; shared: number }[]>((resolve) => {
             const root = document.querySelector(scope) ?? document.body;
-            const chevron = (label: string) =>
-              root.querySelector<HTMLElement>(`[role="button"][aria-label^="${label}"]`)
-                ?.firstElementChild as HTMLElement | null;
+            const chevron = (label: string) => {
+              const slot = root.querySelector<HTMLElement>(
+                `[role="button"][aria-label^="${label}"]`,
+              )?.firstElementChild;
+              if (!slot) return null;
+              return ([slot, ...Array.from(slot.querySelectorAll("*"))].find(
+                (node) => getComputedStyle(node).transform !== "none",
+              ) ?? null) as HTMLElement | null;
+            };
             const angle = (element: HTMLElement | null) => {
               const transform = element ? getComputedStyle(element).transform : "none";
               if (!transform || transform === "none") return 0;

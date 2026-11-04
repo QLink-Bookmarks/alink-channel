@@ -21,8 +21,6 @@ const FOLDER_SECTION_HEADER_HEIGHT: Record<FolderSectionSize, number> = {
   large: 52,
 };
 
-const CHEVRON_STYLE = { alignItems: "center", justifyContent: "center" } as const;
-
 const FOLDER_SECTION_LABELS: Record<FolderSection, string> = {
   mine: "내 폴더",
   shared: "공유 폴더",
@@ -133,7 +131,9 @@ function FolderSectionHeader<K extends string = FolderSection>({
         onPress={() => onToggle(section)}
       >
         {chevronStyle ? (
-          <Animated.View style={[CHEVRON_STYLE, chevronStyle]}>{chevronIcon}</Animated.View>
+          <View className="items-center justify-center">
+            <Animated.View style={chevronStyle}>{chevronIcon}</Animated.View>
+          </View>
         ) : (
           <View
             // rotate-0: NativeWind가 transform/shadow 클래스가 처음 붙을 때 컴포넌트를 바꿔 끼워 iOS에서 Couldn't find a navigation context 오류가 난다. 기본값을 늘 붙여 둔다. 지우지 말 것.
