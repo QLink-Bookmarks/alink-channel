@@ -107,7 +107,11 @@ jest.mock("@gorhom/bottom-sheet", () => {
             accessibilityLabel="시트 내용"
           />
           <View testID="mock-sheet-content">{children}</View>
-          {footerComponent ? <View testID="mock-sheet-footer">{footerComponent({})}</View> : null}
+          {footerComponent ? (
+            <View testID="mock-sheet-footer">
+              {ReactModule.createElement(footerComponent as React.ComponentType, {})}
+            </View>
+          ) : null}
         </View>
       );
     },
@@ -324,6 +328,43 @@ describe("Sheet", () => {
 
       rerender(renderWithFooter(null));
       expect(screen.queryByTestId("mock-sheet-footer")).toBeNull();
+    });
+
+    it("keeps the footer's children mounted while the content updates them", () => {
+      const mounts = jest.fn();
+      function Counter({ label }: { label: string }) {
+        React.useEffect(() => {
+          mounts();
+        }, []);
+        return <Text>{label}</Text>;
+      }
+      function Content({ label }: { label: string }) {
+        return (
+          <SheetFooter>
+            <Counter label={label} />
+          </SheetFooter>
+        );
+      }
+      const { rerender } = render(
+        <Sheet open>
+          <Content label="저장" />
+        </Sheet>,
+      );
+      rerender(
+        <Sheet open>
+          <Content label="저장 중" />
+        </Sheet>,
+      );
+      rerender(
+        <Sheet open>
+          <Content label="다시 저장" />
+        </Sheet>,
+      );
+
+      expect(
+        within(screen.getByTestId("mock-sheet-footer")).getByText("다시 저장"),
+      ).toBeOnTheScreen();
+      expect(mounts).toHaveBeenCalledTimes(1);
     });
 
     it("renders in place when it is not inside a sheet", () => {

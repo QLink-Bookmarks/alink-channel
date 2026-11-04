@@ -49,17 +49,63 @@ type SheetMotion = {
 
 const SheetMotionContext = React.createContext<SheetMotion | null>(null);
 
-type SetSheetFooter = (footer: React.ReactNode) => void;
+type SheetFooterSnapshot = {
+  propNode: React.ReactNode;
+  slotNode: React.ReactNode;
+  bottomInset: number;
+};
 
-const SheetFooterSlotContext = React.createContext<SetSheetFooter | null>(null);
+type SheetFooterStore = {
+  getSnapshot: () => SheetFooterSnapshot;
+  subscribe: (listener: () => void) => () => void;
+  update: (next: Partial<SheetFooterSnapshot>) => void;
+};
+
+function createSheetFooterStore(bottomInset: number): SheetFooterStore {
+  let snapshot: SheetFooterSnapshot = { propNode: null, slotNode: null, bottomInset };
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: () => snapshot,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    update: (next) => {
+      const merged = { ...snapshot, ...next };
+      if (
+        merged.propNode === snapshot.propNode &&
+        merged.slotNode === snapshot.slotNode &&
+        merged.bottomInset === snapshot.bottomInset
+      ) {
+        return;
+      }
+      snapshot = merged;
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+
+type SheetFooterSlot = {
+  setNode: (node: React.ReactNode) => void;
+  setPresent: (present: boolean) => void;
+};
+
+const SheetFooterSlotContext = React.createContext<SheetFooterSlot | null>(null);
+
+function isKeyboardVisibleNow() {
+  return typeof Keyboard.isVisible === "function" ? Keyboard.isVisible() : false;
+}
 
 function useIsKeyboardShown(active: boolean) {
-  const [isShown, setIsShown] = React.useState(false);
+  const [isShown, setIsShown] = React.useState(() => active && isKeyboardVisibleNow());
   React.useEffect(() => {
     if (!active) {
       setIsShown(false);
       return;
     }
+    setIsShown(isKeyboardVisibleNow());
     const showSubscription = Keyboard.addListener("keyboardWillShow", () => setIsShown(true));
     const hideSubscription = Keyboard.addListener("keyboardWillHide", () => setIsShown(false));
     return () => {
@@ -71,17 +117,47 @@ function useIsKeyboardShown(active: boolean) {
 }
 
 function SheetFooter({ children }: { children: React.ReactNode }) {
-  const setFooter = React.use(SheetFooterSlotContext);
+  const slot = React.use(SheetFooterSlotContext);
   React.useLayoutEffect(() => {
-    setFooter?.(children);
-  }, [children, setFooter]);
+    slot?.setNode(children);
+  }, [children, slot]);
   React.useLayoutEffect(() => {
-    return () => setFooter?.(null);
-  }, [setFooter]);
-  if (!setFooter) {
+    if (!slot) {
+      return;
+    }
+    slot.setPresent(true);
+    return () => {
+      slot.setPresent(false);
+      slot.setNode(null);
+    };
+  }, [slot]);
+  if (!slot) {
     return <>{children}</>;
   }
   return null;
+}
+
+function SheetFooterContent({
+  store,
+  onHeightChange,
+}: {
+  store: SheetFooterStore;
+  onHeightChange: (height: number) => void;
+}) {
+  const snapshot = React.useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getSnapshot,
+  );
+  return (
+    <View
+      className="border-t border-border-soft bg-background px-4 pt-3"
+      style={{ paddingBottom: snapshot.bottomInset }}
+      onLayout={(event) => onHeightChange(event.nativeEvent.layout.height)}
+    >
+      {snapshot.propNode ?? snapshot.slotNode}
+    </View>
+  );
 }
 
 function useSheetMotion() {
@@ -190,8 +266,7 @@ function Sheet({
   resizeTiming,
 }: SheetProps) {
   const [footerHeight, setFooterHeight] = React.useState(0);
-  const [slotFooter, setSlotFooter] = React.useState<React.ReactNode>(null);
-  const resolvedFooter = footer ?? slotFooter;
+  const [hasSlotFooter, setHasSlotFooter] = React.useState(false);
   const contentRef = useSheetHostScrollLock();
   const resizeConfigs = useBottomSheetTimingConfigs({
     duration: resizeTiming?.duration,
@@ -401,22 +476,30 @@ function Sheet({
   );
 
   const safeBottomInset = Math.max(insets.bottom, 16);
-  const isKeyboardShown = useIsKeyboardShown(resolvedFooter != null);
+  const hasFooter = footer != null || hasSlotFooter;
+  const isKeyboardShown = useIsKeyboardShown(hasFooter);
   const footerBottomInset = isKeyboardShown ? 12 : safeBottomInset;
-  const hasFooter = resolvedFooter != null;
+  const [footerStore] = React.useState(() => createSheetFooterStore(footerBottomInset));
+  React.useLayoutEffect(() => {
+    footerStore.update({ propNode: footer ?? null, bottomInset: footerBottomInset });
+  }, [footer, footerBottomInset, footerStore]);
+  const footerSlot = React.useMemo<SheetFooterSlot>(
+    () => ({
+      setNode: (slotNode) => footerStore.update({ slotNode }),
+      setPresent: setHasSlotFooter,
+    }),
+    [footerStore],
+  );
   const renderFooter = React.useCallback(
     (props: BottomSheetFooterProps) => (
       <BottomSheetFooter {...props}>
-        <View
-          className="border-t border-border-soft bg-background px-4 pt-3"
-          style={{ paddingBottom: footerBottomInset }}
-          onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
-        >
-          {resolvedFooter}
-        </View>
+        <SheetFooterContent
+          store={footerStore}
+          onHeightChange={setFooterHeight}
+        />
       </BottomSheetFooter>
     ),
-    [footerBottomInset, resolvedFooter],
+    [footerStore],
   );
   const content = (
     <View
@@ -450,7 +533,7 @@ function Sheet({
       onDismiss={handleDismiss}
     >
       <SheetContext.Provider value={true}>
-        <SheetFooterSlotContext value={setSlotFooter}>
+        <SheetFooterSlotContext value={footerSlot}>
           <SheetMotionProvider>
             <BottomSheetScrollView
               className="scrollbar-none"
