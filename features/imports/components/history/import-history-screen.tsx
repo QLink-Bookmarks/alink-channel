@@ -10,9 +10,11 @@ import { cn } from "@/lib/utils";
 import { openImportFlow } from "@/stores/import-flow";
 
 import { useImportProgressRefresh } from "../../hooks/use-import-progress-refresh";
+import { isImportAvailable } from "../../lib/import-availability";
 import { IMPORTS_PATH, getImportDetailPath } from "../../lib/import-paths";
 import { useImportsQuery } from "../../queries";
 import type { ImportSummary } from "../../types";
+import { WebOnlyImportNote } from "../flow/web-only-import-note";
 import { ReversalModal, type ReversalTarget } from "../reversal/reversal-modal";
 import {
   clearDetailOpenedFromList,
@@ -121,18 +123,22 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
                 브라우저에서 내보낸 북마크 파일로 링크와 폴더를 한 번에 옮겨요.
               </Text>
             </View>
-            <Button
-              size="lg"
-              className={cn(!isWide && "w-full")}
-              onPress={handleNewImport}
-            >
-              <Icon
-                as={Upload}
-                size={16}
-                className="text-primary-foreground"
-              />
-              <Text>새로 가져오기</Text>
-            </Button>
+            {isImportAvailable() ? (
+              <Button
+                size="lg"
+                className={cn(!isWide && "w-full")}
+                onPress={handleNewImport}
+              >
+                <Icon
+                  as={Upload}
+                  size={16}
+                  className="text-primary-foreground"
+                />
+                <Text>새로 가져오기</Text>
+              </Button>
+            ) : (
+              <WebOnlyImportNote className={cn("h-11 sm:h-10", !isWide && "w-full")} />
+            )}
           </View>
 
           <View className="gap-3">

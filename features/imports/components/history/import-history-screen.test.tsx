@@ -1,6 +1,7 @@
 import { useImportFlowStore } from "@/stores/import-flow";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 
+import { isImportAvailable } from "../../lib/import-availability";
 import { useImportsQuery } from "../../queries";
 import type { ImportSummary } from "../../types";
 import { ImportHistoryScreen } from "./import-history-screen";
@@ -21,6 +22,10 @@ jest.mock("expo-router", () => ({
 
 jest.mock("@/lib/hooks/use-wide-view", () => ({
   useWideView: () => true,
+}));
+
+jest.mock("../../lib/import-availability", () => ({
+  isImportAvailable: jest.fn(),
 }));
 
 jest.mock("../../queries", () => ({
@@ -73,7 +78,10 @@ function mockList(contents: ImportSummary[]) {
   } as unknown as ReturnType<typeof useImportsQuery>);
 }
 
+const mockedIsImportAvailable = jest.mocked(isImportAvailable);
+
 beforeEach(() => {
+  mockedIsImportAvailable.mockReturnValue(true);
   mockPush.mockReset();
   mockReplace.mockReset();
   mockIsFocused = true;
@@ -99,6 +107,21 @@ describe("ImportHistoryScreen", () => {
     fireEvent.press(screen.getByText("새로 가져오기"));
 
     expect(useImportFlowStore.getState().request).toMatchObject({ from: "settings" });
+    expect(screen.queryByText("북마크 가져오기는 웹에서 할 수 있어요")).toBeNull();
+  });
+
+  it("on native shows the web-only note in place of 새로 가져오기, with nothing to press", () => {
+    mockedIsImportAvailable.mockReturnValue(false);
+    mockList([]);
+    render(<ImportHistoryScreen />);
+
+    expect(screen.queryByText("새로 가져오기")).toBeNull();
+    const note = screen.getByTestId("web-only-import-note");
+    expect(screen.getByText("북마크 가져오기는 웹에서 할 수 있어요")).toBeTruthy();
+    expect(note.props.accessibilityRole).toBeUndefined();
+    expect(note.props.onPress).toBeUndefined();
+    fireEvent.press(screen.getByText("북마크 가져오기는 웹에서 할 수 있어요"));
+    expect(useImportFlowStore.getState().request).toBeNull();
   });
 
   it("shows the empty state", () => {

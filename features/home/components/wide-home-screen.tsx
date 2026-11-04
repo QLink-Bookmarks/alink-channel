@@ -11,6 +11,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { useMyProfileQuery } from "@/features/account/queries";
+import { HomeEmptyState } from "@/features/imports/components/flow/home-empty-state";
 import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
 import { ShortcutTile } from "@/features/links/components/shortcut-tile/shortcut-tile";
 import { useLinksQuery } from "@/features/links/queries";
@@ -176,6 +177,21 @@ function WideHomeScreen() {
     },
     [queryClient, toggleTodo],
   );
+
+  if (!recentLinksQuery.isLoading && !recentLinksQuery.isError && recentLinks.length === 0) {
+    return (
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="grow"
+        contentInsetAdjustmentBehavior="automatic"
+      >
+        <HomeEmptyState
+          className="flex-1"
+          onAddLink={() => dispatchWideShortcut("new-link")}
+        />
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
