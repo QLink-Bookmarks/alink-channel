@@ -1,6 +1,7 @@
 import { View } from "react-native";
 
 import { useAgreementStatus } from "@/features/agreements/hooks/use-agreement-status";
+import { ImportFlowHost } from "@/features/imports/components/flow/import-flow-host";
 import { ResponsiveShell } from "@/features/navigation/components/responsive-shell";
 import { useWideViewState } from "@/lib/hooks/use-wide-view";
 import { useAuthStore } from "@/stores/auth";
@@ -33,6 +34,7 @@ export default function PagesLayout() {
       <ResponsiveShell>
         <Slot />
       </ResponsiveShell>
+      <ImportFlowHost />
     </BottomSheetModalProvider>
   );
 }

@@ -384,7 +384,9 @@ test.describe("states", () => {
   test("an empty list shows the existing empty message", async ({ page }) => {
     await mockApi(page, { links: [] });
     await page.goto(isWideProject() ? "/links" : "/home");
-    await expect(page.getByText("아직 링크가 없어요")).toBeVisible();
+    await expect(
+      page.getByText(isWideProject() ? "아직 링크가 없어요" : "아직 저장한 링크가 없어요"),
+    ).toBeVisible();
     await expect(page.getByTestId("link-card")).toHaveCount(0);
   });
 

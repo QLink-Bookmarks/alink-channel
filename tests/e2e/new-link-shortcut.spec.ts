@@ -1,7 +1,7 @@
 import { type Page, expect, test } from "@playwright/test";
 
 import { isWideProject } from "./support/helpers";
-import { makeFolders, mockApi } from "./support/mock-api";
+import { makeFolders, makeLink, mockApi } from "./support/mock-api";
 
 const HELPER_LABEL = "와이드뷰 키보드 단축키 안내";
 
@@ -21,7 +21,7 @@ function newLinkDialogTitle(page: Page) {
 }
 
 async function openReady(page: Page) {
-  await mockApi(page, { folders: makeFolders(3, 0) });
+  await mockApi(page, { folders: makeFolders(3, 0), links: [makeLink({ id: 1 })] });
   await page.goto("/folders/3");
   await expect(page.getByRole("main").getByText("📁 폴더 3", { exact: true })).toBeVisible();
 }
@@ -176,7 +176,7 @@ test.describe("new link shortcut", () => {
   }
 
   test("the 새 링크 pill on the wide home opens the new link dialog", async ({ page }) => {
-    await mockApi(page, { folders: makeFolders(3, 0) });
+    await mockApi(page, { folders: makeFolders(3, 0), links: [makeLink({ id: 1 })] });
     await page.goto("/home");
     await page.getByRole("main").getByText("새 링크", { exact: true }).first().click();
     await expect(newLinkDialogTitle(page)).toBeVisible();

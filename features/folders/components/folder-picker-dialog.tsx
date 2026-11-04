@@ -61,6 +61,7 @@ type FolderPickerDialogBaseProps<Id> = {
   initialFolderId?: Id;
   noneOption?: FolderPickerListProps["noneOption"];
   visibleSections?: FolderSection[];
+  stackBehavior?: "switch" | "push" | "replace";
   onOpenChange: (open: boolean) => void;
   onConfirm: (selection: FolderPickerSelection<Id>) => Promise<void>;
 };
@@ -101,6 +102,7 @@ function FolderPickerDialog<Id = FolderPickerId>(props: FolderPickerDialogProps<
     initialFolderId,
     noneOption,
     visibleSections,
+    stackBehavior,
     renderList,
     onOpenChange,
     onConfirm,
@@ -174,6 +176,7 @@ function FolderPickerDialog<Id = FolderPickerId>(props: FolderPickerDialogProps<
       footer={footer}
       hideCloseButton
       maxDynamicContentSize={Math.round(height * SHEET_MAX_HEIGHT_RATIO)}
+      stackBehavior={stackBehavior}
       onOpenChange={requestOpenChange}
     >
       <View className="gap-3">
