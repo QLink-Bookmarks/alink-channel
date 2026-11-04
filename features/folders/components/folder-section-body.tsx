@@ -18,6 +18,7 @@ type FolderSectionBodyProps<K extends string> = {
   sectionKey: K;
   motion: SectionMotion;
   isOpen: boolean;
+  isSettledOpen: boolean;
   isShrinkLocked: boolean;
   isOpening: boolean;
   openingCap: number | undefined;
@@ -33,6 +34,7 @@ function FolderSectionBody<K extends string>({
   sectionKey,
   motion,
   isOpen,
+  isSettledOpen,
   isShrinkLocked,
   isOpening,
   openingCap,
@@ -49,7 +51,8 @@ function FolderSectionBody<K extends string>({
         maxHeight: interpolateSectionHeight(motion.plan.value, sectionKey, motion.progress.value),
       };
     }
-    return { maxHeight: motion.settledKey.value === sectionKey ? SETTLED_MAX_HEIGHT : 0 };
+    const isShown = motion.settledKey.value === sectionKey || isSettledOpen;
+    return { maxHeight: isShown ? SETTLED_MAX_HEIGHT : 0 };
   });
 
   const innerStyle =

@@ -300,6 +300,7 @@ function FolderSectionsView<K extends string, T>(props: FolderSectionsViewProps<
                 openingCap={accordion.openingCap}
                 openingTarget={accordion.openingTarget}
                 isOpen={isOpen}
+                isSettledOpen={isOpen && !accordion.isMoving}
                 listMaxHeight={listMaxHeight}
                 motion={accordion.motion}
                 sectionKey={section.key}
