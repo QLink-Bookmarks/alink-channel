@@ -26,11 +26,15 @@ function renderDialog(onOpenChange: (open: boolean) => void, hideCloseButton = f
 }
 
 describe("DialogContent close button", () => {
-  it("is one button named 닫기 that closes the dialog", () => {
+  it("is one button labelled 닫기 on itself, not by a hidden text child, and closes the dialog", () => {
     const onOpenChange = jest.fn();
     renderDialog(onOpenChange);
     const buttons = screen.getAllByRole("button", { name: "닫기" });
     expect(buttons).toHaveLength(1);
+    const { accessibilityLabel, "aria-label": ariaLabel } = buttons[0].props;
+    expect(ariaLabel ?? accessibilityLabel).toBe("닫기");
+    expect(buttons[0]).not.toHaveProp("hitSlop");
+    expect(screen.queryByText("닫기")).toBeNull();
     fireEvent.press(buttons[0]);
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });

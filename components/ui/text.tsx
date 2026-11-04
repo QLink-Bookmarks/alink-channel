@@ -84,6 +84,7 @@ function Text({ className, asChild = false, variant = "default", ...props }: Tex
       className={cn(textVariants({ variant }), textClass, className)}
       role={variant ? ROLE[variant] : undefined}
       aria-level={variant ? ARIA_LEVEL[variant] : undefined}
+      lineBreakStrategyIOS={process.env.EXPO_OS === "ios" ? "hangul-word" : undefined}
       {...props}
     />
   );

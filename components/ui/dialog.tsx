@@ -86,7 +86,7 @@ function DialogContent({
               className={cn(
                 "absolute right-0.5 top-0.5 size-11 items-center justify-center rounded-md opacity-70 active:opacity-100",
                 Platform.select({
-                  web: "ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 data-[state=open]:bg-accent",
+                  web: "transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring data-[state=open]:bg-accent",
                 }),
               )}
             >
