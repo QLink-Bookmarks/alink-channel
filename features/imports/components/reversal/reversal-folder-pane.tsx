@@ -79,7 +79,9 @@ function ReversalFolderPane({
               variant={BADGE_VARIANTS[intro.tone]}
               className={intro.tone === "muted" ? "border-border bg-card" : undefined}
             >
-              <Text className="text-sm">{intro.badge}</Text>
+              <Text className={cn("text-sm", intro.tone === "muted" && "text-foreground/70")}>
+                {intro.badge}
+              </Text>
             </Badge>
           ) : null}
         </View>

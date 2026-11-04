@@ -1,6 +1,6 @@
-import { type Page, expect, test } from "@playwright/test";
+import { type Locator, type Page, expect, test } from "@playwright/test";
 
-import { textContrast } from "./support/color";
+import { contrast, over, parseColor, waitForSettledColors } from "./support/color";
 import { boxOf, cssOf, isWideProject } from "./support/helpers";
 import { type MockFolder, mockApi, settingsHandler } from "./support/mock-api";
 import {
@@ -683,11 +683,32 @@ test.describe("history rows and page frame", () => {
         await expect(crumbs).toBeVisible();
       }
       expect(
-        await textContrast(historyRow(page, 1).getByText("되돌림", { exact: true })),
+        await blendedTextContrast(historyRow(page, 1).getByText("되돌림", { exact: true })),
       ).toBeGreaterThanOrEqual(4.5);
     }
   });
 });
+
+/** Contrast of a text against the first opaque surface behind it, blending the text's own alpha. */
+async function blendedTextContrast(text: Locator) {
+  await waitForSettledColors(text);
+  const [color, background] = await text.evaluate((node) => {
+    let element: Element | null = node;
+    let surface = "rgb(255, 255, 255)";
+    while (element) {
+      const value = getComputedStyle(element).backgroundColor;
+      const alpha = value.match(/[\d.]+/g)?.[3];
+      if (value !== "transparent" && (alpha === undefined || Number(alpha) === 1)) {
+        surface = value;
+        break;
+      }
+      element = element.parentElement;
+    }
+    return [getComputedStyle(node).color, surface];
+  });
+  const surface = parseColor(background);
+  return contrast(over(parseColor(color), surface), surface);
+}
 
 test.describe("gray badges in every theme", () => {
   const record = makeImportRecord({
@@ -723,28 +744,25 @@ test.describe("gray badges in every theme", () => {
         page,
       }) => {
         test.skip(!isWideProject(), "measured once on wide");
-        // The light pink/blue muted-foreground token is about 4.2:1 even on pure white (#47 owns
-        // tokens), so those two are recorded instead of asserted.
-        const isTokenLimited = theme === "light" && accent !== "gray";
         const check = async (label: string, ratio: number) => {
           test
             .info()
             .annotations.push({ type: "contrast", description: `${label} ${ratio.toFixed(2)}` });
-          if (!isTokenLimited) expect(ratio, label).toBeGreaterThanOrEqual(4.5);
+          expect(ratio, label).toBeGreaterThanOrEqual(4.5);
         };
         await setup(page, [record, UNDONE], { theme, accent });
 
         await page.goto("/settings/imports");
         await check(
           "되돌림",
-          await textContrast(historyRow(page, 1).getByText("되돌림", { exact: true })),
+          await blendedTextContrast(historyRow(page, 1).getByText("되돌림", { exact: true })),
         );
 
         await page.goto("/settings/imports/40");
         const detail = page.getByRole("dialog", { name: "가져오기 기록 상세" });
         await check(
           "기존 폴더",
-          await textContrast(
+          await blendedTextContrast(
             detail
               .getByRole("button", { name: /^aws 링크/ })
               .getByText("기존 폴더", { exact: true }),
@@ -752,7 +770,7 @@ test.describe("gray badges in every theme", () => {
         );
         await check(
           "새 폴더",
-          await textContrast(
+          await blendedTextContrast(
             detail
               .getByRole("button", { name: /^자바 링크/ })
               .getByText("새 폴더", { exact: true }),
@@ -764,7 +782,9 @@ test.describe("gray badges in every theme", () => {
         await page.getByRole("button", { name: "자바 폴더 보기" }).click();
         await check(
           "이미 삭제됨",
-          await textContrast(page.getByTestId("reversal-link-4012").getByText("이미 삭제됨")),
+          await blendedTextContrast(
+            page.getByTestId("reversal-link-4012").getByText("이미 삭제됨"),
+          ),
         );
       });
     }

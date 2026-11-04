@@ -509,7 +509,7 @@ function DetailFolder({
             variant="private"
             className="border-border bg-card"
           >
-            <Text className="text-sm">{tag}</Text>
+            <Text className="text-sm text-foreground/70">{tag}</Text>
           </Badge>
         ) : null}
         <Text className="ml-auto text-sm font-semibold text-success">+{folder.links.length}</Text>

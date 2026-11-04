@@ -34,7 +34,7 @@ const TONE_TEXT: Record<ImportStatusTone, string> = {
   success: "text-success",
   warning: "text-warning",
   danger: "text-destructive",
-  muted: "text-muted-foreground",
+  muted: "text-foreground/70",
 };
 
 function SpinningIcon({ className }: { className: string }) {
@@ -87,7 +87,9 @@ function ImportStatusBadge({
       className={cn(tone === "muted" && "border-border bg-card", className)}
     >
       {isFillingThumbnails ? <SpinningIcon className={TONE_TEXT[tone]} /> : null}
-      <Text className="text-sm">{getImportStatusBadgeLabel(status, isFillingThumbnails)}</Text>
+      <Text className={cn("text-sm", tone === "muted" && TONE_TEXT.muted)}>
+        {getImportStatusBadgeLabel(status, isFillingThumbnails)}
+      </Text>
     </Badge>
   );
 }

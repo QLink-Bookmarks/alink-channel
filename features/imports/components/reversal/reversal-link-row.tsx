@@ -90,7 +90,7 @@ function LinkOutcome({ outcome }: { outcome: ReturnType<typeof getReversalLinkOu
         variant="private"
         className="border-border bg-card"
       >
-        <Text className="text-sm">이미 삭제됨</Text>
+        <Text className="text-sm text-foreground/70">이미 삭제됨</Text>
       </Badge>
     );
   }
