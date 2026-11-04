@@ -62,15 +62,23 @@ function getReversalFolderIntro(
   };
 }
 
-function getReversalHint(counts: ReversalCounts, options: { hasError: boolean }) {
+type ReversalHint = {
+  text: string;
+  editedNote: string | null;
+};
+
+function getReversalHint(counts: ReversalCounts, options: { hasError: boolean }): ReversalHint {
   if (counts.links === 0 && counts.folders === 0) {
-    return "지울 항목을 골라 주세요.";
+    return { text: "지울 항목을 골라 주세요.", editedNote: null };
   }
   const prefix = options.hasError ? "남은 " : "";
   const target = `${prefix}링크 ${counts.links}개 · 폴더 ${counts.folders}개를`;
-  return counts.moved > 0
-    ? `${target} 지우고, ${counts.moved}개는 미분류로 옮겨요`
-    : `${target} 지워요`;
+  const text =
+    counts.moved > 0
+      ? `${target} 지우고, 링크 ${counts.moved}개는 미분류로 옮겨요.`
+      : `${target} 지워요.`;
+  const editedNote = counts.edited > 0 ? `수정한 링크 ${counts.edited}개 포함` : null;
+  return { text, editedNote };
 }
 
 function getReversalErrorCopy(
@@ -124,4 +132,4 @@ export {
   getReversalFolderLabel,
   getReversalHint,
 };
-export type { FolderBadgeTone };
+export type { FolderBadgeTone, ReversalHint };

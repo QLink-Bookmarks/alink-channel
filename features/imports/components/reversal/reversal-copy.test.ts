@@ -1,5 +1,5 @@
 import { buildReversalFolders } from "../../lib/reversal-selection";
-import { getReversalFolderLabel } from "./reversal-copy";
+import { getReversalFolderLabel, getReversalHint } from "./reversal-copy";
 
 describe("getReversalFolderLabel", () => {
   it("shows the app's own label for the unfiled group the server sends without a name", () => {
@@ -33,5 +33,39 @@ describe("getReversalFolderLabel", () => {
       ],
     });
     expect(getReversalFolderLabel(named)).toEqual({ name: "자바", emoji: "☕" });
+  });
+});
+
+describe("getReversalHint", () => {
+  const counts = { links: 6, folders: 1, moved: 0, edited: 0 };
+
+  it("asks to pick something when nothing is selected", () => {
+    expect(
+      getReversalHint({ links: 0, folders: 0, moved: 0, edited: 0 }, { hasError: false }),
+    ).toEqual({
+      text: "지울 항목을 골라 주세요.",
+      editedNote: null,
+    });
+  });
+
+  it("names links as the subject of the move to unfiled", () => {
+    expect(getReversalHint({ ...counts, moved: 1 }, { hasError: false }).text).toBe(
+      "링크 6개 · 폴더 1개를 지우고, 링크 1개는 미분류로 옮겨요.",
+    );
+    expect(getReversalHint(counts, { hasError: false }).text).toBe("링크 6개 · 폴더 1개를 지워요.");
+  });
+
+  it("adds the edited-link note only when an edited link will be removed", () => {
+    expect(getReversalHint(counts, { hasError: false }).editedNote).toBeNull();
+    expect(getReversalHint({ ...counts, edited: 2 }, { hasError: false }).editedNote).toBe(
+      "수정한 링크 2개 포함",
+    );
+  });
+
+  it("speaks about what is left after a failed attempt", () => {
+    expect(getReversalHint({ ...counts, links: 3, edited: 1 }, { hasError: true })).toEqual({
+      text: "남은 링크 3개 · 폴더 1개를 지워요.",
+      editedNote: "수정한 링크 1개 포함",
+    });
   });
 });

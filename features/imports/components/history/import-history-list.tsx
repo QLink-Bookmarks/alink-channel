@@ -5,13 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 
+import { isImportAvailable } from "../../lib/import-availability";
 import type { ImportSummary } from "../../types";
 import { ImportHistoryRow } from "./import-history-row";
+import { ImportResultCard } from "./import-result-card";
 
 import { History } from "lucide-react-native";
 
+const EMPTY_IDS: ReadonlySet<number> = new Set();
+
 type ImportHistoryListProps = {
   summaries: ImportSummary[];
+  justImportedIds?: ReadonlySet<number>;
+  openingLinksId?: number | null;
   isWide: boolean;
   isLoading: boolean;
   isError: boolean;
@@ -20,11 +26,14 @@ type ImportHistoryListProps = {
   onRetry: () => void;
   onLoadMore: () => void;
   onOpenDetail: (summary: ImportSummary) => void;
+  onOpenLinks: (summary: ImportSummary) => void;
   onReverse: (summary: ImportSummary) => void;
 };
 
 function ImportHistoryList({
   summaries,
+  justImportedIds = EMPTY_IDS,
+  openingLinksId = null,
   isWide,
   isLoading,
   isError,
@@ -33,6 +42,7 @@ function ImportHistoryList({
   onRetry,
   onLoadMore,
   onOpenDetail,
+  onOpenLinks,
   onReverse,
 }: ImportHistoryListProps) {
   if (isLoading) {
@@ -74,7 +84,9 @@ function ImportHistoryList({
         </View>
         <Text className="text-base font-semibold text-foreground">아직 가져온 기록이 없어요</Text>
         <Text className="max-w-sm text-center text-sm text-muted-foreground">
-          Chrome·Edge·Whale에서 내보낸 북마크 HTML 파일을 올리면 여기에 기록이 쌓여요.
+          {isImportAvailable()
+            ? "Chrome·Edge·Whale에서 내보낸 북마크 HTML 파일을 올리면 여기에 기록이 쌓여요."
+            : "웹에서 가져온 기록이 여기에 쌓여요."}
         </Text>
       </View>
     );
@@ -93,13 +105,25 @@ function ImportHistoryList({
             className="w-full"
             role="listitem"
           >
-            <ImportHistoryRow
-              summary={summary}
-              isFirst={index === 0}
-              isWide={isWide}
-              onOpenDetail={onOpenDetail}
-              onReverse={onReverse}
-            />
+            {justImportedIds.has(summary.id) ? (
+              <ImportResultCard
+                summary={summary}
+                isFirst={index === 0}
+                isWide={isWide}
+                isOpeningLinks={openingLinksId === summary.id}
+                onOpenLinks={onOpenLinks}
+                onOpenDetail={onOpenDetail}
+                onReverse={onReverse}
+              />
+            ) : (
+              <ImportHistoryRow
+                summary={summary}
+                isFirst={index === 0}
+                isWide={isWide}
+                onOpenDetail={onOpenDetail}
+                onReverse={onReverse}
+              />
+            )}
           </View>
         ))}
       </View>

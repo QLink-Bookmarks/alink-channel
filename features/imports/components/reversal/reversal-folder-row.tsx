@@ -1,5 +1,6 @@
 import { Pressable, View } from "react-native";
 
+import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
@@ -8,6 +9,7 @@ import {
   type ReversalExclusions,
   type ReversalFolderItem,
   getFolderCheck,
+  getFolderEditedSelectedCount,
   getFolderSelectedCount,
   isFolderRemoved,
 } from "../../lib/reversal-selection";
@@ -40,6 +42,7 @@ function ReversalFolderRow({
   const check = getFolderCheck(folder, exclusions);
   const selected = getFolderSelectedCount(folder, exclusions);
   const removed = isFolderRemoved(folder, exclusions);
+  const edited = getFolderEditedSelectedCount(folder, exclusions);
 
   return (
     <View
@@ -84,6 +87,14 @@ function ReversalFolderRow({
         </Text>
         <View className="ml-auto flex-row items-center gap-1.5 pl-2">
           <FolderNote folder={folder} />
+          {edited > 0 ? (
+            <Badge
+              variant="warning"
+              className="py-0"
+            >
+              <Text className="text-sm font-semibold">수정 {edited}</Text>
+            </Badge>
+          ) : null}
           <FolderCount
             folder={folder}
             selected={selected}
@@ -103,7 +114,7 @@ function ReversalFolderRow({
 
 function FolderNote({ folder }: { folder: ReversalFolderItem }) {
   if (folder.kind === "EXISTING") {
-    return <Text className="text-xs text-muted-foreground">기존</Text>;
+    return <Text className="text-sm text-muted-foreground">기존</Text>;
   }
   if (folder.state === "SHARED") {
     return (
@@ -113,12 +124,12 @@ function FolderNote({ folder }: { folder: ReversalFolderItem }) {
           size={12}
           className="text-muted-foreground"
         />
-        <Text className="text-xs text-muted-foreground">공유</Text>
+        <Text className="text-sm text-muted-foreground">공유</Text>
       </View>
     );
   }
   if (folder.state === "DELETED") {
-    return <Text className="text-xs text-muted-foreground">이미 삭제됨</Text>;
+    return <Text className="text-sm text-muted-foreground">이미 삭제됨</Text>;
   }
   return null;
 }
@@ -137,14 +148,14 @@ function FolderCount({ folder, selected }: { folder: ReversalFolderItem; selecte
           size={12}
           className="text-muted-foreground"
         />
-        <Text className="text-xs text-muted-foreground">지웠어요</Text>
+        <Text className="text-sm text-muted-foreground">지웠어요</Text>
       </View>
     );
   }
   if (selected > 0) {
     return <Text className="text-sm font-bold text-destructive">-{selected}</Text>;
   }
-  return <Text className="text-xs text-muted-foreground">남겨요</Text>;
+  return <Text className="text-sm text-muted-foreground">남겨요</Text>;
 }
 
 export { ReversalFolderRow };

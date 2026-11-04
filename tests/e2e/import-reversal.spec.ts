@@ -179,8 +179,11 @@ test.describe("bookmark import reversal", () => {
       await expect(page.getByRole("button", { name: `${name} 폴더 보기` })).toBeVisible();
     }
     await expect(
-      page.getByText("링크 6개 · 폴더 1개를 지우고, 1개는 미분류로 옮겨요"),
+      page.getByText("링크 6개 · 폴더 1개를 지우고, 링크 1개는 미분류로 옮겨요"),
     ).toBeVisible();
+    await expect(page.getByTestId("reversal-hint")).toContainText("수정한 링크 1개 포함");
+    await expect(page.getByTestId("reversal-folder-folder-7005")).toContainText("수정 1");
+    await expect(page.getByTestId("reversal-folder-folder-20")).not.toContainText("수정");
 
     await openFolder(page, "자바");
     await expect(page.getByText("폴더를 지워요")).toBeVisible();
@@ -189,7 +192,8 @@ test.describe("bookmark import reversal", () => {
       page.getByRole("checkbox", { name: "Java 21 가상 스레드 정리 지우기" }),
     ).toBeChecked();
 
-    await expect(linkRow(page, 512)).toContainText("가져온 뒤 수정됨");
+    await expect(linkRow(page, 512).getByText("가져온 뒤 수정됨", { exact: true })).toBeVisible();
+    await expect(linkRow(page, 512).getByText("github.com", { exact: true })).toBeVisible();
     await expect(linkRow(page, 512)).toContainText("지워요");
     await expect(
       page.getByRole("checkbox", { name: "Effective Java 아이템 요약 지우기" }),
@@ -226,13 +230,13 @@ test.describe("bookmark import reversal", () => {
     await page.getByRole("checkbox", { name: "Java 21 가상 스레드 정리 지우기" }).click();
     await expect(linkRow(page, 511)).toContainText("미분류");
     await expect(
-      page.getByText("링크 5개 · 폴더 1개를 지우고, 2개는 미분류로 옮겨요"),
+      page.getByText("링크 5개 · 폴더 1개를 지우고, 링크 2개는 미분류로 옮겨요"),
     ).toBeVisible();
 
     await page.getByRole("checkbox", { name: "가져온 링크 2개 모두 지우기" }).click();
     await expect(page.getByRole("checkbox", { name: "가져온 링크 2개 모두 지우기" })).toBeChecked();
     await expect(
-      page.getByText("링크 6개 · 폴더 1개를 지우고, 1개는 미분류로 옮겨요"),
+      page.getByText("링크 6개 · 폴더 1개를 지우고, 링크 1개는 미분류로 옮겨요"),
     ).toBeVisible();
 
     await page.getByRole("checkbox", { name: "가져온 링크 2개 모두 지우기" }).click();
@@ -241,6 +245,79 @@ test.describe("bookmark import reversal", () => {
       await expect(linkRow(page, id)).toContainText("남겨요");
     }
     await expect(page.getByText("링크 4개 · 폴더 0개를 지워요")).toBeVisible();
+  });
+
+  test("edited links show a warning badge, a 수정 N chip and the caption note", async ({
+    page,
+  }) => {
+    const record = makeRecord();
+    record.folders[0].links[1].state = "EDITED";
+    await setup(page, [record]);
+    await openFromRow(page);
+
+    const hint = page.getByTestId("reversal-hint");
+    await expect(hint).toContainText("수정한 링크 2개 포함");
+    await expect(page.getByTestId("reversal-folder-folder-20")).toContainText("수정 1");
+    await expect(page.getByTestId("reversal-folder-folder-7005")).toContainText("수정 1");
+
+    await openFolder(page, "자바");
+    await page.getByRole("checkbox", { name: "Effective Java 아이템 요약 지우기" }).click();
+    await expect(linkRow(page, 512).getByText("가져온 뒤 수정됨")).toBeVisible();
+    await expect(hint).toContainText("수정한 링크 1개 포함");
+    await backToFolders(page);
+    await expect(page.getByTestId("reversal-folder-folder-7005")).not.toContainText("수정");
+
+    await page.getByRole("checkbox", { name: "aws의 가져온 항목 모두 지우기" }).click();
+    await expect(page.getByTestId("reversal-folder-folder-20")).not.toContainText("수정");
+    await expect(hint).not.toContainText("수정한 링크");
+
+    for (const text of ["github.com", "가져온 뒤 수정됨"]) {
+      await openFolder(page, "자바");
+      const size = await linkRow(page, 512)
+        .getByText(text, { exact: true })
+        .evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
+      expect(size).toBeGreaterThanOrEqual(12);
+      await backToFolders(page);
+    }
+  });
+
+  test("after a failed reversal the edited note counts only what is left", async ({ page }) => {
+    const record = makeRecord();
+    record.folders[0].links[1].state = "EDITED";
+    const { imports } = await setup(page, [record]);
+    let aborted = 0;
+    await page.route("**/api/imports/5/reversals", async (route) => {
+      if (aborted > 0) {
+        await route.fallback();
+        return;
+      }
+      aborted += 1;
+      const stored = imports.state.records.find((item) => item.id === 5);
+      for (const link of stored?.folders[0].links ?? []) link.state = "REVERSED";
+      if (stored) stored.wasReversed = true;
+      await route.abort("failed");
+    });
+    await openFromRow(page);
+    await expect(page.getByTestId("reversal-hint")).toContainText("수정한 링크 2개 포함");
+
+    await submitButton(page).click();
+    await expect(page.getByText("되돌리기를 끝내지 못했어요")).toBeVisible();
+    await expect(page.getByTestId("reversal-hint")).toContainText("남은 링크 4개");
+    await expect(page.getByTestId("reversal-hint")).toContainText("수정한 링크 1개 포함");
+  });
+
+  test("the mobile sheet puts the caption above side-by-side 취소 and 되돌리기", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "mobile sheet only");
+    await setup(page);
+    await openFromRow(page);
+    const cancel = await boxOf(page.getByRole("button", { name: "취소", exact: true }));
+    const submit = await boxOf(submitButton(page));
+    const hint = await boxOf(page.getByTestId("reversal-hint"));
+    expect(Math.abs(cancel.y - submit.y)).toBeLessThan(2);
+    expect(cancel.x).toBeLessThan(submit.x);
+    expect(hint.y + hint.height).toBeLessThanOrEqual(cancel.y + 1);
   });
 
   test("runs the reversal and the record becomes 되돌림", async ({ page }) => {
@@ -283,7 +360,7 @@ test.describe("bookmark import reversal", () => {
       await expect(page.getByRole("button", { name: `${name} 폴더 보기` })).toHaveCount(0);
     }
     await expect(
-      page.getByText("링크 2개 · 폴더 1개를 지우고, 1개는 미분류로 옮겨요"),
+      page.getByText("링크 2개 · 폴더 1개를 지우고, 링크 1개는 미분류로 옮겨요"),
     ).toBeVisible();
   });
 
@@ -308,7 +385,7 @@ test.describe("bookmark import reversal", () => {
     await expect(page.getByText(/링크 2개는 지웠지만, 나머지는 그대로 있어요/)).toBeVisible();
     await expect(page.getByRole("button", { name: "남은 항목 다시 시도" })).toBeVisible();
     await expect(
-      page.getByText("남은 링크 4개 · 폴더 1개를 지우고, 1개는 미분류로 옮겨요"),
+      page.getByText("남은 링크 4개 · 폴더 1개를 지우고, 링크 1개는 미분류로 옮겨요"),
     ).toBeVisible();
 
     await openFolder(page, "aws");

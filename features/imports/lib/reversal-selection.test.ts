@@ -7,6 +7,7 @@ import {
   buildReverseRequest,
   findReversedSince,
   getFolderCheck,
+  getFolderEditedSelectedCount,
   getReversalCounts,
   getReversalLinkOutcome,
   hasReversibleItems,
@@ -113,6 +114,7 @@ describe("buildReversalFolders", () => {
       links: 0,
       folders: 0,
       moved: 0,
+      edited: 0,
     });
     expect(hasReversibleItems(folders)).toBe(false);
   });
@@ -152,7 +154,32 @@ describe("initial selection", () => {
       links: 6,
       folders: 1,
       moved: 1,
+      edited: 1,
     });
+  });
+
+  it("counts edited links that will be removed, per folder and in total", () => {
+    const java = byKey(folders, "folder-10");
+    expect(getFolderEditedSelectedCount(java, EMPTY_EXCLUSIONS)).toBe(1);
+    expect(getFolderEditedSelectedCount(byKey(folders, "folder-20"), EMPTY_EXCLUSIONS)).toBe(0);
+    const next = toggleReversalLink(java, 2, EMPTY_EXCLUSIONS);
+    expect(getFolderEditedSelectedCount(java, next)).toBe(0);
+    expect(getReversalCounts(folders, next).edited).toBe(0);
+  });
+
+  it("does not count an edited link that was already reversed", () => {
+    const reversed = buildReversalFolders(
+      preview(
+        folder({ kind: "EXISTING", folderId: 20, links: [link(4, "REVERSED"), link(5, "EDITED")] }),
+      ),
+      { linkIds: new Set([4]), folderIds: new Set() },
+    );
+    expect(getReversalCounts(reversed, EMPTY_EXCLUSIONS).edited).toBe(1);
+    const done = buildReversalFolders(
+      preview(folder({ kind: "EXISTING", folderId: 20, links: [link(5, "REVERSED")] })),
+      { linkIds: new Set([5]), folderIds: new Set() },
+    );
+    expect(getReversalCounts(done, EMPTY_EXCLUSIONS).edited).toBe(0);
   });
 
   it("marks a link saved after the import as moving to unfiled when its folder goes", () => {
@@ -176,7 +203,7 @@ describe("toggleReversalLink", () => {
     const next = toggleReversalLink(java, 1, EMPTY_EXCLUSIONS);
     expect(getReversalLinkOutcome(java, java.links[0], next)).toBe("unfiled");
     expect(getFolderCheck(java, next).checked).toBe("indeterminate");
-    expect(getReversalCounts(folders, next)).toEqual({ links: 5, folders: 1, moved: 2 });
+    expect(getReversalCounts(folders, next)).toEqual({ links: 5, folders: 1, moved: 2, edited: 1 });
   });
 
   it("keeps the folder once every imported link in it is unchecked", () => {
@@ -224,7 +251,7 @@ describe("toggleReversalFolder", () => {
       "keep",
       "keep",
     ]);
-    expect(getReversalCounts(folders, next)).toEqual({ links: 4, folders: 0, moved: 0 });
+    expect(getReversalCounts(folders, next)).toEqual({ links: 4, folders: 0, moved: 0, edited: 0 });
   });
 
   it("checking a partly checked folder selects everything again", () => {
