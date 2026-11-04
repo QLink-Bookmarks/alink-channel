@@ -88,14 +88,14 @@ function ImportHistoryRow({
               <Text>되돌리기</Text>
             </Button>
           ) : (
-            <Button
-              variant="ghost"
-              className="h-11 min-w-0 px-2.5 sm:h-11"
+            <Pressable
+              accessibilityRole="button"
               accessibilityLabel={`${summary.fileName} 되돌리기`}
+              className="h-11 justify-center rounded-lg px-2 active:bg-accent web:hover:bg-accent"
               onPress={handleReverse}
             >
-              <Text className="text-base font-medium">되돌리기</Text>
-            </Button>
+              <Text className="text-base font-medium text-foreground">되돌리기</Text>
+            </Pressable>
           )
         ) : null}
         <IconButton
