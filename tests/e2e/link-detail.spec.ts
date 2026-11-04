@@ -234,6 +234,15 @@ test.describe("layout", () => {
     await expect(page.getByTestId("link-thumbnail-hint-open")).toHaveCount(0);
   });
 
+  test("hovering the image shows 원본 열기 (#46)", async ({ page }) => {
+    test.skip(!isWideProject(), "hover label is for the wide pointer");
+    const { links, details } = buildFixtures();
+    await mockApi(page, { links, details });
+    await openDetail(page, 5);
+    await page.getByTestId("link-detail-image").hover();
+    await expect(page.getByText("원본 열기", { exact: true }).last()).toBeVisible();
+  });
+
   test("pressing the image opens the original and the same detail stays", async ({ page }) => {
     await stubWindowOpen(page);
     const { links, details } = buildFixtures();
