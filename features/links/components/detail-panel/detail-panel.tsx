@@ -1,6 +1,14 @@
 import * as React from "react";
-import { Platform, Pressable, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  type StyleProp,
+  View,
+  type ViewStyle,
+  useWindowDimensions,
+} from "react-native";
 import Animated, { SlideInRight, SlideOutRight } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FullWindowOverlay as RNFullWindowOverlay } from "react-native-screens";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -9,6 +17,7 @@ import type { LinkDetail } from "@/features/links/types";
 import { cn } from "@/lib/utils";
 
 import { LinkDetailView } from "../link-detail-view";
+import { getDetailPanelWidth } from "./detail-panel-width";
 
 import { X } from "lucide-react-native/icons";
 
@@ -16,16 +25,31 @@ import { X } from "lucide-react-native/icons";
 
 const FullWindowOverlay = Platform.OS === "ios" ? RNFullWindowOverlay : React.Fragment;
 
+function useNativeOverlayStyle(): StyleProp<ViewStyle> {
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  if (process.env.EXPO_OS === "web") {
+    return undefined;
+  }
+  return {
+    width: getDetailPanelWidth(width),
+    paddingTop: insets.top,
+    paddingBottom: insets.bottom,
+  };
+}
+
 function DetailPanelBody({
   className,
   detail,
   error,
   notFound,
   isLoading,
+  style,
   onDeleted,
   onOpenChange,
 }: {
   className?: string;
+  style?: StyleProp<ViewStyle>;
   detail?: LinkDetail;
   error?: boolean;
   notFound?: boolean;
@@ -37,8 +61,11 @@ function DetailPanelBody({
     <View
       className={cn(
         "h-full w-[clamp(420px,34vw,560px)] max-w-[560px] border-l border-border bg-surface",
+        process.env.EXPO_OS !== "web" && "bg-background",
         className,
       )}
+      style={style}
+      testID="detail-panel"
     >
       {isLoading ? (
         <EmptyState
@@ -141,6 +168,7 @@ function DetailPanel({
 }) {
   const handleClose = React.useCallback(() => onOpenChange?.(false), [onOpenChange]);
   useCloseOnEscape(open && mode === "overlay", handleClose);
+  const nativeOverlayStyle = useNativeOverlayStyle();
 
   if (!open) {
     return null;
@@ -173,6 +201,7 @@ function DetailPanel({
               {/* The dimmed backdrop separates the layer, so the panel has no shadow. */}
               <DetailPanelBody
                 className={className}
+                style={nativeOverlayStyle}
                 detail={detail}
                 error={error}
                 notFound={notFound}
