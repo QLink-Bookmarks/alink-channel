@@ -14,10 +14,11 @@ import {
 } from "../../hooks/use-link-drag";
 import { toLinkTitle } from "../../lib/build-import-candidates";
 import type { ProposalTarget } from "../../lib/proposal-state";
-import { FolderEmoji, PlusBadge } from "./proposal-folder-list";
+import { formatNumber } from "../../lib/split-import-ranges";
+import { FolderEmoji, PlusBadge, UNFILED_EMOJI } from "./proposal-folder-list";
 import type { ProposalFolderEntries } from "./proposal-folders";
 
-import { Inbox } from "lucide-react-native/icons";
+import { Clock } from "lucide-react-native/icons";
 
 const FIXED_FILL = {
   position: "fixed",
@@ -94,28 +95,34 @@ function DragCard() {
 }
 
 function TrayTile({
+  id,
   target,
   name,
   leading,
+  isCurrent,
 }: {
+  id: string;
   target: ProposalTarget;
   name: string;
   leading: React.ReactNode;
+  isCurrent: boolean;
 }) {
-  const ref = useDropTarget({ id: `tray:${target}`, kind: "folder", target, name });
-  const isOver = useIsDropOver(`tray:${target}`);
+  const ref = useDropTarget({ id, kind: "folder", target, name });
+  const isOver = useIsDropOver(id);
   return (
     <View
       ref={ref}
       accessibilityLabel={name}
       className={cn(
-        "min-h-12 w-[48%] flex-row items-center gap-2 rounded-xl border bg-card px-3",
+        "h-10 w-[48.5%] flex-row items-center gap-2 rounded-xl border bg-card px-2.5",
         isOver ? "border-primary bg-accent" : "border-border",
+        isCurrent && !isOver && "opacity-50",
       )}
+      testID="import-drop-tray-tile"
     >
       {leading}
       <Text
-        className="min-w-0 flex-1 text-sm text-foreground"
+        className={cn("min-w-0 flex-1 text-sm text-foreground", isOver && "font-semibold")}
         numberOfLines={1}
       >
         {name}
@@ -124,35 +131,75 @@ function TrayTile({
   );
 }
 
-function TraySection({ label, children }: { label: string; children: React.ReactNode }) {
+function TraySection({
+  label,
+  count,
+  icon,
+  children,
+}: {
+  label: string;
+  count?: number;
+  icon?: React.ComponentProps<typeof Icon>["as"];
+  children: React.ReactNode;
+}) {
   return (
-    <View className="gap-2">
-      <Text className="text-xs font-semibold text-muted-foreground">{label}</Text>
-      <View className="flex-row flex-wrap justify-between gap-y-2">{children}</View>
+    <View className="gap-1.5">
+      <View className="flex-row items-center gap-1.5">
+        {icon ? (
+          <Icon
+            as={icon}
+            className="size-3.5 text-muted-foreground"
+          />
+        ) : null}
+        <Text
+          accessibilityRole="header"
+          className="flex-1 text-xs font-semibold text-muted-foreground"
+        >
+          {label}
+        </Text>
+        {count != null ? (
+          <Text className="text-xs text-muted-foreground">{formatNumber(count)}개</Text>
+        ) : null}
+      </View>
+      <View className="flex-row flex-wrap justify-between gap-y-1.5">{children}</View>
     </View>
   );
 }
 
-function ProposalDropTray({ entries }: { entries: ProposalFolderEntries }) {
+type TrayProps = {
+  entries: ProposalFolderEntries;
+  recentTargets: readonly ProposalTarget[];
+  nameOf: (target: ProposalTarget) => string;
+};
+
+function ProposalDropTray({ entries, recentTargets, nameOf }: TrayProps) {
   const link = useLinkDragStore((state) => state.link);
   const scrollRef = useDragScrollContainer();
   const { height } = useWindowDimensions();
   if (!link) {
     return null;
   }
+  const leadingOf = (target: ProposalTarget) => {
+    if (target === entries.unfiled.target) {
+      return <FolderEmoji emoji={UNFILED_EMOJI} />;
+    }
+    const mine = entries.mine.find((entry) => entry.target === target);
+    return <FolderEmoji emoji={mine?.folder.emoji} />;
+  };
+  const recent = recentTargets.filter((target) => target !== link.target).slice(0, 2);
   return (
     <View
       className="rounded-t-3xl border-t border-border bg-background shadow-lg"
       style={[FIXED_FILL, { maxHeight: Math.round(height * TRAY_HEIGHT_RATIO) }]}
       testID="import-drop-tray"
     >
-      <View className="px-4 pb-2 pt-4">
+      <View className="px-4 pb-1 pt-4">
         <Text
           className="text-base font-semibold text-foreground"
           numberOfLines={1}
           testID="import-drop-tray-title"
         >
-          {toLinkTitle(link.title, link.url)}
+          ‘{toLinkTitle(link.title, link.url)}’ 옮기기
         </Text>
       </View>
       <ScrollView
@@ -161,36 +208,53 @@ function ProposalDropTray({ entries }: { entries: ProposalFolderEntries }) {
         contentContainerClassName="gap-4 px-4 pb-8 pt-2"
         contentInsetAdjustmentBehavior="automatic"
       >
-        <View className="flex-row">
-          <TrayTile
-            leading={
-              <Icon
-                as={Inbox}
-                className="size-[18px] text-muted-foreground"
-              />
-            }
-            name="미분류"
-            target={entries.unfiled.target}
-          />
-        </View>
-        {entries.mine.length > 0 ? (
-          <TraySection label="내 폴더">
-            {entries.mine.map((entry) => (
+        {recent.length > 0 ? (
+          <TraySection
+            icon={Clock}
+            label="최근 옮긴 곳"
+          >
+            {recent.map((target) => (
               <TrayTile
-                key={entry.target}
-                leading={<FolderEmoji emoji={entry.folder.emoji} />}
-                name={entry.folder.name}
-                target={entry.target}
+                key={target}
+                id={`tray-recent:${target}`}
+                isCurrent={false}
+                leading={leadingOf(target)}
+                name={nameOf(target)}
+                target={target}
               />
             ))}
           </TraySection>
         ) : null}
+        <TraySection label={entries.mine.length > 0 ? "미분류 · 내 폴더" : "미분류"}>
+          <TrayTile
+            id={`tray:${entries.unfiled.target}`}
+            isCurrent={link.target === entries.unfiled.target}
+            leading={leadingOf(entries.unfiled.target)}
+            name="미분류"
+            target={entries.unfiled.target}
+          />
+          {entries.mine.map((entry) => (
+            <TrayTile
+              key={entry.target}
+              id={`tray:${entry.target}`}
+              isCurrent={link.target === entry.target}
+              leading={leadingOf(entry.target)}
+              name={entry.folder.name}
+              target={entry.target}
+            />
+          ))}
+        </TraySection>
         {entries.added.length > 0 ? (
-          <TraySection label="새 폴더">
+          <TraySection
+            count={entries.added.length}
+            label="새 폴더"
+          >
             {entries.added.map((entry) => (
               <TrayTile
                 key={entry.target}
-                leading={<PlusBadge />}
+                id={`tray:${entry.target}`}
+                isCurrent={link.target === entry.target}
+                leading={leadingOf(entry.target)}
                 name={entry.folder.name}
                 target={entry.target}
               />
@@ -204,11 +268,10 @@ function ProposalDropTray({ entries }: { entries: ProposalFolderEntries }) {
 
 function ProposalDragLayer({
   entries,
+  recentTargets,
+  nameOf,
   isWide,
-}: {
-  entries: ProposalFolderEntries;
-  isWide: boolean;
-}) {
+}: TrayProps & { isWide: boolean }) {
   const isActive = useLinkDragStore((state) => state.link != null);
   if (!isActive) {
     return null;
@@ -218,7 +281,13 @@ function ProposalDragLayer({
       pointerEvents="box-none"
       style={DRAG_LAYER_STYLE}
     >
-      {isWide ? null : <ProposalDropTray entries={entries} />}
+      {isWide ? null : (
+        <ProposalDropTray
+          entries={entries}
+          nameOf={nameOf}
+          recentTargets={recentTargets}
+        />
+      )}
       <DragCard />
     </View>
   );

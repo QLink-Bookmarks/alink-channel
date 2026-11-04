@@ -348,6 +348,8 @@ function ProposalModal({ fileName, input, isWide, onClose, onStarted }: Proposal
     <ProposalDragLayer
       entries={entries}
       isWide={isWide}
+      nameOf={proposal.nameOf}
+      recentTargets={proposal.recentTargets}
     />
   );
 
