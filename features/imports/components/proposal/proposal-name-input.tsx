@@ -1,11 +1,15 @@
 import * as React from "react";
 import { type TextInput, View } from "react-native";
 
+import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
 import { FOLDER_NAME_MAX, truncateUtf16 } from "../../lib/build-import-candidates";
+
+import { Check, X } from "lucide-react-native/icons";
 
 type NameHintTone = "muted" | "info" | "danger";
 
@@ -20,6 +24,8 @@ type ProposalNameInputProps = {
   onSubmit: (value: string) => boolean | void;
   onCancel: () => void;
 };
+
+const ACTION_BUTTON_CLASS = "h-11 w-11 rounded-xl sm:h-11 sm:w-11 md:h-9 md:w-9";
 
 const HINT_TONE_CLASS: Record<NameHintTone, string> = {
   muted: "text-muted-foreground",
@@ -43,6 +49,7 @@ function ProposalNameInput({
 }: ProposalNameInputProps) {
   const [value, setValue] = React.useState(initialValue);
   const inputRef = React.useRef<TextInput | null>(null);
+  const actionsRef = React.useRef<View | null>(null);
   const valueRef = React.useRef(value);
   valueRef.current = value;
   const doneRef = React.useRef(false);
@@ -98,6 +105,16 @@ function ProposalNameInput({
   }, [finish]);
 
   React.useEffect(() => {
+    const node = actionsRef.current as unknown as HTMLElement | null;
+    if (!node || typeof node.addEventListener !== "function") {
+      return;
+    }
+    const keepInputFocus = (event: MouseEvent) => event.preventDefault();
+    node.addEventListener("mousedown", keepInputFocus);
+    return () => node.removeEventListener("mousedown", keepInputFocus);
+  }, []);
+
+  React.useEffect(() => {
     const timer = setTimeout(() => inputRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, []);
@@ -105,17 +122,54 @@ function ProposalNameInput({
   const hint = getHint(value);
 
   return (
-    <View className={cn("gap-1", className)}>
-      <Input
-        ref={inputRef}
-        accessibilityLabel={accessibilityLabel}
-        className={cn("h-10 rounded-xl px-3 text-base font-semibold", inputClassName)}
-        returnKeyType="done"
-        value={value}
-        onBlur={() => finish("submit")}
-        onChangeText={handleChangeText}
-        onSubmitEditing={() => finish("submit")}
-      />
+    <View
+      className={cn("gap-1", className)}
+      testID="import-name-input"
+    >
+      <View className="flex-row items-center gap-1">
+        <Input
+          ref={inputRef}
+          accessibilityLabel={accessibilityLabel}
+          className={cn(
+            "h-10 min-w-0 flex-1 rounded-xl px-3 text-base font-semibold",
+            inputClassName,
+          )}
+          returnKeyType="done"
+          value={value}
+          onBlur={() => finish("submit")}
+          onChangeText={handleChangeText}
+          onSubmitEditing={() => finish("submit")}
+        />
+        <View
+          ref={actionsRef}
+          className="flex-row items-center"
+        >
+          <Button
+            accessibilityLabel="이름 확정"
+            className={ACTION_BUTTON_CLASS}
+            size="icon"
+            variant="ghost"
+            onPress={() => finish("submit")}
+          >
+            <Icon
+              as={Check}
+              className="size-5 text-primary"
+            />
+          </Button>
+          <Button
+            accessibilityLabel="취소"
+            className={ACTION_BUTTON_CLASS}
+            size="icon"
+            variant="ghost"
+            onPress={() => finish("cancel")}
+          >
+            <Icon
+              as={X}
+              className="size-5 text-muted-foreground"
+            />
+          </Button>
+        </View>
+      </View>
       <View className="flex-row items-start justify-between gap-3">
         <Text
           accessibilityLiveRegion="polite"

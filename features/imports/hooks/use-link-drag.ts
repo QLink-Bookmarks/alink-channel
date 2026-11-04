@@ -9,6 +9,7 @@ import { create } from "zustand";
 type DragLink = {
   key: string;
   title: string;
+  url: string;
   target: ProposalTarget;
 };
 

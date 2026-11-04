@@ -3,6 +3,7 @@ import {
   type BookmarkLinkNode,
   type BookmarkNode,
   buildImportCandidates,
+  toLinkTitle,
   truncateUtf16,
 } from "./build-import-candidates";
 
@@ -235,5 +236,15 @@ describe("truncateUtf16", () => {
     expect(truncateUtf16("ab😀", 3)).toBe("ab");
     expect(truncateUtf16("ab😀", 4)).toBe("ab😀");
     expect(truncateUtf16("abc", 5)).toBe("abc");
+  });
+});
+
+describe("toLinkTitle", () => {
+  it("keeps a trimmed title and falls back to host and decoded path when blank", () => {
+    expect(toLinkTitle("  오늘의 뉴스 ", "https://news.example.com/a")).toBe("오늘의 뉴스");
+    expect(toLinkTitle("   ", "https://news.example.com/%EB%89%B4%EC%8A%A4?x=1")).toBe(
+      "news.example.com/뉴스",
+    );
+    expect(toLinkTitle("", "https://example.com/")).toBe("example.com");
   });
 });

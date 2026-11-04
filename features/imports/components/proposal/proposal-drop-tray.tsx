@@ -12,6 +12,7 @@ import {
   useIsDropOver,
   useLinkDragStore,
 } from "../../hooks/use-link-drag";
+import { toLinkTitle } from "../../lib/build-import-candidates";
 import type { ProposalTarget } from "../../lib/proposal-state";
 import { FolderEmoji, PlusBadge } from "./proposal-folder-list";
 import type { ProposalFolderEntries } from "./proposal-folders";
@@ -76,7 +77,7 @@ function DragCard() {
             className="text-sm font-semibold text-foreground"
             numberOfLines={1}
           >
-            {link.title}
+            {toLinkTitle(link.title, link.url)}
           </Text>
           <Text
             className={cn(
@@ -145,13 +146,13 @@ function ProposalDropTray({ entries }: { entries: ProposalFolderEntries }) {
       style={[FIXED_FILL, { maxHeight: Math.round(height * TRAY_HEIGHT_RATIO) }]}
       testID="import-drop-tray"
     >
-      <View className="gap-0.5 px-4 pb-2 pt-4">
-        <Text className="text-base font-semibold text-foreground">옮길 폴더 위에서 손을 떼요</Text>
+      <View className="px-4 pb-2 pt-4">
         <Text
-          className="text-xs text-muted-foreground"
+          className="text-base font-semibold text-foreground"
           numberOfLines={1}
+          testID="import-drop-tray-title"
         >
-          {link.title}
+          {toLinkTitle(link.title, link.url)}
         </Text>
       </View>
       <ScrollView

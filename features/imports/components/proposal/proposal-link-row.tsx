@@ -37,7 +37,12 @@ const HANDLE_STYLE = { touchAction: "none", cursor: "grab" } as unknown as React
 
 function ProposalLinkRowView({ link, isWide, onOpenPicker, onRemove }: ProposalLinkRowProps) {
   const isDragging = useIsDraggingLink(link.key);
-  const gesture = useLinkHandleGesture({ key: link.key, title: link.title, target: link.target });
+  const gesture = useLinkHandleGesture({
+    key: link.key,
+    title: link.title,
+    url: link.url,
+    target: link.target,
+  });
   const host = React.useMemo(() => getHost(link.url), [link.url]);
 
   const handleHandlePress = React.useCallback(() => {

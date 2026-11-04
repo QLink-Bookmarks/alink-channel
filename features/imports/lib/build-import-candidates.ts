@@ -223,6 +223,7 @@ export {
   UNNAMED_FOLDER,
   buildImportCandidates,
   toFolderName,
+  toLinkTitle,
   truncateUtf16,
 };
 export type {

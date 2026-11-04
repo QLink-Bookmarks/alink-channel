@@ -43,6 +43,14 @@ async function rowNames(scope: Scope, expected: string[]) {
   return names;
 }
 
+async function pressButton(button: Locator) {
+  if (isWideProject()) {
+    await button.click();
+  } else {
+    await button.tap();
+  }
+}
+
 async function startRename(scope: Scope, name: string) {
   await openFolder(scope, `새 폴더 ${name}`);
   await scope.getByRole("button", { name: `새 폴더 ${name} 이름 바꾸기` }).click();
@@ -385,6 +393,31 @@ test.describe("editing the proposal", () => {
     await expect(folderRow(scope, "새 폴더 자바")).toBeAttached();
   });
 
+  test("✓ next to the name saves the rename and ✕ discards it", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    let input = await startRename(scope, "자바");
+    const actions = scope.getByTestId("import-name-input");
+    for (const label of ["이름 확정", "취소"]) {
+      await expect(actions.getByText(label, { exact: true })).toHaveCount(0);
+    }
+    await input.fill("버릴 이름");
+    await pressButton(actions.getByRole("button", { name: "취소", exact: true }));
+    await expect(input).toHaveCount(0);
+    await expect(scope.getByRole("button", { name: "새 폴더 자바 이름 바꾸기" })).toBeVisible();
+    await backToFolders(page);
+
+    input = await startRename(scope, "자바");
+    await input.fill("백엔드");
+    await pressButton(actions.getByRole("button", { name: "이름 확정" }));
+    await expect(input).toHaveCount(0);
+    await expect(scope.getByRole("button", { name: "새 폴더 백엔드 이름 바꾸기" })).toBeVisible();
+    await backToFolders(page);
+    await expect(folderRow(scope, "새 폴더 백엔드")).toContainText("+3");
+    await expect(folderRow(scope, "새 폴더 자바")).toHaveCount(0);
+    await expect(folderRow(scope, "새 폴더 버릴 이름")).toHaveCount(0);
+  });
+
   test("a new folder name stops at 100 characters and shows the count", async ({ page }) => {
     await setupImportFlow(page);
     const scope = await openProposal(page);
@@ -632,7 +665,8 @@ test.describe("dragging links", () => {
     }
     const tray = page.getByTestId("import-drop-tray");
     await expect(tray).toBeVisible();
-    await expect(tray.getByText("옮길 폴더 위에서 손을 떼요")).toBeVisible();
+    await expect(tray.getByTestId("import-drop-tray-title")).toHaveText("오늘의 뉴스");
+    await expect(tray.getByText("옮길 폴더 위에서 손을 떼요")).toHaveCount(0);
     const to = await center(tray.getByLabel("자바", { exact: true }));
     for (let step = 1; step <= 8; step += 1) {
       await cdp.send("Input.dispatchTouchEvent", {

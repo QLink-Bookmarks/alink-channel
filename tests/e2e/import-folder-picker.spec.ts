@@ -39,6 +39,18 @@ function confirmButton(picker: Scope) {
   return picker.getByRole("button", { name: "확인", exact: true }).last();
 }
 
+async function pressButton(button: Locator) {
+  if (isWideProject()) {
+    await button.click();
+  } else {
+    await button.tap();
+  }
+}
+
+function nameAction(picker: Scope, name: "이름 확정" | "취소") {
+  return picker.getByTestId("import-name-input").getByRole("button", { name, exact: true });
+}
+
 function cancelButton(picker: Scope) {
   return picker.getByRole("button", { name: "취소", exact: true }).last();
 }
@@ -279,6 +291,65 @@ test.describe("folder move picker", () => {
     await input.fill("인프라");
     await input.press("Enter");
     await expect(radio(picker, "인프라")).toHaveAttribute("aria-checked", "true");
+  });
+
+  test("✓ next to the name works like Enter: a shared name keeps the row open, another name is saved and chosen", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    const picker = await openPicker(page, scope, "미분류", "오늘의 뉴스");
+    await picker.getByRole("button", { name: "새 폴더에 폴더 추가" }).click();
+    const input = picker.getByLabel("새 폴더 이름");
+    await expect(nameAction(picker, "이름 확정")).toBeVisible();
+    await expect(nameAction(picker, "취소")).toBeVisible();
+    for (const label of ["이름 확정", "취소"]) {
+      await expect(
+        picker.getByTestId("import-name-input").getByText(label, { exact: true }),
+      ).toHaveCount(0);
+    }
+    if (!isWideProject()) {
+      for (const name of ["이름 확정", "취소"] as const) {
+        const box = await nameAction(picker, name).boundingBox();
+        expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+        expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+      }
+    }
+
+    await input.fill("취업");
+    await pressButton(nameAction(picker, "이름 확정"));
+    await expect(input).toHaveValue("취업");
+    await expect(input).toBeFocused();
+    await expect(picker.getByText("공유 폴더와 같은 이름은 쓸 수 없어요")).toBeVisible();
+    await expect(radio(picker, "취업")).toHaveCount(0);
+
+    await input.fill("인프라");
+    await pressButton(nameAction(picker, "이름 확정"));
+    await expect(input).toHaveCount(0);
+    await expect(radio(picker, "인프라")).toHaveAttribute("aria-checked", "true");
+    await confirmButton(picker).click();
+    await expectPickerClosed(page);
+    await expect(summaryValue(scope, "새 폴더")).toContainText("+4");
+    await backToFolders(page);
+    await expect(folderRow(scope, "새 폴더 인프라")).toContainText("+1");
+  });
+
+  test("✕ next to the name removes the name row and keeps the picker open", async ({ page }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    const picker = await openPicker(page, scope, "미분류", "오늘의 뉴스");
+    await picker.getByRole("button", { name: "새 폴더에 폴더 추가" }).click();
+    const input = picker.getByLabel("새 폴더 이름");
+    await input.fill("버릴 폴더");
+    await pressButton(nameAction(picker, "취소"));
+    await expect(input).toHaveCount(0);
+    await expect(page.getByText("이동할 폴더를 선택해주세요.")).toBeVisible();
+    await expect(radio(picker, "버릴 폴더")).toHaveCount(0);
+    await cancelButton(picker).click();
+    await expectPickerClosed(page);
+    await backToFolders(page);
+    await expect(folderRow(scope, "새 폴더 버릴 폴더")).toHaveCount(0);
+    await expect(summaryValue(scope, "새 폴더")).toContainText("+3");
   });
 
   test("pasting past 100 units does not leave half of an emoji in the name", async ({ page }) => {
