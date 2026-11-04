@@ -183,7 +183,8 @@ function FolderSectionList({
 
   const handleScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      recordScrollOffset(event.nativeEvent.contentOffset.y);
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+      recordScrollOffset(contentOffset.y, contentSize.height - layoutMeasurement.height);
       trackScroll(event);
     },
     [recordScrollOffset, trackScroll],
