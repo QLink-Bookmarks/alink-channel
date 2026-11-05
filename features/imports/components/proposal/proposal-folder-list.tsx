@@ -30,6 +30,7 @@ import {
 } from "lucide-react-native/icons";
 
 const UNFILED_EMOJI = "🗂️";
+const SOFT_TEXT = "text-foreground/70";
 
 type ProposalFolderListProps = {
   entries: ProposalFolderEntries;
@@ -71,7 +72,7 @@ function ExistingCount({ count }: { count: number | string | null | undefined })
     return null;
   }
   return (
-    <Text className="text-xs tabular-nums text-muted-foreground">{formatExistingCount(count)}</Text>
+    <Text className={cn("text-xs tabular-nums", SOFT_TEXT)}>{formatExistingCount(count)}</Text>
   );
 }
 
@@ -164,7 +165,7 @@ function FolderRow({
           className={cn(
             "min-w-0 flex-1 text-sm text-foreground",
             isSelected && "font-semibold",
-            isMuted && "text-muted-foreground",
+            isMuted && SOFT_TEXT,
           )}
           numberOfLines={1}
         >
@@ -200,11 +201,11 @@ function SectionTitle({ label, count }: { label: string; count: number }) {
     <View className="flex-row items-center justify-between px-2.5 pb-1 pt-3">
       <Text
         accessibilityRole="header"
-        className="text-xs font-semibold text-muted-foreground"
+        className={cn("text-xs font-semibold", SOFT_TEXT)}
       >
         {label}
       </Text>
-      <Text className="text-xs text-muted-foreground">{formatNumber(count)}개</Text>
+      <Text className={cn("text-xs", SOFT_TEXT)}>{formatNumber(count)}개</Text>
     </View>
   );
 }
@@ -309,7 +310,7 @@ function ProposalFolderList({
                     as={Users}
                     className="size-3.5 text-muted-foreground"
                   />
-                  <Text className="text-xs text-muted-foreground">공유 중</Text>
+                  <Text className={cn("text-xs", SOFT_TEXT)}>공유 중</Text>
                 </View>
               }
               onPress={() => onSelect({ kind: "shared", folderId: entry.folder.id })}
@@ -356,7 +357,7 @@ function ProposalFolderList({
                 }
                 trailing={
                   isExcluded ? (
-                    <Text className="text-xs text-muted-foreground">제외돼요</Text>
+                    <Text className={cn("text-xs", SOFT_TEXT)}>제외돼요</Text>
                   ) : (
                     <AddCount count={entry.addCount} />
                   )

@@ -1,5 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
+import { textContrast } from "./support/color";
 import { boxOf, isWideProject } from "./support/helpers";
 import { type MockFolder, mockApi } from "./support/mock-api";
 import {
@@ -338,6 +339,37 @@ test.describe("bookmark import reversal", () => {
     await expect(page.getByRole("button", { name: "bookmarks_26_11_1.html 되돌리기" })).toHaveCount(
       0,
     );
+  });
+
+  test("the modal says removed links are hard to recover and a success status follows", async ({
+    page,
+  }) => {
+    await setup(page);
+    await openFromRow(page);
+    const notice = page.getByTestId("reversal-notice");
+    await expect(notice).toHaveText("되돌리기로 사라진 링크는 복구가 힘들어요.");
+    await expect(notice).toBeVisible();
+    expect(await textContrast(notice)).toBeGreaterThanOrEqual(4.5);
+
+    await submitButton(page).click();
+    await expect(page.getByText(TITLE)).toHaveCount(0);
+    const status = page.getByTestId("reversal-success-status");
+    await expect(status).toHaveAttribute("aria-live", "polite");
+    await expect(status).toHaveText(
+      "링크 6개와 폴더 1개를 지웠어요. 링크 1개는 미분류로 옮겼어요.",
+    );
+    const statusBox = await boxOf(status);
+    const rowBox = await boxOf(page.getByTestId("import-row-5"));
+    expect(statusBox.y + statusBox.height).toBeLessThanOrEqual(rowBox.y + 1);
+    await expect(status).toHaveText("", { timeout: 10_000 });
+  });
+
+  test("the success status leaves out counts that are zero", async ({ page }) => {
+    await setup(page);
+    await openFromRow(page);
+    await page.getByRole("checkbox", { name: "자바의 가져온 항목 모두 지우기" }).click();
+    await submitButton(page).click();
+    await expect(page.getByTestId("reversal-success-status")).toHaveText("링크 4개를 지웠어요.");
   });
 
   test("keeping a folder gives 일부 되돌림 and the next reversal shows only what is left", async ({

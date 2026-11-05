@@ -12,6 +12,8 @@ import { FOLDER_NAME_MAX, truncateUtf16 } from "../../lib/build-import-candidate
 
 import { Check, X } from "lucide-react-native/icons";
 
+const NAME_INPUT_TEST_ID = "import-name-input";
+
 type NameHintTone = "muted" | "info" | "danger";
 
 type NameHint = { text: string; tone: NameHintTone; isKeyboardOnly?: boolean };
@@ -133,7 +135,7 @@ function ProposalNameInput({
   return (
     <View
       className={cn("gap-1", className)}
-      testID="import-name-input"
+      testID={NAME_INPUT_TEST_ID}
     >
       <View className="flex-row items-center gap-1">
         <Input
@@ -194,5 +196,5 @@ function ProposalNameInput({
   );
 }
 
-export { KEYBOARD_HINT, ProposalNameInput };
+export { KEYBOARD_HINT, NAME_INPUT_TEST_ID, ProposalNameInput };
 export type { NameHint, NameHintTone };

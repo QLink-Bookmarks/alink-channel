@@ -1,5 +1,9 @@
 import { buildReversalFolders } from "../../lib/reversal-selection";
-import { getReversalFolderLabel, getReversalHint } from "./reversal-copy";
+import {
+  getReversalFolderLabel,
+  getReversalHint,
+  getReversalSuccessMessage,
+} from "./reversal-copy";
 
 describe("getReversalFolderLabel", () => {
   it("shows the app's own label for the unfiled group the server sends without a name", () => {
@@ -67,5 +71,34 @@ describe("getReversalHint", () => {
       text: "남은 링크 3개 · 폴더 1개를 지워요.",
       editedNote: "수정한 링크 1개 포함",
     });
+  });
+});
+
+describe("getReversalSuccessMessage", () => {
+  it("names removed links and folders and the links moved to unfiled", () => {
+    expect(getReversalSuccessMessage({ links: 6, folders: 1, moved: 1 })).toBe(
+      "링크 6개와 폴더 1개를 지웠어요. 링크 1개는 미분류로 옮겼어요.",
+    );
+  });
+
+  it("omits the parts that are zero", () => {
+    expect(getReversalSuccessMessage({ links: 3, folders: 0, moved: 0 })).toBe(
+      "링크 3개를 지웠어요.",
+    );
+    expect(getReversalSuccessMessage({ links: 0, folders: 2, moved: 4 })).toBe(
+      "폴더 2개를 지웠어요. 링크 4개는 미분류로 옮겼어요.",
+    );
+  });
+
+  it("formats large counts with separators", () => {
+    expect(getReversalSuccessMessage({ links: 2000, folders: 12, moved: 0 })).toBe(
+      "링크 2,000개와 폴더 12개를 지웠어요.",
+    );
+  });
+
+  it("falls back to a plain done sentence when nothing is counted", () => {
+    expect(getReversalSuccessMessage({ links: 0, folders: 0, moved: 0 })).toBe(
+      "되돌리기를 끝냈어요.",
+    );
   });
 });

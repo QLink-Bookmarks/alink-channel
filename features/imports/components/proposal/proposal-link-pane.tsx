@@ -56,6 +56,7 @@ type ProposalLinkPaneProps = {
 };
 
 const LINK_HINT = "손잡이를 누르거나 끌어서 폴더를 옮길 수 있어요.";
+const RENAME_TRIGGER_TEST_ID = "import-rename-trigger";
 
 function EmptyPane({
   icon,
@@ -402,6 +403,7 @@ function NewFolderHeader({
             accessibilityLabel={`새 폴더 ${folder.name} 이름 바꾸기`}
             accessibilityRole="button"
             className="min-w-0 shrink flex-row items-center gap-1.5 rounded-lg py-1 web:hover:bg-muted"
+            testID={RENAME_TRIGGER_TEST_ID}
             onPress={() => onRenameStart(folder.target)}
           >
             <PaneTitle>{folder.name}</PaneTitle>
@@ -663,4 +665,4 @@ function ProposalLinkPane({
   );
 }
 
-export { ProposalLinkPane, SkippedList, UnsupportedList };
+export { ProposalLinkPane, RENAME_TRIGGER_TEST_ID, SkippedList, UnsupportedList };

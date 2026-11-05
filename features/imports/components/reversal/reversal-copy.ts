@@ -1,6 +1,9 @@
 import type { ReversalErrorKind } from "../../hooks/use-reversal-selection";
 import { UNFILED_FOLDER_EMOJI, UNFILED_FOLDER_LABEL } from "../../lib/import-status-copy";
 import type { ReversalCounts, ReversalFolderItem } from "../../lib/reversal-selection";
+import { formatNumber } from "../../lib/split-import-ranges";
+
+const REVERSAL_NOTICE = "되돌리기로 사라진 링크는 복구가 힘들어요.";
 
 type FolderBadgeTone = "danger" | "muted" | "shared";
 
@@ -81,6 +84,17 @@ function getReversalHint(counts: ReversalCounts, options: { hasError: boolean })
   return { text, editedNote };
 }
 
+function getReversalSuccessMessage(counts: Pick<ReversalCounts, "links" | "folders" | "moved">) {
+  const parts = [
+    counts.links > 0 ? `링크 ${formatNumber(counts.links)}개` : null,
+    counts.folders > 0 ? `폴더 ${formatNumber(counts.folders)}개` : null,
+  ].filter((part): part is string => part != null);
+  const removed = parts.length > 0 ? `${parts.join("와 ")}를 지웠어요.` : "되돌리기를 끝냈어요.";
+  const moved =
+    counts.moved > 0 ? ` 링크 ${formatNumber(counts.moved)}개는 미분류로 옮겼어요.` : "";
+  return `${removed}${moved}`;
+}
+
 function getReversalErrorCopy(
   kind: ReversalErrorKind,
   options: { doneLinkCount: number; hasRemaining: boolean },
@@ -126,10 +140,12 @@ function getHostLabel(url: string) {
 }
 
 export {
+  REVERSAL_NOTICE,
   getHostLabel,
   getReversalErrorCopy,
   getReversalFolderIntro,
   getReversalFolderLabel,
   getReversalHint,
+  getReversalSuccessMessage,
 };
 export type { FolderBadgeTone, ReversalHint };

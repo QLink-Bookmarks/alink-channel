@@ -12,6 +12,7 @@ import { openImportFlow } from "@/stores/import-flow";
 import { useImportProgressRefresh } from "../../hooks/use-import-progress-refresh";
 import { useJustImportedIds } from "../../hooks/use-just-imported-ids";
 import { useOpenImportedLinks } from "../../hooks/use-open-imported-links";
+import { useReversalStatus } from "../../hooks/use-reversal-status";
 import { isImportAvailable } from "../../lib/import-availability";
 import { IMPORTS_PATH, getImportDetailPath } from "../../lib/import-paths";
 import { useImportsQuery } from "../../queries";
@@ -26,6 +27,7 @@ import {
 import { ImportBreadcrumb } from "./import-breadcrumb";
 import { ImportDetailView } from "./import-detail-view";
 import { ImportHistoryList } from "./import-history-list";
+import { ReversalSuccessStatus } from "./reversal-success-status";
 
 import { type Href, useIsFocused, useRouter } from "expo-router";
 import { Upload } from "lucide-react-native";
@@ -68,6 +70,7 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
   const justImportedIds = useJustImportedIds(importsQuery.data ? summaries : undefined);
   const { openImportedLinks, pendingId: openingLinksId } = useOpenImportedLinks();
   const [reversalTarget, setReversalTarget] = React.useState<ReversalTarget | null>(null);
+  const { status: reversalStatus, showReversalStatus } = useReversalStatus(isFocused);
 
   const handleOpenDetail = React.useCallback(
     (summary: ImportSummary) => {
@@ -154,13 +157,16 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
           </View>
 
           <View className="gap-3">
-            <Text
-              role="heading"
-              aria-level={2}
-              className="text-base font-semibold text-foreground"
-            >
-              가져오기 기록
-            </Text>
+            <View>
+              <Text
+                role="heading"
+                aria-level={2}
+                className="text-base font-semibold text-foreground"
+              >
+                가져오기 기록
+              </Text>
+              <ReversalSuccessStatus status={reversalStatus} />
+            </View>
             <ImportHistoryList
               summaries={summaries}
               justImportedIds={justImportedIds}
@@ -224,6 +230,7 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
       <ReversalModal
         target={reversalTarget}
         onClose={handleCloseReversal}
+        onReversed={showReversalStatus}
       />
     </>
   );
