@@ -12,8 +12,10 @@ import { openImportFlow } from "@/stores/import-flow";
 import { useImportProgressRefresh } from "../../hooks/use-import-progress-refresh";
 import { useJustImportedIds } from "../../hooks/use-just-imported-ids";
 import { useOpenImportedLinks } from "../../hooks/use-open-imported-links";
+import { type ReversalStatusOrigin, useReversalStatus } from "../../hooks/use-reversal-status";
 import { isImportAvailable } from "../../lib/import-availability";
 import { IMPORTS_PATH, getImportDetailPath } from "../../lib/import-paths";
+import type { ReversalCounts } from "../../lib/reversal-selection";
 import { useImportsQuery } from "../../queries";
 import type { ImportSummary } from "../../types";
 import { WebOnlyImportNote } from "../flow/web-only-import-note";
@@ -26,6 +28,7 @@ import {
 import { ImportBreadcrumb } from "./import-breadcrumb";
 import { ImportDetailView } from "./import-detail-view";
 import { ImportHistoryList } from "./import-history-list";
+import { ReversalSuccessStatus } from "./reversal-success-status";
 
 import { type Href, useIsFocused, useRouter } from "expo-router";
 import { Upload } from "lucide-react-native";
@@ -68,6 +71,7 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
   const justImportedIds = useJustImportedIds(importsQuery.data ? summaries : undefined);
   const { openImportedLinks, pendingId: openingLinksId } = useOpenImportedLinks();
   const [reversalTarget, setReversalTarget] = React.useState<ReversalTarget | null>(null);
+  const { status: reversalStatus, showReversalStatus } = useReversalStatus(isFocused);
 
   const handleOpenDetail = React.useCallback(
     (summary: ImportSummary) => {
@@ -86,9 +90,19 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
     }
     router.replace(IMPORTS_PATH as Href);
   }, [detailId, router]);
+  const reversalOriginRef = React.useRef<ReversalStatusOrigin>("list");
   const handleReverse = React.useCallback((target: ReversalTarget) => {
+    reversalOriginRef.current = "list";
     setReversalTarget(target);
   }, []);
+  const handleReverseFromDetail = React.useCallback((target: ReversalTarget) => {
+    reversalOriginRef.current = "detail";
+    setReversalTarget(target);
+  }, []);
+  const handleReversed = React.useCallback(
+    (counts: ReversalCounts) => showReversalStatus(counts, reversalOriginRef.current),
+    [showReversalStatus],
+  );
   const handleCloseReversal = React.useCallback(() => setReversalTarget(null), []);
   const handleOpenLinks = React.useCallback(
     (summary: ImportSummary) => {
@@ -154,13 +168,18 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
           </View>
 
           <View className="gap-3">
-            <Text
-              role="heading"
-              aria-level={2}
-              className="text-base font-semibold text-foreground"
-            >
-              가져오기 기록
-            </Text>
+            <View>
+              <Text
+                role="heading"
+                aria-level={2}
+                className="text-base font-semibold text-foreground"
+              >
+                가져오기 기록
+              </Text>
+              <ReversalSuccessStatus
+                status={reversalStatus?.origin === "list" ? reversalStatus : null}
+              />
+            </View>
             <ImportHistoryList
               summaries={summaries}
               justImportedIds={justImportedIds}
@@ -212,8 +231,9 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
                   key={detailId}
                   importId={detailId}
                   mode="panel"
+                  reversalStatus={reversalStatus?.origin === "detail" ? reversalStatus : null}
                   onBack={handleCloseDetail}
-                  onReverse={handleReverse}
+                  onReverse={handleReverseFromDetail}
                 />
               </View>
             </Animated.View>
@@ -224,6 +244,7 @@ function ImportHistoryScreen({ detailId }: { detailId?: number }) {
       <ReversalModal
         target={reversalTarget}
         onClose={handleCloseReversal}
+        onReversed={handleReversed}
       />
     </>
   );

@@ -18,9 +18,9 @@ import { useWideView } from "@/lib/hooks/use-wide-view";
 
 import { useReversalSelection } from "../../hooks/use-reversal-selection";
 import { formatImportTime } from "../../lib/import-status-copy";
-import type { ReversalFolderItem } from "../../lib/reversal-selection";
+import type { ReversalCounts, ReversalFolderItem } from "../../lib/reversal-selection";
 import type { ImportSummary } from "../../types";
-import { getReversalErrorCopy, getReversalHint } from "./reversal-copy";
+import { REVERSAL_NOTICE, getReversalErrorCopy, getReversalHint } from "./reversal-copy";
 import { ReversalFolderPane } from "./reversal-folder-pane";
 import { ReversalFolderRow } from "./reversal-folder-row";
 
@@ -31,9 +31,10 @@ type ReversalTarget = Pick<ImportSummary, "id" | "fileName" | "createdAt">;
 type ReversalModalProps = {
   target: ReversalTarget | null;
   onClose: () => void;
+  onReversed?: (counts: ReversalCounts) => void;
 };
 
-function ReversalModal({ target, onClose }: ReversalModalProps) {
+function ReversalModal({ target, onClose, onReversed }: ReversalModalProps) {
   const isWide = useWideView();
   const open = target != null;
   const [sessionKey, setSessionKey] = React.useState(0);
@@ -59,6 +60,7 @@ function ReversalModal({ target, onClose }: ReversalModalProps) {
       open={open}
       isWide={isWide}
       onClose={onClose}
+      onReversed={onReversed}
     />
   );
 }
@@ -72,16 +74,25 @@ function ReversalSession({
   open,
   isWide,
   onClose,
+  onReversed,
 }: {
   target: ReversalTarget;
   open: boolean;
   isWide: boolean;
   onClose: () => void;
+  onReversed?: (counts: ReversalCounts) => void;
 }) {
+  const handleReversed = React.useCallback(
+    (_summary: unknown, counts: ReversalCounts) => {
+      onReversed?.(counts);
+      onClose();
+    },
+    [onClose, onReversed],
+  );
   const selection = useReversalSelection({
     importId: target.id,
     enabled: open,
-    onReversed: onClose,
+    onReversed: handleReversed,
   });
   const { counts, error, exclusions, folders, hasRemaining, isSubmitting, previewQuery } =
     selection;
@@ -133,6 +144,15 @@ function ReversalSession({
       <AlertTitle>{errorCopy.title}</AlertTitle>
       <AlertDescription>{errorCopy.description}</AlertDescription>
     </Alert>
+  ) : null;
+
+  const notice = hasRemaining ? (
+    <Text
+      className="text-xs text-muted-foreground"
+      testID="reversal-notice"
+    >
+      {REVERSAL_NOTICE}
+    </Text>
   ) : null;
 
   const submitButton = (
@@ -235,15 +255,18 @@ function ReversalSession({
             )}
           </View>
           <View className="flex-row items-center gap-3 border-t border-border px-6 py-4">
-            <Text
-              className="flex-1 text-sm text-muted-foreground"
-              testID="reversal-hint"
-            >
-              {hint.text}
-              {hint.editedNote ? (
-                <Text className="text-sm font-semibold text-warning"> {hint.editedNote}</Text>
-              ) : null}
-            </Text>
+            <View className="flex-1 gap-0.5">
+              <Text
+                className="text-sm text-muted-foreground"
+                testID="reversal-hint"
+              >
+                {hint.text}
+                {hint.editedNote ? (
+                  <Text className="text-sm font-semibold text-warning"> {hint.editedNote}</Text>
+                ) : null}
+              </Text>
+              {notice}
+            </View>
             {cancelButton}
             {submitButton}
           </View>
@@ -268,6 +291,7 @@ function ReversalSession({
             {hint.editedNote ? (
               <Text className="text-sm font-semibold text-warning">{hint.editedNote}</Text>
             ) : null}
+            {notice}
           </View>
           <View className="flex-row gap-2">
             <View className="flex-1">{cancelButton}</View>

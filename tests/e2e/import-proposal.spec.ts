@@ -16,7 +16,9 @@ import {
   setupImportFlow,
   summaryValue,
 } from "./support/bookmark-fixtures";
+import { waitForSettledColors } from "./support/color";
 import { isWideProject } from "./support/helpers";
+import { settingsHandler } from "./support/mock-api";
 
 // #22 unit 4: the proposal window (summary, folder list, links, removing, renaming, closing).
 
@@ -1412,5 +1414,114 @@ test.describe("bulk remove, removed links and undo steps (#49)", () => {
     await expect(hint).toBeVisible();
     const size = await hint.evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
     expect(size).toBeGreaterThanOrEqual(12);
+  });
+});
+
+test.describe("folder column contrast and focus after rename", () => {
+  for (const theme of ["light", "dark"] as const) {
+    for (const accent of ["gray", "pink", "blue"] as const) {
+      test(`every soft text in the wide folder column is at least 4.5:1 — ${theme} ${accent}`, async ({
+        page,
+      }) => {
+        test.skip(!isWideProject(), "the folder column is wide only");
+        await setupImportFlow(page, {
+          handlers: { "GET /api/users/me/settings": settingsHandler(theme, accent) },
+        });
+        const scope = await openProposal(page);
+        const column = scope.getByLabel("폴더", { exact: true });
+        await expect(folderRow(column, "새 폴더 자바")).toBeVisible();
+        await waitForSettledColors(column);
+        const findings = await column.evaluate((root) => {
+          const parse = (value: string) => {
+            const [r = 0, g = 0, b = 0, a = 1] = value.match(/[\d.]+/g)?.map(Number) ?? [];
+            return { r, g, b, a: (value.match(/[\d.]+/g) ?? []).length > 3 ? a : 1 };
+          };
+          const lum = ({ r, g, b }: { r: number; g: number; b: number }) => {
+            const channel = (value: number) => {
+              const c = value / 255;
+              return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+            };
+            return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+          };
+          const results: { text: string; ratio: number }[] = [];
+          for (const element of Array.from(root.querySelectorAll("[class]"))) {
+            const className = element.getAttribute("class") ?? "";
+            if (!/text-(muted-foreground|foreground\/70)(\s|$)/.test(className)) continue;
+            const text = Array.from(element.childNodes)
+              .filter((node) => node.nodeType === Node.TEXT_NODE)
+              .map((node) => node.textContent ?? "")
+              .join("")
+              .trim();
+            if (!text) continue;
+            let surface = { r: 255, g: 255, b: 255, a: 1 };
+            for (let node: Element | null = element; node; node = node.parentElement) {
+              const value = parse(getComputedStyle(node).backgroundColor);
+              if (value.a === 1) {
+                surface = value;
+                break;
+              }
+            }
+            const top = parse(getComputedStyle(element).color);
+            const color = {
+              r: top.r * top.a + surface.r * (1 - top.a),
+              g: top.g * top.a + surface.g * (1 - top.a),
+              b: top.b * top.a + surface.b * (1 - top.a),
+            };
+            const [hi, lo] = [lum(color), lum(surface)].sort((a, b) => b - a);
+            results.push({ text, ratio: (hi + 0.05) / (lo + 0.05) });
+          }
+          return results;
+        });
+        test.info().annotations.push({
+          type: "contrast",
+          description: findings.map((f) => `${f.text} ${f.ratio.toFixed(2)}`).join(", "),
+        });
+        expect(findings.length).toBeGreaterThanOrEqual(5);
+        expect(findings.filter((f) => f.ratio < 4.5).map((f) => `${f.text} ${f.ratio}`)).toEqual(
+          [],
+        );
+      });
+    }
+  }
+
+  test("saving a merging rename focuses 합치기 취소, a plain rename focuses the folder name", async ({
+    page,
+  }) => {
+    await setupImportFlow(page);
+    const scope = await openProposal(page);
+    let input = await startRename(scope, "자바");
+    await input.fill("aws");
+    await input.press("Enter");
+    await expect(scope.getByText("‘자바’의 링크 3개를 기존 폴더 ‘aws’로 합쳤어요.")).toBeVisible();
+    await expect(scope.getByRole("button", { name: /^합치기 취소/ })).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(scope.getByText("‘자바’의 링크 3개를 기존 폴더 ‘aws’로 합쳤어요.")).toHaveCount(0);
+    await backToFolders(page);
+    await expect(folderRow(scope, "새 폴더 자바")).toBeAttached();
+    input = await startRename(scope, "자바");
+    await input.fill("백엔드");
+    await input.press("Enter");
+    await expect(scope.getByRole("button", { name: "새 폴더 백엔드 이름 바꾸기" })).toBeFocused();
+  });
+
+  test("the proposal dialog shows no outline when the dialog itself has focus", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "the dialog is wide only");
+    await setupImportFlow(page);
+    await openProposal(page);
+    const dialog = page.getByRole("dialog", { name: PROPOSAL_TITLE });
+    const outline = await dialog.evaluate((node) => {
+      (node as HTMLElement).focus();
+      const style = getComputedStyle(node);
+      return {
+        focused: document.activeElement === node,
+        style: style.outlineStyle,
+        width: style.outlineWidth,
+      };
+    });
+    expect(outline.focused).toBe(true);
+    expect(outline.style === "none" || outline.width === "0px").toBe(true);
   });
 });

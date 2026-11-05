@@ -1,16 +1,19 @@
 import * as React from "react";
 import { View } from "react-native";
 
+import { useReversalStatus } from "../../hooks/use-reversal-status";
 import { IMPORTS_PATH } from "../../lib/import-paths";
 import { ReversalModal, type ReversalTarget } from "../reversal/reversal-modal";
 import { clearDetailOpenedFromList, wasDetailOpenedFromList } from "./detail-navigation";
 import { ImportDetailView } from "./import-detail-view";
 
-import { type Href, useRouter } from "expo-router";
+import { type Href, useIsFocused, useRouter } from "expo-router";
 
 function ImportDetailScreen({ importId }: { importId: number }) {
   const router = useRouter();
   const [reversalTarget, setReversalTarget] = React.useState<ReversalTarget | null>(null);
+  const isFocused = useIsFocused();
+  const { status: reversalStatus, showReversalStatus } = useReversalStatus(isFocused);
 
   const handleBack = React.useCallback(() => {
     const canReturnToList = wasDetailOpenedFromList(importId) && router.canGoBack();
@@ -27,12 +30,14 @@ function ImportDetailScreen({ importId }: { importId: number }) {
       <ImportDetailView
         importId={importId}
         mode="page"
+        reversalStatus={reversalStatus}
         onBack={handleBack}
         onReverse={setReversalTarget}
       />
       <ReversalModal
         target={reversalTarget}
         onClose={() => setReversalTarget(null)}
+        onReversed={showReversalStatus}
       />
     </View>
   );

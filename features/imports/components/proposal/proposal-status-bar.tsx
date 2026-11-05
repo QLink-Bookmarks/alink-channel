@@ -10,6 +10,8 @@ import { getStatusMessage } from "./proposal-copy";
 
 import { CircleCheck, Info, Undo2, X } from "lucide-react-native/icons";
 
+const STATUS_UNDO_TEST_ID = "import-status-undo";
+
 type ProposalStatusBarProps = {
   line: ProposalStatusLine;
   isWide: boolean;
@@ -50,6 +52,7 @@ function ProposalStatusBar({ line, isWide, onUndo, onDismiss }: ProposalStatusBa
             isWide ? "h-9 sm:h-9" : "h-11 sm:h-11",
           )}
           size="sm"
+          testID={STATUS_UNDO_TEST_ID}
           variant="ghost"
           onPress={onUndo}
         >
@@ -86,4 +89,4 @@ function ProposalStatusBar({ line, isWide, onUndo, onDismiss }: ProposalStatusBa
   );
 }
 
-export { ProposalStatusBar };
+export { ProposalStatusBar, STATUS_UNDO_TEST_ID };

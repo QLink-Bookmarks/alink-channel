@@ -3,6 +3,7 @@ import * as React from "react";
 import { getImportErrorName } from "../api";
 import {
   EMPTY_EXCLUSIONS,
+  type ReversalCounts,
   type ReversalExclusions,
   type ReversalFolderItem,
   buildReversalFolders,
@@ -27,7 +28,7 @@ type ReversalError = {
 type UseReversalSelectionOptions = {
   importId: number;
   enabled: boolean;
-  onReversed?: (summary: ImportSummary) => void;
+  onReversed?: (summary: ImportSummary, counts: ReversalCounts) => void;
 };
 
 function toReversalErrorKind(error: unknown): ReversalErrorKind {
@@ -83,12 +84,13 @@ function useReversalSelection({ importId, enabled, onReversed }: UseReversalSele
     if (payload.linkIds.length === 0 && payload.folderIds.length === 0) {
       return;
     }
+    const submitted = counts;
     pendingRef.current = true;
     setIsSubmitting(true);
     try {
       const summary = await mutation.mutateAsync({ id: importId, payload });
       setError(null);
-      onReversedRef.current?.(summary);
+      onReversedRef.current?.(summary, submitted);
     } catch (reason) {
       setError({ kind: toReversalErrorKind(reason) });
       await invalidateImportedData({ includeTodos: true });
@@ -96,7 +98,7 @@ function useReversalSelection({ importId, enabled, onReversed }: UseReversalSele
       pendingRef.current = false;
       setIsSubmitting(false);
     }
-  }, [exclusions, folders, importId, invalidateImportedData, mutation]);
+  }, [counts, exclusions, folders, importId, invalidateImportedData, mutation]);
 
   return {
     counts,

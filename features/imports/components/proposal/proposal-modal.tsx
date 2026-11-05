@@ -32,8 +32,14 @@ import {
   getInitialSelection,
   getProposalFolders,
 } from "./proposal-folders";
-import { ProposalLinkPane, SkippedList, UnsupportedList } from "./proposal-link-pane";
-import { ProposalStatusBar } from "./proposal-status-bar";
+import {
+  ProposalLinkPane,
+  RENAME_TRIGGER_TEST_ID,
+  SkippedList,
+  UnsupportedList,
+} from "./proposal-link-pane";
+import { NAME_INPUT_TEST_ID } from "./proposal-name-input";
+import { ProposalStatusBar, STATUS_UNDO_TEST_ID } from "./proposal-status-bar";
 import { ProposalSummary } from "./proposal-summary";
 
 import { ChevronDown, ChevronRight, CircleCheck, X } from "lucide-react-native/icons";
@@ -49,6 +55,41 @@ type ProposalModalProps = {
 };
 
 const TITLE = "가져올 내용을 확인해 주세요";
+
+type FocusRequest = { key: number; testId: string };
+
+const FOCUS_ATTEMPTS = 10;
+
+function isFocusLost() {
+  const active = document.activeElement;
+  return (
+    active == null ||
+    active === document.body ||
+    active.getAttribute("role") === "dialog" ||
+    active.closest(`[data-testid="${NAME_INPUT_TEST_ID}"]`) != null
+  );
+}
+
+function focusByTestId(testId: string) {
+  if (process.env.EXPO_OS !== "web" || typeof document === "undefined") {
+    return () => {};
+  }
+  let frame = 0;
+  let attempts = 0;
+  const attempt = () => {
+    if (!isFocusLost()) {
+      return;
+    }
+    const node = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+    node?.focus();
+    attempts += 1;
+    if (document.activeElement !== node && attempts < FOCUS_ATTEMPTS) {
+      frame = requestAnimationFrame(attempt);
+    }
+  };
+  attempt();
+  return () => cancelAnimationFrame(frame);
+}
 
 function isSelectionValid(selection: ProposalSelection, entries: ProposalFolderEntries) {
   if (selection.kind !== "target") {
@@ -198,17 +239,27 @@ function ProposalModal({
     setRenamingTarget(target);
   }, []);
 
+  const [focusRequest, setFocusRequest] = React.useState<FocusRequest | null>(null);
+  React.useEffect(() => {
+    if (!focusRequest) {
+      return;
+    }
+    return focusByTestId(focusRequest.testId);
+  }, [focusRequest]);
+
   const { renameNewFolder } = proposal;
   const handleRenameEnd = React.useCallback(
     (target: string, value: string | null) => {
       setRenamingTarget(null);
-      if (value == null) {
-        return;
-      }
-      const check = renameNewFolder(target, value);
-      if (check.type === "merge-existing") {
+      const check = value == null ? null : renameNewFolder(target, value);
+      const isMerge = check?.type === "merge-existing" || check?.type === "merge-new";
+      setFocusRequest((current) => ({
+        key: (current?.key ?? 0) + 1,
+        testId: isMerge ? STATUS_UNDO_TEST_ID : RENAME_TRIGGER_TEST_ID,
+      }));
+      if (check?.type === "merge-existing") {
         setSelection({ kind: "target", target: getExistingTarget(check.folderId) });
-      } else if (check.type === "merge-new") {
+      } else if (check?.type === "merge-new") {
         setSelection({ kind: "target", target: check.target });
       }
     },
@@ -375,7 +426,7 @@ function ProposalModal({
         >
           <DialogContent
             hideCloseButton
-            className="h-[88vh] max-h-[880px] w-[1080px] max-w-[94vw] gap-0 overflow-hidden rounded-[20px] p-0 sm:max-w-[94vw]"
+            className="h-[88vh] max-h-[880px] w-[1080px] max-w-[94vw] gap-0 overflow-hidden rounded-[20px] p-0 outline-none sm:max-w-[94vw]"
           >
             <View className="flex-row items-start gap-3 px-6 pb-4 pt-6">
               <View className="min-w-0 flex-1 gap-1">
@@ -401,7 +452,7 @@ function ProposalModal({
                 <ScrollView
                   ref={leftScrollRef}
                   accessibilityLabel="폴더"
-                  className="w-[320px] grow-0 border-r border-border bg-muted/40"
+                  className="w-[320px] grow-0 border-r border-border bg-background"
                   contentContainerClassName="p-2"
                   contentInsetAdjustmentBehavior="automatic"
                 >

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useToastStore } from "@/stores/toast-store";
 
 import { getImportErrorName } from "../../api";
+import type { ReversalStatus } from "../../hooks/use-reversal-status";
 import {
   UNFILED_FOLDER_EMOJI,
   UNFILED_FOLDER_LABEL,
@@ -24,6 +25,7 @@ import { useImportQuery } from "../../queries";
 import type { ImportDetail, ImportDetailFolder, ImportFailure } from "../../types";
 import { ChangeMark } from "./change-mark";
 import { ImportStatusBadge } from "./import-status-badge";
+import { ReversalSuccessStatus } from "./reversal-success-status";
 
 import * as Clipboard from "expo-clipboard";
 import { type Href, useRouter } from "expo-router";
@@ -43,6 +45,7 @@ type ImportDetailViewProps = {
   mode: "panel" | "page";
   onBack: () => void;
   onReverse: (detail: ImportDetail) => void;
+  reversalStatus?: ReversalStatus | null;
 };
 
 const COPY_NOTICE_MS = 3000;
@@ -82,7 +85,13 @@ function useCopyFeedback(isPage: boolean) {
   return { notice, report };
 }
 
-function ImportDetailView({ importId, mode, onBack, onReverse }: ImportDetailViewProps) {
+function ImportDetailView({
+  importId,
+  mode,
+  onBack,
+  onReverse,
+  reversalStatus,
+}: ImportDetailViewProps) {
   const router = useRouter();
   const detailQuery = useImportQuery(importId);
   const copyFeedback = useCopyFeedback(mode === "page");
@@ -205,6 +214,12 @@ function ImportDetailView({ importId, mode, onBack, onReverse }: ImportDetailVie
         </Text>
         {statusBadge}
       </View>
+
+      {reversalStatus !== undefined ? (
+        <View className="px-4">
+          <ReversalSuccessStatus status={reversalStatus} />
+        </View>
+      ) : null}
 
       <ScrollView
         className="flex-1"
