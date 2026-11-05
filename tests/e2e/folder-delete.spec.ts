@@ -1,6 +1,7 @@
 import { type Locator, type Page, type Route, expect, test } from "@playwright/test";
 
 import { FOLDER_API_ERROR_CODES } from "../../features/folders/lib/folder-api-errors";
+import { getFolderDeleteTitle } from "../../features/folders/lib/folder-delete-title";
 import { isWideProject } from "./support/helpers";
 import {
   type MockFolder,
@@ -100,6 +101,15 @@ const ALONE_EMPTY: MockFolder = {
   shareCounts: 1,
   linkCounts: 0,
 };
+
+/** The confirm title names the folder: `{이모지} {이름} (공유 )폴더를 삭제할까요?`. */
+function deleteTitle(folder: MockFolder) {
+  return getFolderDeleteTitle({
+    name: folder.name,
+    emoji: folder.emoji,
+    isShared: folder.isShared,
+  });
+}
 
 const FOLDERS = [
   READING,
@@ -229,8 +239,9 @@ function deleteRequests(state: Awaited<ReturnType<typeof setup>>, id: number) {
 async function openPersonalDelete(page: Page, folder: MockFolder) {
   await openFolder(page, folder);
   await page.getByRole("button", { name: "폴더 삭제", exact: true }).click();
-  const scope = flow(page, "폴더를 삭제할까요?");
-  await expect(scope.getByText("폴더를 삭제할까요?")).toBeVisible();
+  const title = deleteTitle(folder);
+  const scope = flow(page, title);
+  await expect(scope.getByText(title)).toBeVisible();
   return scope;
 }
 
@@ -423,6 +434,20 @@ test.describe("personal folder delete", () => {
     await expect(page.getByText(NOT_FOUND_TEXT).first()).toBeVisible({ timeout: 15_000 });
   });
 
+  test("opening the confirm does not shift the wide header actions", async ({ page }) => {
+    test.skip(!isWideProject(), "the wide page header");
+    await setup(page);
+    await openFolder(page, TRIP);
+    // While the modal is open the page behind is aria-hidden, so find the button by its label.
+    const edit = page.locator('[aria-label="폴더 수정"]').locator("visible=true").first();
+    await expect(edit).toBeVisible();
+    const before = (await edit.boundingBox())?.x;
+    await page.getByRole("button", { name: "폴더 삭제", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: deleteTitle(TRIP) })).toBeVisible();
+    await settle(page);
+    expect((await edit.boundingBox())?.x).toBe(before);
+  });
+
   test("the picker opens over the confirm without the folder, and 확인/취소 set the target", async ({
     page,
   }) => {
@@ -482,10 +507,28 @@ test.describe("personal folder delete", () => {
   }) => {
     const state = await setup(page);
     const scope = await openPersonalDelete(page, TRIP);
+    // One exact title, independent of the builder.
+    await expect(scope.getByText("🧳 주말 여행 폴더를 삭제할까요?", { exact: true })).toBeVisible();
+    const dialogTop = async () =>
+      isWideProject() ? ((await (scope as Locator).boundingBox())?.y ?? Number.NaN) : 0;
+    await settle(page);
+    const topBefore = await dialogTop();
 
     await scope.getByRole("radio", { name: "링크도 함께 삭제" }).click();
-    await expect(scope.getByText("삭제하려면 폴더 이름을 입력해주세요.")).toBeVisible();
+    await expect(page.getByTestId("folder-delete-name-guide")).toBeVisible();
+    // The wide dialog is anchored from the top: the taller (b) does not move its top edge.
+    await settle(page);
+    expect(Math.abs((await dialogTop()) - topBefore)).toBeLessThan(1);
     await expect(nameInput(page)).toHaveAttribute("placeholder", TRIP.name);
+    await expect(nameInput(page)).toHaveValue("");
+    // The guidance above the field names the folder, bold and italic.
+    const guide = page.getByTestId("folder-delete-name-guide");
+    await expect(guide).toHaveText("삭제하려면 주말 여행을 입력해주세요.");
+    const guideName = guide.getByText(TRIP.name, { exact: true });
+    await expect(guideName).toHaveCSS("font-style", "italic");
+    expect(
+      Number(await guideName.evaluate((node) => getComputedStyle(node).fontWeight)),
+    ).toBeGreaterThanOrEqual(700);
     await expect(page.getByRole("button", { name: /옮길 폴더 선택/ })).toHaveCount(0);
     await expect(cta(page)).toBeDisabled();
 
@@ -495,6 +538,11 @@ test.describe("personal folder delete", () => {
     await expect(cta(page)).toBeDisabled();
     await nameInput(page).fill("  주말 여행  ");
     await expect(cta(page)).toBeEnabled();
+    // The name stays on screen while typing (title and guidance).
+    await expect(scope.getByText(deleteTitle(TRIP))).toBeVisible();
+    await expect(page.getByTestId("folder-delete-name-guide")).toHaveText(
+      "삭제하려면 주말 여행을 입력해주세요.",
+    );
 
     await scope.getByRole("radio", { name: "다른 폴더로 옮기기" }).click();
     await expect(nameInput(page)).toHaveCount(0);
@@ -605,7 +653,7 @@ test.describe("personal folder delete", () => {
     await page.getByRole("radio", { name: "링크도 함께 삭제" }).click();
     await nameInput(page).fill("주말");
     await page.getByRole("button", { name: "취소", exact: true }).click();
-    await expect(page.getByText("폴더를 삭제할까요?")).toHaveCount(0);
+    await expect(page.getByText(deleteTitle(TRIP))).toHaveCount(0);
 
     await page.getByRole("button", { name: "폴더 삭제", exact: true }).click();
     await expect(page.getByRole("radio", { name: "다른 폴더로 옮기기" })).toBeChecked();
@@ -618,7 +666,7 @@ test.describe("personal folder delete", () => {
       await expect(page.getByRole("dialog")).toHaveCount(0);
     } else {
       await page.getByRole("button", { name: "닫기", exact: true }).click();
-      await expect(page.getByText("폴더를 삭제할까요?")).toHaveCount(0);
+      await expect(page.getByText(deleteTitle(TRIP))).toHaveCount(0);
     }
     expect(deleteRequests(state, TRIP.id)).toHaveLength(0);
     expect(state.folders.some((folder) => folder.id === TRIP.id)).toBe(true);
@@ -635,7 +683,7 @@ test.describe("personal folder delete", () => {
     for (let i = 0; i < 12; i += 1) {
       await page.keyboard.press("Tab");
       const inside = await page
-        .getByRole("dialog", { name: "폴더를 삭제할까요?" })
+        .getByRole("dialog", { name: deleteTitle(TRIP) })
         .evaluate((node) => node.contains(document.activeElement));
       expect(inside).toBe(true);
     }
@@ -665,14 +713,14 @@ test.describe("personal folder delete", () => {
 
     await page.setViewportSize({ width: 769, height: 800 });
     await openPersonalDelete(page, TRIP);
-    await expect(page.getByRole("dialog", { name: "폴더를 삭제할까요?" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: deleteTitle(TRIP) })).toBeVisible();
     await page.keyboard.press("Escape");
 
     await page.setViewportSize({ width: 768, height: 800 });
     await openFolder(page, TRIP);
     await page.getByRole("button", { name: "폴더 삭제", exact: true }).click();
-    await expect(page.getByText("폴더를 삭제할까요?")).toBeVisible();
-    await expect(page.getByRole("dialog", { name: "폴더를 삭제할까요?" })).toHaveCount(0);
+    await expect(page.getByText(deleteTitle(TRIP))).toBeVisible();
+    await expect(page.getByRole("dialog", { name: deleteTitle(TRIP) })).toHaveCount(0);
   });
 
   test("while deleting, everything but the spinner is blocked and a double press sends once", async ({
@@ -698,12 +746,22 @@ test.describe("personal folder delete", () => {
     await cta(page).click({ force: true });
     await expect(cta(page)).toHaveAttribute("aria-busy", "true");
     await expect(page.getByRole("button", { name: "취소", exact: true })).toBeDisabled();
+    if (isWideProject()) {
+      // The X is dimmed and disabled like 취소.
+      const close = page
+        .getByRole("dialog", { name: deleteTitle(TRIP) })
+        .getByRole("button", { name: "닫기" });
+      await expect(close).toBeDisabled();
+      await expect
+        .poll(() => close.evaluate((node) => Number(getComputedStyle(node).opacity)))
+        .toBeLessThan(0.5);
+    }
     await page.getByRole("radio", { name: "링크도 함께 삭제" }).click({ force: true });
     await expect(page.getByRole("radio", { name: "다른 폴더로 옮기기" })).toBeChecked();
     if (isWideProject()) {
       await page.keyboard.press("Escape");
       await page.mouse.click(5, 5);
-      await expect(page.getByRole("dialog", { name: "폴더를 삭제할까요?" })).toBeVisible();
+      await expect(page.getByRole("dialog", { name: deleteTitle(TRIP) })).toBeVisible();
     }
 
     release();
@@ -731,7 +789,7 @@ test.describe("personal folder delete", () => {
 
     await cta(page).click();
     await expect(page.getByText(DELETE_FAILED)).toBeVisible();
-    await expect(page.getByText("폴더를 삭제할까요?")).toBeVisible();
+    await expect(page.getByText(deleteTitle(TRIP))).toBeVisible();
 
     mode = "abort";
     await cta(page).click();
@@ -928,7 +986,7 @@ test.describe("personal folder delete", () => {
     await pickerCancel(page).click();
     await expect(page.getByText("이동할 폴더를 선택해주세요.")).toHaveCount(0);
     await page.getByRole("button", { name: "취소", exact: true }).click();
-    await expect(page.getByText("폴더를 삭제할까요?")).toHaveCount(0);
+    await expect(page.getByText(deleteTitle(TRIP))).toHaveCount(0);
 
     expect(state.folders.some((folder) => folder.name === "새로 만든 폴더")).toBe(true);
     expect(deleteRequests(state, TRIP.id)).toHaveLength(0);
@@ -966,7 +1024,7 @@ test.describe("shared folder delete", () => {
     expect(transfer!.y).toBeLessThan(remove!.y);
 
     await page.getByRole("button", { name: "폴더 삭제", exact: true }).click();
-    const scope = flow(page, "공유 폴더를 삭제할까요?");
+    const scope = flow(page, deleteTitle(TEAM));
     await expect(scope.getByText("삭제한 폴더는 되돌릴 수 없어요.")).toBeVisible();
     const facts = page.getByTestId("shared-folder-delete-facts");
     await expect(facts).toContainText("참여 인원 3명");
@@ -1075,18 +1133,19 @@ test.describe("shared folder delete", () => {
     await openFolder(page, ALONE);
     await page.getByRole("button", { name: "공유 폴더 삭제", exact: true }).click();
 
-    await expect(
-      page.getByText("나만 있는 공유 폴더예요. 링크 2개는 각자 넣은 사람의 미분류로 이동해요."),
-    ).toBeVisible();
+    await expect(page.getByText(deleteTitle(ALONE))).toBeVisible();
+    // Only the situation; what happens to the links is in the choice descriptions.
+    await expect(page.getByText("나만 있는 공유 폴더예요.", { exact: true })).toBeVisible();
+    await expect(page.getByText("링크는 넣은 사람의 미분류로 이동해요.")).toBeVisible();
+    await expect(page.getByText("링크 2개가 모두 삭제돼요.", { exact: true })).toBeVisible();
+    await expect(page.getByText(/다른 멤버/)).toHaveCount(0);
     await expect(page.getByText("공유 폴더를 어떻게 할까요?")).toHaveCount(0);
     await expect(page.getByTestId("shared-folder-delete-facts")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "이전 단계로" })).toHaveCount(0);
     await expect(nameInput(page)).toBeVisible();
 
     await page.getByRole("radio", { name: "링크도 모두 삭제" }).click();
-    await expect(
-      page.getByText("나만 있는 공유 폴더예요. 링크 2개가 모두 삭제돼요."),
-    ).toBeVisible();
+    await expect(page.getByText("나만 있는 공유 폴더예요.", { exact: true })).toBeVisible();
     await page.getByRole("radio", { name: "각자의 미분류로 옮기기" }).click();
     await nameInput(page).fill(ALONE.name);
     await cta(page).click();

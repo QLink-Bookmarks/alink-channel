@@ -8,14 +8,20 @@ import { Text } from "./text";
 jest.mock("react-native-worklets", () => require("react-native-worklets/src/mock"));
 jest.mock("react-native-reanimated", () => require("react-native-reanimated/mock"));
 
-function renderDialog(onOpenChange: (open: boolean) => void, hideCloseButton = false) {
+function renderDialog(
+  onOpenChange: (open: boolean) => void,
+  { hideCloseButton = false, closeDisabled = false } = {},
+) {
   render(
     <>
       <Dialog
         open
         onOpenChange={onOpenChange}
       >
-        <DialogContent hideCloseButton={hideCloseButton}>
+        <DialogContent
+          closeDisabled={closeDisabled}
+          hideCloseButton={hideCloseButton}
+        >
           <DialogTitle>폴더 추가</DialogTitle>
           <Text>본문</Text>
         </DialogContent>
@@ -40,8 +46,16 @@ describe("DialogContent close button", () => {
   });
 
   it("is absent when hideCloseButton is set", () => {
-    renderDialog(jest.fn(), true);
+    renderDialog(jest.fn(), { hideCloseButton: true });
     expect(screen.getByText("폴더 추가")).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "닫기" })).toBeNull();
+  });
+
+  it("stays in place but is disabled while closeDisabled is set", () => {
+    renderDialog(jest.fn(), { closeDisabled: true });
+    const close = screen.getByRole("button", { name: "닫기" });
+    expect(close).toBeDisabled();
+    // A press on a disabled element is passed by RNTL to the overlay behind it, so the "does not
+    // close" half is covered by the Playwright pending checks instead.
   });
 });

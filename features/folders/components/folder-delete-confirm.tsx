@@ -6,6 +6,7 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
 import type { FolderLinkChoice, FolderLinkCounts } from "../lib/folder-delete-request";
+import { getFolderNameGuide } from "../lib/folder-name-guide";
 import { FolderChoiceGroup } from "./folder-link-choice";
 
 import { ChevronRight, Link2, LogOut, Trash2, Users } from "lucide-react-native/icons";
@@ -35,11 +36,9 @@ function getPersonalDeleteDescription(counts: FolderLinkCounts) {
 function getSharedDeleteDescription({
   otherMemberCount,
   linkCount,
-  choice,
 }: {
   otherMemberCount: number;
   linkCount: number;
-  choice: FolderLinkChoice;
 }) {
   if (otherMemberCount > 0) {
     return "삭제한 폴더는 되돌릴 수 없어요.";
@@ -47,11 +46,14 @@ function getSharedDeleteDescription({
   if (linkCount === 0) {
     return "나만 있는 빈 공유 폴더예요. 삭제해도 옮겨지는 링크가 없어요.";
   }
-  return choice === "keep"
-    ? `나만 있는 공유 폴더예요. 링크 ${linkCount}개는 각자 넣은 사람의 미분류로 이동해요.`
-    : `나만 있는 공유 폴더예요. 링크 ${linkCount}개가 모두 삭제돼요.`;
+  // What happens to the links is told by the choice descriptions below.
+  return "나만 있는 공유 폴더예요.";
 }
 
+/**
+ * Name re-entry: the guidance above the field names the folder (bold, italic) so it stays on
+ * screen while typing; the placeholder is the name as well.
+ */
 function FolderNameConfirmField({
   folderName,
   value,
@@ -63,13 +65,17 @@ function FolderNameConfirmField({
   disabled: boolean;
   onChangeText: (value: string) => void;
 }) {
+  const guide = getFolderNameGuide(folderName);
   return (
     <View className="gap-2">
       <Text
         className="text-[13px] font-semibold text-muted-foreground"
         nativeID="folder-delete-name-label"
+        testID="folder-delete-name-guide"
       >
-        삭제하려면 폴더 이름을 입력해주세요.
+        {guide.before}
+        <Text className="font-bold italic text-foreground">{guide.name}</Text>
+        {guide.after}
       </Text>
       <Input
         aria-labelledby="folder-delete-name-label"
@@ -319,7 +325,10 @@ function SharedFolderDeleteBody({
             {
               value: "delete",
               title: "링크도 모두 삭제",
-              description: `다른 멤버가 넣은 링크까지 ${linkCount}개가 모두 삭제돼요.`,
+              description:
+                otherMemberCount > 0
+                  ? `다른 멤버가 넣은 링크까지 ${linkCount}개가 모두 삭제돼요.`
+                  : `링크 ${linkCount}개가 모두 삭제돼요.`,
               isDestructive: true,
             },
           ]}
