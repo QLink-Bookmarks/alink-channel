@@ -5,7 +5,10 @@ import type { TodoCountSummary } from "@/features/home/lib/link-card-mapper";
 import { cn } from "@/lib/utils";
 
 import { formatTagLabel } from "../../lib/format-tag-label";
+import type { ContentSnippet } from "../../types";
 import { LinkThumbnail } from "../link-thumbnail/link-thumbnail";
+import { HighlightedText } from "../snippet-text/highlighted-text";
+import { SnippetText } from "../snippet-text/snippet-text";
 import { TodoCountBadge } from "./todo-count-badge";
 
 type LinkCardStatusVariant = "progress" | "success" | "error" | null;
@@ -28,6 +31,12 @@ type LinkCardProps = {
   isVideo?: boolean;
   /** Linked todo counts; null hides them. */
   todoCounts?: TodoCountSummary | null;
+  /** One muted line under the domain (the page excerpt); null hides the line. */
+  excerpt?: string | null;
+  /** Search context shown in place of the excerpt, two lines, ranges in bold. */
+  snippet?: ContentSnippet | null;
+  /** While searching: the query whose matches are highlighted in the title. */
+  highlightQuery?: string;
   active?: boolean;
   statusLabel?: string | null;
   statusVariant?: LinkCardStatusVariant;
@@ -44,8 +53,9 @@ type LinkCardProps = {
 };
 
 /**
- * Link card: 16:9 image cell, then title (two lines), domain and status, tags and todo counts.
- * Every part below the image has a fixed height, so all cards in a row are the same height.
+ * Link card: 16:9 image cell, then title (two lines), domain and status, an optional excerpt
+ * line (or search context), tags and todo counts. Every other part below the image has a
+ * fixed height; only the excerpt line comes and goes, so card heights may differ.
  */
 function LinkCard({
   className,
@@ -57,6 +67,9 @@ function LinkCard({
   faviconUrl,
   isVideo = false,
   todoCounts,
+  excerpt,
+  snippet,
+  highlightQuery,
   active,
   statusLabel,
   statusVariant,
@@ -101,13 +114,23 @@ function LinkCard({
         testID="link-card-body"
         onPress={onPress}
       >
-        <Text
-          className="h-9 text-[13px] font-semibold leading-[18px] text-foreground"
-          numberOfLines={2}
-          testID="link-card-title"
-        >
-          {title}
-        </Text>
+        {highlightQuery?.trim() ? (
+          <HighlightedText
+            className="h-9 text-[13px] font-semibold leading-[18px] text-foreground"
+            numberOfLines={2}
+            query={highlightQuery}
+            testID="link-card-title"
+            text={title}
+          />
+        ) : (
+          <Text
+            className="h-9 text-[13px] font-semibold leading-[18px] text-foreground"
+            numberOfLines={2}
+            testID="link-card-title"
+          >
+            {title}
+          </Text>
+        )}
         <View className="h-[18px] min-w-0 flex-row items-center justify-between gap-2">
           <Text
             className="min-w-0 flex-1 text-[11px] text-muted-foreground"
@@ -128,6 +151,23 @@ function LinkCard({
             </Text>
           ) : null}
         </View>
+        {snippet ? (
+          <SnippetText
+            className="text-xs leading-[17px] text-muted-foreground"
+            highlights={snippet.highlights}
+            numberOfLines={2}
+            testID="link-card-snippet"
+            text={snippet.text}
+          />
+        ) : excerpt ? (
+          <Text
+            className="text-xs leading-[18px] text-muted-foreground"
+            numberOfLines={1}
+            testID="link-card-excerpt"
+          >
+            {excerpt}
+          </Text>
+        ) : null}
         <View className="h-5 min-w-0 flex-row items-center gap-2">
           {/* Tags that do not fit wrap out of the fixed-height row instead of being cut. */}
           <View

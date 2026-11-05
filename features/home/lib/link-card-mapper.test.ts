@@ -118,6 +118,8 @@ describe("mapLinkListItem", () => {
       todoCounts: { normal: 0, dueSoon: 0, overdue: 1, allDone: false, label: "기한 지남 1개" },
       statusLabel: "AI 생성 중...",
       statusVariant: "progress",
+      excerpt: null,
+      snippet: null,
     });
   });
 
@@ -133,5 +135,62 @@ describe("mapLinkListItem", () => {
       faviconUrl: null,
       isVideo: false,
     });
+  });
+
+  const snippet = {
+    text: "…공항에서 성산일출봉으로 이동할 때…",
+    highlights: [{ start: 6, end: 11 }],
+  };
+
+  it("passes the excerpt for the card's one line", () => {
+    expect(mapLinkListItem({ ...item, contentExcerpt: "본문 앞부분…" }).excerpt).toBe(
+      "본문 앞부분…",
+    );
+    expect(mapLinkListItem({ ...item, contentExcerpt: null }).excerpt).toBeNull();
+  });
+
+  it("hides the excerpt and the context when the server has not shipped the fields", () => {
+    expect(mapLinkListItem(item)).toMatchObject({ excerpt: null, snippet: null });
+  });
+
+  it("shows the context for a body-only match", () => {
+    const mapped = mapLinkListItem({
+      ...item,
+      contentExcerpt: "본문 앞부분…",
+      matchedFields: ["CONTENT"],
+      contentSnippet: snippet,
+    });
+    expect(mapped.snippet).toEqual(snippet);
+    expect(mapped.excerpt).toBe("본문 앞부분…");
+  });
+
+  it("keeps the context of a memo and body match (it sits in the metadata group)", () => {
+    expect(
+      mapLinkListItem({ ...item, matchedFields: ["MEMO", "CONTENT"], contentSnippet: snippet })
+        .snippet,
+    ).toEqual(snippet);
+  });
+
+  it("drops the context when the title matched too", () => {
+    expect(
+      mapLinkListItem({ ...item, matchedFields: ["TITLE", "CONTENT"], contentSnippet: snippet })
+        .snippet,
+    ).toBeNull();
+  });
+
+  it("has no context without a body match or without a snippet", () => {
+    expect(
+      mapLinkListItem({ ...item, matchedFields: ["TITLE"], contentSnippet: snippet }).snippet,
+    ).toBeNull();
+    expect(
+      mapLinkListItem({ ...item, matchedFields: ["CONTENT"], contentSnippet: null }).snippet,
+    ).toBeNull();
+    expect(
+      mapLinkListItem({
+        ...item,
+        matchedFields: ["CONTENT"],
+        contentSnippet: { text: "", highlights: [] },
+      }).snippet,
+    ).toBeNull();
   });
 });

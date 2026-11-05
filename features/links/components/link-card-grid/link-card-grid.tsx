@@ -25,6 +25,7 @@ import { LinkCard } from "@/features/links/components/link-card/link-card";
 import { LinkCardSkeleton } from "@/features/links/components/link-card/link-card-skeleton";
 import { openLinkUrl } from "@/features/links/lib/open-link-url";
 import { useSetLinkFavoriteMutation } from "@/features/links/mutations";
+import { invalidateLinkListAndSearchQueries } from "@/features/links/queries";
 import type { LinkListItem } from "@/features/links/types";
 import { reportError } from "@/lib/error-reporting";
 import { useGridColumns } from "@/lib/hooks/use-grid-columns";
@@ -98,6 +99,8 @@ type LinkCardGridProps = {
   /** Shows card skeletons in the same grid instead of the links. */
   isLoading?: boolean;
   skeletonCount?: number;
+  /** While searching: the query highlighted in each card's title. */
+  highlightQuery?: string;
 };
 
 /**
@@ -111,6 +114,7 @@ function LinkCardGrid({
   className,
   isLoading = false,
   skeletonCount = 6,
+  highlightQuery,
 }: LinkCardGridProps) {
   const queryClient = useQueryClient();
   const [folderMoveLink, setFolderMoveLink] = React.useState<LinkListItem | null>(null);
@@ -137,7 +141,7 @@ function LinkCardGrid({
           linkId: item.id,
           payload: { isFavorite: next },
         });
-        await queryClient.invalidateQueries({ queryKey: ["links", "list"] });
+        await invalidateLinkListAndSearchQueries(queryClient);
       } catch (error: unknown) {
         reportError(error, {
           area: "link-card-grid:toggle-favorite",
@@ -156,7 +160,7 @@ function LinkCardGrid({
       await deleteMutation.mutateAsync(deleteTargetLink.id);
       setDeleteTargetLink(null);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["links", "list"] }),
+        invalidateLinkListAndSearchQueries(queryClient),
         queryClient.invalidateQueries({ queryKey: ["folders"] }),
       ]);
     } catch (error: unknown) {
@@ -185,7 +189,7 @@ function LinkCardGrid({
         });
         throw error;
       }
-      void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
+      void invalidateLinkListAndSearchQueries(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["folders"] });
     },
     [folderMoveLink, folderMoveMutation, queryClient],
@@ -253,8 +257,11 @@ function LinkCardGrid({
                     bookmarkHoverAction={bookmarkHoverAction}
                     bookmarkPinned={item.isFavorite}
                     domain={mapped.domain}
+                    excerpt={mapped.excerpt}
                     faviconUrl={mapped.faviconUrl}
+                    highlightQuery={highlightQuery}
                     isVideo={mapped.isVideo}
+                    snippet={mapped.snippet}
                     statusLabel={mapped.statusLabel}
                     statusVariant={mapped.statusVariant}
                     tags={mapped.tags}

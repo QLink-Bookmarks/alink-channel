@@ -177,6 +177,7 @@ function MobileHomeScreen() {
             />
           ) : (
             <LinkCardGrid
+              highlightQuery={debouncedSearchQuery || undefined}
               isLoading={isLoading}
               links={links}
               skeletonCount={6}
