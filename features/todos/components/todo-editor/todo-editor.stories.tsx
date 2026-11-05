@@ -34,7 +34,7 @@ function TodoEditorStory({
 }
 
 const meta = {
-  title: "기능/할 일/할 일 편집기",
+  title: "기능/액션/액션 편집기",
   args: {
     value: "링크 확인하기",
     mode: "recurring",

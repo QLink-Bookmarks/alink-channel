@@ -283,7 +283,9 @@ test.describe("actions", () => {
     const deleteBox = await boxOf(deleteButton);
     expect(rowBox.x + rowBox.width - (deleteBox.x + deleteBox.width)).toBeLessThanOrEqual(1);
     const color = await cssOf(deleteButton.locator("svg"), "color");
-    expect(color).toMatch(/rgb\((2[0-9]{2}), (\d{1,2}|1[0-2]\d), (\d{1,2}|1[0-2]\d)\)/);
+    const [red, green, blue] = color.match(/\d+/g)!.map(Number);
+    expect(red, color).toBeGreaterThanOrEqual(150);
+    expect(Math.max(green, blue), color).toBeLessThanOrEqual(red / 3);
   });
 
   test("a link in a shared folder shows add to personal folder instead of edit, and a long folder name keeps the row on screen", async ({
@@ -405,8 +407,8 @@ test.describe("todos in the detail", () => {
     const section = page.getByTestId("link-detail-todos");
     const cards = section.getByTestId(/^todo-item(-overdue)?$/);
     await expect(cards).toHaveCount(3);
-    await expect(section.getByText("할 일 2개")).toBeVisible();
-    await expect(section.getByRole("button", { name: "+ 할 일 추가 / 수정" })).toBeVisible();
+    await expect(section.getByText("액션 2개")).toBeVisible();
+    await expect(section.getByRole("button", { name: "+ 액션 추가 / 수정" })).toBeVisible();
     await expect(cards.first().getByTestId("todo-item-link")).toContainText("youtube.com");
     const tops = await cards.evaluateAll((nodes) =>
       nodes.map((node) => Math.round(node.getBoundingClientRect().top)),

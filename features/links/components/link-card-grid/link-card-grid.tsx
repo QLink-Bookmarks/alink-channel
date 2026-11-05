@@ -84,7 +84,7 @@ function BookmarkBadgeButton({
         as={Star}
         size={12}
         fill={isFavorite ? "currentColor" : "none"}
-        className={isFavorite ? "text-warning" : "text-muted-foreground"}
+        className={isFavorite ? "text-warning-icon" : "text-muted-foreground"}
       />
     </Pressable>
   );

@@ -199,7 +199,7 @@ export const Rail: Story = {
           />
           <SidebarRailItem
             icon={SquareCheck}
-            label="할일"
+            label="액션"
           />
           <SidebarRailSeparator />
           <SidebarRailItem

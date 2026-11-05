@@ -33,7 +33,7 @@ function NotificationBellButton({ onPress, size = "sm" }: NotificationBellButton
           pointerEvents="none"
           accessibilityLabel={`안 읽은 알림 ${unreadCount}개`}
         >
-          <Text className="text-[10px] font-bold leading-none text-white">
+          <Text className="text-xs font-bold leading-none text-destructive-foreground">
             {unreadCount > 9 ? "9+" : unreadCount}
           </Text>
         </View>

@@ -12,7 +12,7 @@ type WidePrimaryItem = {
 const WIDE_PRIMARY_ITEMS: WidePrimaryItem[] = [
   { href: "/home", key: "home", label: "홈", icon: LucideHome },
   { href: "/links", key: "links", label: "전체", icon: BookCopyIcon },
-  { href: "/todos", key: "todos", label: "할일", icon: CheckSquare },
+  { href: "/todos", key: "todos", label: "액션", icon: CheckSquare },
 ];
 
 export { WIDE_PRIMARY_ITEMS };

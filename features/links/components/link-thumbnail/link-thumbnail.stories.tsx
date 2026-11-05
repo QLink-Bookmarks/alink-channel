@@ -86,7 +86,7 @@ export const Loading: Story = {
 };
 
 export const Small: Story = {
-  name: "작은 칸 (할 일 카드)",
+  name: "작은 칸 (액션 카드)",
   render: () => (
     <View className="flex-row gap-3">
       <LinkThumbnail

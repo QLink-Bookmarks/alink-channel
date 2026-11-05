@@ -196,9 +196,9 @@ test.describe("same card everywhere", () => {
       .getByTestId("link-card")
       .filter({ hasText: "TanStack Query v5" })
       .getByTestId("todo-count-badge");
-    await expect(badge).toHaveAttribute("aria-label", "할 일 1개, 임박 1개, 기한 지남 1개");
+    await expect(badge).toHaveAttribute("aria-label", "액션 1개, 임박 1개, 기한 지남 1개");
     await todoCard(page, "useInfiniteQuery").getByRole("checkbox").click();
-    await expect(badge).toHaveAttribute("aria-label", "할 일 1개, 기한 지남 1개");
+    await expect(badge).toHaveAttribute("aria-label", "액션 1개, 기한 지남 1개");
   });
 
   test("completing a todo on the todo screen updates the link card's counts", async ({ page }) => {
@@ -214,13 +214,13 @@ test.describe("same card everywhere", () => {
         .getByTestId("link-card")
         .filter({ hasText: "TanStack Query v5" })
         .getByTestId("todo-count-badge"),
-    ).toHaveAttribute("aria-label", "할 일 1개, 임박 1개");
+    ).toHaveAttribute("aria-label", "액션 1개, 임박 1개");
   });
 
   test("an empty todo screen shows the existing empty message", async ({ page }) => {
     await mockApi(page, { links: [], todos: [] });
     await page.goto("/todos");
-    await expect(page.getByText("해당하는 할 일이 없어요")).toBeVisible();
+    await expect(page.getByText("해당하는 액션이 없어요")).toBeVisible();
   });
 
   test("the check has room for a finger and does not trigger the card", async ({ page }) => {

@@ -28,7 +28,7 @@ test.describe("light sidebar text contrast (#27)", () => {
 
       const samples = [
         sidebarButton(page, "전체").getByText("전체", { exact: true }),
-        sidebarButton(page, "할일").getByText("할일", { exact: true }),
+        sidebarButton(page, "액션").getByText("액션", { exact: true }),
         folderRow.getByText("폴더 5", { exact: true }),
         page.getByRole("button", { name: /^내 폴더 (접기|펼치기)$/ }).getByText("내 폴더"),
       ];

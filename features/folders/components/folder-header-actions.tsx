@@ -20,6 +20,7 @@ import { AccountRow } from "@/features/account/components/account-row/account-ro
 import { useMyProfileQuery } from "@/features/account/queries";
 import { getWebAppOrigin } from "@/lib/app-variant";
 import { getThemeTokens } from "@/lib/theme";
+import { useDisplaySettings } from "@/stores/display-settings";
 import { useToastStore } from "@/stores/toast-store";
 
 import { buildInviteShareText } from "../lib/build-invite-share-text";
@@ -100,7 +101,9 @@ function ShareFolderPlaceholder({
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
-  const tokens = React.useMemo(() => getThemeTokens("light"), []);
+  const theme = useDisplaySettings((state) => state.display.theme);
+  const accent = useDisplaySettings((state) => state.display.accent);
+  const tokens = React.useMemo(() => getThemeTokens(theme, accent), [accent, theme]);
   const myProfileQuery = useMyProfileQuery();
   const myUserId = myProfileQuery.data?.id;
   const isOwner = folder.ownerId != null && myUserId === folder.ownerId;
@@ -260,7 +263,7 @@ function ShareFolderPlaceholder({
                 <IconButton
                   accessibilityLabel={`${member.userNickname} 멤버 제외`}
                   className="active:bg-destructive/10 web:hover:bg-destructive/10"
-                  color={tokens.destructive}
+                  color={tokens.destructiveText}
                   icon={Trash2}
                   size="sm"
                   variant="ghost"

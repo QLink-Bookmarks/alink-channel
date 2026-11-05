@@ -55,7 +55,7 @@ import { Folder, House, ListTodo, Plus, Search, Settings } from "lucide-react-na
 const mobileTabItems = [
   { key: "home", label: "홈", icon: House },
   { key: "folders", label: "폴더", icon: Folder },
-  { key: "todos", label: "할일", icon: ListTodo },
+  { key: "todos", label: "액션", icon: ListTodo },
   { key: "settings", label: "설정", icon: Settings },
 ] satisfies React.ComponentProps<typeof BottomTabs>["items"];
 

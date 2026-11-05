@@ -302,7 +302,7 @@ function FeedbackEditor({
                 size={22}
                 className="text-muted-foreground"
               />
-              <Text className="text-[10px] text-muted-foreground">이미지 첨부</Text>
+              <Text className="text-xs text-muted-foreground">이미지 첨부</Text>
             </Pressable>
           ) : null}
         </View>

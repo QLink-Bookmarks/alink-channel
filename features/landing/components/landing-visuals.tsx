@@ -405,7 +405,7 @@ function TaskVisual() {
         <View className="gap-3 border-t border-dashed border-border-soft pt-4">
           <View className="flex-row items-center gap-2">
             <Badge variant="todo">
-              <Text className="text-xs font-semibold">할 일 2/3 완료</Text>
+              <Text className="text-xs font-semibold">액션 2/3 완료</Text>
             </Badge>
           </View>
           <ChecklistRow

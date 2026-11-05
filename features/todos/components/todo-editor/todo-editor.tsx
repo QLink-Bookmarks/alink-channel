@@ -135,7 +135,7 @@ function TodoEditorBase({
             className="h-10 text-base"
             value={value}
             onChangeText={onChangeText}
-            placeholder="할 일 제목"
+            placeholder="액션 제목"
           />
         </View>
         {onRemove ? (

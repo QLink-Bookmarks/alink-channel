@@ -261,7 +261,7 @@ test.describe("mobile tabs", () => {
     await expect(linkCards(page)).toHaveCount(30);
     await scrollListTo(page, linkCards(page), 1500);
 
-    await pressBottomTab(page, "할일");
+    await pressBottomTab(page, "액션");
     await expect(page).toHaveURL(/\/todos$/);
     await expect(todoCards(page).first()).toBeVisible();
     await scrollListTo(page, todoCards(page), 900);
@@ -270,7 +270,7 @@ test.describe("mobile tabs", () => {
     await expect(page).toHaveURL(/\/home$/);
     await expectScrollTop(linkCards(page), 1500);
 
-    await pressBottomTab(page, "할일");
+    await pressBottomTab(page, "액션");
     await expectScrollTop(todoCards(page), 900);
   });
 
@@ -290,7 +290,7 @@ test.describe("mobile tabs", () => {
     await page.goto("/home");
     await expect(linkCards(page)).toHaveCount(30);
 
-    await pressBottomTab(page, "할일");
+    await pressBottomTab(page, "액션");
     await expect(todoCards(page).first()).toBeVisible();
     await pressBottomTab(page, "홈");
     await expectScrollTop(linkCards(page), 0);
@@ -306,7 +306,7 @@ test.describe("mobile tabs", () => {
 
     await pressBottomTab(page, "홈");
     await expect(linkCards(page).first()).toBeVisible();
-    await pressBottomTab(page, "할일");
+    await pressBottomTab(page, "액션");
 
     await expect(todoCards(page)).toHaveCount(45);
     expect(await isChipSelected(page, /^미완료 \d+$/, "전체 60")).toBe(true);
@@ -340,7 +340,7 @@ test.describe("mobile tabs", () => {
     await page.getByRole("button", { name: "알림", exact: true }).first().click();
     await expect(page).toHaveURL(/\/notifications$/);
     await expect(notificationCards(page)).toHaveCount(30);
-    await chip(page, "할일").click();
+    await chip(page, "액션").click();
     await expect(notificationCards(page)).toHaveCount(15);
     await scrollListTo(page, notificationCards(page), 400);
 
@@ -349,7 +349,7 @@ test.describe("mobile tabs", () => {
     await page.getByRole("button", { name: "알림", exact: true }).first().click();
 
     await expect(notificationCards(page)).toHaveCount(15);
-    expect(await isChipSelected(page, "할일", "전체")).toBe(true);
+    expect(await isChipSelected(page, "액션", "전체")).toBe(true);
     await expectScrollTop(notificationCards(page), 400);
   });
 });
@@ -474,7 +474,7 @@ test.describe("wide sidebar", () => {
     await expect(notificationCards(page)).toHaveCount(30);
     await scrollListTo(page, notificationCards(page), 500);
 
-    await pressSidebar(page, "할일");
+    await pressSidebar(page, "액션");
     await expect(page).toHaveURL(/\/todos$/);
     await expectScrollTop(todoCards(page), 600);
 
@@ -582,7 +582,7 @@ test.describe("changes made elsewhere show up right away", () => {
       .click();
     await completed;
 
-    await pressBottomTab(page, "할일");
+    await pressBottomTab(page, "액션");
     await expect(page).toHaveURL(/\/todos$/);
     await expect.poll(() => cssOf(title, "text-decoration-line")).toBe("line-through");
   });

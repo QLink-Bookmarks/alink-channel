@@ -95,6 +95,21 @@ module.exports = {
         "border-soft-inverse": "hsl(var(--border-soft-inverse))",
         overlay: "hsl(var(--overlay))",
       },
+      textColor: {
+        success: {
+          DEFAULT: "hsl(var(--success-text))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning-text))",
+          foreground: "hsl(var(--warning-foreground))",
+          icon: "hsl(var(--warning))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive-text))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+      },
       // Hardcoded in px so NativeWind on iOS/Android doesn't have to resolve
       // `calc(var(--radius) - 8px)` — calc with a rem-valued CSS var collapses to
       // 0 on native and every rounded-* token loses its radius. --radius was

@@ -495,7 +495,7 @@ test.describe("mobile", () => {
   for (const sheet of [
     { name: "link edit", button: "수정하기" },
     { name: "folder move", button: "폴더 이동, 현재 📚 공부" },
-    { name: "todo editor", button: "+ 할 일 추가 / 수정" },
+    { name: "todo editor", button: "+ 액션 추가 / 수정" },
   ]) {
     test(`the ${sheet.name} sheet opens again after it was dragged down to close`, async ({
       page,

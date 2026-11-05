@@ -59,7 +59,7 @@ function OrderFilter({
           <Icon
             as={Star}
             size={13}
-            className={favoriteOnly ? "fill-warning text-warning" : "text-muted-foreground"}
+            className={favoriteOnly ? "fill-warning text-warning-icon" : "text-muted-foreground"}
           />
           <Text
             className={cn(

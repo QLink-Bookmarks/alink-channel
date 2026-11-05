@@ -265,7 +265,7 @@ function WideHomeScreen() {
             {shortcutLabel ? <Kbd size="sm">{shortcutLabel}</Kbd> : null}
           </ActionPill>
           <ActionPill onPress={() => router.push("/todos" as Href)}>
-            <Text className="text-sm font-medium text-foreground">✅ 할일 {todos.length}</Text>
+            <Text className="text-sm font-medium text-foreground">✅ 액션 {todos.length}</Text>
           </ActionPill>
           <ActionPill onPress={() => router.push("/links" as Href)}>
             <Text className="text-sm font-medium text-foreground">📚 전체 보기</Text>
@@ -275,7 +275,7 @@ function WideHomeScreen() {
         <View className="gap-3">
           <SectionHeader
             emoji="📌"
-            title="오늘 할 일"
+            title="오늘의 액션"
             count={todos.length}
             onSeeAll={() => router.push("/todos" as Href)}
           />
@@ -284,7 +284,7 @@ function WideHomeScreen() {
           ) : previewTodos.length === 0 ? (
             <EmptyState
               emoji="🎶"
-              title="오늘 할 일이 없어요"
+              title="오늘의 액션이 없어요"
             />
           ) : (
             <View

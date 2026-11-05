@@ -429,9 +429,9 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
         {models.length > 0 ? (
           <View className="flex-row items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
             <View className="min-w-0 flex-1 gap-0.5">
-              <Text className="text-sm font-semibold text-foreground">할 일 생성</Text>
+              <Text className="text-sm font-semibold text-foreground">액션 생성</Text>
               <Text className="text-xs leading-4 text-muted-foreground">
-                AI 요약 시 링크에 데드라인이 있으면 할 일을 자동으로 생성해줘요
+                AI 요약 시 링크에 데드라인이 있으면 액션을 자동으로 생성해줘요
               </Text>
             </View>
             <Switch

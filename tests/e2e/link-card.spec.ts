@@ -225,15 +225,15 @@ test.describe("card content", () => {
     await expect(card(page, "캠핑 준비물").getByTestId("todo-count-badge")).toHaveCount(0);
 
     const split = card(page, "Reanimated 3").getByTestId("todo-count-badge");
-    await expect(split).toHaveAttribute("aria-label", "할 일 1개, 임박 1개, 기한 지남 1개");
+    await expect(split).toHaveAttribute("aria-label", "액션 1개, 임박 1개, 기한 지남 1개");
     await expect(split).toHaveText("111");
 
     const normalOnly = card(page, "기록하는 습관").getByTestId("todo-count-badge");
-    await expect(normalOnly).toHaveAttribute("aria-label", "할 일 1개");
+    await expect(normalOnly).toHaveAttribute("aria-label", "액션 1개");
     await expect(normalOnly).toHaveText("1");
 
     const allDone = card(page, "온보딩 문서").getByTestId("todo-count-badge");
-    await expect(allDone).toHaveAttribute("aria-label", "할 일 모두 완료");
+    await expect(allDone).toHaveAttribute("aria-label", "액션 모두 완료");
     await expect(allDone).toHaveText("");
     await expect(allDone.locator("svg")).toHaveCount(1);
 
@@ -253,7 +253,7 @@ test.describe("wide hover", () => {
     await page.goto("/links");
     await card(page, "Reanimated 3").getByTestId("todo-count-badge").hover();
     await expect(
-      page.getByText("할 일 1개, 임박 1개, 기한 지남 1개", { exact: true }).first(),
+      page.getByText("액션 1개, 임박 1개, 기한 지남 1개", { exact: true }).first(),
     ).toBeVisible();
   });
 

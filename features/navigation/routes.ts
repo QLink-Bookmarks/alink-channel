@@ -151,7 +151,7 @@ function getRouteTitle(pathname: string, params: RouteParams, isWideView: boolea
     case "/folders":
       return isWideView ? "홈" : "폴더";
     case "/todos":
-      return "투두";
+      return "액션";
     case "/notifications":
       return "알림";
     case "/links":

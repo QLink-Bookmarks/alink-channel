@@ -41,7 +41,7 @@ type TodoItemProps = {
   linkThumbnailUrl?: string | null;
   /** Source-link favicon, used only when there is no representative image. */
   linkFaviconUrl?: string | null;
-  /** Adds a "👥 공유 할 일" badge under the reminder. */
+  /** Adds a "👥 공유 액션" badge under the reminder. */
   isShared?: boolean;
   /** Legacy free-form badge slot (used by the existing inline/row callers). */
   badge?: string;
@@ -142,7 +142,7 @@ function TodoItem({
                       className="text-muted-foreground"
                     />
                     <Text className="text-[11px] font-semibold text-muted-foreground">
-                      공유 할 일
+                      공유 액션
                     </Text>
                   </View>
                 ) : null}

@@ -18,7 +18,7 @@ jest.mock("react-native-reanimated", () => require("react-native-reanimated/mock
 describe("TodoCountBadge", () => {
   it("shows each kind's count and names them all in the accessible label", () => {
     renderBadge({ open: 4, dueSoon: 1, overdue: 1, completed: 0 });
-    expect(screen.getByLabelText("할 일 2개, 임박 1개, 기한 지남 1개")).toBeOnTheScreen();
+    expect(screen.getByLabelText("액션 2개, 임박 1개, 기한 지남 1개")).toBeOnTheScreen();
     expect(screen.getByText("2")).toBeOnTheScreen();
     expect(screen.getAllByText("1")).toHaveLength(2);
   });
@@ -33,7 +33,7 @@ describe("TodoCountBadge", () => {
 
   it("shows a single check without a number when every todo is done", () => {
     renderBadge({ open: 0, dueSoon: 0, overdue: 0, completed: 5 });
-    const badge = screen.getByLabelText("할 일 모두 완료");
+    const badge = screen.getByLabelText("액션 모두 완료");
     expect(badge).toBeOnTheScreen();
     expect(screen.queryByText(/\d/)).toBeNull();
   });

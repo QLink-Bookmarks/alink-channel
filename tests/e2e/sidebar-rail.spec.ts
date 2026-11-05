@@ -14,7 +14,7 @@ const RAIL_ORDER = [
   /^새 링크, 단축키/,
   "홈",
   "전체",
-  "할일",
+  "액션",
   "내 폴더",
   "공유 폴더",
   /^미분류/,
@@ -96,7 +96,7 @@ test.describe("collapsing the wide sidebar", () => {
     for (const [name, tooltip] of [
       ["홈", "홈"],
       ["전체", "전체"],
-      ["할일", "할일"],
+      ["액션", "액션"],
       [/^미분류/, "미분류"],
       ["모드와 강조색", "모드 · 강조색"],
       ["사이드바 펼치기", "사이드바 펼치기"],
@@ -477,7 +477,7 @@ test.describe("rail folder flyouts", () => {
     await collapse(page);
     const trigger = railButton(page, "내 폴더");
 
-    await railButton(page, "할일").focus();
+    await railButton(page, "액션").focus();
     await page.keyboard.press("Tab");
     await expect(trigger).toBeFocused();
     await page.keyboard.press("Enter");

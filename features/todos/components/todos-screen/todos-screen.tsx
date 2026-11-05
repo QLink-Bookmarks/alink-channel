@@ -275,7 +275,7 @@ function WideTodosScreen() {
       showsVerticalScrollIndicator={false}
     >
       <PageHeader
-        title="할일"
+        title="액션"
         icon={CheckSquare}
         meta={`${totalCount}개`}
       />
@@ -299,7 +299,7 @@ function WideTodosScreen() {
         ) : filteredTodos.length === 0 ? (
           <EmptyState
             emoji="✅"
-            title="해당하는 할 일이 없어요"
+            title="해당하는 액션이 없어요"
             description="다른 필터를 선택해보세요."
           />
         ) : (
@@ -403,7 +403,7 @@ function MobileTodosScreen() {
         ) : sections.length === 0 ? (
           <EmptyState
             emoji="✅"
-            title="해당하는 할 일이 없어요"
+            title="해당하는 액션이 없어요"
             description="다른 필터를 선택해보세요."
           />
         ) : (
