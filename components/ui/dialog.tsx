@@ -55,19 +55,29 @@ function DialogOverlay({
     </FullWindowOverlay>
   );
 }
+/**
+ * - `closeDisabled`: the X stays in place but is dimmed like a disabled button and does nothing
+ *   (for example while a request is running).
+ * - `overlayClassName`: classes for the overlay that positions the content, e.g. anchoring it from
+ *   the top so a content height change does not move its top edge.
+ */
 function DialogContent({
   className,
   portalHost,
   hideCloseButton = false,
+  closeDisabled = false,
+  overlayClassName,
   children,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   portalHost?: string;
   hideCloseButton?: boolean;
+  closeDisabled?: boolean;
+  overlayClassName?: string;
 }) {
   return (
     <DialogPortal hostName={portalHost}>
-      <DialogOverlay>
+      <DialogOverlay className={overlayClassName}>
         <DialogPrimitive.Content
           className={cn(
             "z-50 mx-auto flex w-full max-w-[calc(100%-2rem)] flex-col gap-4 rounded-lg border border-border bg-background p-6 shadow-lg shadow-black/5 sm:max-w-xl",
@@ -81,12 +91,18 @@ function DialogContent({
           <>{children}</>
           {hideCloseButton ? null : (
             <DialogPrimitive.Close
+              aria-disabled={closeDisabled || undefined}
               aria-label="닫기"
+              disabled={closeDisabled}
               role="button"
               className={cn(
-                "absolute right-0.5 top-0.5 size-11 items-center justify-center rounded-md opacity-70 active:opacity-100",
+                "absolute right-0.5 top-0.5 size-11 items-center justify-center rounded-md",
+                closeDisabled ? "opacity-30" : "opacity-70 active:opacity-100",
                 Platform.select({
-                  web: "transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring data-[state=open]:bg-accent",
+                  web: cn(
+                    "transition-opacity focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring data-[state=open]:bg-accent",
+                    closeDisabled ? "cursor-not-allowed" : "hover:opacity-100",
+                  ),
                 }),
               )}
             >

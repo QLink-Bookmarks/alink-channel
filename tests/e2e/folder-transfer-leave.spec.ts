@@ -223,10 +223,10 @@ test.describe("ownership transfer", () => {
     await expect(cta(page)).toHaveText("폴더 삭제");
 
     await cta(page).click();
-    await expect(page.getByText("공유 폴더를 삭제할까요?")).toBeVisible();
     await expect(
-      page.getByText("나만 있는 공유 폴더예요. 링크 2개는 각자 넣은 사람의 미분류로 이동해요."),
+      page.getByText("🧭 팀 자료 공유 폴더를 삭제할까요?", { exact: true }),
     ).toBeVisible();
+    await expect(page.getByText("나만 있는 공유 폴더예요.", { exact: true })).toBeVisible();
     await expect(page.getByTestId("shared-folder-delete-facts")).toHaveCount(0);
   });
 

@@ -31,6 +31,7 @@ import {
   getFolderLinkCounts,
   needsFolderNameConfirm,
 } from "../lib/folder-delete-request";
+import { getFolderDeleteTitle } from "../lib/folder-delete-title";
 import { isFolderNameMatch } from "../lib/folder-name-match";
 import {
   useDeleteFolderMutation,
@@ -346,7 +347,7 @@ function FolderRemovalFlow({ folder, kind, mode, onClose }: FolderRemovalFlowPro
       });
       const isNameOk = !needsName || isFolderNameMatch(typedName, folder.name);
       content = {
-        title: "폴더를 삭제할까요?",
+        title: getFolderDeleteTitle({ name: folder.name, emoji: folder.emoji, isShared: false }),
         description: getPersonalDeleteDescription(counts),
         body: (
           <PersonalFolderDeleteBody
@@ -400,8 +401,8 @@ function FolderRemovalFlow({ folder, kind, mode, onClose }: FolderRemovalFlowPro
       const needsName = needsFolderNameConfirm({ isShared: true, linkCount, otherMemberCount });
       const isNameOk = !needsName || isFolderNameMatch(typedName, folder.name);
       content = {
-        title: "공유 폴더를 삭제할까요?",
-        description: getSharedDeleteDescription({ otherMemberCount, linkCount, choice }),
+        title: getFolderDeleteTitle({ name: folder.name, emoji: folder.emoji, isShared: true }),
+        description: getSharedDeleteDescription({ otherMemberCount, linkCount }),
         onBack: otherMemberCount > 0 ? () => goToStep("shared-choice") : undefined,
         body: (
           <SharedFolderDeleteBody
@@ -527,6 +528,13 @@ function FolderRemovalFlow({ folder, kind, mode, onClose }: FolderRemovalFlowPro
   );
 }
 
+/**
+ * Web Dialog anchored from the top (10vh) instead of centered, so switching choices or showing an
+ * error, which change its height, does not move its top edge or the buttons with it.
+ */
+const DIALOG_TOP_ANCHOR_CLASS =
+  process.env.EXPO_OS === "web" ? "justify-start pt-[10vh]" : undefined;
+
 type FolderRemovalStepContent = {
   title: string;
   description?: string;
@@ -635,6 +643,8 @@ function FolderRemovalSurface({
       >
         <DialogContent
           className="max-h-[85vh] w-[480px] max-w-[90vw] gap-4 sm:max-w-[90vw]"
+          closeDisabled={isPending}
+          overlayClassName={DIALOG_TOP_ANCHOR_CLASS}
           onEscapeKeyDown={blockWhilePending}
           onInteractOutside={blockWhilePending}
         >
@@ -642,10 +652,10 @@ function FolderRemovalSurface({
             {backButton ? (
               <View className="flex-row items-center gap-1.5">
                 {backButton}
-                <DialogTitle className="min-w-0 flex-1">{title}</DialogTitle>
+                <DialogTitle className="min-w-0 flex-1 leading-snug">{title}</DialogTitle>
               </View>
             ) : (
-              <DialogTitle>{title}</DialogTitle>
+              <DialogTitle className="leading-snug">{title}</DialogTitle>
             )}
             {description ? <DialogDescription>{description}</DialogDescription> : null}
           </DialogHeader>

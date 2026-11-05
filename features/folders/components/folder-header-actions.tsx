@@ -70,6 +70,15 @@ function FolderHeaderActions({ mode, folder }: FolderHeaderActionsProps) {
         }
       : { kind: "leave" as const, label: "공유 폴더 나가기", icon: LogOut };
 
+  const removalFlow = removalKind ? (
+    <FolderRemovalFlow
+      folder={folder}
+      kind={removalKind}
+      mode={mode}
+      onClose={() => setRemovalKind(null)}
+    />
+  ) : null;
+
   return (
     <>
       {isRoleKnown ? (
@@ -132,14 +141,18 @@ function FolderHeaderActions({ mode, folder }: FolderHeaderActionsProps) {
         onOpenChange={setIsShareOpen}
       />
 
-      {removalKind ? (
-        <FolderRemovalFlow
-          folder={folder}
-          kind={removalKind}
-          mode={mode}
-          onClose={() => setRemovalKind(null)}
-        />
-      ) : null}
+      {removalFlow && mode === "wide" ? (
+        // The wide page header lays its actions out with a gap; the flow's (portaled) roots sit in
+        // a zero-size layer so opening it adds no gaps and does not shift the actions.
+        <View
+          className="absolute"
+          pointerEvents="box-none"
+        >
+          {removalFlow}
+        </View>
+      ) : (
+        removalFlow
+      )}
     </>
   );
 }
