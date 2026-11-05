@@ -22,6 +22,7 @@ function NotificationBellButton({ onPress, size = "sm" }: NotificationBellButton
     <View className="relative">
       <IconButton
         accessibilityLabel="알림"
+        hitSlop={4}
         icon={Bell}
         size={size}
         variant="ghost"

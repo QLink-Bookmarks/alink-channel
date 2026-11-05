@@ -10,6 +10,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { Icon } from "@/components/ui/icon";
+import { PressableHitSlopArea } from "@/components/ui/icon-button";
 import { Text } from "@/components/ui/text";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -136,10 +137,12 @@ function DetailActionButton({
 function RefreshButton({
   refreshing,
   failed,
+  hitSlop,
   onPress,
 }: {
   refreshing: boolean;
   failed: boolean;
+  hitSlop?: React.ComponentProps<typeof Pressable>["hitSlop"];
   onPress: () => void;
 }) {
   const rotation = useSharedValue(0);
@@ -176,15 +179,17 @@ function RefreshButton({
           refreshing && "web:cursor-progress",
         )}
         disabled={refreshing}
+        hitSlop={hitSlop}
         testID="link-detail-refresh"
         onPress={onPress}
       >
+        <PressableHitSlopArea hitSlop={hitSlop} />
         <Animated.View style={animatedStyle}>
           <Icon
             as={RefreshCw}
             size={16}
             className={cn(
-              failed ? "text-destructive" : refreshing ? "text-primary" : "text-muted-foreground",
+              failed ? "text-destructive" : refreshing ? "text-primary" : "text-foreground",
             )}
           />
         </Animated.View>

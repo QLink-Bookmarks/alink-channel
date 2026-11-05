@@ -372,6 +372,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
                   />
                   <IconButton
                     accessibilityLabel="설정"
+                    hitSlop={4}
                     icon={Settings}
                     size="sm"
                     variant="ghost"
@@ -483,9 +484,10 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
           leftSlot={isMobileHome ? <BrandHeader className="px-0 pt-0" /> : undefined}
           rightSlot={
             isMobileHome ? (
-              <View className="flex-row items-center gap-1">
+              <View className="flex-row items-center gap-2">
                 <IconButton
                   accessibilityLabel="검색"
+                  hitSlop={4}
                   icon={Search}
                   size="sm"
                   variant="ghost"

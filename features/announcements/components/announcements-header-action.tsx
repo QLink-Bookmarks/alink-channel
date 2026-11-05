@@ -21,8 +21,10 @@ function AnnouncementsHeaderAction({ mode }: { mode: AnnouncementEditorMode }) {
     <>
       <IconButton
         accessibilityLabel="공지사항 작성"
+        hitSlop={4}
         icon={Plus}
         size="sm"
+        variant="ghost"
         onPress={() => setIsEditorOpen(true)}
       />
       <AnnouncementEditor
