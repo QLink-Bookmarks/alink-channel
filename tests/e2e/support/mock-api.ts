@@ -1,5 +1,7 @@
 import type { Page, Route } from "@playwright/test";
 
+import { FOLDER_API_ERROR_CODES } from "../../../features/folders/lib/folder-api-errors";
+
 /**
  * Controlled API responses for web e2e tests. Every request to an `/api/` path on the API
  * host is answered here, so loading, empty, error and broken-image cases are repeatable
@@ -24,6 +26,8 @@ type MockLink = {
   folderEmoji: string | null;
   createdAt: string;
   todoCounts: TodoCounts;
+  /** Who put the link in; the signed-in user (1) when omitted. */
+  ownerId?: number;
 };
 
 type MockDetailTodo = {
@@ -62,6 +66,22 @@ type MockFolder = {
   isShared: boolean;
   shareCounts: number;
   linkCounts: number;
+  /** The signed-in user's links in it. `GET /api/folders` answers `linkCounts` when omitted. */
+  myLinkCounts?: number;
+};
+
+type MockFolderMember = {
+  userId: number;
+  role: "OWNER" | "MEMBER";
+  userNickname: string;
+  avatarEmoji?: string | null;
+};
+
+/** `GET /api/folders/{id}/members` data per folder id. */
+type MockFolderMembers = {
+  ownerId: number;
+  ownerNickname: string;
+  members: MockFolderMember[];
 };
 
 const DEFAULT_FOLDERS: MockFolder[] = [
@@ -110,9 +130,13 @@ type MockApiOptions = {
   folderPages?: Partial<FolderPageControl>;
   details?: Record<number, MockDetail>;
   todos?: MockTodo[];
+  folderMembers?: Record<number, MockFolderMembers>;
   /** Custom handlers checked first, keyed by `METHOD /api/path` (path without query). */
   handlers?: Record<string, Handler>;
 };
+
+/** The signed-in user (`GET /api/users/me`). */
+const ME_ID = 1;
 
 /** Image hosts used by fixtures. Routed to a real PNG or to a 404. */
 const IMAGE_HOST = "https://img.alink.test";
@@ -301,6 +325,7 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
     details: options.details ?? {},
     todos: options.todos ?? [],
     folders: options.folders ?? DEFAULT_FOLDERS,
+    folderMembers: options.folderMembers ?? {},
     folderPages: {
       failPages: new Set<number>(),
       failAll: false,
@@ -329,6 +354,68 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
       await new Promise((resolve) => setTimeout(resolve, state.linkMutations.delayMs));
     }
   };
+
+  const placeLink = (link: MockLink, folderId: number | null): MockLink => {
+    const folder = state.folders.find((item) => item.id === folderId);
+    return {
+      ...link,
+      folderId: folder ? folder.id : null,
+      folderName: folder?.name ?? null,
+      folderEmoji: folder?.emoji ?? null,
+    };
+  };
+  const removeLinks = (ids: Set<number>) => {
+    state.links = state.links.filter((link) => !ids.has(link.id));
+    for (const id of ids) delete state.details[id];
+    state.todos = state.todos.filter((todo) => !ids.has(todo.linkId));
+  };
+  /** `DELETE /api/folders/{id}` as #165: detach, `move` (own links) or `cascade`. */
+  const deleteFolder = (id: number, onDelete: string | null, targetId: number | null) => {
+    const folder = state.folders.find((item) => item.id === id);
+    if (!folder) return;
+    const inFolder = state.links.filter((link) => link.folderId === id);
+    const isMine = (link: MockLink) => (link.ownerId ?? ME_ID) === ME_ID;
+    const deleted = new Set<number>();
+    if (onDelete === "cascade") {
+      for (const link of inFolder) {
+        if (folder.isShared || isMine(link)) deleted.add(link.id);
+      }
+    }
+    let movedCount = 0;
+    state.links = state.links.map((link) => {
+      if (link.folderId !== id || deleted.has(link.id)) return link;
+      const isMoved = onDelete === "move" && isMine(link);
+      if (isMoved) movedCount += 1;
+      return placeLink(link, isMoved ? targetId : null);
+    });
+    for (const [linkId, detail] of Object.entries(state.details)) {
+      const link = state.links.find((item) => item.id === Number(linkId));
+      if (link && detail.folderId === id) {
+        state.details[Number(linkId)] = {
+          ...detail,
+          folderId: link.folderId,
+          folderName: link.folderName,
+          folderEmoji: link.folderEmoji,
+        };
+      }
+    }
+    removeLinks(deleted);
+    state.folders = state.folders.filter((item) => item.id !== id);
+    delete state.folderMembers[id];
+    state.folders = state.folders.map((item) =>
+      item.id === targetId
+        ? {
+            ...item,
+            linkCounts: item.linkCounts + movedCount,
+            myLinkCounts: (item.myLinkCounts ?? item.linkCounts) + movedCount,
+          }
+        : item,
+    );
+  };
+  const errorJson = (code: string, status: number) => ({
+    status,
+    body: { success: false, data: null, error: { code, message: code } },
+  });
 
   await page.addInitScript(() => {
     window.sessionStorage.setItem(
@@ -394,7 +481,110 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
         if (state.folderPages.failAll || state.folderPages.failPages.has(page.pageIndex)) {
           return json({ success: false, data: null, error: { message: "SERVER_ERROR" } }, 500);
         }
-        return json(scroll(page.contents, page.nextCursor));
+        return json(
+          scroll(
+            page.contents.map((folder) => ({
+              ...folder,
+              myLinkCounts: folder.myLinkCounts ?? folder.linkCounts,
+            })),
+            page.nextCursor,
+          ),
+        );
+      }
+      const folderMatch = path.match(/^\/api\/folders\/(\d+)$/);
+      if (folderMatch && method === "DELETE") {
+        const id = Number(folderMatch[1]);
+        const folder = state.folders.find((item) => item.id === id);
+        // A missing source folder succeeds without option checks (#165 M2).
+        if (!folder) return json(envelope(null));
+        if (folder.ownerId !== ME_ID) {
+          const error = errorJson(FOLDER_API_ERROR_CODES.differentOwner, 403);
+          return json(error.body, error.status);
+        }
+        const onDelete = url.searchParams.get("onDelete")?.toLowerCase() ?? null;
+        const targetParam = url.searchParams.get("targetFolderId");
+        const targetId = targetParam == null ? null : Number(targetParam);
+        if (onDelete === "move") {
+          const target = state.folders.find((item) => item.id === targetId);
+          if (!target) {
+            const error = errorJson(FOLDER_API_ERROR_CODES.deleteTargetNotFound, 404);
+            return json(error.body, error.status);
+          }
+          const targetMembers = state.folderMembers[target.id];
+          const canWrite =
+            target.ownerId === ME_ID ||
+            (target.isShared &&
+              (!targetMembers || targetMembers.members.some((member) => member.userId === ME_ID)));
+          if (!canWrite) {
+            const error = errorJson(FOLDER_API_ERROR_CODES.deleteTargetAccessDenied, 403);
+            return json(error.body, error.status);
+          }
+        }
+        deleteFolder(id, onDelete, targetId);
+        return json(envelope(null));
+      }
+      const membersMatch = path.match(/^\/api\/folders\/(\d+)\/members$/);
+      if (membersMatch && method === "GET") {
+        const id = Number(membersMatch[1]);
+        const members = state.folderMembers[id];
+        if (!members) {
+          const error = errorJson(FOLDER_API_ERROR_CODES.folderNotFound, 404);
+          return json(error.body, error.status);
+        }
+        return json(envelope(members));
+      }
+      const memberMatch = path.match(/^\/api\/folders\/(\d+)\/members\/(\d+)$/);
+      if (memberMatch && method === "DELETE") {
+        const id = Number(memberMatch[1]);
+        const memberId = Number(memberMatch[2]);
+        const folder = state.folders.find((item) => item.id === id);
+        if (!folder) {
+          const error = errorJson(FOLDER_API_ERROR_CODES.folderNotFound, 404);
+          return json(error.body, error.status);
+        }
+        if (memberId === ME_ID && folder.ownerId === ME_ID) {
+          const error = errorJson(FOLDER_API_ERROR_CODES.ownerCannotLeave, 422);
+          return json(error.body, error.status);
+        }
+        const members = state.folderMembers[id];
+        if (members) {
+          members.members = members.members.filter((member) => member.userId !== memberId);
+        }
+        if (memberId === ME_ID) {
+          state.folders = state.folders.filter((item) => item.id !== id);
+        }
+        return json(envelope(null));
+      }
+      const ownerMatch = path.match(/^\/api\/folders\/(\d+)\/owner$/);
+      if (ownerMatch && method === "PUT") {
+        const id = Number(ownerMatch[1]);
+        const nextOwnerId = (body as { ownerId?: number } | null)?.ownerId;
+        const folder = state.folders.find((item) => item.id === id);
+        if (!folder) {
+          const error = errorJson(FOLDER_API_ERROR_CODES.transferFolderNotFound, 404);
+          return json(error.body, error.status);
+        }
+        if (folder.ownerId !== ME_ID) {
+          const error = errorJson(FOLDER_API_ERROR_CODES.differentOwner, 403);
+          return json(error.body, error.status);
+        }
+        const members = state.folderMembers[id];
+        const nextOwner = members?.members.find((member) => member.userId === nextOwnerId);
+        if (!members || !nextOwner) {
+          const error = errorJson(FOLDER_API_ERROR_CODES.transferMemberNotFound, 404);
+          return json(error.body, error.status);
+        }
+        state.folderMembers[id] = {
+          ownerId: nextOwner.userId,
+          ownerNickname: nextOwner.userNickname,
+          members: members.members
+            .filter((member) => member.userId !== ME_ID)
+            .map((member) =>
+              member.userId === nextOwner.userId ? { ...member, role: "OWNER" } : member,
+            ),
+        };
+        state.folders = state.folders.filter((item) => item.id !== id);
+        return json(envelope(null));
       }
       if (method === "POST" && path === "/api/folders") {
         const payload = (body ?? {}) as {
@@ -578,6 +768,7 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
 export {
   BROKEN_IMAGE,
   GOOD_FAVICON,
+  ME_ID,
   GOOD_IMAGE,
   HOUR_MS,
   SLOW_IMAGE,
@@ -597,6 +788,8 @@ export type {
   LinkMutationControl,
   MockDetail,
   MockFolder,
+  MockFolderMember,
+  MockFolderMembers,
   MockLink,
   MockTodo,
   TodoCounts,

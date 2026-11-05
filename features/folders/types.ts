@@ -9,6 +9,8 @@ type Folder = {
   isShared: boolean;
   shareCounts: number;
   linkCounts: number;
+  /** Links in this folder that the caller put in. */
+  myLinkCounts: number;
 };
 
 type FolderListStatus = {
@@ -45,6 +47,23 @@ type GetFolderMembersResponseData = {
 type GetFolderMembersResponse = ApiEnvelope<GetFolderMembersResponseData>;
 
 type DeleteFolderMemberResponse = ApiEnvelope<null>;
+
+/**
+ * `DELETE /api/folders/{id}` query. Omitted `onDelete` detaches the links; `cascade` deletes
+ * them; `move` needs `targetFolderId`.
+ */
+type DeleteFolderParams =
+  | { onDelete?: undefined; targetFolderId?: undefined }
+  | { onDelete: "cascade"; targetFolderId?: undefined }
+  | { onDelete: "move"; targetFolderId: number };
+
+type DeleteFolderResponse = ApiEnvelope<null>;
+
+type TransferFolderOwnershipRequest = {
+  ownerId: number;
+};
+
+type TransferFolderOwnershipResponse = ApiEnvelope<null>;
 
 type FolderOrder = "latest" | "earliest" | "laxico";
 
@@ -91,6 +110,8 @@ export type {
   CreateFolderRequest,
   CreateFolderResponse,
   DeleteFolderMemberResponse,
+  DeleteFolderParams,
+  DeleteFolderResponse,
   Folder,
   FolderListStatus,
   FolderMember,
@@ -100,6 +121,8 @@ export type {
   GetFolderMembersResponseData,
   GetFoldersParams,
   GetFoldersResponse,
+  TransferFolderOwnershipRequest,
+  TransferFolderOwnershipResponse,
   UpdateFolderRequest,
   UpdateFolderResponse,
 };

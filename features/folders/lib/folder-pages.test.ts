@@ -11,7 +11,14 @@ import {
 } from "./folder-pages";
 
 function folder(id: number, isShared = false): Folder {
-  return { id, name: `폴더 ${id}`, isShared, shareCounts: isShared ? 2 : 0, linkCounts: 0 };
+  return {
+    id,
+    name: `폴더 ${id}`,
+    isShared,
+    shareCounts: isShared ? 2 : 0,
+    linkCounts: 0,
+    myLinkCounts: 0,
+  };
 }
 
 function page(contents: Folder[], nextCursor: string | null = null) {

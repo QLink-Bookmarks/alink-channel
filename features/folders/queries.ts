@@ -158,7 +158,18 @@ function useFolderQuery(id: number, options?: { enabled?: boolean }) {
   return { folder, isError, isLoading, isNotFound, retry };
 }
 
-function useFolderMembersQuery(id: number, enabled = true) {
+type FolderMembersQueryOptions = {
+  /** Retries after a failure; the app default applies when omitted. */
+  retry?: number;
+  /** `"always"` refetches on mount even when cached members are fresh. */
+  refetchOnMount?: "always";
+};
+
+function useFolderMembersQuery(
+  id: number,
+  enabled = true,
+  options: FolderMembersQueryOptions = {},
+) {
   return useQuery({
     enabled,
     queryFn: async () => {
@@ -166,9 +177,12 @@ function useFolderMembersQuery(id: number, enabled = true) {
       return response.data;
     },
     queryKey: folderQueryKeys.members(id),
+    ...(options.retry !== undefined ? { retry: options.retry } : null),
+    ...(options.refetchOnMount ? { refetchOnMount: options.refetchOnMount } : null),
   });
 }
 
+export type { FolderMembersQueryOptions };
 export {
   FOLDER_PAGE_SIZE,
   MAX_FOLDER_PAGES,

@@ -7,6 +7,8 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 import { type FolderSection, useFolderNavigation } from "@/stores/folder-navigation";
 
+import { handleFolderPickerArrowKey } from "../lib/folder-picker-arrow-keys";
+import { webKeyDownProps } from "../lib/web-key-down";
 import type { Folder } from "../types";
 import { CreateFolderDialog, type CreatedFolder } from "./create-folder-dialog";
 import { FolderSections } from "./folder-sections";
@@ -117,7 +119,11 @@ function FolderPickerList({
   );
 
   return (
-    <View className={cn("gap-1.5", className)}>
+    <View
+      className={cn("gap-1.5", className)}
+      aria-label="폴더 선택"
+      role="radiogroup"
+    >
       {noneOption ? (
         <View className={cn(isLarge && "px-3")}>
           <FolderPickerRow
@@ -181,6 +187,7 @@ function FolderPickerRow({
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole="radio"
       aria-checked={selected}
+      {...webKeyDownProps(handleFolderPickerArrowKey)}
       className={cn(
         "flex-row items-center gap-3 rounded-xl web:transition-colors web:motion-reduce:transition-none",
         isLarge ? "min-h-12 px-2" : "min-h-10 px-3",

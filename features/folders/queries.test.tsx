@@ -3,18 +3,33 @@ import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
-import { getFolders } from "./api";
-import { MAX_FOLDER_PAGES, fetchAllFolders, useFolderPagesQuery, useFolderQuery } from "./queries";
+import { getFolderMembers, getFolders } from "./api";
+import {
+  MAX_FOLDER_PAGES,
+  fetchAllFolders,
+  folderQueryKeys,
+  useFolderMembersQuery,
+  useFolderPagesQuery,
+  useFolderQuery,
+} from "./queries";
 import type { Folder, GetFoldersParams } from "./types";
 
 jest.mock("./api", () => ({ getFolders: jest.fn(), getFolderMembers: jest.fn() }));
 
 const mockedGetFolders = getFolders as jest.MockedFunction<typeof getFolders>;
+const mockedGetFolderMembers = getFolderMembers as jest.MockedFunction<typeof getFolderMembers>;
 
 function makeFolders(count: number): Folder[] {
   return Array.from({ length: count }, (_, index) => {
     const id = count - index;
-    return { id, name: `폴더 ${id}`, isShared: id % 3 === 0, shareCounts: 0, linkCounts: 0 };
+    return {
+      id,
+      name: `폴더 ${id}`,
+      isShared: id % 3 === 0,
+      shareCounts: 0,
+      linkCounts: 0,
+      myLinkCounts: 0,
+    };
   });
 }
 
@@ -494,5 +509,55 @@ describe("useFolderQuery during a cursor restart", () => {
     await waitFor(() => expect(result.current.folder?.id).toBe(1));
     expect(seenErrors).not.toContain(true);
     expect(requestedCursors()).toStrictEqual(["first", "stale", "first", "20", "40"]);
+  });
+});
+
+describe("useFolderMembersQuery", () => {
+  const members = { ownerId: 1, ownerNickname: "테스터", members: [] };
+
+  function renderMembers(
+    client: QueryClient,
+    options?: Parameters<typeof useFolderMembersQuery>[2],
+  ) {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    return renderHook(() => useFolderMembersQuery(7, true, options), { wrapper });
+  }
+
+  beforeEach(() => {
+    mockedGetFolderMembers.mockReset();
+  });
+
+  it("retries once when asked, then reports the error", async () => {
+    mockedGetFolderMembers.mockRejectedValue(new Error("network"));
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: 3, retryDelay: 0, gcTime: Infinity } },
+    });
+    const { result } = renderMembers(client, { retry: 1 });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(mockedGetFolderMembers).toHaveBeenCalledTimes(2);
+  });
+
+  it("refetches fresh cached members on mount with refetchOnMount always", async () => {
+    mockedGetFolderMembers.mockResolvedValue({
+      success: true,
+      error: null,
+      data: members,
+    } as Awaited<ReturnType<typeof getFolderMembers>>);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 60_000, gcTime: Infinity } },
+    });
+    client.setQueryData(folderQueryKeys.members(7), members);
+
+    const cached = renderMembers(client);
+    await waitFor(() => expect(cached.result.current.data).toEqual(members));
+    expect(mockedGetFolderMembers).not.toHaveBeenCalled();
+    cached.unmount();
+
+    const fresh = renderMembers(client, { refetchOnMount: "always" });
+    await waitFor(() => expect(fresh.result.current.isFetchedAfterMount).toBe(true));
+    expect(mockedGetFolderMembers).toHaveBeenCalledTimes(1);
   });
 });

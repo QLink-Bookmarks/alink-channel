@@ -63,6 +63,8 @@ type FolderPickerDialogBaseProps<Id> = {
   initialFolderId?: Id;
   noneOption?: FolderPickerListProps["noneOption"];
   visibleSections?: FolderSection[];
+  /** A folder left out of the default list (e.g. the folder being deleted). */
+  excludedFolderId?: number;
   stackBehavior?: "switch" | "push" | "replace";
   onOpenChange: (open: boolean) => void;
   onConfirm: (selection: FolderPickerSelection<Id>) => Promise<void>;
@@ -77,11 +79,14 @@ type FolderPickerDialogProps<Id = FolderPickerId> = FolderPickerDialogBaseProps<
 
 function renderDefaultList(
   slot: FolderPickerListSlot<FolderPickerId>,
-  options: Pick<FolderPickerDialogBaseProps<FolderPickerId>, "noneOption" | "visibleSections">,
+  options: Pick<FolderPickerDialogBaseProps<FolderPickerId>, "noneOption" | "visibleSections"> & {
+    filterFolder?: FolderPickerListProps["filterFolder"];
+  },
 ) {
   return (
     <FolderPickerList
       className={slot.className}
+      filterFolder={options.filterFolder}
       isAddDisabled={slot.isPending}
       isHeightFixed={slot.isHeightFixed}
       listMaxHeight={slot.listMaxHeight}
@@ -105,6 +110,7 @@ function FolderPickerDialog<Id = FolderPickerId>(props: FolderPickerDialogProps<
     initialFolderId,
     noneOption,
     visibleSections,
+    excludedFolderId,
     stackBehavior,
     renderList,
     onOpenChange,
@@ -116,6 +122,13 @@ function FolderPickerDialog<Id = FolderPickerId>(props: FolderPickerDialogProps<
   const { selection, error, isPending, canConfirm, select, confirm, requestOpenChange } =
     useFolderPickerConfirm({ open, initialFolderId, errorMessage, onConfirm, onOpenChange });
   const isSheet = presentation === "sheet";
+  const filterFolder = React.useMemo(
+    () =>
+      excludedFolderId === undefined
+        ? undefined
+        : (folder: { id: number }) => folder.id !== excludedFolderId,
+    [excludedFolderId],
+  );
 
   const handleCancelPress = React.useCallback(() => requestOpenChange(false), [requestOpenChange]);
   const handleConfirmPress = React.useCallback(() => {
@@ -135,6 +148,7 @@ function FolderPickerDialog<Id = FolderPickerId>(props: FolderPickerDialogProps<
     : renderDefaultList(slot as unknown as FolderPickerListSlot<FolderPickerId>, {
         noneOption,
         visibleSections,
+        filterFolder,
       });
 
   const footer = (

@@ -13,7 +13,16 @@ import { createProposalState, getLastPickerTarget, proposalReducer } from "./pro
 const ME = 1;
 
 function folder(id: number, name: string, overrides: Partial<Folder> = {}): Folder {
-  return { id, name, isShared: false, shareCounts: 0, linkCounts: 3, ownerId: ME, ...overrides };
+  return {
+    id,
+    name,
+    isShared: false,
+    shareCounts: 0,
+    linkCounts: 3,
+    myLinkCounts: 3,
+    ownerId: ME,
+    ...overrides,
+  };
 }
 
 const MY_FOLDERS: Folder[] = [
