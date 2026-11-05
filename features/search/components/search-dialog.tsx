@@ -10,7 +10,9 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { Text } from "@/components/ui/text";
-import { getDomainFromUrl } from "@/features/home/lib/link-card-mapper";
+import { getCardSnippet, getDomainFromUrl } from "@/features/home/lib/link-card-mapper";
+import { HighlightedText } from "@/features/links/components/snippet-text/highlighted-text";
+import { SnippetText } from "@/features/links/components/snippet-text/snippet-text";
 import type { LinkListItem } from "@/features/links/types";
 import { cn } from "@/lib/utils";
 import { useRecentSearches } from "@/stores/recent-searches";
@@ -34,64 +36,23 @@ function openExternalUrl(url: string) {
   }
 }
 
-function HighlightedText({
-  text,
-  query,
-  className,
-}: {
-  text: string;
-  query: string;
-  className?: string;
-}) {
-  const trimmed = query.trim();
-  if (!trimmed) {
-    return <Text className={className}>{text}</Text>;
-  }
-
-  const lower = text.toLowerCase();
-  const target = trimmed.toLowerCase();
-  const segments: { value: string; match: boolean }[] = [];
-  let index = 0;
-
-  while (index < text.length) {
-    const found = lower.indexOf(target, index);
-    if (found === -1) {
-      segments.push({ value: text.slice(index), match: false });
-      break;
-    }
-    if (found > index) {
-      segments.push({ value: text.slice(index, found), match: false });
-    }
-    segments.push({ value: text.slice(found, found + target.length), match: true });
-    index = found + target.length;
-  }
-
-  return (
-    <Text className={className}>
-      {segments.map((segment, segmentIndex) =>
-        segment.match ? (
-          <Text
-            key={segmentIndex}
-            className="rounded bg-primary/20 font-semibold text-foreground"
-          >
-            {segment.value}
-          </Text>
-        ) : (
-          segment.value
-        ),
-      )}
-    </Text>
-  );
+// True for a result that matched the page body alone (no metadata field). A response without
+// `matchedFields` (before the server ships it) is never one.
+function isBodyOnlyMatch(link: LinkListItem) {
+  const matchedFields = link.matchedFields ?? [];
+  return matchedFields.length > 0 && matchedFields.every((field) => field === "CONTENT");
 }
 
 function ResultRow({
   active,
   onPress,
   children,
+  testID,
 }: {
   active: boolean;
   onPress: () => void;
   children: React.ReactNode;
+  testID?: string;
 }) {
   return (
     <Pressable
@@ -100,6 +61,7 @@ function ResultRow({
         active && "bg-accent",
       )}
       onPress={onPress}
+      testID={testID}
     >
       {children}
     </Pressable>
@@ -155,6 +117,12 @@ function SearchDialog({
   const webResults = React.useMemo<WebSearchResult[]>(
     () => (includesWeb && hasQuery ? (webSearchQuery.data ?? []) : []),
     [hasQuery, includesWeb, webSearchQuery.data],
+  );
+
+  // The server puts metadata matches first; a thin line goes before the first body-only match.
+  const firstBodyOnlyIndex = React.useMemo(
+    () => linkResults.findIndex(isBodyOnlyMatch),
+    [linkResults],
   );
 
   const linkLoading = includesLink && hasQuery && linkSearchQuery.isLoading;
@@ -218,6 +186,11 @@ function SearchDialog({
       return;
     }
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Keys that confirm a Hangul syllable are not navigation. Safari ends the composition
+      // before the keydown, which then reports keyCode 229 instead of isComposing.
+      if (event.isComposing || event.keyCode === 229) {
+        return;
+      }
       const items = activationsRef.current;
       if (event.key === "ArrowDown") {
         event.preventDefault();
@@ -233,8 +206,10 @@ function SearchDialog({
         }
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    // Capture phase: the focused search input (react-native-web TextInput) stops every
+    // keydown from bubbling, so a bubbling listener never sees ↑↓ or Enter.
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [open]);
 
   const showEmptyRecents = !hasQuery && recents.length === 0;
@@ -310,29 +285,51 @@ function SearchDialog({
                     ) : (
                       linkResults.map((link, index) => {
                         const domain = getDomainFromUrl(link.url);
+                        // Context only for a body match whose title did not match.
+                        const snippet = getCardSnippet(link);
                         return (
-                          <ResultRow
-                            key={link.id}
-                            active={index === activeIndex}
-                            onPress={() => handleSelectLink(link)}
-                          >
-                            <Favicon
-                              size="sm"
-                              shape="circle"
-                              url={link.faviconUrl ?? undefined}
-                              fallback={domain.slice(0, 1).toUpperCase()}
-                            />
-                            <Text
-                              numberOfLines={1}
-                              className="flex-1 text-sm text-foreground"
-                            >
-                              <Text className="text-muted-foreground">{domain} — </Text>
-                              <HighlightedText
-                                text={link.title}
-                                query={debouncedQuery}
+                          <React.Fragment key={link.id}>
+                            {index > 0 && index === firstBodyOnlyIndex ? (
+                              <View
+                                className="mx-3 my-1 border-t border-border-soft"
+                                testID="search-link-group-divider"
                               />
-                            </Text>
-                          </ResultRow>
+                            ) : null}
+                            <ResultRow
+                              active={index === activeIndex}
+                              onPress={() => handleSelectLink(link)}
+                              testID="search-link-result"
+                            >
+                              <Favicon
+                                size="sm"
+                                shape="circle"
+                                url={link.faviconUrl ?? undefined}
+                                fallback={domain.slice(0, 1).toUpperCase()}
+                              />
+                              <View className="flex-1 gap-0.5">
+                                <Text
+                                  numberOfLines={1}
+                                  className="text-sm text-foreground"
+                                  testID="search-link-title"
+                                >
+                                  <Text className="text-muted-foreground">{domain} — </Text>
+                                  <HighlightedText
+                                    text={link.title}
+                                    query={debouncedQuery}
+                                  />
+                                </Text>
+                                {snippet ? (
+                                  <SnippetText
+                                    text={snippet.text}
+                                    highlights={snippet.highlights}
+                                    numberOfLines={1}
+                                    className="text-xs text-muted-foreground"
+                                    testID="search-link-snippet"
+                                  />
+                                ) : null}
+                              </View>
+                            </ResultRow>
+                          </React.Fragment>
                         );
                       })
                     )}
