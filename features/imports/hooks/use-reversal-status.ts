@@ -5,9 +5,12 @@ import type { ReversalCounts } from "../lib/reversal-selection";
 
 const REVERSAL_STATUS_MS = 6000;
 
+type ReversalStatusOrigin = "list" | "detail";
+
 type ReversalStatus = {
   key: number;
   message: string;
+  origin: ReversalStatusOrigin;
 };
 
 function useReversalStatus(isFocused: boolean) {
@@ -24,15 +27,19 @@ function useReversalStatus(isFocused: boolean) {
     return () => clearTimeout(timer);
   }, [status]);
 
-  const showReversalStatus = React.useCallback((counts: ReversalCounts) => {
-    setStatus((current) => ({
-      key: (current?.key ?? 0) + 1,
-      message: getReversalSuccessMessage(counts),
-    }));
-  }, []);
+  const showReversalStatus = React.useCallback(
+    (counts: ReversalCounts, origin: ReversalStatusOrigin = "list") => {
+      setStatus((current) => ({
+        key: (current?.key ?? 0) + 1,
+        message: getReversalSuccessMessage(counts),
+        origin,
+      }));
+    },
+    [],
+  );
 
   return { status, showReversalStatus };
 }
 
 export { REVERSAL_STATUS_MS, useReversalStatus };
-export type { ReversalStatus };
+export type { ReversalStatus, ReversalStatusOrigin };
