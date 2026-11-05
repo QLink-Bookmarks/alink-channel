@@ -8,9 +8,13 @@ import type {
   CreateFolderRequest,
   CreateFolderResponse,
   DeleteFolderMemberResponse,
+  DeleteFolderParams,
+  DeleteFolderResponse,
   GetFolderMembersResponse,
   GetFoldersParams,
   GetFoldersResponse,
+  TransferFolderOwnershipRequest,
+  TransferFolderOwnershipResponse,
   UpdateFolderRequest,
   UpdateFolderResponse,
 } from "./types";
@@ -49,12 +53,30 @@ async function deleteFolderMember(id: number, memberId: number) {
   return api.delete<DeleteFolderMemberResponse>(`/api/folders/${id}/members/${memberId}`);
 }
 
+async function deleteFolder(id: number, params: DeleteFolderParams = {}) {
+  const query = params.onDelete
+    ? params.onDelete === "move"
+      ? { onDelete: params.onDelete, targetFolderId: params.targetFolderId }
+      : { onDelete: params.onDelete }
+    : undefined;
+  return api.delete<DeleteFolderResponse>(`/api/folders/${id}`, { params: query });
+}
+
+async function transferFolderOwnership(id: number, payload: TransferFolderOwnershipRequest) {
+  return api.put<TransferFolderOwnershipResponse, TransferFolderOwnershipRequest>(
+    `/api/folders/${id}/owner`,
+    payload,
+  );
+}
+
 export {
   acceptFolderInvitation,
   createFolder,
   createFolderInvitation,
+  deleteFolder,
   deleteFolderMember,
   getFolderMembers,
   getFolders,
+  transferFolderOwnership,
   updateFolder,
 };

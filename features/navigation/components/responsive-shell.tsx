@@ -462,6 +462,9 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   }
 
   const isMobileHome = routeState.pathname === "/home";
+  // Folder detail keeps its title right after the back button, so the title does not shift with
+  // the role-dependent actions on the right. Every other mobile header stays centered.
+  const isMobileFolderDetail = getFolderIdFromPath(routeState.pathname) !== undefined;
   const mobileFolder = mobileFolderQuery.folder;
   const mobileLinkTitle = mobileLinkDetailId
     ? mobileLinkDetailQuery.data?.title?.trim()
@@ -508,6 +511,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
             ) : undefined
           }
           title={isMobileHome ? undefined : mobileHeaderTitle}
+          titleAlign={isMobileFolderDetail ? "start" : "center"}
         />
         <View
           className="flex-1"
