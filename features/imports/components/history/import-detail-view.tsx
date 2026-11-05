@@ -196,6 +196,7 @@ function ImportDetailView({
         {mode === "panel" ? (
           <IconButton
             accessibilityLabel="가져오기 기록으로"
+            hitSlop={4}
             icon={ChevronLeft}
             size="sm"
             variant="ghost"
@@ -273,6 +274,7 @@ function PanelHeader({ onBack }: { onBack: () => void }) {
     <View className="flex-row items-center gap-2 border-b border-border px-3 py-3">
       <IconButton
         accessibilityLabel="가져오기 기록으로"
+        hitSlop={4}
         icon={ChevronLeft}
         size="sm"
         variant="ghost"

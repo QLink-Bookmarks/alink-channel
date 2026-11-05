@@ -51,6 +51,7 @@ function AppHeader({
         {back ? (
           <IconButton
             accessibilityLabel="뒤로"
+            hitSlop={4}
             icon={ChevronLeft}
             size="sm"
             variant="ghost"
