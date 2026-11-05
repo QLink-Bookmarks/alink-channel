@@ -7,7 +7,7 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
 import { Image, type ImageLoadEventData, type ImageSource } from "expo-image";
-import { Play, Pointer } from "lucide-react-native/icons";
+import { Play } from "lucide-react-native/icons";
 import { cssInterop } from "nativewind";
 
 // expo-image is third-party, so NativeWind needs the className → style mapping on native.
@@ -38,7 +38,7 @@ type LinkThumbnailProps = {
    * `domain`: the domain only (link detail).
    */
   fallback?: "favicon" | "domain";
-  /** Centered icon without text: play for video links, a pointer for the rest. */
+  /** Centered play icon for video links. Other links get no hint. */
   showHint?: boolean;
   /** "▶ 영상" badge at the bottom left, for video links with an image. */
   showVideoBadge?: boolean;
@@ -58,19 +58,19 @@ function VideoBadge() {
         fill="currentColor"
         className="text-foreground"
       />
-      <Text className="text-[10px] font-semibold text-foreground">영상</Text>
+      <Text className="text-xs font-semibold text-foreground">영상</Text>
     </View>
   );
 }
 
-function CenterHint({ isVideo, compact }: { isVideo: boolean; compact: boolean }) {
+function CenterHint({ compact }: { compact: boolean }) {
   return (
     <View
       className={cn(
         "pointer-events-none absolute items-center",
         compact ? "inset-x-0 bottom-3" : "inset-0 justify-center",
       )}
-      testID={isVideo ? "link-thumbnail-hint-play" : "link-thumbnail-hint-open"}
+      testID="link-thumbnail-hint-play"
     >
       <View
         className={cn(
@@ -79,10 +79,10 @@ function CenterHint({ isVideo, compact }: { isVideo: boolean; compact: boolean }
         )}
       >
         <Icon
-          as={isVideo ? Play : Pointer}
+          as={Play}
           size={compact ? 16 : 22}
-          fill={isVideo ? "currentColor" : "none"}
-          className={cn("text-foreground", isVideo && "ml-0.5")}
+          fill="currentColor"
+          className="ml-0.5 text-foreground"
         />
       </View>
     </View>
@@ -117,6 +117,7 @@ function LinkThumbnail({
     thumbnailSource === null && faviconUrl && !failedUrls.includes(faviconUrl) ? faviconUrl : null;
   const showFavicon = Boolean(favicon) && (isSmall || fallback === "favicon");
   const isImageLoading = thumbnail !== null && loadedUrl !== thumbnail;
+  const showPlayHint = showHint && isVideo;
 
   const handleError = React.useCallback((url: ThumbnailSource) => {
     setFailedUrls((current) => (current.includes(url) ? current : [...current, url]));
@@ -172,12 +173,7 @@ function LinkThumbnail({
           onLoad={(event) => handleThumbnailLoad(thumbnail, event)}
         />
         {!isSmall && isVideo && showVideoBadge ? <VideoBadge /> : null}
-        {!isSmall && showHint ? (
-          <CenterHint
-            compact={false}
-            isVideo={isVideo}
-          />
-        ) : null}
+        {!isSmall && showPlayHint ? <CenterHint compact={false} /> : null}
       </View>
     );
   }
@@ -210,7 +206,7 @@ function LinkThumbnail({
       className={frameClassName}
       testID={`${testID}-fallback`}
     >
-      <View className={cn("items-center justify-center gap-2 px-3", showHint && "pb-10")}>
+      <View className={cn("items-center justify-center gap-2 px-3", showPlayHint && "pb-10")}>
         {showFavicon && favicon ? (
           <View className="size-10 overflow-hidden rounded-xl border border-border-soft bg-card">
             <Image
@@ -233,12 +229,7 @@ function LinkThumbnail({
           {domain}
         </Text>
       </View>
-      {showHint ? (
-        <CenterHint
-          compact
-          isVideo={isVideo}
-        />
-      ) : null}
+      {showPlayHint ? <CenterHint compact /> : null}
     </View>
   );
 }

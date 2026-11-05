@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Pressable, type StyleProp, View, type ViewStyle } from "react-native";
+import { Keyboard, Pressable, type StyleProp, View, type ViewStyle } from "react-native";
 import Animated, {
   type EasingFunctionFactory,
   type SharedValue,
@@ -26,6 +26,8 @@ import {
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
 
+import { useSheetHostScrollLock } from "./use-sheet-host-scroll-lock";
+
 import { X } from "lucide-react-native/icons";
 
 /**
@@ -46,6 +48,117 @@ type SheetMotion = {
 };
 
 const SheetMotionContext = React.createContext<SheetMotion | null>(null);
+
+type SheetFooterSnapshot = {
+  propNode: React.ReactNode;
+  slotNode: React.ReactNode;
+  bottomInset: number;
+};
+
+type SheetFooterStore = {
+  getSnapshot: () => SheetFooterSnapshot;
+  subscribe: (listener: () => void) => () => void;
+  update: (next: Partial<SheetFooterSnapshot>) => void;
+};
+
+function createSheetFooterStore(bottomInset: number): SheetFooterStore {
+  let snapshot: SheetFooterSnapshot = { propNode: null, slotNode: null, bottomInset };
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: () => snapshot,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    update: (next) => {
+      const merged = { ...snapshot, ...next };
+      if (
+        merged.propNode === snapshot.propNode &&
+        merged.slotNode === snapshot.slotNode &&
+        merged.bottomInset === snapshot.bottomInset
+      ) {
+        return;
+      }
+      snapshot = merged;
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+
+type SheetFooterSlot = {
+  setNode: (node: React.ReactNode) => void;
+  setPresent: (present: boolean) => void;
+};
+
+const SheetFooterSlotContext = React.createContext<SheetFooterSlot | null>(null);
+
+function isKeyboardVisibleNow() {
+  return typeof Keyboard.isVisible === "function" ? Keyboard.isVisible() : false;
+}
+
+function useIsKeyboardShown(active: boolean) {
+  const [isShown, setIsShown] = React.useState(() => active && isKeyboardVisibleNow());
+  React.useEffect(() => {
+    if (!active) {
+      setIsShown(false);
+      return;
+    }
+    setIsShown(isKeyboardVisibleNow());
+    const showSubscription = Keyboard.addListener("keyboardWillShow", () => setIsShown(true));
+    const hideSubscription = Keyboard.addListener("keyboardWillHide", () => setIsShown(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [active]);
+  return isShown;
+}
+
+function SheetFooter({ children }: { children: React.ReactNode }) {
+  const slot = React.use(SheetFooterSlotContext);
+  React.useLayoutEffect(() => {
+    slot?.setNode(children);
+  }, [children, slot]);
+  React.useLayoutEffect(() => {
+    if (!slot) {
+      return;
+    }
+    slot.setPresent(true);
+    return () => {
+      slot.setPresent(false);
+      slot.setNode(null);
+    };
+  }, [slot]);
+  if (!slot) {
+    return <>{children}</>;
+  }
+  return null;
+}
+
+function SheetFooterContent({
+  store,
+  onHeightChange,
+}: {
+  store: SheetFooterStore;
+  onHeightChange: (height: number) => void;
+}) {
+  const snapshot = React.useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getSnapshot,
+  );
+  return (
+    <View
+      className="border-t border-border-soft bg-background px-4 pt-3"
+      style={{ paddingBottom: snapshot.bottomInset }}
+      onLayout={(event) => onHeightChange(event.nativeEvent.layout.height)}
+    >
+      {snapshot.propNode ?? snapshot.slotNode}
+    </View>
+  );
+}
 
 function useSheetMotion() {
   return React.use(SheetMotionContext);
@@ -153,6 +266,8 @@ function Sheet({
   resizeTiming,
 }: SheetProps) {
   const [footerHeight, setFooterHeight] = React.useState(0);
+  const [hasSlotFooter, setHasSlotFooter] = React.useState(false);
+  const contentRef = useSheetHostScrollLock();
   const resizeConfigs = useBottomSheetTimingConfigs({
     duration: resizeTiming?.duration,
     easing: resizeTiming?.easing,
@@ -361,23 +476,34 @@ function Sheet({
   );
 
   const safeBottomInset = Math.max(insets.bottom, 16);
-  const hasFooter = footer != null;
+  const hasFooter = footer != null || hasSlotFooter;
+  const isKeyboardShown = useIsKeyboardShown(hasFooter);
+  const footerBottomInset = isKeyboardShown ? 12 : safeBottomInset;
+  const [footerStore] = React.useState(() => createSheetFooterStore(footerBottomInset));
+  React.useLayoutEffect(() => {
+    footerStore.update({ propNode: footer ?? null, bottomInset: footerBottomInset });
+  }, [footer, footerBottomInset, footerStore]);
+  const footerSlot = React.useMemo<SheetFooterSlot>(
+    () => ({
+      setNode: (slotNode) => footerStore.update({ slotNode }),
+      setPresent: setHasSlotFooter,
+    }),
+    [footerStore],
+  );
   const renderFooter = React.useCallback(
     (props: BottomSheetFooterProps) => (
       <BottomSheetFooter {...props}>
-        <View
-          className="border-t border-border-soft bg-background px-4 pt-3"
-          style={{ paddingBottom: safeBottomInset }}
-          onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
-        >
-          {footer}
-        </View>
+        <SheetFooterContent
+          store={footerStore}
+          onHeightChange={setFooterHeight}
+        />
       </BottomSheetFooter>
     ),
-    [footer, safeBottomInset],
+    [footerStore],
   );
   const content = (
     <View
+      ref={contentRef}
       className={cn("gap-4 p-4", className)}
       style={{
         paddingBottom: hasFooter ? footerHeight + 16 : safeBottomInset,
@@ -407,18 +533,20 @@ function Sheet({
       onDismiss={handleDismiss}
     >
       <SheetContext.Provider value={true}>
-        <SheetMotionProvider>
-          <BottomSheetScrollView
-            className="scrollbar-none"
-            showsVerticalScrollIndicator={false}
-          >
-            {content}
-          </BottomSheetScrollView>
-        </SheetMotionProvider>
+        <SheetFooterSlotContext value={footerSlot}>
+          <SheetMotionProvider>
+            <BottomSheetScrollView
+              className="scrollbar-none"
+              showsVerticalScrollIndicator={false}
+            >
+              {content}
+            </BottomSheetScrollView>
+          </SheetMotionProvider>
+        </SheetFooterSlotContext>
       </SheetContext.Provider>
     </BottomSheetModal>
   );
 }
 
-export { Sheet, useIsInsideSheet, useSheetMotion };
+export { Sheet, SheetFooter, useIsInsideSheet, useSheetMotion };
 export type { SheetMotion, SheetProps };

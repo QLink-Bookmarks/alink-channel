@@ -17,6 +17,7 @@ type Surface = "sidebar" | "mobileTab" | "picker";
 
 const SIDEBAR = '[data-testid="wide-sidebar-column"]';
 const LABEL: Record<SectionKey, string> = { mine: "내 폴더", shared: "공유 폴더" };
+const SLIDING_IN_MIN_HEADER_TRAVEL = 16;
 
 function mixedFolders(mine: number, shared: number): MockFolder[] {
   const total = mine + shared;
@@ -509,7 +510,7 @@ test.describe("mobile", () => {
         const sample = await sampleSectionMotion(page, { clicks: [{ at: 0, section: tap }] });
 
         expect(lastMotion(sample)).toBeLessThanOrEqual(340);
-        expect(headerJump(sample, "shared")).toBeLessThan(0.35);
+        expect(headerJump(sample, "shared", SLIDING_IN_MIN_HEADER_TRAVEL)).toBeLessThan(0.35);
         expect(maxOverlap(sample)).toBeLessThanOrEqual(1);
         await expect(toggle(page, tap)).toHaveAttribute(
           "aria-expanded",

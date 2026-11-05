@@ -837,7 +837,7 @@ test.describe("window fit, width and marks (#27)", () => {
   }) => {
     test.skip(!isWideProject(), "wide popover");
     await mockApi(page, { folders: makeFolders(45, 3) });
-    for (const height of [620, 800]) {
+    for (const height of [520, 620, 800]) {
       await page.setViewportSize({ width: 1280, height });
       const scope = await openNewLinkPicker(page);
       await settle(page);
@@ -851,7 +851,9 @@ test.describe("window fit, width and marks (#27)", () => {
       const mine = sectionList(scope, "내 폴더");
       expect(await mine.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
       const listHeight = (await boxOf(mine)).height;
-      if (height === 620) {
+      expect(listHeight).toBeLessThanOrEqual(200);
+      if (height === 520) {
+        expect(popover.y + popover.height).toBeGreaterThanOrEqual(height - 16 - 1);
         expect(listHeight).toBeLessThan(200);
       }
     }
@@ -878,12 +880,11 @@ test.describe("window fit, width and marks (#27)", () => {
     await page.goto("/home");
     await page.getByLabel("새 링크").click();
     const sheet = page.getByLabel("Bottom Sheet", { exact: true });
-    await expect(sheet.getByText("AI 자동 분류", { exact: true })).toBeVisible();
-    await expect(sheet.getByText("✨", { exact: true })).toHaveCount(1);
+    await expect(sheet.getByText("없음 - ✨ AI 자동 분류", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "변경" }).first().click();
     await radio(page, 43).click();
     await expect(sheet.getByText("📁 폴더 43", { exact: true })).toBeVisible();
-    await expect(sheet.getByText("✨", { exact: true })).toHaveCount(0);
+    await expect(sheet.getByText(/✨/)).toHaveCount(0);
   });
 
   test("the move window keeps one 420px width across sections, a long name and the failure message", async ({

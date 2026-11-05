@@ -230,7 +230,7 @@ test.describe("mobile folder tab", () => {
     await expect(uncategorized(page)).toHaveAccessibleName("미분류, 링크 1개");
 
     await page.getByRole("button", { name: "새 링크" }).click();
-    await expect(page.getByText("링크 추가", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("새 링크 추가", { exact: true }).first()).toBeVisible();
   });
 
   test("scrolling to the end appends the next batches down to the oldest folder, with member counts on shared rows", async ({
@@ -495,14 +495,14 @@ test.describe("mobile folder tab uncategorized row (#27)", () => {
     expect(lastCard.y + lastCard.height).toBeLessThanOrEqual((await boxOf(fab)).y);
 
     await fab.click();
-    await expect(page.getByText("링크 추가", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("새 링크 추가", { exact: true }).first()).toBeVisible();
     await page.getByRole("button", { name: "닫기", exact: true }).click();
-    await expect(page.getByText("링크 추가", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("새 링크 추가", { exact: true })).toHaveCount(0);
 
     await page.getByText("폴더", { exact: true }).last().click();
     await expect(page).toHaveURL(/\/folders$/);
     await fab.click();
-    await expect(page.getByText("링크 추가", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("새 링크 추가", { exact: true }).first()).toBeVisible();
   });
 
   test("on a folder detail scrolled to the end, the last card ends above the new link button", async ({

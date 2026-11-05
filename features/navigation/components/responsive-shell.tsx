@@ -298,6 +298,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
       routeState.pathname === "/home" ||
       routeState.pathname === "/folders" ||
       routeState.pathname === "/todos" ||
+      routeState.pathname === "/qr-scan" ||
       routeState.pathname.startsWith("/folders/");
 
     if (!canKeepSheetOpen && isAddLinkSheetOpen) {

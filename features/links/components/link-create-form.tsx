@@ -1,11 +1,7 @@
 import * as React from "react";
-import {
-  Pressable,
-  ActivityIndicator as RNActivityIndicator,
-  ScrollView,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 
+import { SheetFooter } from "@/components/layout/sheet";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Button } from "@/components/ui/button";
 import { type DateValue } from "@/components/ui/date-picker";
@@ -48,7 +44,6 @@ import {
 } from "@/features/todos/lib/todo-schedule";
 import { useClipboardFailureFeedback } from "@/lib/clipboard-feedback";
 import { reportError } from "@/lib/error-reporting";
-import { getThemeTokens } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useDisplaySettings } from "@/stores/display-settings";
 import { useQrScanStore } from "@/stores/qr-scan";
@@ -63,7 +58,13 @@ import type { CreateLinkTodoRequest, LinkPreview } from "../types";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { type Href, useRouter } from "expo-router";
-import { ChevronDown, ChevronLeft, FolderOpen, QrCode } from "lucide-react-native/icons";
+import {
+  ChevronDown,
+  ChevronLeft,
+  CircleAlert,
+  FolderOpen,
+  QrCode,
+} from "lucide-react-native/icons";
 
 type LinkCreateFormMode = "wide" | "mobile";
 type MobileSheetStep = "form" | "folder-picker" | "ai-model-picker";
@@ -93,6 +94,8 @@ const defaultFolder: FolderDraft = {
 const defaultWeekdays: WeekdayValue[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 const TITLE_MAX_LENGTH = 300;
+const URL_PLACEHOLDER = "https://www.example.com";
+const PREVIEW_LOADING_LABEL = "미리보기를 불러오는 중";
 const POPOVER_FOLDER_LIST_MAX_HEIGHT = 200;
 
 function createInitialTodos(): TodoDraftEditorItem[] {
@@ -283,11 +286,6 @@ function LinkCreateForm({
         handleClipboardReadFailure(error);
       });
   }, [fillUrlInstantly, handleClipboardReadFailure, initialUrl, open, resetForm]);
-
-  const handleCancel = React.useCallback(() => {
-    resetForm();
-    onCancel();
-  }, [onCancel, resetForm]);
 
   const handleAddTodo = React.useCallback(() => {
     setTodos((currentTodos) => [
@@ -524,7 +522,10 @@ function LinkCreateForm({
       resetForm();
       onSaved?.(response.data.id);
     } catch (error: unknown) {
-      console.log("link-create:save-failed", error);
+      reportError(error, {
+        area: "link-create-form:save",
+        extra: { mode },
+      });
     }
   }, [
     createLinkMutation,
@@ -533,6 +534,7 @@ function LinkCreateForm({
     isPreviewLoading,
     linkPreview,
     memo,
+    mode,
     onSaved,
     resetForm,
     title,
@@ -550,13 +552,25 @@ function LinkCreateForm({
     [todos],
   );
 
+  const actions = (
+    <LinkCreateActions
+      hasSaveError={Boolean(createLinkMutation.error)}
+      isAiOrganizeDisabled={isAiOrganizeDisabled}
+      isPreviewLoading={isPreviewLoading}
+      isSaveDisabled={isSaveDisabled}
+      mode={mode}
+      onAiOrganize={handleAiOrganize}
+      onSave={handleSave}
+    />
+  );
+
   if (mode === "mobile") {
     const stepTitle =
       mobileSheetStep === "folder-picker"
         ? "폴더 선택"
         : mobileSheetStep === "ai-model-picker"
-          ? "AI 제공자 모델"
-          : "링크 추가";
+          ? "AI 제공자 선택"
+          : "새 링크 추가";
 
     return (
       <View className="gap-5">
@@ -588,40 +602,45 @@ function LinkCreateForm({
               mode={mode}
               preview={linkPreview}
             />
-            <View className="flex-row items-start gap-2">
-              <View className="min-w-0 flex-1">
-                <FieldError error={errors.url}>
-                  <Input
-                    className="h-10 rounded-2xl border-primary/30 bg-background px-5 text-lg"
-                    value={url}
-                    autoCapitalize="none"
-                    keyboardType="url"
-                    placeholder="https://..."
-                    onChangeText={handleUrlChange}
+            <View className="gap-2">
+              <UrlFieldLabel className="px-1" />
+              <View className="flex-row items-start gap-2">
+                <View className="min-w-0 flex-1">
+                  <FieldError error={errors.url}>
+                    <Input
+                      accessibilityLabel="URL"
+                      className="h-10 rounded-2xl border-primary/30 bg-background px-5 text-lg"
+                      value={url}
+                      autoCapitalize="none"
+                      keyboardType="url"
+                      placeholder={URL_PLACEHOLDER}
+                      onChangeText={handleUrlChange}
+                    />
+                  </FieldError>
+                </View>
+                <Button
+                  className="h-10 shrink-0 flex-row items-center gap-1 rounded-2xl bg-primary px-2.5"
+                  onPress={handleScanQr}
+                >
+                  <Icon
+                    as={QrCode}
+                    size={14}
+                    className="text-primary-foreground"
                   />
-                </FieldError>
+                  <Text className="text-xs font-semibold text-primary-foreground">QR</Text>
+                </Button>
               </View>
-              <Button
-                className="h-10 shrink-0 flex-row items-center gap-1 rounded-2xl bg-primary px-2.5"
-                onPress={handleScanQr}
-              >
-                <Icon
-                  as={QrCode}
-                  size={14}
-                  className="text-primary-foreground"
-                />
-                <Text className="text-xs font-semibold text-primary-foreground">QR</Text>
-              </Button>
             </View>
 
             <View className="gap-2">
-              <Text className="px-1 text-sm font-semibold text-muted-foreground">링크 제목</Text>
+              <Text className="px-1 text-sm font-semibold text-muted-foreground">제목</Text>
               <FieldError error={errors.title}>
                 <TitleField isLoading={isPreviewLoading}>
                   <Input
+                    accessibilityLabel="제목"
                     className="h-10 rounded-xl border-primary/30 bg-background pr-10"
                     value={title}
-                    maxLength={300}
+                    maxLength={TITLE_MAX_LENGTH}
                     placeholder={
                       isPreviewLoading ? "제목을 불러오는 중…" : "AI 생성으로 자동 정리해보세요"
                     }
@@ -631,30 +650,9 @@ function LinkCreateForm({
               </FieldError>
             </View>
 
-            <View className="flex-row gap-3">
-              <Button
-                className="h-10 flex-1 flex-row gap-2 rounded-2xl"
-                disabled={isSaveDisabled}
-                onPress={handleSave}
-              >
-                {isPreviewLoading ? <ButtonSpinner /> : null}
-                <Text>저장</Text>
-              </Button>
-              <Button
-                className="h-10 flex-1 flex-row gap-2 rounded-2xl"
-                disabled={isAiOrganizeDisabled}
-                variant="gradient"
-                onPress={handleAiOrganize}
-              >
-                {isPreviewLoading ? <ButtonSpinner /> : null}
-                <Text>AI 정리</Text>
-              </Button>
-            </View>
-
             <MobileOptionCard
               eyebrow="폴더"
-              icon={folder.id ? undefined : "✨"}
-              label={folder.id ? folder.label : "AI 자동 분류"}
+              label={folder.label}
               onPress={() => setMobileSheetStep("folder-picker")}
             />
             <GenerateTodoRow
@@ -668,19 +666,7 @@ function LinkCreateForm({
               onPress={() => setMobileSheetStep("ai-model-picker")}
             />
 
-            {createLinkMutation.error ? (
-              <Text className="text-sm font-medium text-destructive">
-                링크 저장에 실패했습니다. 잠시 후 다시 시도해주세요.
-              </Text>
-            ) : null}
-
-            <Button
-              className="self-center bg-transparent shadow-none"
-              variant="ghost"
-              onPress={handleCancel}
-            >
-              <Text className="text-base font-semibold text-muted-foreground">취소</Text>
-            </Button>
+            <SheetFooter>{actions}</SheetFooter>
           </>
         ) : mobileSheetStep === "folder-picker" ? (
           <FolderPickerList
@@ -717,19 +703,15 @@ function LinkCreateForm({
           preview={linkPreview}
         />
         <View className="gap-2">
-          <View className="flex-row items-center gap-2">
-            <Text className="text-sm font-semibold text-muted-foreground">URL</Text>
-            <Text className="text-sm font-semibold text-muted-foreground">
-              📋 클립보드 자동 감지
-            </Text>
-          </View>
+          <UrlFieldLabel />
           <FieldError error={errors.url}>
             <Input
+              accessibilityLabel="URL"
               className="h-10 rounded-xl px-4 text-lg"
               value={url}
               autoCapitalize="none"
               keyboardType="url"
-              placeholder="https://www.example.com"
+              placeholder={URL_PLACEHOLDER}
               onChangeText={handleUrlChange}
             />
           </FieldError>
@@ -740,9 +722,10 @@ function LinkCreateForm({
           <FieldError error={errors.title}>
             <TitleField isLoading={isPreviewLoading}>
               <Input
+                accessibilityLabel="제목"
                 className="h-10 rounded-xl px-4 pr-10 text-lg"
                 value={title}
-                maxLength={300}
+                maxLength={TITLE_MAX_LENGTH}
                 placeholder={
                   isPreviewLoading ? "제목을 불러오는 중…" : "AI 생성으로 자동 정리해보세요"
                 }
@@ -754,33 +737,20 @@ function LinkCreateForm({
 
         <View className="flex-row gap-4">
           <View className="min-w-0 flex-1 gap-2">
-            <Text className="text-sm font-semibold text-muted-foreground">폴더</Text>
+            <Text className="text-sm font-semibold leading-5 text-muted-foreground">폴더</Text>
             <Popover>
               <PopoverTrigger asChild>
-                <Button
+                <WideSelectTrigger
                   accessibilityLabel={`폴더, ${folder.label}`}
-                  className="h-10 w-full flex-row justify-start rounded-xl px-4"
-                  variant="outline"
-                >
-                  <View className="min-w-0 flex-1 flex-row items-center gap-2">
+                  icon={
                     <Icon
                       as={FolderOpen}
                       size={18}
                       className="text-primary"
                     />
-                    <Text
-                      className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground"
-                      numberOfLines={1}
-                    >
-                      {folder.label}
-                    </Text>
-                    <Icon
-                      as={ChevronDown}
-                      size={14}
-                      className="text-muted-foreground"
-                    />
-                  </View>
-                </Button>
+                  }
+                  label={folder.label}
+                />
               </PopoverTrigger>
               <FolderPickerPopoverContent
                 selectedFolderId={folder.id ? Number(folder.id) : null}
@@ -789,15 +759,26 @@ function LinkCreateForm({
             </Popover>
           </View>
           <View className="min-w-0 flex-1 gap-2">
-            <Text className="text-sm font-semibold text-muted-foreground">메모 (선택)</Text>
-            <Textarea
-              className="scrollbar-none h-10 min-h-10 rounded-xl py-2.5 text-base web:resize-none"
-              value={memo}
-              numberOfLines={1}
-              placeholder="간단한 메모"
-              scrollEnabled={false}
-              onChangeText={setMemo}
-            />
+            <Text className="text-sm font-semibold leading-5 text-muted-foreground">AI 제공자</Text>
+            <Popover>
+              <PopoverTrigger asChild>
+                <WideSelectTrigger
+                  accessibilityLabel={`AI 제공자, ${aiProviderLabel}`}
+                  icon={<Text className="text-base leading-5">🤖</Text>}
+                  label={aiProviderLabel}
+                />
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                side="bottom"
+                className="max-h-[60vh] w-80 overflow-y-auto p-3"
+              >
+                <AiProviderPickerListWithClose
+                  selectedProviderId={aiProvider?.providerId ?? defaultProvider.id ?? null}
+                  onSelect={setAiProvider}
+                />
+              </PopoverContent>
+            </Popover>
           </View>
         </View>
 
@@ -806,14 +787,25 @@ function LinkCreateForm({
           onValueChange={setGenerateTodo}
         />
 
-        {/* TODO: AI 요약 제공자 API와 실제 옵션이 정리되면 와이드 전용 선택 UI 복구 */}
+        <View className="gap-2">
+          <Text className="text-sm font-semibold text-muted-foreground">메모 (선택)</Text>
+          <Textarea
+            accessibilityLabel="메모"
+            className="scrollbar-none h-10 min-h-10 rounded-xl py-2.5 text-base web:resize-none"
+            value={memo}
+            numberOfLines={1}
+            placeholder="간단한 메모"
+            scrollEnabled={false}
+            onChangeText={setMemo}
+          />
+        </View>
 
         <View className="gap-3">
           <Text className="text-sm font-semibold text-muted-foreground">
-            ✅ 할 일 (선택, 여러 개 가능)
+            ✅ 액션 (선택, 여러 개 가능)
           </Text>
           <TodoDraftListEditor
-            addLabel="할 일 추가"
+            addLabel="액션 추가"
             pickerMode={mode}
             todos={decoratedTodos}
             onAddTodo={handleAddTodo}
@@ -825,65 +817,121 @@ function LinkCreateForm({
             onRemoveTodo={handleRemoveTodo}
           />
         </View>
-
-        {createLinkMutation.error ? (
-          <Text className="text-sm font-medium text-destructive">
-            링크 저장에 실패했습니다. 잠시 후 다시 시도해주세요.
-          </Text>
-        ) : null}
       </ScrollView>
 
-      <View className="flex-row items-center justify-end gap-3 border-t border-border px-8 py-5">
-        <Button
-          className="h-10"
-          variant="outline"
-          onPress={handleCancel}
+      <View className="border-t border-border px-8 py-5">{actions}</View>
+    </View>
+  );
+}
+
+function WideSelectTrigger({
+  icon,
+  label,
+  ...props
+}: React.ComponentProps<typeof Button> & { icon: React.ReactNode; label: string }) {
+  return (
+    <Button
+      className="h-10 w-full flex-row justify-start rounded-xl px-4"
+      variant="outline"
+      {...props}
+    >
+      <View className="min-w-0 flex-1 flex-row items-center gap-2">
+        {icon}
+        <Text
+          className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground"
+          numberOfLines={1}
         >
-          <Text>취소</Text>
-        </Button>
+          {label}
+        </Text>
+        <Icon
+          as={ChevronDown}
+          size={14}
+          className="text-muted-foreground"
+        />
+      </View>
+    </Button>
+  );
+}
+
+function LinkCreateActions({
+  hasSaveError,
+  isAiOrganizeDisabled,
+  isPreviewLoading,
+  isSaveDisabled,
+  mode,
+  onAiOrganize,
+  onSave,
+}: {
+  hasSaveError: boolean;
+  isAiOrganizeDisabled: boolean;
+  isPreviewLoading: boolean;
+  isSaveDisabled: boolean;
+  mode: LinkCreateFormMode;
+  onAiOrganize: () => void;
+  onSave: () => void;
+}) {
+  const isSheet = mode === "mobile";
+  const labelClassName = isSheet ? "text-base font-semibold" : "text-sm font-semibold";
+
+  return (
+    <View className="gap-2.5">
+      {hasSaveError ? (
+        <View
+          accessibilityLiveRegion="polite"
+          accessibilityRole="alert"
+          className="flex-row items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2.5"
+        >
+          <Icon
+            as={CircleAlert}
+            className="size-4 shrink-0 text-destructive"
+          />
+          <Text className="min-w-0 flex-1 text-[13px] font-medium text-foreground">
+            링크 저장에 실패했습니다. 잠시 후 다시 시도해주세요.
+          </Text>
+        </View>
+      ) : null}
+      <View className={cn("flex-row gap-2", !isSheet && "justify-end")}>
         <Button
-          className="h-10 flex-row gap-2"
+          className={cn(
+            "flex-row gap-2 rounded-xl",
+            isSheet ? "h-12 flex-1" : "h-10 px-[18px] sm:h-10",
+          )}
           disabled={isSaveDisabled}
-          onPress={handleSave}
+          variant="outline"
+          onPress={onSave}
         >
-          {isPreviewLoading ? <ButtonSpinner /> : null}
-          <Text>저장</Text>
+          {isPreviewLoading ? (
+            <ActivityIndicator accessibilityLabel={PREVIEW_LOADING_LABEL} />
+          ) : null}
+          <Text className={labelClassName}>저장</Text>
         </Button>
         <Button
-          className="h-10 flex-row gap-2"
+          className={cn(
+            "flex-row gap-2 rounded-xl",
+            isSheet ? "h-12 flex-[2]" : "h-10 w-44 px-[18px] sm:h-10",
+          )}
           disabled={isAiOrganizeDisabled}
           variant="gradient"
-          onPress={handleAiOrganize}
+          onPress={onAiOrganize}
         >
-          {isPreviewLoading ? <ButtonSpinner /> : null}
-          <Text>AI 정리</Text>
-        </Button>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              className="h-10 flex-row items-center gap-1 rounded-2xl px-3"
-              variant="outline"
-            >
-              <Text className="text-sm font-semibold">{aiProviderLabel}</Text>
-              <Icon
-                as={ChevronDown}
-                size={14}
-                className="text-foreground"
-              />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="end"
-            side="bottom"
-            className="max-h-[60vh] w-80 overflow-y-auto p-3"
-          >
-            <AiProviderPickerListWithClose
-              selectedProviderId={aiProvider?.providerId ?? defaultProvider.id ?? null}
-              onSelect={setAiProvider}
+          {isPreviewLoading ? (
+            <ActivityIndicator
+              accessibilityLabel={PREVIEW_LOADING_LABEL}
+              tone="onPrimary"
             />
-          </PopoverContent>
-        </Popover>
+          ) : null}
+          <Text className={labelClassName}>AI 정리</Text>
+        </Button>
       </View>
+    </View>
+  );
+}
+
+function UrlFieldLabel({ className }: { className?: string }) {
+  return (
+    <View className={cn("flex-row items-center gap-2", className)}>
+      <Text className="text-sm font-semibold text-muted-foreground">URL</Text>
+      <Text className="text-sm font-semibold text-muted-foreground">📋 클립보드 자동 감지</Text>
     </View>
   );
 }
@@ -951,8 +999,6 @@ function AiProviderPickerListWithClose({
 
 // Main image of the fetched preview, shown at the top of the form only when the page
 // has one. While the preview loads, the slot shows a loading state.
-// TODO(#5): swap this for `LinkThumbnail` from features/links/components/link-thumbnail
-// once PR 1 (presentation) is merged.
 function LinkPreviewImage({
   isLoading,
   mode,
@@ -1019,18 +1065,6 @@ function TitleField({ children, isLoading }: { children: React.ReactNode; isLoad
   );
 }
 
-function ButtonSpinner() {
-  const accent = useDisplaySettings((state) => state.display.accent);
-  const theme = useDisplaySettings((state) => state.display.theme);
-  return (
-    <RNActivityIndicator
-      accessibilityLabel="미리보기를 불러오는 중"
-      color={getThemeTokens(theme, accent).primaryForeground}
-      size="small"
-    />
-  );
-}
-
 function FieldError({ children, error }: { children: React.ReactNode; error?: string }) {
   return (
     <View className="gap-1">
@@ -1050,9 +1084,9 @@ function GenerateTodoRow({
   return (
     <View className="flex-row items-center gap-3 rounded-2xl border border-primary/30 bg-background px-4 py-3">
       <View className="min-w-0 flex-1 gap-1">
-        <Text className="text-sm font-semibold text-foreground">할 일 생성</Text>
+        <Text className="text-sm font-semibold text-foreground">액션 생성</Text>
         <Text className="text-xs leading-4 text-muted-foreground">
-          AI 요약 시 링크에 데드라인이 있으면 할 일을 자동으로 생성해줘요
+          AI 정리 때 링크에 마감일이 있으면 액션을 자동으로 만들어줘요
         </Text>
       </View>
       <Switch
