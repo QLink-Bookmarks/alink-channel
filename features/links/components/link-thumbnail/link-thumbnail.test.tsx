@@ -129,7 +129,7 @@ describe("LinkThumbnail", () => {
     expect(screen.queryByText("영상")).toBeNull();
   });
 
-  it("puts a play hint on video links, a pointer hint on other images, and none on a missing image", () => {
+  it("puts a play hint on video links and a pointer hint on the rest, with or without an image", () => {
     const { rerender } = render(
       <LinkThumbnail
         domain="youtube.com"
@@ -149,8 +149,27 @@ describe("LinkThumbnail", () => {
       />,
     );
     expect(screen.queryByTestId("link-thumbnail-hint-play")).toBeNull();
-    expect(screen.queryByTestId("link-thumbnail-hint-open")).toBeNull();
+    expect(screen.getByTestId("link-thumbnail-hint-open")).toBeOnTheScreen();
     expect(screen.getByText("notion.so")).toBeOnTheScreen();
+
+    rerender(
+      <LinkThumbnail
+        domain="youtube.com"
+        fallback="domain"
+        isVideo
+        showHint
+      />,
+    );
+    expect(screen.getByTestId("link-thumbnail-hint-play")).toBeOnTheScreen();
+    expect(screen.queryByTestId("link-thumbnail-hint-open")).toBeNull();
+
+    rerender(
+      <LinkThumbnail
+        domain="notion.so"
+        fallback="domain"
+      />,
+    );
+    expect(screen.queryByTestId("link-thumbnail-hint-open")).toBeNull();
 
     rerender(
       <LinkThumbnail

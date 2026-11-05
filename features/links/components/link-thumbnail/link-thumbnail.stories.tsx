@@ -61,7 +61,7 @@ export const DomainOnly: Story = {
 };
 
 export const DetailNoImage: Story = {
-  name: "상세 이미지 없음 (도메인만, 가운데 표시 없음)",
+  name: "상세 이미지 없음 (도메인 + 작고 옅은 손 표시)",
   args: { thumbnailUrl: null, showHint: true, fallback: "domain" },
 };
 

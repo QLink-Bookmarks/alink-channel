@@ -38,7 +38,7 @@ type LinkThumbnailProps = {
    * `domain`: the domain only (link detail).
    */
   fallback?: "favicon" | "domain";
-  /** Centered icon without text: play for video links, a small faint pointer on the image of the rest. */
+  /** Icon without text: play for video links, a small faint pointer for the rest (centered on an image, under the domain in the fallback). */
   showHint?: boolean;
   /** "▶ 영상" badge at the bottom left, for video links with an image. */
   showVideoBadge?: boolean;
@@ -89,10 +89,13 @@ function CenterHint({ compact }: { compact: boolean }) {
   );
 }
 
-function OpenHint() {
+function OpenHint({ compact }: { compact: boolean }) {
   return (
     <View
-      className="pointer-events-none absolute inset-0 items-center justify-center"
+      className={cn(
+        "pointer-events-none absolute items-center",
+        compact ? "inset-x-0 bottom-3" : "inset-0 justify-center",
+      )}
       testID="link-thumbnail-hint-open"
     >
       <View className="size-9 items-center justify-center rounded-full border border-border-soft/60 bg-background/60">
@@ -135,6 +138,7 @@ function LinkThumbnail({
   const showFavicon = Boolean(favicon) && (isSmall || fallback === "favicon");
   const isImageLoading = thumbnail !== null && loadedUrl !== thumbnail;
   const showPlayHint = showHint && isVideo;
+  const showOpenHint = showHint && !isVideo;
 
   const handleError = React.useCallback((url: ThumbnailSource) => {
     setFailedUrls((current) => (current.includes(url) ? current : [...current, url]));
@@ -191,7 +195,7 @@ function LinkThumbnail({
         />
         {!isSmall && isVideo && showVideoBadge ? <VideoBadge /> : null}
         {!isSmall && showPlayHint ? <CenterHint compact={false} /> : null}
-        {!isSmall && showHint && !isVideo ? <OpenHint /> : null}
+        {!isSmall && showOpenHint ? <OpenHint compact={false} /> : null}
       </View>
     );
   }
@@ -224,7 +228,7 @@ function LinkThumbnail({
       className={frameClassName}
       testID={`${testID}-fallback`}
     >
-      <View className={cn("items-center justify-center gap-2 px-3", showPlayHint && "pb-10")}>
+      <View className={cn("items-center justify-center gap-2 px-3", showHint && "pb-10")}>
         {showFavicon && favicon ? (
           <View className="size-10 overflow-hidden rounded-xl border border-border-soft bg-card">
             <Image
@@ -248,6 +252,7 @@ function LinkThumbnail({
         </Text>
       </View>
       {showPlayHint ? <CenterHint compact /> : null}
+      {showOpenHint ? <OpenHint compact /> : null}
     </View>
   );
 }
