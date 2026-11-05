@@ -1,5 +1,6 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
+import { contrast, over, parseColor, waitForSettledColors } from "./support/color";
 import { boxOf, isWideProject } from "./support/helpers";
 import { makeLink } from "./support/mock-api";
 import { type ApiHandler, mockSignedInApi } from "./support/mock-save-flow-api";
@@ -10,6 +11,7 @@ const PNG_PIXEL = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkaPhfDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",
 );
+const PREVIEW_LOADING = "미리보기를 불러오는 중";
 const SAVE_FAILED = "링크 저장에 실패했습니다. 잠시 후 다시 시도해주세요.";
 
 type FormServer = {
@@ -34,7 +36,9 @@ const PICKABLE_FOLDER = {
   linkCounts: 0,
 };
 
-async function setUpFormServer(page: Page): Promise<FormServer> {
+type FormDisplay = { theme: "light" | "dark"; accent: "gray" | "pink" | "blue" };
+
+async function setUpFormServer(page: Page, display?: FormDisplay): Promise<FormServer> {
   const server: FormServer = {
     linkCreates: [],
     savedLinks: [],
@@ -45,6 +49,18 @@ async function setUpFormServer(page: Page): Promise<FormServer> {
     folders: [PICKABLE_FOLDER],
   };
   const handler: ApiHandler = async ({ path, request, respond }) => {
+    if (display && path === "/api/users/me/settings") {
+      await respond({
+        display,
+        behavior: { allowsReminderNotification: false },
+        ai: {
+          defaultProvider: { id: 1, type: "OPENAI" },
+          defaultModel: { id: 10, model: "gpt-test" },
+        },
+        providers: [],
+      });
+      return true;
+    }
     if (path === "/api/folders" && request.method() === "GET") {
       await respond({
         isEmpty: false,
@@ -182,6 +198,25 @@ async function settledSheetTop(page: Page) {
     .toBe(true);
 }
 
+async function saveLabelContrast(page: Page) {
+  const label = saveButton(page).getByText("저장", { exact: true });
+  await waitForSettledColors(label);
+  const { color, layers } = await label.evaluate((node) => {
+    const backgrounds: string[] = [];
+    for (let element: Element | null = node; element; element = element.parentElement) {
+      const value = getComputedStyle(element).backgroundColor;
+      if (value === "transparent" || /rgba\(.*,\s*0\)$/.test(value)) continue;
+      backgrounds.push(value);
+      if (!value.startsWith("rgba")) break;
+    }
+    return { color: getComputedStyle(node).color, layers: backgrounds };
+  });
+  const background = layers
+    .map(parseColor)
+    .reduceRight((bottom, top) => over(top, bottom), parseColor("rgb(255, 255, 255)"));
+  return contrast(parseColor(color), background);
+}
+
 async function expectClosed(page: Page) {
   await expect(page.getByText("새 링크 추가", { exact: true })).toHaveCount(0);
 }
@@ -191,7 +226,7 @@ test.beforeEach(async ({ context }) => {
 });
 
 test.describe("new link form actions and copy (#46)", () => {
-  test("one filled 주 버튼: AI 정리 is the gradient and wider, 저장 is the outline, and there is no 취소", async ({
+  test("one filled 주 버튼: AI 정리 is the gradient and wider, 저장 is the soft accent button, and there is no 취소", async ({
     page,
   }) => {
     await setUpFormServer(page);
@@ -210,10 +245,24 @@ test.describe("new link form actions and copy (#46)", () => {
     expect(ai.width).toBeGreaterThan(save.width);
     expect(ai.x).toBeGreaterThan(save.x);
 
-    const saveBorder = await saveButton(page).evaluate(
-      (node) => getComputedStyle(node).borderTopWidth,
-    );
-    expect(parseFloat(saveBorder)).toBeGreaterThan(0);
+    const saveLook = await saveButton(page).evaluate((node) => {
+      const label = Array.from(node.querySelectorAll<HTMLElement>("*")).find(
+        (child) => child.textContent === "저장" && child.children.length === 0,
+      );
+      const icon = node.querySelector("svg");
+      return {
+        border: getComputedStyle(node).borderTopWidth,
+        background: getComputedStyle(node).backgroundColor,
+        iconBeforeLabel: Boolean(
+          icon && label && icon.getBoundingClientRect().right <= label.getBoundingClientRect().left,
+        ),
+      };
+    });
+    expect(parseFloat(saveLook.border)).toBe(0);
+    const tint = parseColor(saveLook.background);
+    expect(tint.a).toBeGreaterThanOrEqual(0.1);
+    expect(tint.a).toBeLessThanOrEqual(0.2);
+    expect(saveLook.iconBeforeLabel).toBe(true);
     const aiHasGradient = await aiButton(page).evaluate((node) =>
       Array.from(node.querySelectorAll<HTMLElement>("*")).some((child) =>
         getComputedStyle(child).backgroundImage.includes("gradient"),
@@ -457,6 +506,38 @@ test.describe("new link form actions and copy (#46)", () => {
     await expect(titleInput(page)).toHaveValue("");
     await expect(form(page).getByText("없음 - ✨ AI 자동 분류", { exact: true })).toBeVisible();
     await expect(form(page).getByRole("switch")).not.toBeChecked();
+  });
+});
+
+test.describe("저장 label contrast on its tint (#46 follow-up)", () => {
+  for (const theme of ["light", "dark"] as const) {
+    for (const accent of ["gray", "pink", "blue"] as const) {
+      test(`${theme} ${accent}: the 저장 label reaches 4.5:1`, async ({ page }) => {
+        await setUpFormServer(page, { theme, accent });
+        await openForm(page);
+        await expect(page.locator("html")).toHaveAttribute("data-accent", accent);
+        expect(await saveLabelContrast(page)).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+  }
+
+  test("while the preview loads, 저장 shows the spinner instead of its icon and stays visible", async ({
+    page,
+  }) => {
+    await setUpFormServer(page);
+    await page.route("**/api/link-previews", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
+      await route.fallback();
+    });
+    await openForm(page);
+    await urlInput(page).fill(PAGE_WITH_IMAGE);
+    const loadingSave = page.getByRole("button", { name: /저장/ }).first();
+    await expect(loadingSave).toBeDisabled();
+    await expect(loadingSave.getByLabel(PREVIEW_LOADING)).toBeVisible();
+    await expect(loadingSave.locator("svg")).toHaveCount(1);
+    await expect(loadingSave.getByRole("progressbar").locator("svg")).toHaveCount(1);
+    const opacity = await loadingSave.evaluate((node) => Number(getComputedStyle(node).opacity));
+    expect(opacity).toBeGreaterThanOrEqual(0.5);
   });
 });
 

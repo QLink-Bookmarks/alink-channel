@@ -51,6 +51,7 @@ import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { getLinkPreviewRequestFields } from "../lib/link-preview/link-preview-result";
+import { getSaveLabelClassName } from "../lib/save-label-class-name";
 import { useCreateLinkMutation } from "../mutations";
 import { useLinkPreviewQuery } from "../queries";
 import type { CreateLinkTodoRequest, LinkPreview } from "../types";
@@ -64,6 +65,7 @@ import {
   CircleAlert,
   FolderOpen,
   QrCode,
+  Save,
 } from "lucide-react-native/icons";
 
 type LinkCreateFormMode = "wide" | "mobile";
@@ -872,6 +874,9 @@ function LinkCreateActions({
 }) {
   const isSheet = mode === "mobile";
   const labelClassName = isSheet ? "text-base font-semibold" : "text-sm font-semibold";
+  const accent = useDisplaySettings((state) => state.display.accent);
+  const theme = useDisplaySettings((state) => state.display.theme);
+  const saveTextClassName = getSaveLabelClassName(accent, theme);
 
   return (
     <View className="gap-2.5">
@@ -893,17 +898,24 @@ function LinkCreateActions({
       <View className={cn("flex-row gap-2", !isSheet && "justify-end")}>
         <Button
           className={cn(
-            "flex-row gap-2 rounded-xl",
+            "flex-row gap-2 rounded-xl bg-primary/15 shadow-none active:bg-primary/20",
+            process.env.EXPO_OS === "web" && "hover:bg-primary/20",
             isSheet ? "h-12 flex-1" : "h-10 px-[18px] sm:h-10",
           )}
           disabled={isSaveDisabled}
-          variant="outline"
+          variant="secondary"
           onPress={onSave}
         >
           {isPreviewLoading ? (
             <ActivityIndicator accessibilityLabel={PREVIEW_LOADING_LABEL} />
-          ) : null}
-          <Text className={labelClassName}>저장</Text>
+          ) : (
+            <Icon
+              as={Save}
+              className={saveTextClassName}
+              size={isSheet ? 18 : 16}
+            />
+          )}
+          <Text className={cn(labelClassName, saveTextClassName)}>저장</Text>
         </Button>
         <Button
           className={cn(

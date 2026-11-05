@@ -7,7 +7,7 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
 import { Image, type ImageLoadEventData, type ImageSource } from "expo-image";
-import { Play } from "lucide-react-native/icons";
+import { Play, Pointer } from "lucide-react-native/icons";
 import { cssInterop } from "nativewind";
 
 // expo-image is third-party, so NativeWind needs the className → style mapping on native.
@@ -38,7 +38,7 @@ type LinkThumbnailProps = {
    * `domain`: the domain only (link detail).
    */
   fallback?: "favicon" | "domain";
-  /** Centered play icon for video links. Other links get no hint. */
+  /** Centered icon without text: play for video links, a small faint pointer on the image of the rest. */
   showHint?: boolean;
   /** "▶ 영상" badge at the bottom left, for video links with an image. */
   showVideoBadge?: boolean;
@@ -83,6 +83,23 @@ function CenterHint({ compact }: { compact: boolean }) {
           size={compact ? 16 : 22}
           fill="currentColor"
           className="ml-0.5 text-foreground"
+        />
+      </View>
+    </View>
+  );
+}
+
+function OpenHint() {
+  return (
+    <View
+      className="pointer-events-none absolute inset-0 items-center justify-center"
+      testID="link-thumbnail-hint-open"
+    >
+      <View className="size-9 items-center justify-center rounded-full border border-border-soft/60 bg-background/60">
+        <Icon
+          as={Pointer}
+          size={15}
+          className="text-foreground/70"
         />
       </View>
     </View>
@@ -174,6 +191,7 @@ function LinkThumbnail({
         />
         {!isSmall && isVideo && showVideoBadge ? <VideoBadge /> : null}
         {!isSmall && showPlayHint ? <CenterHint compact={false} /> : null}
+        {!isSmall && showHint && !isVideo ? <OpenHint /> : null}
       </View>
     );
   }

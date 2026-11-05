@@ -129,7 +129,7 @@ describe("LinkThumbnail", () => {
     expect(screen.queryByText("영상")).toBeNull();
   });
 
-  it("puts a play hint on video links and no hint on the rest", () => {
+  it("puts a play hint on video links, a pointer hint on other images, and none on a missing image", () => {
     const { rerender } = render(
       <LinkThumbnail
         domain="youtube.com"
@@ -139,6 +139,7 @@ describe("LinkThumbnail", () => {
       />,
     );
     expect(screen.getByTestId("link-thumbnail-hint-play")).toBeOnTheScreen();
+    expect(screen.queryByTestId("link-thumbnail-hint-open")).toBeNull();
 
     rerender(
       <LinkThumbnail
@@ -159,6 +160,14 @@ describe("LinkThumbnail", () => {
       />,
     );
     expect(screen.queryByTestId("link-thumbnail-hint-play")).toBeNull();
+    expect(screen.getByTestId("link-thumbnail-hint-open")).toBeOnTheScreen();
+
+    rerender(
+      <LinkThumbnail
+        domain="tkdodo.eu"
+        thumbnailUrl={IMAGE}
+      />,
+    );
     expect(screen.queryByTestId("link-thumbnail-hint-open")).toBeNull();
   });
 

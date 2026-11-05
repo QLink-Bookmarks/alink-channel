@@ -66,7 +66,7 @@ export const DetailNoImage: Story = {
 };
 
 export const DetailImage: Story = {
-  name: "상세 이미지 (가운데 표시 없음)",
+  name: "상세 이미지 (작고 옅은 손 표시)",
   args: {
     domain: "tkdodo.eu",
     thumbnailUrl: "https://picsum.photos/seed/alink-detail/640/360",
