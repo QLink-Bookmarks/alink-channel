@@ -216,7 +216,7 @@ test.describe("layout", () => {
     }
   });
 
-  test("a play icon for video links and no icon on an image or a missing image (#46)", async ({
+  test("a play icon for video links and a small faint hand on other images and on a missing image (#46)", async ({
     page,
   }) => {
     const { links, details } = buildFixtures();
@@ -224,14 +224,69 @@ test.describe("layout", () => {
     await openDetail(page, 1);
     await expect(page.getByTestId("link-thumbnail-hint-play")).toBeVisible();
     await expect(page.getByTestId("link-thumbnail-hint-play")).toHaveText("");
+    await expect(page.getByTestId("link-thumbnail-hint-open")).toHaveCount(0);
     await openDetail(page, 5);
     await expect(page.getByTestId("link-detail-thumbnail-image")).toBeVisible();
     await expect(page.getByTestId("link-thumbnail-hint-play")).toHaveCount(0);
-    await expect(page.getByTestId("link-thumbnail-hint-open")).toHaveCount(0);
+    const hand = page.getByTestId("link-thumbnail-hint-open");
+    await expect(hand).toBeVisible();
+    await expect(hand).toHaveText("");
+    const look = await hand.evaluate((node) => {
+      const circle = node.firstElementChild as HTMLElement;
+      const icon = node.querySelector("svg");
+      const frame = node.parentElement?.getBoundingClientRect();
+      const box = circle.getBoundingClientRect();
+      return {
+        size: box.width,
+        circleBackground: getComputedStyle(circle).backgroundColor,
+        iconColor: icon ? getComputedStyle(icon).color : "",
+        centered: frame
+          ? Math.abs(box.left + box.width / 2 - (frame.left + frame.width / 2)) <= 1 &&
+            Math.abs(box.top + box.height / 2 - (frame.top + frame.height / 2)) <= 1
+          : false,
+      };
+    });
+    expect(look.size).toBeGreaterThanOrEqual(30);
+    expect(look.size).toBeLessThanOrEqual(40);
+    expect(look.centered).toBe(true);
+    const alphaOf = (value: string) => {
+      const numbers = value.match(/[\d.]+/g)?.map(Number) ?? [];
+      return numbers.length > 3 ? numbers[3] : 1;
+    };
+    expect(alphaOf(look.circleBackground)).toBeLessThan(0.9);
+    expect(alphaOf(look.iconColor)).toBeLessThan(1);
     await openDetail(page, 3);
-    await expect(page.getByTestId("link-detail-thumbnail-fallback")).toBeVisible();
+    const fallback = page.getByTestId("link-detail-thumbnail-fallback");
+    await expect(fallback).toBeVisible();
     await expect(page.getByTestId("link-thumbnail-hint-play")).toHaveCount(0);
-    await expect(page.getByTestId("link-thumbnail-hint-open")).toHaveCount(0);
+    const fallbackHand = fallback.getByTestId("link-thumbnail-hint-open");
+    await expect(fallbackHand).toBeVisible();
+    await expect(fallbackHand).toHaveText("");
+    const fallbackLook = await fallbackHand.evaluate((node) => {
+      const circle = node.firstElementChild as HTMLElement;
+      const icon = node.querySelector("svg");
+      const frame = node.parentElement?.getBoundingClientRect();
+      const domain = Array.from(node.parentElement?.querySelectorAll<HTMLElement>("*") ?? []).find(
+        (element) => element.textContent === "notion.so" && element.children.length === 0,
+      );
+      const box = circle.getBoundingClientRect();
+      return {
+        size: box.width,
+        circleBackground: getComputedStyle(circle).backgroundColor,
+        iconColor: icon ? getComputedStyle(icon).color : "",
+        centeredX: frame
+          ? Math.abs(box.left + box.width / 2 - (frame.left + frame.width / 2)) <= 1
+          : false,
+        belowDomain: domain ? box.top >= domain.getBoundingClientRect().bottom : false,
+        insideFrame: frame ? box.bottom <= frame.bottom : false,
+      };
+    });
+    expect(fallbackLook.size).toBe(look.size);
+    expect(fallbackLook.circleBackground).toBe(look.circleBackground);
+    expect(fallbackLook.iconColor).toBe(look.iconColor);
+    expect(fallbackLook.centeredX).toBe(true);
+    expect(fallbackLook.belowDomain).toBe(true);
+    expect(fallbackLook.insideFrame).toBe(true);
   });
 
   test("hovering the image shows 원본 열기 (#46)", async ({ page }) => {
@@ -254,6 +309,36 @@ test.describe("layout", () => {
     expect(page.url()).toBe(before);
     await expect(page.getByTestId("link-detail-title")).toContainText("Reanimated 3");
   });
+});
+
+test("pressing the hand in the middle of the image still opens the original (#46)", async ({
+  page,
+}) => {
+  await stubWindowOpen(page);
+  const { links, details } = buildFixtures();
+  await mockApi(page, { links, details });
+  await openDetail(page, 5);
+  const hand = page.getByTestId("link-thumbnail-hint-open");
+  await expect(hand).toBeVisible();
+  const box = await boxOf(hand);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  expect(await openedUrls(page)).toEqual([links[4].url]);
+});
+
+test("pressing the hand under the domain of a missing image still opens the original (#46)", async ({
+  page,
+}) => {
+  await stubWindowOpen(page);
+  const { links, details } = buildFixtures();
+  await mockApi(page, { links, details });
+  await openDetail(page, 3);
+  const hand = page
+    .getByTestId("link-detail-thumbnail-fallback")
+    .getByTestId("link-thumbnail-hint-open");
+  await expect(hand).toBeVisible();
+  const box = await boxOf(hand);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  expect(await openedUrls(page)).toEqual([links[2].url]);
 });
 
 test.describe("actions", () => {
