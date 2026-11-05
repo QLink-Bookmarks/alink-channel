@@ -111,6 +111,7 @@ export const HeaderGhost: Story = {
     <View className="flex-row items-center gap-2 border-b border-border pb-3">
       <IconButton
         accessibilityLabel="뒤로"
+        hitSlop={4}
         icon={ChevronLeft}
         size="sm"
         variant="ghost"
@@ -119,6 +120,7 @@ export const HeaderGhost: Story = {
       <View className="flex-1" />
       <IconButton
         accessibilityLabel="검색"
+        hitSlop={4}
         icon={Search}
         size="sm"
         variant="ghost"
@@ -126,6 +128,7 @@ export const HeaderGhost: Story = {
       />
       <IconButton
         accessibilityLabel="알림"
+        hitSlop={4}
         icon={Bell}
         size="sm"
         variant="ghost"
@@ -133,6 +136,7 @@ export const HeaderGhost: Story = {
       />
       <IconButton
         accessibilityLabel="설정"
+        hitSlop={4}
         active
         icon={Settings}
         size="sm"

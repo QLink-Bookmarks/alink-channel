@@ -1194,23 +1194,20 @@ function LinkDetailView({
             </Text>
             <RefreshButton
               failed={hasRefreshFailed}
+              hitSlop={4}
               refreshing={isRefreshing}
               onPress={handleRefresh}
             />
             {mode === "panel" ? (
-              <Pressable
+              <IconButton
                 accessibilityLabel="닫기"
-                accessibilityRole="button"
-                className="size-9 items-center justify-center rounded-xl border border-border bg-card web:transition-colors web:hover:border-primary"
+                hitSlop={4}
+                icon={X}
+                size="sm"
                 testID="link-detail-close"
+                variant="ghost"
                 onPress={onClose}
-              >
-                <Icon
-                  as={X}
-                  size={16}
-                  className="text-muted-foreground"
-                />
-              </Pressable>
+              />
             ) : null}
           </View>
 

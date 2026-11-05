@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FullWindowOverlay as RNFullWindowOverlay } from "react-native-screens";
 
 import { EmptyState } from "@/components/ui/empty-state";
-import { Icon } from "@/components/ui/icon";
+import { IconButton } from "@/components/ui/icon-button";
 import type { LinkDetail } from "@/features/links/types";
 import { cn } from "@/lib/utils";
 
@@ -83,19 +83,15 @@ function DetailPanelBody({
       ) : notFound ? (
         <View className="h-full">
           <View className="flex-row justify-end px-5 pt-4">
-            <Pressable
+            <IconButton
               accessibilityLabel="닫기"
-              accessibilityRole="button"
-              className="size-9 items-center justify-center rounded-xl border border-border bg-card web:transition-colors web:hover:border-primary"
+              hitSlop={4}
+              icon={X}
+              size="sm"
               testID="link-detail-not-found-close"
+              variant="ghost"
               onPress={() => onOpenChange?.(false)}
-            >
-              <Icon
-                as={X}
-                size={16}
-                className="text-muted-foreground"
-              />
-            </Pressable>
+            />
           </View>
           <EmptyState
             className="flex-1"
