@@ -10,7 +10,7 @@ import {
   setLinkFavorite,
   updateLink,
 } from "./api";
-import { getLinkDetailQueryKey, getLinkListsQueryKey } from "./queries";
+import { getLinkDetailQueryKey, invalidateLinkListAndSearchQueries } from "./queries";
 import type {
   CopyLinkRequest,
   CreateLinkRequest,
@@ -19,6 +19,8 @@ import type {
   UpdateLinkRequest,
 } from "./types";
 
+// The link's detail (deleted: marked stale without a refetch, which would 404), then the
+// lists and the search results, so a search right after the change sees it.
 function useInvalidateLinkQueries() {
   const queryClient = useQueryClient();
 
@@ -30,7 +32,7 @@ function useInvalidateLinkQueries() {
           refetchType: options.isDeleted ? "none" : "active",
         });
       }
-      void queryClient.invalidateQueries({ queryKey: getLinkListsQueryKey() });
+      void invalidateLinkListAndSearchQueries(queryClient);
     },
     [queryClient],
   );
