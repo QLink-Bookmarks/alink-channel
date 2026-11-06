@@ -1,11 +1,12 @@
 import * as React from "react";
 
-import { useQuery } from "@tanstack/react-query";
+import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getLinkDetail, getLinks } from "./api";
+import { getExcerptRecheckDelay } from "./lib/excerpt-recheck";
 import { extractLinkPreview } from "./lib/link-preview/extract-link-preview";
 import { isPreviewableUrl } from "./lib/link-preview/link-preview-result";
-import type { GetLinksParams } from "./types";
+import type { GetLinksParams, LinkDetailContent } from "./types";
 
 const LINK_PREVIEW_TYPING_DEBOUNCE_MS = 500;
 
@@ -27,6 +28,22 @@ function getLinkListsQueryKey() {
 
 function getLinkPreviewQueryKey(url: string) {
   return ["links", "preview", url] as const;
+}
+
+// Root of the search dialog's queries (`features/search/queries.ts`).
+const SEARCH_QUERY_KEY_ROOT = ["search"] as const;
+
+/**
+ * After a link is deleted, moved or changed: refreshes the link lists and the search
+ * results only. Not the `["links"]` root — that would also re-run the previews
+ * (`staleTime: Infinity`; extracting again uploads the images again) and refetch the
+ * details, including the 404 of a deleted link. Details are refreshed by their callers.
+ */
+function invalidateLinkListAndSearchQueries(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: getLinkListsQueryKey() }),
+    queryClient.invalidateQueries({ queryKey: SEARCH_QUERY_KEY_ROOT }),
+  ]);
 }
 
 type LinkPreviewQueryOptions = {
@@ -91,6 +108,75 @@ function useLinkDetailQuery(linkId?: string | number | null) {
   });
 }
 
+/**
+ * While the detail of `linkId` is open and its body is still being collected
+ * (`content.isPending`), silently refetches it 3, 6 and 12 seconds after it opened, at most
+ * three times; stops once an excerpt is in. Closing the detail (unmount) clears the timers
+ * and opening it again starts over. When an excerpt arrives, the link lists are refreshed
+ * once so the card next to (wide) or behind (mobile) the detail gets its line too.
+ */
+function useLinkDetailExcerptRecheck(
+  linkId: number | string,
+  content: LinkDetailContent | null | undefined,
+) {
+  const queryClient = useQueryClient();
+  const [recheckCount, setRecheckCount] = React.useState(0);
+  const openedAtRef = React.useRef<number | null>(null);
+  const wasPendingRef = React.useRef(false);
+  const isPending = content?.isPending === true;
+  const excerpt = content?.excerpt ?? null;
+
+  React.useEffect(() => {
+    openedAtRef.current = Date.now();
+    wasPendingRef.current = false;
+    setRecheckCount(0);
+    return () => {
+      openedAtRef.current = null;
+    };
+  }, [linkId]);
+
+  React.useEffect(() => {
+    if (isPending && !excerpt) {
+      wasPendingRef.current = true;
+      return;
+    }
+    if (excerpt && wasPendingRef.current) {
+      wasPendingRef.current = false;
+      void queryClient.invalidateQueries({ queryKey: getLinkListsQueryKey() });
+    }
+  }, [excerpt, isPending, queryClient]);
+
+  React.useEffect(() => {
+    const openedAt = openedAtRef.current;
+    if (openedAt == null) {
+      return;
+    }
+    const delay = getExcerptRecheckDelay({
+      openedAt,
+      now: Date.now(),
+      recheckCount,
+      content: { excerpt, isPending },
+    });
+    if (delay == null) {
+      return;
+    }
+    let isCancelled = false;
+    const timer = setTimeout(() => {
+      void queryClient
+        .refetchQueries({ queryKey: getLinkDetailQueryKey(linkId), exact: true })
+        .finally(() => {
+          if (!isCancelled) {
+            setRecheckCount((count) => count + 1);
+          }
+        });
+    }, delay);
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [excerpt, isPending, linkId, queryClient, recheckCount]);
+}
+
 function useLinksQuery(params: GetLinksParams = {}) {
   const resolvedParams: GetLinksParams = {
     order: "latest",
@@ -113,6 +199,8 @@ export {
   getLinkPreviewQueryKey,
   getLinkQueryKeyRoot,
   getLinksQueryKey,
+  invalidateLinkListAndSearchQueries,
+  useLinkDetailExcerptRecheck,
   useLinkDetailQuery,
   useLinkPreviewQuery,
   useLinksQuery,

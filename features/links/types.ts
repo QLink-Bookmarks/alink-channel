@@ -89,6 +89,31 @@ type LinkTodo = {
   repeatTime?: string | null;
 };
 
+/** Fields the server matched a search query on; for app-side decisions only, never shown. */
+type MatchedField = "TITLE" | "URL" | "TAGS" | "SUMMARY" | "MEMO" | "CONTENT";
+
+/** A highlighted range of `ContentSnippet.text`: UTF-16 indexes, `end` exclusive. */
+type HighlightRange = {
+  start: number;
+  end: number;
+};
+
+/** Short context around a body match (≤100 UTF-16 units, ellipses included). */
+type ContentSnippet = {
+  text: string;
+  highlights: HighlightRange[];
+};
+
+/**
+ * The page-body part of a link detail. `excerpt` is the server-cut excerpt (≤101 units,
+ * ending in "…") or null while collecting, after a failure or for a body too short.
+ * `isPending` only drives the silent re-check; it is never shown.
+ */
+type LinkDetailContent = {
+  excerpt: string | null;
+  isPending: boolean;
+};
+
 type LinkDetail = {
   id: number;
   url: string;
@@ -108,6 +133,8 @@ type LinkDetail = {
   workModel?: string | null;
   status?: LinkStatus | null;
   isFavorite: boolean;
+  /** null = no record (links saved before the feature); missing before the server ships it. */
+  content?: LinkDetailContent | null;
 };
 
 type ApiEnvelope<TData> = {
@@ -150,6 +177,12 @@ type LinkListItem = {
   workModel?: string | null;
   status?: LinkStatus | null;
   isFavorite: boolean;
+  /** Same excerpt as the detail; null when there is none. */
+  contentExcerpt?: string | null;
+  /** Empty without a search query. */
+  matchedFields?: MatchedField[];
+  /** Context around a body match; null without a query or a body match. */
+  contentSnippet?: ContentSnippet | null;
 };
 
 type LinkScrollResponse = {
@@ -198,8 +231,10 @@ export type {
   CopyLinkResponse,
   CreateLinkRequest,
   CreateLinkResponse,
+  ContentSnippet,
   CreateLinkTodoRequest,
   DeleteLinkResponse,
+  HighlightRange,
   LinkPreview,
   LinkPreviewImages,
   LinkPreviewResponse,
@@ -207,6 +242,7 @@ export type {
   GetLinksParams,
   GetLinksResponse,
   LinkDetail,
+  LinkDetailContent,
   LinkDetailResponse,
   LinkListItem,
   PatchLinkRequest,
@@ -215,6 +251,7 @@ export type {
   LinkScrollResponse,
   LinkStatus,
   LinkTodo,
+  MatchedField,
   SetLinkFavoriteRequest,
   SetLinkFavoriteResponse,
   SourceType,

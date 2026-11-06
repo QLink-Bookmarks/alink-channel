@@ -4,6 +4,7 @@ import { cssOf, isWideProject } from "./support/helpers";
 import { GOOD_FAVICON, makeDetail, makeLink, mockApi } from "./support/mock-api";
 
 // #5 header icon buttons, search results without the due label, list favicons only.
+// #58: the web result line, recent searches and the placeholders stay as before.
 
 test.describe("header icon buttons", () => {
   test("transparent at rest, a soft rounded square on hover, the unread count unchanged", async ({
@@ -93,5 +94,65 @@ test.describe("search results and shortcuts", () => {
     await page.goto("/home");
     const tileImage = page.locator(`img[src="${GOOD_FAVICON}"]`);
     await expect(tileImage.first()).toBeVisible();
+  });
+});
+
+test.describe("search regressions (#58)", () => {
+  test("the placeholders are unchanged", async ({ page }) => {
+    await mockApi(page, { links: [makeLink({ id: 1 })] });
+    if (isWideProject()) {
+      await page.goto("/links");
+      await expect(page.getByTestId("link-card")).toHaveCount(1);
+      await page.getByText("⌘/Ctrl + K").first().click();
+      await expect(page.getByPlaceholder("링크 · 요약 · 태그 · 폴더 검색…")).toBeVisible();
+    } else {
+      await page.goto("/home");
+      await expect(page.getByPlaceholder("링크 · 요약 · 태그 검색…")).toBeVisible();
+    }
+  });
+
+  test("the web result line and recent searches are as before; a response without the #58 fields shows no context or line", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "the search dialog opens from the wide top bar");
+    const first = makeLink({ id: 1, url: "https://velog.io/@a/onboarding", title: "온보딩 문서" });
+    const second = makeLink({ id: 2, url: "https://velog.io/@a/retro", title: "온보딩 회고" });
+    await mockApi(page, {
+      links: [first, second],
+      details: { 1: makeDetail(first), 2: makeDetail(second) },
+    });
+    await page.goto("/links");
+    await expect(page.getByTestId("link-card")).toHaveCount(2);
+    // No recent searches yet.
+    await page.getByText("⌘/Ctrl + K").first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("최신 검색어가 없어요")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+
+    // The wide home search bar opens the dialog with links and the web.
+    await page.goto("/home");
+    const homeSearch = page.getByPlaceholder("웹 검색 또는 내 링크 검색…");
+    await homeSearch.fill("온보딩");
+    await homeSearch.press("Enter");
+    await expect(page.getByPlaceholder("링크 · 요약 · 태그 · 폴더 검색…")).toHaveValue("온보딩");
+    await expect(dialog.getByTestId("search-link-result")).toHaveCount(2);
+    // The list response has no matchedFields or contentSnippet (server before #167).
+    await expect(dialog.getByTestId("search-link-snippet")).toHaveCount(0);
+    await expect(dialog.getByTestId("search-link-group-divider")).toHaveCount(0);
+    await expect(dialog.getByText("🌐 웹")).toBeVisible();
+    await expect(dialog.getByText('Google에서 "온보딩" 검색')).toBeVisible();
+    await expect(dialog.getByText("google.com", { exact: true })).toBeVisible();
+
+    await dialog.getByTestId("search-link-result").filter({ hasText: "온보딩 문서" }).click();
+    await expect(page.getByTestId("link-detail")).toContainText("온보딩 문서");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("link-detail")).toHaveCount(0);
+
+    await page.getByText("⌘/Ctrl + K").first().click();
+    await expect(dialog.getByText("최근 검색어")).toBeVisible();
+    await dialog.getByText("온보딩", { exact: true }).click();
+    await expect(page.getByPlaceholder("링크 · 요약 · 태그 · 폴더 검색…")).toHaveValue("온보딩");
+    await expect(dialog.getByTestId("search-link-result")).toHaveCount(2);
   });
 });

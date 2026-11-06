@@ -1,5 +1,10 @@
 import type { LinkCardStatusVariant } from "@/features/links/components/link-card/link-card";
-import type { LinkListItem, LinkStatus, LinkTodoCounts } from "@/features/links/types";
+import type {
+  ContentSnippet,
+  LinkListItem,
+  LinkStatus,
+  LinkTodoCounts,
+} from "@/features/links/types";
 
 function getDomainFromUrl(url: string): string {
   try {
@@ -61,6 +66,10 @@ type MappedLink = {
   todoCounts: TodoCountSummary | null;
   statusLabel: string | null;
   statusVariant: LinkCardStatusVariant;
+  /** The card's one-line excerpt; null hides the line. */
+  excerpt: string | null;
+  /** Search context shown instead of the excerpt; only for a body match without a title match. */
+  snippet: ContentSnippet | null;
 };
 
 /**
@@ -94,6 +103,20 @@ function formatSummaryModelLabel(
   return `요약 모델 - ${workModel}`;
 }
 
+/**
+ * The search context a card shows in place of its excerpt: only when the body matched and
+ * the title did not (a title match keeps the excerpt and highlights the title instead).
+ * A link that matched the memo and the body still gets it, inside the metadata group.
+ */
+function getCardSnippet(item: LinkListItem): ContentSnippet | null {
+  const matchedFields = item.matchedFields ?? [];
+  if (!matchedFields.includes("CONTENT") || matchedFields.includes("TITLE")) {
+    return null;
+  }
+  const snippet = item.contentSnippet;
+  return snippet?.text ? snippet : null;
+}
+
 function mapLinkListItem(item: LinkListItem): MappedLink {
   const { label, variant } = formatLinkStatus(item.status, item.workModel);
   return {
@@ -108,12 +131,15 @@ function mapLinkListItem(item: LinkListItem): MappedLink {
     todoCounts: mapTodoCounts(item.todoCounts),
     statusLabel: label,
     statusVariant: variant,
+    excerpt: item.contentExcerpt || null,
+    snippet: getCardSnippet(item),
   };
 }
 
 export {
   formatLinkStatus,
   formatSummaryModelLabel,
+  getCardSnippet,
   getDomainFromUrl,
   mapLinkListItem,
   mapTodoCounts,

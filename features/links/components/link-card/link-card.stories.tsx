@@ -139,6 +139,43 @@ export const LongContent: Story = {
   },
 };
 
+export const Excerpt: Story = {
+  name: "발췌 한 줄",
+  args: {
+    // Like the server's excerpt: at most 100 characters + "…".
+    excerpt:
+      "The v5 release removes the deprecated callbacks on useQuery and renames cacheTime to gcTime. Start…",
+  },
+};
+
+export const SearchSnippet: Story = {
+  name: "검색 문맥 (본문만 일치)",
+  args: {
+    domain: "brunch.co.kr",
+    title: "제주 2박 3일 동쪽 일주 코스와 비용 정리",
+    tags: ["제주", "여행코스"],
+    todoCounts: null,
+    excerpt: "제주 동쪽은 해안도로를 따라 짰다…",
+    snippet: {
+      text: "…도로를 따라 짰다. 공항에서 성산일출봉으로 이동할 때 1132번 도로를 타면 1시간 10분, 중간에 함덕해수욕장과 김녕 해변에 들러도 점심 전…",
+      highlights: [{ start: 17, end: 22 }],
+    },
+    highlightQuery: "성산일출봉",
+  },
+};
+
+export const SearchTitleMatch: Story = {
+  name: "검색 제목 강조",
+  args: {
+    title: "성산일출봉 일출 시간표와 입장 마감 안내",
+    domain: "visitjeju.net",
+    tags: ["제주"],
+    todoCounts: null,
+    excerpt: "성산일출봉은 유네스코 세계자연유산으로 지정된 수성화산체로…",
+    highlightQuery: "성산일출봉",
+  },
+};
+
 export const Skeleton: Story = {
   name: "불러오는 중",
   render: () => <LinkCardSkeleton />,

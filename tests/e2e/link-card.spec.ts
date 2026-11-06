@@ -17,6 +17,7 @@ import {
   makeLink,
   mockApi,
 } from "./support/mock-api";
+import { LONG_BODY, excerptOf, withContent } from "./support/mock-content";
 
 // #5 link card: image cell, todo counts, grid, open original vs detail.
 
@@ -399,5 +400,56 @@ test.describe("states", () => {
     await page.goto(isWideProject() ? "/home" : "/home");
     await expect(page.getByTestId("link-card").first()).toBeVisible();
     expect(googleRequests).toEqual([]);
+  });
+});
+
+// #58: the page excerpt shows on link cards only, never on the wide home's shortcut tiles or
+// in the "바로가기 추가" list. Ids 1 and 6 have a collected body in `mock-content.ts`.
+test.describe("excerpt line stays off shortcuts", () => {
+  test.skip(() => !isWideProject(), "shortcut tiles and the add-shortcut list are wide only");
+
+  const EXCERPT = excerptOf(LONG_BODY) as string;
+  const SHORTCUT = makeLink({
+    id: 1,
+    url: "https://brunch.co.kr/@jeju/east-3days",
+    title: "제주 2박 3일 동쪽 일주 코스",
+    isFavorite: true,
+  });
+  const NOT_SHORTCUT = makeLink({
+    id: 6,
+    url: "https://blog.naver.com/cafe/east",
+    title: "제주 동부 카페 지도",
+    isFavorite: false,
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await mockApi(page, {
+      ...withContent([SHORTCUT, NOT_SHORTCUT], {
+        1: makeDetail(SHORTCUT),
+        6: makeDetail(NOT_SHORTCUT),
+      }),
+    });
+    await page.goto("/home");
+    await expect(page.getByText("제주 2박 3일 동쪽 일주 코스").first()).toBeVisible();
+  });
+
+  test("shortcut tiles show their label only, and the excerpt appears only inside link cards", async ({
+    page,
+  }) => {
+    const everywhere = page.getByText(EXCERPT, { exact: true });
+    const inCards = page.getByTestId("link-card").getByText(EXCERPT, { exact: true });
+    // The shortcut's card shows the excerpt, so the comparison below is not 0 = 0.
+    await expect(inCards.first()).toBeVisible();
+    expect(await everywhere.count()).toBe(await inCards.count());
+    await expect(page.getByText(/본문|원문|발췌/)).toHaveCount(0);
+  });
+
+  test("the 바로가기 추가 list shows title and domain without an excerpt", async ({ page }) => {
+    await page.getByText("바로가기 추가", { exact: true }).last().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("제주 동부 카페 지도", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("blog.naver.com", { exact: true })).toBeVisible();
+    await expect(dialog.getByText(excerptOf(LONG_BODY) as string)).toHaveCount(0);
+    await expect(dialog.getByText(/광치기해변/)).toHaveCount(0);
   });
 });
