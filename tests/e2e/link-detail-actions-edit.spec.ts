@@ -286,6 +286,10 @@ test.describe("editing actions in place", () => {
     expect(Math.abs(rowBox.width - viewBox.width)).toBeLessThanOrEqual(1);
     const editCheckbox = await boxOf(row.getByRole("checkbox"));
     expect(Math.abs(editCheckbox.x - viewCheckbox.x)).toBeLessThanOrEqual(1);
+    // The same round checkbox as the card.
+    expect(Math.round(editCheckbox.width)).toBe(Math.round(viewCheckbox.width));
+    const radius = parseFloat(await cssOf(row.getByRole("checkbox"), "border-top-left-radius"));
+    expect(radius).toBeGreaterThanOrEqual(editCheckbox.width / 2 - 0.5);
     await expect(editor(page).getByTestId("todo-editor")).toHaveCount(3);
     await expect(editor(page).getByText("액션 추가", { exact: true })).toHaveCount(0);
   });
