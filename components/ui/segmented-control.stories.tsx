@@ -70,6 +70,65 @@ export const Basic: Story = {
   name: "기본",
 };
 
+const sizeOptions = [
+  { label: "작게", value: "small" },
+  { label: "크게", value: "large" },
+];
+
+const weekdayOptions = [
+  { label: "월", value: "mon" },
+  { label: "화", value: "tue" },
+  { label: "수", value: "wed" },
+  { label: "목", value: "thu" },
+  { label: "금", value: "fri" },
+];
+
+function TwoOptionTrackStory() {
+  const [size, setSize] = React.useState("large");
+  return (
+    <View className="min-h-11 flex-row items-center">
+      <SegmentedControl
+        accessibilityLabel="링크 카드 크기"
+        value={size}
+        variant="track"
+        options={sizeOptions}
+        onValueChange={(next) => setSize(next as string)}
+      />
+    </View>
+  );
+}
+
+function MultipleSelectionStory() {
+  const [days, setDays] = React.useState<string[]>(["mon", "wed"]);
+  return (
+    <SegmentedControl
+      accessibilityLabel="요일"
+      value={days}
+      block
+      selectionMode="multiple"
+      variant="chips"
+      options={weekdayOptions}
+      onValueChange={(next) => setDays(next as string[])}
+    />
+  );
+}
+
+/**
+ * Two options in the track style, as the link card size row in settings. Each item is a button
+ * that announces whether it is selected (`aria-pressed` on web, the selected trait on iOS) and
+ * is at least 44pt tall to touch on iOS without changing the layout, inside a 44pt-tall row.
+ */
+export const TwoOptionTrack: Story = {
+  name: "두 칸 트랙 (링크 카드 크기)",
+  render: () => <TwoOptionTrackStory />,
+};
+
+/** Several selected at once: each selected item is announced as pressed (web) or selected (iOS). */
+export const MultipleSelection: Story = {
+  name: "여러 개 선택",
+  render: () => <MultipleSelectionStory />,
+};
+
 export const Variants: Story = {
   name: "변형",
   render: ({ value }) => (
