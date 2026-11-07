@@ -17,7 +17,7 @@ import {
   usePopoverContext,
 } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
-import { TimePicker, type TimeValue, formatTimeLabel } from "@/components/ui/time-picker";
+import { TimePicker, type TimeValue } from "@/components/ui/time-picker";
 import { cn } from "@/lib/utils";
 
 import { CalendarDays, Clock3 } from "lucide-react-native/icons";
@@ -53,13 +53,20 @@ const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 const POPOVER_ESTIMATED_HEIGHT = 360;
 
 function defaultPlaceholder(kind: "date" | "time") {
-  return kind === "date" ? "년-월-일" : "오전 09:00";
+  return kind === "date" ? "년-월-일" : "오전 9:00";
 }
 
 // `11월 20일 (금)`.
 function formatButtonDateLabel(value: DateValue) {
   const weekday = WEEKDAY_LABELS[dateValueToDate(value).getDay()];
   return `${value.month}월 ${value.day}일 (${weekday})`;
+}
+
+// `오전 9:00`: twelve-hour, the hour without a leading zero.
+function formatButtonTimeLabel({ hour, minute }: TimeValue) {
+  const meridiem = hour < 12 ? "오전" : "오후";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${meridiem} ${hour12}:${minute.toString().padStart(2, "0")}`;
 }
 
 function formatLabel(
@@ -70,7 +77,7 @@ function formatLabel(
   if (!value) return placeholder;
   return kind === "date"
     ? formatButtonDateLabel(value as DateValue)
-    : formatTimeLabel(value as TimeValue);
+    : formatButtonTimeLabel(value as TimeValue);
 }
 
 function buttonClassName(extra?: string) {

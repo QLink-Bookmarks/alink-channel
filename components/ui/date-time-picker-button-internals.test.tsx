@@ -40,7 +40,7 @@ describe("DateTimePickerButton label", () => {
     expect(screen.getByText("날짜 선택")).toBeOnTheScreen();
   });
 
-  it("keeps the time label as it was", () => {
+  it("shows a picked time without a leading zero on the hour", () => {
     render(
       <SheetVariant
         kind="time"
@@ -50,7 +50,29 @@ describe("DateTimePickerButton label", () => {
       />,
     );
 
-    expect(screen.getByText("오전 09:00")).toBeOnTheScreen();
+    expect(screen.getByText("오전 9:00")).toBeOnTheScreen();
+  });
+
+  it("shows noon and the afternoon on the twelve-hour clock", () => {
+    const { rerender } = render(
+      <SheetVariant
+        kind="time"
+        mode="mobile"
+        value={{ hour: 12, minute: 5 }}
+        onChange={jest.fn()}
+      />,
+    );
+    expect(screen.getByText("오후 12:05")).toBeOnTheScreen();
+
+    rerender(
+      <SheetVariant
+        kind="time"
+        mode="mobile"
+        value={{ hour: 0, minute: 30 }}
+        onChange={jest.fn()}
+      />,
+    );
+    expect(screen.getByText("오전 12:30")).toBeOnTheScreen();
   });
 });
 

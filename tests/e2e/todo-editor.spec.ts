@@ -363,7 +363,7 @@ test.describe("action editor in the create form (wide)", () => {
     await expect(form(page).getByText("확인할 액션이 1개 있어요", { exact: true })).toBeVisible();
     expect(server.linkCreates).toHaveLength(0);
 
-    await pickTime(page, panelOf(action).getByText("오전 09:00", { exact: true }), undefined, "PM");
+    await pickTime(page, panelOf(action).getByText("오전 9:00", { exact: true }), undefined, "PM");
     await expect(chipOf(action)).toHaveText("03/15 21:00");
     await expect(action.getByText(PAST_REMINDER_ERROR, { exact: true })).toHaveCount(0);
     await expect(form(page).getByText(/확인할 액션이/)).toHaveCount(0);
