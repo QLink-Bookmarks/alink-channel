@@ -16,8 +16,7 @@ async function openNewLinkWithFolderPopover(page: Page) {
   await expect(newLinkDialog(page)).toBeVisible();
   await newLinkDialog(page).getByPlaceholder(URL_PLACEHOLDER).fill("https://example.com/typed");
   await newLinkDialog(page)
-    .getByRole("button", { name: /AI 자동 분류/ })
-    .first()
+    .getByRole("button", { name: /^폴더, / })
     .click();
   await expect(page.getByText("공유 폴더", { exact: true }).last()).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(2);
@@ -68,7 +67,9 @@ test.describe("wide new link dialog on a route change", () => {
     await page.goto("/settings");
     await page.getByText("새 링크", { exact: true }).first().click();
     await newLinkDialog(page).getByPlaceholder(URL_PLACEHOLDER).fill("https://example.com/saved");
-    await newLinkDialog(page).getByPlaceholder("AI 생성으로 자동 정리해보세요").fill("저장한 링크");
+    await newLinkDialog(page)
+      .getByRole("textbox", { name: "제목", exact: true })
+      .fill("저장한 링크");
 
     await newLinkDialog(page).getByRole("button", { name: "저장", exact: true }).click();
 
@@ -104,7 +105,7 @@ test.describe("shared address entry", () => {
     await mockApi(page, { folders: makeFolders(3, 0) });
     await page.goto(SHARED_HOME);
 
-    await expect(page.getByPlaceholder("https://...")).toHaveValue(SHARED);
+    await expect(page.getByRole("textbox", { name: "URL", exact: true })).toHaveValue(SHARED);
   });
 });
 

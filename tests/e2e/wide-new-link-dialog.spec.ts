@@ -40,6 +40,11 @@ test.describe("wide new link dialog actions (#27)", () => {
       await page.goto("/home");
       await page.getByText("새 링크", { exact: true }).first().click();
       await expect(dialog(page)).toBeVisible();
+      await dialog(page)
+        .getByRole("button", { name: /^메모·액션/ })
+        .click();
+      await dialog(page).getByText("액션 추가", { exact: true }).click();
+      await dialog(page).getByText("액션 추가", { exact: true }).click();
       await page.waitForTimeout(400);
 
       const frame = await boxOf(dialog(page));
@@ -57,7 +62,7 @@ test.describe("wide new link dialog actions (#27)", () => {
       for (const [index, button] of actions(page).entries()) {
         expect(Math.round((await boxOf(button)).y)).toBe(before[index]);
       }
-      await expect(dialog(page).getByText("✅ 액션 (선택, 여러 개 가능)")).toBeInViewport();
+      await expect(dialog(page).getByText("액션 추가", { exact: true })).toBeInViewport();
     });
   }
 });

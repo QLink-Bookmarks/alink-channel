@@ -128,7 +128,7 @@ test.describe("wide", () => {
     await expect(page.getByTestId("link-card")).toHaveCount(3);
 
     await openDetail(page, "공부 링크 1", 1);
-    await expect(page.getByTestId("link-detail-folder")).toContainText("공부");
+    await expect(page.getByTestId("link-detail-folder-name")).toContainText("공부");
     await closeDetail(page);
 
     await page.getByRole("button", { name: "폴더 수정" }).first().click();
@@ -144,7 +144,7 @@ test.describe("wide", () => {
     await expect(nameInput).toBeHidden();
 
     await openDetail(page, "공부 링크 1", 1);
-    await expect(page.getByTestId("link-detail-folder")).toContainText("공부 노트");
+    await expect(page.getByTestId("link-detail-folder-name")).toContainText("공부 노트");
   });
 
   test("a title edited in the link detail shows on its card after closing the detail", async ({
@@ -155,7 +155,7 @@ test.describe("wide", () => {
     await expect(page.getByTestId("link-card")).toHaveCount(3);
 
     await openDetail(page, "공부 링크 2", 2);
-    await page.getByRole("button", { name: "수정하기" }).click();
+    await page.getByRole("button", { name: "수정", exact: true }).click();
     const editDialog = page.getByRole("dialog");
     await editDialog.getByPlaceholder("링크 제목").fill("고친 제목 링크 2");
     const saved = page.waitForResponse(
@@ -202,7 +202,7 @@ function editSheet(page: Page) {
 }
 
 async function openEditSheet(page: Page) {
-  await page.getByRole("button", { name: "수정하기" }).click();
+  await page.getByRole("button", { name: "수정", exact: true }).click();
   await expect(editSheet(page).getByPlaceholder("링크 제목")).toBeVisible();
 }
 
@@ -282,7 +282,7 @@ test.describe("mobile", () => {
     await expect(page.getByTestId("link-card")).toHaveCount(3);
 
     await openMobileDetail(page, "공부 링크 3", 3);
-    await page.getByRole("button", { name: "폴더 이동, 현재 📚 공부" }).click();
+    await page.getByTestId("link-detail-folder-move").click();
     const moved = page.waitForResponse(
       (response) =>
         response.request().method() === "PATCH" &&
@@ -318,10 +318,8 @@ test.describe("mobile", () => {
     await page.getByLabel("새 링크").click();
     await page.getByPlaceholder(/^https:\/\//).fill("https://example.com/new-note");
     const addSheet = page.getByRole("slider", { name: "Bottom Sheet" });
-    await addSheet
-      .getByPlaceholder(/^(AI 생성으로 자동 정리해보세요|제목을 불러오는 중…)$/)
-      .fill("새로 저장한 링크");
-    await addSheet.getByRole("button", { name: "변경" }).first().click();
+    await addSheet.getByRole("textbox", { name: "제목", exact: true }).fill("새로 저장한 링크");
+    await addSheet.getByRole("button", { name: /^폴더, / }).click();
     await addSheet.getByRole("radio", { name: "📚 공부", exact: true }).click();
     await expect(addSheet.getByText("📚 공부", { exact: true })).toBeVisible();
     const created = page.waitForResponse(
@@ -493,9 +491,9 @@ test.describe("mobile", () => {
   });
 
   for (const sheet of [
-    { name: "link edit", button: "수정하기" },
-    { name: "folder move", button: "폴더 이동, 현재 📚 공부" },
-    { name: "todo editor", button: "+ 액션 추가 / 수정" },
+    { name: "link edit", button: "수정" },
+    // #74: the todo editor is no longer a sheet; it opens in place.
+    { name: "folder move", button: "폴더 이동" },
   ]) {
     test(`the ${sheet.name} sheet opens again after it was dragged down to close`, async ({
       page,
@@ -530,7 +528,7 @@ test.describe("mobile", () => {
       await openEditSheet(page);
       await close.run(page);
       await expect(editSheet(page)).toHaveCount(0);
-      await page.getByRole("button", { name: "수정하기" }).click();
+      await page.getByRole("button", { name: "수정", exact: true }).click();
 
       await expectSheetStaysOpen(page);
       await expect(unsavedEditPrompt(page)).toHaveCount(0);
@@ -547,7 +545,7 @@ test.describe("mobile", () => {
 
     await openEditSheet(page);
     await pressOutsideSheet(page);
-    await page.getByRole("button", { name: "수정하기" }).dispatchEvent("click");
+    await page.getByRole("button", { name: "수정", exact: true }).dispatchEvent("click");
 
     await expectSheetStaysOpen(page);
     await expect(unsavedEditPrompt(page)).toHaveCount(0);

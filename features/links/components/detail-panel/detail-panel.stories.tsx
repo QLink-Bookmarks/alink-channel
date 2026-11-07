@@ -53,6 +53,13 @@ const meta = {
       isVideo: false,
       isFavorite: false,
       summary: "저장한 링크의 요약, 태그, 액션을 확인하는 상세 미리보기다.",
+      status: "A",
+      workModel: "gemini-2.5-flash",
+      content: {
+        excerpt:
+          "컴포넌트 시스템은 토큰, 기본 요소, 화면 조각 순서로 쌓는다. 각 층은 아래 층만 쓴다…",
+        isPending: false,
+      },
       tags: ["레퍼런스", "디자인"],
       memo: "와이드 상세 패널 스토리북용 메모다.",
       sourceType: "INPUT",
@@ -61,6 +68,13 @@ const meta = {
       folderName: "레퍼런스",
       todos: [
         { id: 1, title: "레퍼런스 정리", reminderAt: "2026-05-20T09:00:00.000Z" },
+        {
+          id: 3,
+          title: "주간 회고에 올리기",
+          repeatDays: ["MON", "THU"],
+          repeatTime: "08:00",
+          repeatUntil: "2099-12-31T14:59:59.999Z",
+        },
         { id: 2, title: "팀에 공유", completedAt: "2026-05-21T09:00:00.000Z" },
       ],
     },
@@ -134,5 +148,26 @@ export const NotFound: Story = {
   args: {
     mode: "overlay",
     notFound: true,
+  },
+};
+
+export const AiInProgress: Story = {
+  name: "AI 생성 중 (요약 없음)",
+  args: {
+    mode: "overlay",
+    detail: {
+      id: 3,
+      url: "https://visitjeju.net/kr/detail/view",
+      title: "성산일출봉 일출 시간표와 입장 마감 안내",
+      thumbnailUrl: null,
+      faviconUrl: null,
+      isVideo: false,
+      isFavorite: false,
+      status: "G",
+      tags: [],
+      sourceType: "INPUT",
+      createdAt: "2026-05-24T00:00:00.000Z",
+      todos: [],
+    },
   },
 };

@@ -97,7 +97,7 @@ test.describe("folder detail lookup", () => {
 
     await page.goto(isWideProject() ? `/folders/${LATE_ID}?linkId=501` : "/links/501");
 
-    await expect(page.getByLabel(`폴더 이동, 현재 📁 폴더 ${LATE_ID}`)).toBeVisible({
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText(`📁 폴더 ${LATE_ID}`, {
       timeout: 15_000,
     });
   });
