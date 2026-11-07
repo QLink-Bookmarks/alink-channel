@@ -84,7 +84,7 @@ function windowScope(page: Page, title: string): Locator | Page {
 }
 
 async function openMoveWindow(page: Page) {
-  await page.getByRole("button", { name: /^폴더 이동, 현재/ }).click();
+  await page.getByTestId("link-detail-folder-move").click();
   const scope = windowScope(page, "폴더 이동");
   await expect(scope.getByRole("button", { name: "확인", exact: true })).toBeVisible();
   return scope;
@@ -274,7 +274,7 @@ test.describe("move window in the link detail", () => {
     await expect(page.getByRole("button", { name: "옮기는 중" })).toHaveCount(0, {
       timeout: 10_000,
     });
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 43" })).toBeVisible();
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 43");
     expect(countRequests(state, "PATCH", /^\/api\/links\/1$/)).toBe(1);
 
     await page.goto("/folders/43");
@@ -300,7 +300,7 @@ test.describe("move window in the link detail", () => {
 
     state.linkMutations.failMove = false;
     await scope.getByRole("button", { name: "확인", exact: true }).click();
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 43" })).toBeVisible();
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 43");
     await expect(page.getByText(MOVE_ERROR)).toHaveCount(0);
   });
 
@@ -327,7 +327,7 @@ test.describe("move window in the link detail", () => {
         page.getByRole("button", { name: "확인", exact: true }),
         closer.name,
       ).toHaveCount(0);
-      await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 44" })).toBeVisible();
+      await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 44");
     }
     expect(countRequests(state, "PATCH", /^\/api\/links\/1$/)).toBe(0);
   });
@@ -347,7 +347,7 @@ test.describe("move window in the link detail", () => {
     await page.keyboard.press("Escape");
     await page.mouse.click(8, 8);
     await expect(pending).toBeVisible();
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 43" })).toBeVisible({
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 43", {
       timeout: 10_000,
     });
     await expect(page.getByRole("button", { name: "옮기는 중" })).toHaveCount(0);
@@ -359,7 +359,7 @@ test.describe("move window in the link detail", () => {
     const scope = await openMoveWindow(page);
     await radio(scope, 43).click();
     await scope.getByRole("button", { name: "확인", exact: true }).dblclick();
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 43" })).toBeVisible();
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 43");
     expect(countRequests(state, "PATCH", /^\/api\/links\/1$/)).toBe(1);
   });
 
@@ -371,7 +371,7 @@ test.describe("move window in the link detail", () => {
     const scope = await openMoveWindow(page);
     await radio(scope, 43).click();
     await scope.getByRole("button", { name: "확인", exact: true }).click();
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 43" })).toBeVisible();
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 43");
     await expect(await folderCountLabel(page, 43)).toHaveAccessibleName("폴더 43, 링크 4개");
     await expect(await folderCountLabel(page, 44)).toHaveAccessibleName("폴더 44, 링크 3개");
   });
@@ -516,7 +516,7 @@ test.describe("uncategorized row in the move window", () => {
 
     await scope.getByRole("radio", { name: UNCATEGORIZED_LABEL, exact: true }).click();
     await scope.getByRole("button", { name: "확인", exact: true }).click();
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📭 폴더 없음" })).toBeVisible();
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("폴더 없음");
     expect(state.requests.find((r) => r.method === "PATCH")?.body).toEqual({ folderId: 0 });
     expect(state.links[0].folderId).toBeNull();
 
@@ -989,7 +989,7 @@ test.describe("window fit, width and marks (#27)", () => {
     await expect(moved).toHaveCount(0, { timeout: 1000 });
   });
 
-  test("with a mouse in a narrow window, pressing the folder chip hides its hover name as the sheet opens", async ({
+  test("with a mouse in a narrow window, pressing the folder row's pencil opens the sheet without a hover name", async ({
     browser,
   }) => {
     test.skip(isWideProject(), "narrow window");
@@ -1001,10 +1001,9 @@ test.describe("window fit, width and marks (#27)", () => {
       const page = await context.newPage();
       await mockWithLink(page, linkIn(44));
       await openDetail(page);
-      const chip = page.getByTestId("link-detail-folder");
-      await chip.hover();
-      await expect(page.getByRole("tooltip")).toHaveCount(1);
-      await chip.click();
+      const pencil = page.getByTestId("link-detail-folder-move");
+      await pencil.hover();
+      await pencil.click();
       await expect(page.getByRole("button", { name: "확인", exact: true })).toBeVisible();
       await page.waitForTimeout(400);
       expect(await page.getByRole("tooltip").count()).toBe(0);

@@ -252,6 +252,19 @@ async function pickDateAndTime(page: Page, container: Locator = form(page)) {
   await expect(page.getByText("시간선택", { exact: true })).toHaveCount(0);
 }
 
+// The link detail's 액션 row: `+ 추가` opens the editor in place with a new row at the end.
+async function addDetailAction(page: Page, title: string, mode: "알림 없음" | "한 번") {
+  await page.getByTestId("link-detail-todos").getByRole("button", { name: "액션 추가" }).click();
+  const editor = page.getByTestId("link-detail-todos-editor");
+  const action = editor.getByTestId("todo-editor").last();
+  await action.getByPlaceholder("액션 제목").fill(title);
+  if (mode === "한 번") {
+    await action.getByTestId("todo-schedule-chip").click();
+    await action.getByTestId("todo-schedule-panel").getByText("한 번", { exact: true }).click();
+  }
+  return editor;
+}
+
 async function openActionsTabFromSidebar(page: Page) {
   await page
     .getByRole("button")
@@ -518,14 +531,9 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
     await page.goto("/links");
     await page.getByText(PENDING_TITLE).first().click();
     await expect(page).toHaveURL(/linkId=102/);
-    await page
-      .getByTestId("link-detail-todos")
-      .getByRole("button", { name: "+ 액션 추가 / 수정" })
-      .click();
-    const editor = page.getByRole("dialog", { name: "액션 추가 / 수정" });
-    await addAction(page, "상세에서 지난 시각", "한 번", editor);
+    const editor = await addDetailAction(page, "상세에서 지난 시각", "한 번");
     await pickDateAndTime(page, editor);
-    await editor.getByRole("button", { name: "저장", exact: true }).click();
+    await page.getByTestId("link-detail-todos-save").click();
 
     await expect(editor.getByText(PAST_REMINDER_ERROR, { exact: true })).toHaveCount(1);
     await expect(editor.getByText("필수 항목을 입력해주세요.", { exact: true })).toHaveCount(0);
@@ -533,7 +541,7 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
     expect(server.todoPosts).toHaveLength(0);
   });
 
-  test("a saved action whose reminder has passed stops the link detail's 저장 with the same error", async ({
+  test("a saved action whose reminder has passed does not stop the link detail's 저장: only the new action is sent (#74)", async ({
     page,
   }) => {
     await page.clock.setFixedTime(new Date(NEXT_YEAR, 2, 15, 12, 0));
@@ -553,18 +561,13 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
     await page.goto("/links");
     await page.getByText(PENDING_TITLE).first().click();
     await expect(page).toHaveURL(/linkId=102/);
-    await page
-      .getByTestId("link-detail-todos")
-      .getByRole("button", { name: "+ 액션 추가 / 수정" })
-      .click();
-    const editor = page.getByRole("dialog", { name: "액션 추가 / 수정" });
-    await addAction(page, "새로 쓴 액션", "알림 없음", editor);
-    await editor.getByRole("button", { name: "저장", exact: true }).click();
+    const editor = await addDetailAction(page, "새로 쓴 액션", "알림 없음");
+    await expect(editor.getByText(PAST_REMINDER_ERROR, { exact: true })).toHaveCount(0);
+    await page.getByTestId("link-detail-todos-save").click();
 
-    await expect(editor.getByText(PAST_REMINDER_ERROR, { exact: true })).toHaveCount(1);
-    await expect(editor).toBeVisible();
+    await expect(editor).toHaveCount(0);
     expect(server.todoPuts).toHaveLength(0);
-    expect(server.todoPosts).toHaveLength(0);
+    expect(server.todoPosts).toEqual([expect.objectContaining({ title: "새로 쓴 액션" })]);
   });
 
   test("the 액션 tab already loaded before 저장 shows the new action without a reload", async ({

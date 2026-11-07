@@ -159,6 +159,7 @@ function TodoEditorBase({
           accessibilityLabel={done ? "완료 취소" : "완료 표시"}
           checked={done}
           className={isMobile ? "mt-[11px]" : "mt-2"}
+          shape="round"
           disabled={disabled}
           onCheckedChange={(next) => onChangeDone?.(id, next)}
         />

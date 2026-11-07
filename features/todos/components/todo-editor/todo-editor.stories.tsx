@@ -226,6 +226,13 @@ export const FullTitle: Story = {
 
 export const DetailCheck: Story = {
   name: "완료 체크 (상세)",
+  parameters: {
+    docs: {
+      description: {
+        story: "상세 편집 줄은 보기 카드와 같은 둥근 완료 체크박스를 맨 앞에 둔다.",
+      },
+    },
+  },
   args: {
     check: true,
     initialTodos: [

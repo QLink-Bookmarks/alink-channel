@@ -177,17 +177,13 @@ test.describe("other mobile headers keep the centered title", () => {
     test.skip(isWideProject(), "the mobile header only");
   });
 
-  test("link detail title stays centered", async ({ page }) => {
+  test("link detail header has back and the toolbar, and no title (#74)", async ({ page }) => {
     await setup(page);
     await page.goto("/home");
     await page.goto("/links/1");
-    const title = headerTitle(page);
-    await expect(title).toBeVisible({ timeout: 15_000 });
-    expect(await cssOf(title, "text-align")).toBe("center");
-    const back = await boxOf(backButton(page));
-    const titleBox = await boxOf(title);
-    // Centered column: it starts after the 40px left column and the 12px gap, not 8px after 뒤로.
-    expect(titleBox.x - (back.x + back.width)).toBeGreaterThan(8.5);
+    await expect(page.getByTestId("link-detail-toolbar")).toBeVisible({ timeout: 15_000 });
+    await expect(backButton(page)).toBeVisible();
+    await expect(headerTitle(page)).toHaveCount(0);
   });
 
   test("notifications title stays centered", async ({ page }) => {

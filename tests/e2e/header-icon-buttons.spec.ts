@@ -161,7 +161,7 @@ test.describe("header icon buttons share the home reference look", () => {
     await expect(page.getByText("새 공지사항")).toBeVisible();
   });
 
-  test("link detail panel close and refresh are transparent buttons with the reference icon colour", async ({
+  test("link detail panel close is the reference button; refresh is a transparent toolbar command with its name", async ({
     page,
   }) => {
     test.skip(!isWideProject(), "the detail panel is wide only");
@@ -171,21 +171,20 @@ test.describe("header icon buttons share the home reference look", () => {
     const reference = await tokenColor(page, "--foreground");
     const refresh = page.getByTestId("link-detail-refresh");
     const close = page.getByTestId("link-detail-close");
-    await expectReferenceLook(refresh, "새로고침", reference);
     await expectReferenceLook(close, "닫기", reference);
     await expectHoverBackground(page, close, "닫기");
-    await expectHoverBackground(page, refresh, "새로고침");
-    const refreshBox = await boxOf(refresh);
-    const closeBox = await boxOf(close);
-    expect(Math.round(closeBox.x - (refreshBox.x + refreshBox.width))).toBe(8);
     await expectPressArea(page, close, "닫기");
-    await expectPressArea(page, refresh, "새로고침");
 
-    // The action row below keeps its 40px bordered buttons.
-    const share = page.getByTestId("link-detail-share");
-    const shareBox = await boxOf(share);
-    expect(Math.round(shareBox.width)).toBe(40);
-    expect(parseFloat(await cssOf(share, "border-top-width"))).toBe(1);
+    // #74: the commands are 32px ghost buttons with their names, muted at rest.
+    await expect(refresh).toHaveText("새로고침");
+    const refreshBox = await boxOf(refresh);
+    expect(Math.round(refreshBox.height)).toBe(32);
+    expect(parseFloat(await cssOf(refresh, "border-top-width"))).toBe(0);
+    await expect.poll(() => cssOf(refresh, "background-color")).toBe(TRANSPARENT);
+    expect(await iconColor(refresh)).toBe(await tokenColor(page, "--muted-foreground"));
+    await expectHoverBackground(page, refresh, "새로고침");
+    const closeBox = await boxOf(close);
+    expect(closeBox.x).toBeGreaterThan(refreshBox.x + refreshBox.width);
   });
 
   test("refresh keeps its refreshing and failed icon colours", async ({ page }) => {
@@ -223,7 +222,7 @@ test.describe("header icon buttons share the home reference look", () => {
       },
     });
     await openDetailPanel(page, 1);
-    const reference = await tokenColor(page, "--foreground");
+    const reference = await tokenColor(page, "--muted-foreground");
     const refresh = page.getByTestId("link-detail-refresh");
     expect(await iconColor(refresh)).toBe(reference);
 
@@ -240,11 +239,13 @@ test.describe("header icon buttons share the home reference look", () => {
     const failed = page.getByRole("button", { name: "새로고침 실패, 다시 시도" });
     // The detail query retries before the refresh reports a failure.
     await expect(failed).toBeVisible({ timeout: 30_000 });
+    await page.mouse.move(0, 0);
     expect(await iconColor(failed)).toBe(await tokenColor(page, "--destructive-text"));
 
     mode = "ok";
     await failed.click();
     await expect(page.getByRole("button", { name: "새로고침", exact: true })).toBeVisible();
+    await page.mouse.move(0, 0);
     expect(await iconColor(page.getByTestId("link-detail-refresh"))).toBe(reference);
   });
 

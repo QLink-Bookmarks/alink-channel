@@ -198,7 +198,7 @@ function detailGets(state: MockState, id: number) {
 const STATUS_WORDS = /본문|원문|발췌|수집|가져오는 중|가져오지 못|차단/;
 
 test.describe("detail excerpt", () => {
-  test("sits under the summary and above the tags, without a heading, with 이어 읽기 inline after …", async ({
+  test("sits under the summary on the same surface, under a 미리보기 heading, above 내 정리, with 이어 읽기 inline after …", async ({
     page,
   }) => {
     await mockApi(page, buildFixtures());
@@ -211,6 +211,10 @@ test.describe("detail excerpt", () => {
     const tags = await boxOf(page.getByTestId("link-detail-tags"));
     expect(block.y).toBeGreaterThan(summary.y + summary.height - 1);
     expect(tags.y).toBeGreaterThan(block.y + block.height - 1);
+    // #74: summary and excerpt share the AI surface.
+    const surface = page.getByTestId("link-detail-ai-surface");
+    await expect(surface.getByTestId("link-detail-summary")).toHaveCount(1);
+    await expect(surface.getByTestId("link-detail-excerpt")).toHaveCount(1);
 
     await expect(page.getByTestId("link-detail-excerpt-text")).toHaveText(
       `${LONG_EXCERPT} 이어 읽기`,
@@ -219,8 +223,8 @@ test.describe("detail excerpt", () => {
     const text = (await page.getByTestId("link-detail-excerpt-text").textContent()) ?? "";
     const beforeEllipsis = text.slice(0, text.indexOf("…"));
     expect(beforeEllipsis).toBe(LONG_BODY.slice(0, 100));
-    // No heading, source line or status: only the excerpt and the link.
-    await expect(excerpt).toHaveText(`${LONG_EXCERPT} 이어 읽기`);
+    // Only the 미리보기 heading, the excerpt and the link: no source line or status.
+    await expect(excerpt).toHaveText(`미리보기${LONG_EXCERPT} 이어 읽기`);
     await expect(page.getByTestId("link-detail").getByText(STATUS_WORDS)).toHaveCount(0);
 
     // "이어 읽기" and its icon follow "…" as one unbroken piece.
@@ -498,16 +502,16 @@ test.describe("excerpt stays through edits", () => {
     await expect(excerptText).toHaveText(`${LONG_EXCERPT} 이어 읽기`);
 
     const tagsSection = page.getByTestId("link-detail-tags");
-    await tagsSection.getByRole("button", { name: "+ 태그 추가" }).click();
+    await tagsSection.getByRole("button", { name: "태그 편집" }).click();
     await tagsSection.getByPlaceholder("태그").fill("새태그");
-    await tagsSection.getByPlaceholder("태그").blur();
+    await tagsSection.getByPlaceholder("태그").press("Enter");
     await expect(tagsSection.getByText("#새태그")).toBeVisible();
     await expect(excerptText).toHaveText(`${LONG_EXCERPT} 이어 읽기`);
 
     const memo = page.getByTestId("link-detail-memo");
     await memo.getByRole("button", { name: "메모 추가" }).click();
     await memo.getByPlaceholder("메모를 입력해주세요").fill("렌터카 예약");
-    await memo.getByRole("button", { name: "확인" }).click();
+    await memo.getByRole("button", { name: "저장" }).click();
     await expect(memo.getByText("렌터카 예약", { exact: true })).toBeVisible();
     await expect(excerptText).toHaveText(`${LONG_EXCERPT} 이어 읽기`);
 
@@ -542,16 +546,15 @@ test.describe("excerpt stays through edits", () => {
     );
   });
 
-  test("while the AI summary is generating and after it is done, the summary section is as before and the excerpt stays below it", async ({
+  test("while the AI summary is generating only the excerpt shows; after a refresh the summary comes in above it", async ({
     page,
   }) => {
     const state = await mockApi(page, buildFixtures());
     await openDetail(page, 7);
     const summary = page.getByTestId("link-detail-summary");
-    await expect(summary.getByText("요약이 아직 없어요")).toBeVisible();
+    await expect(summary).toHaveCount(0);
+    await expect(page.getByText("요약이 아직 없어요")).toHaveCount(0);
     await expect(page.getByTestId("link-detail-excerpt")).toBeVisible();
-    const excerptBox = await boxOf(page.getByTestId("link-detail-excerpt"));
-    expect(excerptBox.y).toBeGreaterThan((await boxOf(summary)).y);
 
     state.details[7] = {
       ...state.details[7],
@@ -561,7 +564,9 @@ test.describe("excerpt stays through edits", () => {
     };
     await page.getByTestId("link-detail-refresh").click();
     await expect(summary.getByText("제주 동쪽 2박 3일 코스 요약")).toBeVisible();
-    await expect(summary.getByText("요약 모델 - gemini-2.5-flash")).toBeVisible();
+    await expect(summary.getByTestId("link-detail-summary-model")).toContainText(
+      "gemini-2.5-flash",
+    );
     await expect(page.getByTestId("link-detail-excerpt-text")).toHaveText(
       `${LONG_EXCERPT} 이어 읽기`,
     );

@@ -469,7 +469,7 @@ test.describe("action editor in the create form (wide)", () => {
   });
 });
 
-test.describe("action editor in the link detail sheet (mobile)", () => {
+test.describe("action editor in the link detail (mobile)", () => {
   test.beforeEach(() => {
     test.skip(isWideProject(), "the wide create form covers the same editor");
   });
@@ -480,9 +480,9 @@ test.describe("action editor in the link detail sheet (mobile)", () => {
     const link = makeLink({ id: 2, url: LINK_URL, title: "액션 편집 확인" });
     await mockApi(page, { links: [link], details: { 2: makeDetail(link, { todos: [] }) } });
     await page.goto("/links/2");
-    await page.getByRole("button", { name: "+ 액션 추가 / 수정" }).click();
-    const sheet = page.getByRole("slider", { name: "Bottom Sheet" });
-    const action = await addAction(sheet);
+    // #74: the 액션 row's + 추가 opens the editor in place with a new row.
+    await page.getByTestId("link-detail-todos").getByRole("button", { name: "액션 추가" }).click();
+    const action = page.getByTestId("link-detail-todos-editor").getByTestId("todo-editor").last();
 
     await expect(titleOf(action)).toBeFocused();
     await expect(chipOf(action)).toHaveText("알림 없음");
