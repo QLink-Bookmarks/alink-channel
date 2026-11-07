@@ -105,7 +105,7 @@ test.describe("shared address entry", () => {
     await mockApi(page, { folders: makeFolders(3, 0) });
     await page.goto(SHARED_HOME);
 
-    await expect(page.getByPlaceholder("https://...")).toHaveValue(SHARED);
+    await expect(page.getByRole("textbox", { name: "URL", exact: true })).toHaveValue(SHARED);
   });
 });
 
