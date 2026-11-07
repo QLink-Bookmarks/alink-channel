@@ -8,6 +8,8 @@ import { type MockLink, makeDetail, makeLink, mockApi } from "./support/mock-api
 // is in link-sort-filter.spec.ts and todo-status-filter.spec.ts.
 
 const IDLE_MS = 1600;
+// The open animation is 240ms; this leaves room for it to end.
+const OPEN_SETTLE_MS = 300;
 
 const TITLES: Record<number, string> = {
   1: "다람쥐 도토리",
@@ -75,8 +77,12 @@ async function openList(page: Page) {
   await expect(coverButton(page)).toBeVisible();
 }
 
-/** Stops the page clock a moment from now, so timers only run when the test says. */
+/**
+ * Lets a running open or close animation finish (240ms + margin), then stops the page clock a moment
+ * from now, so timers only run when the test says.
+ */
 async function pauseClock(page: Page) {
+  await page.clock.runFor(OPEN_SETTLE_MS);
   const now = await page.evaluate(() => Date.now());
   await page.clock.pauseAt(now + 50);
 }
@@ -272,6 +278,10 @@ test.describe("keyboard", () => {
     await expect(sortChip(page, "저장일, 내림차순")).toBeFocused();
     await page.keyboard.press("End");
     await expect(sortChip(page, "제목, 오름차순")).toBeFocused();
+    await page.keyboard.press("Space");
+    await expect(sortChip(page, "제목, 내림차순")).toBeChecked();
+    await page.keyboard.press("Space");
+    await expect(sortChip(page, "제목, 오름차순")).toBeChecked();
     await page.keyboard.press("Enter");
     await expect(sortChip(page, "제목, 내림차순")).toBeChecked();
 
@@ -305,9 +315,61 @@ test.describe("keyboard", () => {
     await page.keyboard.press("Shift+Tab");
     await expectClosed(page);
   });
+
+  test("Space presses a folder chip too", async ({ page }) => {
+    test.skip(isWideProject(), "the folder chips sit on the mobile home");
+    await openList(page);
+    const folder = page.getByRole("radio", { name: "🗂️ 미분류" });
+    await folder.focus();
+    await page.keyboard.press("Space");
+    await expect(folder).toBeChecked();
+    await expect(page.getByRole("radio", { name: "전체", exact: true })).not.toBeChecked();
+  });
+
+  test("Esc closes only the cover and does not reach Esc handlers behind it", async ({ page }) => {
+    await openList(page);
+    // Stand-in for a panel that closes on Esc the way the wide link detail does: a document
+    // keydown listener that skips handled keys, registered before the cover opens.
+    await page.evaluate(() => {
+      const seen: string[] = [];
+      (window as unknown as { __escSeen: string[] }).__escSeen = seen;
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !event.defaultPrevented) seen.push("closed-behind");
+      });
+    });
+    await coverButton(page).focus();
+    await page.keyboard.press("Enter");
+    await expectOpen(page);
+    await page.keyboard.press("Escape");
+    await expectClosed(page);
+    expect(
+      await page.evaluate(() => (window as unknown as { __escSeen: string[] }).__escSeen),
+    ).toEqual([]);
+
+    // With the cover closed, Esc goes on to the handlers behind.
+    await page.keyboard.press("Escape");
+    expect(
+      await page.evaluate(() => (window as unknown as { __escSeen: string[] }).__escSeen),
+    ).toEqual(["closed-behind"]);
+  });
 });
 
 test.describe("accessible names", () => {
+  test("the closed cover is out of the accessibility tree", async ({ page }) => {
+    await openList(page);
+    await expect(page.getByRole("radiogroup", { name: "정렬 기준" })).toHaveCount(0);
+    await expect(page.getByRole("radio", { name: /^(저장일|제목)/ })).toHaveCount(0);
+    await expect(favoriteToggle(page)).toHaveCount(0);
+
+    await coverButton(page).click();
+    await expectOpen(page);
+    await expect(page.getByRole("radio", { name: /^(저장일|제목)/ })).toHaveCount(2);
+
+    await coverButton(page).click();
+    await expectClosed(page);
+    await expect(page.getByRole("radio", { name: /^(저장일|제목)/ })).toHaveCount(0);
+  });
+
   test("the link row names its button, cover, sort group and chips", async ({ page }) => {
     await openList(page);
     if (!isWideProject()) {

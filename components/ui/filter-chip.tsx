@@ -38,6 +38,21 @@ function FilterChip({
   testID,
 }: FilterChipProps) {
   const handleLayout = useFilterRowPrimaryChipLayout();
+  // react-native-web presses on Space only for role button; a radio needs it too (web only).
+  const spaceKeyProps = React.useMemo(
+    () =>
+      isWeb && !disabled
+        ? ({
+            onKeyDown: (event: { key: string; preventDefault: () => void }) => {
+              if (event.key === " " || event.key === "Spacebar") {
+                event.preventDefault();
+                onPress();
+              }
+            },
+          } as Record<string, unknown>)
+        : {},
+    [disabled, onPress],
+  );
   const hasCount = count != null;
   const accessibleName = hasCount ? `${label} ${count}` : label;
   const textClassName = cn(
@@ -64,6 +79,7 @@ function FilterChip({
       testID={testID}
       onLayout={handleLayout}
       onPress={onPress}
+      {...spaceKeyProps}
     >
       <PressableHitSlopArea hitSlop={CHIP_HIT_SLOP} />
       <Text

@@ -102,6 +102,21 @@ function SortCriterionItem<K extends string>({
   const handlePress = React.useCallback(() => {
     onValueChange(pressSortCriterion(value, criterion));
   }, [criterion, onValueChange, value]);
+  // react-native-web presses on Space only for role button; a radio needs it too (web only).
+  const spaceKeyProps = React.useMemo(
+    () =>
+      isWeb
+        ? ({
+            onKeyDown: (event: { key: string; preventDefault: () => void }) => {
+              if (event.key === " " || event.key === "Spacebar") {
+                event.preventDefault();
+                handlePress();
+              }
+            },
+          } as Record<string, unknown>)
+        : {},
+    [handlePress],
+  );
 
   return (
     <Pressable
@@ -124,6 +139,7 @@ function SortCriterionItem<K extends string>({
         layouts.items.set(criterion.key, event.nativeEvent.layout);
       }}
       onPress={handlePress}
+      {...spaceKeyProps}
     >
       <PressableHitSlopArea hitSlop={ITEM_HIT_SLOP} />
       <View

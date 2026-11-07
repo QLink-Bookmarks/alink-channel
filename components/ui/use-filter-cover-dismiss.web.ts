@@ -83,30 +83,47 @@ function useFilterCoverDismiss({
     if (!cover) {
       return;
     }
-    let isPointerDown = false;
+    // The press that arms the timer: the item a pointer went down on, and when.
+    let pointerPress: { item: Element | null; at: number } | null = null;
+    const itemOf = (target: EventTarget | null) =>
+      target instanceof Element ? target.closest("[tabindex]") : null;
+
     const handlePointerDown = (event: PointerEvent) => {
       if (!POINTER_TYPES.has(event.pointerType)) {
         return;
       }
-      isPointerDown = true;
+      pointerPress = { item: itemOf(event.target), at: Date.now() };
       pause();
     };
     const handlePointerUp = () => {
-      if (!isPointerDown) {
-        return;
+      // A drag or a release elsewhere only restarts a timer that was already running.
+      resume();
+    };
+    const handleClick = (event: MouseEvent) => {
+      // Only a click on the item the pointer went down on, within a second, counts as a pointer
+      // choice. Keyboard and assistive-technology clicks come without that press.
+      const press = pointerPress;
+      pointerPress = null;
+      if (
+        press &&
+        press.item === itemOf(event.target) &&
+        Date.now() - press.at < POINTER_PRESS_WINDOW_MS
+      ) {
+        arm();
       }
-      isPointerDown = false;
-      arm();
     };
     const handlePointerCancel = () => {
-      isPointerDown = false;
+      pointerPress = null;
       resume();
     };
     cover.addEventListener("pointerdown", handlePointerDown);
+    // Capture phase: a pressable inside may stop the click from bubbling.
+    cover.addEventListener("click", handleClick, true);
     window.addEventListener("pointerup", handlePointerUp);
     window.addEventListener("pointercancel", handlePointerCancel);
     return () => {
       cover.removeEventListener("pointerdown", handlePointerDown);
+      cover.removeEventListener("click", handleClick, true);
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerCancel);
     };
@@ -137,7 +154,10 @@ function useFilterCoverDismiss({
       if (active && active !== document.body && !isInside(row, active)) {
         return;
       }
+      // Esc closes only the cover: listened in the capture phase and stopped here, so a panel
+      // behind it (the wide link detail) stays open.
       event.preventDefault();
+      event.stopImmediatePropagation();
       stateRef.current.onDismiss({ focusButton: true, immediate: false });
     };
     const handleFocusOut = (event: FocusEvent) => {
@@ -149,11 +169,11 @@ function useFilterCoverDismiss({
     };
 
     document.addEventListener("pointerdown", handlePointerDown, true);
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
     row?.addEventListener("focusout", handleFocusOut);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown, true);
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
       row?.removeEventListener("focusout", handleFocusOut);
     };
   }, [buttonRef, coverRef, isOpen, rowRef]);

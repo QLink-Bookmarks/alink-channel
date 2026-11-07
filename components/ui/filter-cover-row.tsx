@@ -55,6 +55,8 @@ const PRIMARY_FADE_WIDTH = 16;
 // 3px keyboard focus ring of the first and last chip is not clipped (as in #69). Chip x values
 // come from inside that padding.
 const PRIMARY_RING_ROOM = 4;
+// Space between 1st chips (gap-1).
+const PRIMARY_CHIP_GAP = 4;
 // Pill: 10px before the label, the 30px icon box at the right end, 1px border on both sides.
 const PILL_PADDING_LEFT = 10;
 // Where the first pill piece starts (border + padding) and the space between pieces (gap-1).
@@ -157,13 +159,20 @@ function getFilterCoverButtonLabel(
 }
 
 /** Right edge of the last chip that must stay whole, from the chips' own left edge. */
+/**
+ * Right edge of the last chip that must stay whole, from the chips' own left edge. Built from the
+ * chip widths: react-native-web reports onLayout on resize only, so a chip that moves without
+ * resizing (e.g. when the counts arrive and an earlier chip widens) keeps a stale x. The x values
+ * only give the order.
+ */
 function getProtectedPrimaryRight(layouts: Iterable<{ x: number; width: number }>) {
   const sorted = [...layouts].sort((a, b) => a.x - b.x);
   if (sorted.length === 0) {
     return null;
   }
-  const last = sorted[Math.min(PROTECTED_PRIMARY_CHIPS, sorted.length) - 1];
-  return last.x + last.width;
+  const protectedChips = sorted.slice(0, PROTECTED_PRIMARY_CHIPS);
+  const widths = protectedChips.reduce((sum, layout) => sum + layout.width, 0);
+  return PRIMARY_RING_ROOM + widths + PRIMARY_CHIP_GAP * (protectedChips.length - 1);
 }
 
 /** The same color fully transparent, so a fade does not pass through grey. */
@@ -757,13 +766,19 @@ function FilterCoverRow({
             {primary}
           </ScrollView>
           {primaryFade ? (
+            // Placed with style: className is not mapped onto expo-linear-gradient on native.
             <LinearGradient
-              className="absolute bottom-0 top-0"
               colors={[transparentPage, pageColor]}
               end={{ x: 1, y: 0 }}
               pointerEvents="none"
               start={{ x: 0, y: 0 }}
-              style={{ right: -PRIMARY_RING_ROOM, width: PRIMARY_FADE_WIDTH + PRIMARY_RING_ROOM }}
+              style={{
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                right: -PRIMARY_RING_ROOM,
+                width: PRIMARY_FADE_WIDTH + PRIMARY_RING_ROOM,
+              }}
             />
           ) : null}
         </View>
@@ -791,7 +806,10 @@ function FilterCoverRow({
             <Animated.View style={[{ flex: 1 }, coverInnerStyle]}>
               <View
                 ref={coverRef}
+                // Closed, the cover is out of the accessibility tree on every platform (the web
+                // also makes it inert in use-filter-cover-dismiss.web.ts).
                 accessibilityElementsHidden={!isOpen}
+                aria-hidden={!isOpen}
                 accessibilityLabel={coverLabel}
                 className="flex-1"
                 importantForAccessibility={isOpen ? "auto" : "no-hide-descendants"}
@@ -802,12 +820,17 @@ function FilterCoverRow({
                 {coverMode === "content" ? (
                   <>
                     <LinearGradient
-                      className="absolute bottom-0 left-0 top-0"
                       colors={[transparentPage, pageColor]}
                       end={{ x: 1, y: 0 }}
                       pointerEvents="none"
                       start={{ x: 0, y: 0 }}
-                      style={{ width: CONTENT_FADE_WIDTH }}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        bottom: 0,
+                        left: 0,
+                        width: CONTENT_FADE_WIDTH,
+                      }}
                     />
                     <View
                       className="absolute bottom-0 right-0 top-0"
