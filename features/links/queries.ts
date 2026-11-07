@@ -178,11 +178,11 @@ function useLinkDetailExcerptRecheck(
 }
 
 function useLinksQuery(params: GetLinksParams = {}) {
-  const resolvedParams: GetLinksParams = {
-    order: "latest",
-    size: 30,
-    ...params,
-  };
+  // The sort defaults only when the caller sends none: `orderKey` with the old `order` is a 400.
+  const hasSort = params.orderKey != null || params.order != null;
+  const resolvedParams: GetLinksParams = hasSort
+    ? { size: 30, ...params }
+    : { orderKey: "created_at", order: "desc", size: 30, ...params };
 
   return useQuery({
     queryFn: async () => {

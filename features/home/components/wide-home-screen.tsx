@@ -145,7 +145,11 @@ function WideHomeScreen() {
 
   const favoritesQuery = useLinksQuery({ isFavorite: true, size: SHORTCUT_PREVIEW_COUNT });
   const todosQuery = useTodosQuery({ isCompleted: false, size: 30 });
-  const recentLinksQuery = useLinksQuery({ order: "latest", size: RECENT_PREVIEW_COUNT });
+  const recentLinksQuery = useLinksQuery({
+    orderKey: "created_at",
+    order: "desc",
+    size: RECENT_PREVIEW_COUNT,
+  });
   const toggleTodo = useToggleTodoCompletedMutation();
   const todoGrid = useGridColumns({ gap: TODO_GRID_GAP, minItemWidth: TODO_MIN_CARD_WIDTH });
 
