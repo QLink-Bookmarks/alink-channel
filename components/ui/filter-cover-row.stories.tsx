@@ -158,10 +158,13 @@ const meta = {
     favoriteOnly: false,
     sortKey: "created_at",
   },
+  // The row width: a phone at 390 with 16px gutters by default (parameters.rowWidth).
   decorators: [
-    (Story) => (
-      <View className="w-full max-w-[390px] p-4">
-        <Story />
+    (Story, context) => (
+      <View className="p-4">
+        <View style={{ width: (context.parameters.rowWidth as number | undefined) ?? 358 }}>
+          <Story />
+        </View>
       </View>
     ),
   ],
@@ -188,11 +191,11 @@ export const WithoutPrimaryChips: Story = {
 export const Narrow: Story = {
   name: "320 폭",
   args: { favoriteOnly: true, sortKey: "title" },
-  decorators: [
-    (Story) => (
-      <View className="w-[320px]">
-        <Story />
-      </View>
-    ),
-  ],
+  parameters: { rowWidth: 288 },
+};
+
+export const Wide: Story = {
+  name: "와이드 (개수 + 내용 폭 덮개)",
+  args: { withPrimaryChips: false, coverMode: "content", favoriteOnly: true, sortKey: "title" },
+  parameters: { rowWidth: 720 },
 };
