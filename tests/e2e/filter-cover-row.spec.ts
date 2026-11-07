@@ -7,7 +7,7 @@ import { type MockLink, makeDetail, makeLink, mockApi } from "./support/mock-api
 // the accessible names, the row at 320–769px and reduced motion. The sorting and filtering itself
 // is in link-sort-filter.spec.ts and todo-status-filter.spec.ts.
 
-const IDLE_MS = 1200;
+const IDLE_MS = 1600;
 
 const TITLES: Record<number, string> = {
   1: "다람쥐 도토리",
@@ -177,7 +177,7 @@ test.describe("opening and closing", () => {
 });
 
 test.describe("auto close", () => {
-  test("closes 1.2s after the last press, not before, and shows what was chosen", async ({
+  test("closes the idle time (1.6s) after the last press, not before, and shows what was chosen", async ({
     page,
   }) => {
     await page.clock.install();

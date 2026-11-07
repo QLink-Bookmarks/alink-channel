@@ -660,14 +660,15 @@ function FilterCoverRow({
   // Cover: outer window slides right by d·(1−p), inner content slides back by the same, so only the
   // window's edge moves (it opens from the pill's left end).
   const coverWindowStyle = useAnimatedStyle(() => {
-    const shift = coverOffset.value * (1 - progress.value);
+    // Reduced motion: no wipe, the cover only fades in place.
+    const shift = isReducedMotion ? 0 : coverOffset.value * (1 - progress.value);
     return {
       opacity: isReducedMotion ? fade.value : progress.value > 0.001 ? 1 : 0,
       transform: [{ translateX: shift }],
     };
   });
   const coverInnerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: -coverOffset.value * (1 - progress.value) }],
+    transform: [{ translateX: isReducedMotion ? 0 : -coverOffset.value * (1 - progress.value) }],
   }));
   const coverContentStyle = useAnimatedStyle(() => ({
     opacity: isReducedMotion
@@ -677,14 +678,15 @@ function FilterCoverRow({
 
   // Pill: the same two layers, narrowing to the X circle from the left.
   const pillWindowStyle = useAnimatedStyle(() => {
-    const shift = pillExtra.value * progress.value;
+    // Reduced motion: the pill fades in place while the X circle fades in.
+    const shift = isReducedMotion ? 0 : pillExtra.value * progress.value;
     return {
       opacity: isReducedMotion ? 1 - fade.value : progress.value >= OPEN_CIRCLE_FROM ? 0 : 1,
       transform: [{ translateX: shift }],
     };
   });
   const pillInnerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: -pillExtra.value * progress.value }],
+    transform: [{ translateX: isReducedMotion ? 0 : -pillExtra.value * progress.value }],
   }));
   const pillLabelStyle = useAnimatedStyle(() => ({ opacity: labelOpacity.value }));
   const openCircleStyle = useAnimatedStyle(() => ({
