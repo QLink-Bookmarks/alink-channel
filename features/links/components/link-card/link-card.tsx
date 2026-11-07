@@ -87,6 +87,7 @@ function LinkCard({
   return (
     <View
       className={cn(
+        // grow fills the grid cell stretched to the row's tallest card; without it iOS debug builds can abort on a Yoga assertion (#94).
         "group relative grow overflow-hidden rounded-[14px] border border-border bg-card",
         "web:transition-colors web:hover:border-primary",
         active && "border-primary",
