@@ -29,7 +29,7 @@ function Toast({
   onAction?: () => void;
   onDismiss?: () => void;
 }) {
-  const isSolidVariant = variant === "success" || variant === "error" || variant === "warning";
+  const isInverseVariant = variant === "default" || variant === "gradient";
   const solidTextClassName =
     variant === "success"
       ? "text-success-foreground"
@@ -38,15 +38,9 @@ function Toast({
         : variant === "warning"
           ? "text-warning-foreground"
           : "text-background";
-  const titleClassName =
-    isSolidVariant || variant === "gradient" ? solidTextClassName : "text-foreground";
-  const descriptionClassName = isSolidVariant
-    ? solidTextClassName
-    : variant === "gradient"
-      ? "text-background/80"
-      : "text-muted-foreground";
-  const dismissClassName =
-    isSolidVariant || variant === "gradient" ? solidTextClassName : "text-muted-foreground";
+  const titleClassName = solidTextClassName;
+  const descriptionClassName = isInverseVariant ? "text-background/80" : solidTextClassName;
+  const dismissClassName = isInverseVariant ? "text-background/80" : solidTextClassName;
   const actionBorderClassName =
     variant === "success"
       ? "border-success-foreground/40"
@@ -90,13 +84,9 @@ function Toast({
         <Progress
           className={cn(
             "absolute left-0 right-0 top-0 h-1 rounded-none bg-black/10",
-            variant === "default" && "bg-primary/15",
+            variant === "default" && "bg-background/15",
           )}
-          indicatorClassName={cn(
-            "bg-primary",
-            variant === "default" && "bg-primary",
-            variant === "gradient" && "bg-background/80",
-          )}
+          indicatorClassName={cn("bg-primary", isInverseVariant && "bg-background/80")}
           value={progressValue}
         />
       ) : null}
@@ -110,9 +100,9 @@ function Toast({
             <Button
               className={cn(
                 "mt-2 h-8 min-h-0 self-start rounded-full px-3",
-                isSolidVariant || variant === "gradient"
-                  ? cn(actionBorderClassName, "bg-transparent")
-                  : "border-border",
+                variant === "default"
+                  ? "border-background/40 bg-transparent dark:border-background/40 dark:bg-transparent"
+                  : cn(actionBorderClassName, "bg-transparent"),
               )}
               size="xs"
               variant="outline"
@@ -124,6 +114,7 @@ function Toast({
         </View>
         {dismissible && onDismiss ? (
           <Pressable
+            accessibilityRole="button"
             className="rounded-md px-1"
             onPress={onDismiss}
           >

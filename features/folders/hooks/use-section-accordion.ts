@@ -2,7 +2,7 @@ import * as React from "react";
 import { Easing, type SharedValue, useSharedValue, withTiming } from "react-native-reanimated";
 import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
 
-import type { SheetMotion } from "@/components/layout/sheet";
+import type { SheetMotion } from "@/components/layout/sheet-context";
 
 import {
   MODE_MOVING,

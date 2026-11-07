@@ -57,14 +57,6 @@ function isAuth401(error: unknown): boolean {
   return typeof data?.error?.code === "string" && data.error.code.startsWith("AUTH_401");
 }
 
-function extractErrorMessage(error: unknown): string {
-  if (isAxiosError(error)) {
-    const data = error.response?.data as { error?: { message?: string } } | undefined;
-    if (data?.error?.message) return data.error.message;
-  }
-  return "요청에 실패했어요. 잠시 후 다시 시도해주세요.";
-}
-
 async function refreshTokens(refreshToken: string | null): Promise<Tokens | null> {
   try {
     const response = await client.post<{
@@ -188,7 +180,6 @@ async function requestSharedAiSummary(input: {
 
 export {
   createSharedLink,
-  extractErrorMessage,
   fetchFolders,
   fetchProviderModels,
   hasAuth,

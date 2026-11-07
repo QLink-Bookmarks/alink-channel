@@ -62,3 +62,5 @@ dist.zip
 
 # App Store review captures
 appreview/
+# Design mock workspace (local only)
+.impeccable/

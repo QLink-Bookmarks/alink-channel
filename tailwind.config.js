@@ -9,6 +9,8 @@ module.exports = {
     "./features/**/*.{js,jsx,ts,tsx}",
     "./providers/**/*.{js,jsx,ts,tsx}",
     "./lib/**/*.{js,jsx,ts,tsx}",
+    "./share/**/*.{ts,tsx}",
+    "./index.share.tsx",
     "./.rnstorybook/**/*.{js,jsx,ts,tsx}",
     "./.storybook/**/*.{js,jsx,ts,tsx}",
   ],
