@@ -3,7 +3,6 @@ import {
   type AccessibilityActionEvent,
   ActivityIndicator,
   Pressable,
-  Text as RNText,
   ScrollView,
   TextInput,
   View,
@@ -88,26 +87,17 @@ import {
 } from "@/features/todos/mutations";
 import { reportError } from "@/lib/error-reporting";
 import { useGridColumns } from "@/lib/hooks/use-grid-columns";
-import { useWideView } from "@/lib/hooks/use-wide-view";
 import { cn } from "@/lib/utils";
 import type { FolderSection } from "@/stores/folder-navigation";
 import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { ExcerptContinueLink } from "./excerpt-continue-link";
 import { DetailActionButton, HoverLabel, RefreshButton } from "./link-detail-parts";
 import { LinkThumbnail } from "./link-thumbnail/link-thumbnail";
 
 import { type Href, useRouter } from "expo-router";
-import {
-  Ellipsis,
-  ExternalLink,
-  FolderPlus,
-  Pencil,
-  Share2,
-  Star,
-  Trash2,
-  X,
-} from "lucide-react-native/icons";
+import { Ellipsis, FolderPlus, Pencil, Share2, Star, Trash2, X } from "lucide-react-native/icons";
 
 const TODO_GRID_GAP = 10;
 const PERSONAL_FOLDER_SECTIONS: FolderSection[] = ["mine"];
@@ -180,9 +170,6 @@ function DetailSection({
   );
 }
 
-// The 20pt line + 12pt above and below = 44pt; 6pt to each side.
-const EXCERPT_LINK_HIT_SLOP = { top: 12, bottom: 12, left: 6, right: 6 };
-
 // The action's name is what VoiceOver reads, so it is the visible link's wording.
 const OPEN_ORIGINAL_ACTION = "이어 읽기";
 
@@ -190,12 +177,12 @@ const OPEN_ORIGINAL_ACTION = "이어 읽기";
  * Native: VoiceOver cannot reach an inline view inside a Text, so the excerpt paragraph
  * offers "이어 읽기" as a custom action that opens the original.
  */
-function getExcerptAccessibilityProps(onOpenOriginal: () => void) {
+function getExcerptAccessibilityProps(url: string) {
   return {
     accessibilityActions: [{ name: OPEN_ORIGINAL_ACTION }],
     onAccessibilityAction: (event: AccessibilityActionEvent) => {
       if (event.nativeEvent.actionName === OPEN_ORIGINAL_ACTION) {
-        onOpenOriginal();
+        openLinkUrl(url);
       }
     },
   };
@@ -205,14 +192,7 @@ function getExcerptAccessibilityProps(onOpenOriginal: () => void) {
  * The page excerpt under the summary: no heading, a left quote bar and muted text, with an
  * inline "이어 읽기" link right after the trailing "…" that opens the original.
  */
-function DetailExcerpt({
-  excerpt,
-  onOpenOriginal,
-}: {
-  excerpt: string;
-  onOpenOriginal: () => void;
-}) {
-  const isWideView = useWideView();
+function DetailExcerpt({ excerpt, url }: { excerpt: string; url: string }) {
   return (
     <View
       className="border-l-2 border-border pl-3"
@@ -220,56 +200,14 @@ function DetailExcerpt({
     >
       <Text
         selectable
-        {...(process.env.EXPO_OS === "web" ? {} : getExcerptAccessibilityProps(onOpenOriginal))}
+        {...(process.env.EXPO_OS === "web" ? {} : getExcerptAccessibilityProps(url))}
         // Native: the bottom padding (cancelled by the negative margin) lets the inline link's
         // hitSlop reach below the last line; touches outside the paragraph never reach it.
         className="native:-mb-3 native:pb-3 text-[13px] leading-5 text-muted-foreground"
         lineBreakStrategyIOS="hangul-word"
         testID="link-detail-excerpt-text"
       >
-        {excerpt}{" "}
-        {process.env.EXPO_OS === "web" ? (
-          // Web: a nested span; on mobile, inline vertical padding widens the press area to 44px
-          // without moving the line. The no-break spaces keep "이어 읽기" and its icon together.
-          <RNText
-            accessibilityLabel="이어 읽기"
-            accessibilityRole="link"
-            className={cn(
-              "font-semibold text-foreground underline web:-mx-1.5 web:cursor-pointer web:whitespace-nowrap web:px-1.5",
-              // Mobile width only: on wide the padding would cover the line above (a pointer
-              // needs no 44px target there).
-              !isWideView && "web:py-3.5",
-            )}
-            testID="link-detail-continue"
-            onPress={onOpenOriginal}
-          >
-            {"이어\u00A0읽기\u00A0"}
-            <Icon
-              as={ExternalLink}
-              className="text-foreground web:inline-block web:align-[-1px]"
-              size={13}
-            />
-          </RNText>
-        ) : (
-          // Native: a nested Text takes no hitSlop, so an inline Pressable reaches 44pt instead.
-          <Pressable
-            accessibilityLabel="이어 읽기"
-            accessibilityRole="link"
-            className="flex-row items-center gap-0.5"
-            hitSlop={EXCERPT_LINK_HIT_SLOP}
-            testID="link-detail-continue"
-            onPress={onOpenOriginal}
-          >
-            <Text className="text-[13px] font-semibold leading-5 text-foreground underline">
-              이어 읽기
-            </Text>
-            <Icon
-              as={ExternalLink}
-              className="text-foreground"
-              size={13}
-            />
-          </Pressable>
-        )}
+        {excerpt} <ExcerptContinueLink url={url} />
       </Text>
     </View>
   );
@@ -1469,7 +1407,7 @@ function LinkDetailView({
           {excerpt ? (
             <DetailExcerpt
               excerpt={excerpt}
-              onOpenOriginal={handleOpenOriginal}
+              url={detail.url}
             />
           ) : null}
 
