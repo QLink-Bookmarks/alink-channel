@@ -1,4 +1,5 @@
 import type { ApiEnvelope } from "@/features/links/types";
+import type { SortDirection } from "@/lib/list-sort";
 
 type Folder = {
   id: number;
@@ -65,11 +66,12 @@ type TransferFolderOwnershipRequest = {
 
 type TransferFolderOwnershipResponse = ApiEnvelope<null>;
 
-type FolderOrder = "latest" | "earliest" | "laxico";
+type FolderOrderKey = "created_at";
 
 type GetFoldersParams = {
   query?: string;
-  order?: FolderOrder;
+  orderKey?: FolderOrderKey;
+  order?: SortDirection;
   cursor?: string;
   size?: number;
 };
@@ -115,7 +117,7 @@ export type {
   Folder,
   FolderListStatus,
   FolderMember,
-  FolderOrder,
+  FolderOrderKey,
   FolderScrollResponse,
   GetFolderMembersResponse,
   GetFolderMembersResponseData,

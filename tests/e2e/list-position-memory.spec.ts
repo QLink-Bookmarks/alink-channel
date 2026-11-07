@@ -4,6 +4,7 @@ import { cssOf, isWideProject } from "./support/helpers";
 import {
   GOOD_IMAGE,
   type MockLink,
+  type MockNotification,
   type MockTodo,
   envelope,
   iso,
@@ -14,16 +15,6 @@ import {
 } from "./support/mock-api";
 
 // #11: lists keep their scroll position and filters when you leave and come back.
-
-type MockNotification = {
-  id: number;
-  title: string;
-  message: string;
-  firedAt: string;
-  readAt: string | null;
-  context: "TODO" | "ANNOUNCE";
-  contextId: number;
-};
 
 function buildFixtures() {
   const links: MockLink[] = [];

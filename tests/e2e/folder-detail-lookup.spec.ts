@@ -32,9 +32,9 @@ test.describe("folder detail lookup", () => {
     await expect(page).toHaveTitle(/폴더 1 · ALink/);
     await expect(page.getByText("폴더를 찾을 수 없어요")).toHaveCount(0);
     expect(folderRequests(state).map((request) => request.search)).toEqual([
-      "?order=latest&size=20",
-      "?order=latest&cursor=20&size=20",
-      "?order=latest&cursor=40&size=20",
+      "?orderKey=created_at&order=desc&size=20",
+      "?orderKey=created_at&order=desc&cursor=20&size=20",
+      "?orderKey=created_at&order=desc&cursor=40&size=20",
     ]);
   });
 

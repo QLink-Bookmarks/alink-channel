@@ -1,8 +1,9 @@
 import type { ApiEnvelope } from "@/features/links/types";
+import type { SortDirection } from "@/lib/list-sort";
 
 type DevicePlatform = "WEB" | "NATIVE";
 type NotificationContext = "TODO" | "ANNOUNCE";
-type NotificationOrder = "latest" | "earliest" | string;
+type NotificationOrderKey = "fired_at";
 
 type PutDeviceRequest = {
   platform: DevicePlatform;
@@ -37,7 +38,8 @@ type NotificationScrollResponse = {
 type GetNotificationsParams = {
   query?: string;
   type?: NotificationContext;
-  order?: NotificationOrder;
+  orderKey?: NotificationOrderKey;
+  order?: SortDirection;
   cursor?: string;
   size?: number;
 };
@@ -60,7 +62,7 @@ export type {
   UnreadNotificationCount,
   NotificationContext,
   NotificationListItem,
-  NotificationOrder,
+  NotificationOrderKey,
   NotificationScrollResponse,
   PutDeviceRequest,
   PutDeviceResponse,
