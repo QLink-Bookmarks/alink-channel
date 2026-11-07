@@ -207,8 +207,9 @@ test.describe("body search: order, one character, literal characters, no results
     await expectResults(page, [TITLES.memoAndBody, TITLES.sunrise, TITLES.longBody, TITLES.cafe]);
 
     if (!isWideProject()) {
-      // 오래된순: each group flips, the metadata group stays first.
-      await page.getByText("오래된순", { exact: true }).click();
+      // 저장일 ↑ (oldest first): each group flips, the metadata group stays first.
+      await page.getByTestId("link-filter-row-button").click();
+      await page.getByRole("radio", { name: "저장일, 내림차순" }).click();
       await expectResults(page, [TITLES.sunrise, TITLES.memoAndBody, TITLES.cafe, TITLES.longBody]);
     }
   });

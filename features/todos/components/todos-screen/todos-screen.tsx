@@ -4,7 +4,7 @@ import { RefreshControl, ScrollView, View } from "react-native";
 import { PageHeader } from "@/components/layout/page-header";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { LoadErrorState } from "@/components/ui/load-error-state";
 import { Text } from "@/components/ui/text";
 import { getLinkDetailQueryKey } from "@/features/links/queries";
 import type { LinkDetail } from "@/features/links/types";
@@ -18,17 +18,26 @@ import {
 import { usePullToRefresh } from "@/lib/hooks/use-pull-to-refresh";
 import { useQueryClient } from "@tanstack/react-query";
 
-import {
-  type TodoFilter,
-  countTodosByFilter,
-  filterTodos,
-  getTodoBucket,
-} from "../../lib/todo-list-helpers";
 import { formatTodoSchedule } from "../../lib/todo-schedule-label";
+import {
+  type TodoStatusFilter,
+  type TodoStatusSection,
+  applyToggleToCounts,
+  deriveTodoStatus,
+  getDefaultTodoSort,
+  getTodoStatus,
+  groupTodosByStatus,
+  isInStatusFilter,
+  readTodoSort,
+  readTodoStatusFilter,
+  resolveTodoSortOnStatusChange,
+  toTodoListParams,
+} from "../../lib/todo-status";
 import { useToggleTodoCompletedMutation } from "../../mutations";
-import { useTodosQuery } from "../../queries";
-import type { TodoListItem } from "../../types";
+import { todoQueryKeys, useTodoCountsQuery, useTodosQuery } from "../../queries";
+import type { TodoCounts, TodoListItem } from "../../types";
 import { TodoItem } from "../todo-item/todo-item";
+import { TodoFilterRow } from "./todo-filter-row";
 
 import { type Href, useRouter } from "expo-router";
 import { CheckSquare } from "lucide-react-native";
@@ -38,54 +47,68 @@ type TodosScreenMode = "mobile" | "wide";
 const TODO_GRID_GAP = 12;
 const TODO_MIN_CARD_WIDTH = 240;
 
-const FILTER_OPTIONS: { value: TodoFilter; label: string }[] = [
-  { value: "all", label: "전체" },
-  { value: "incomplete", label: "미완료" },
-  { value: "upcoming", label: "⏰ 알림예정" },
-  { value: "overdue", label: "🔥 기간지남" },
-  { value: "noReminder", label: "🕊 알림없음" },
-  { value: "completed", label: "✓ 완료" },
-];
-
 function useTodosScreenState(mode: TodosScreenMode) {
   const memoryKey = useListMemoryKey(mode);
-  const [filter, setFilter] = useRememberedState<TodoFilter>(memoryKey, "filter", "all");
-  const todosQuery = useTodosQuery({ size: 100 });
-  const allTodos = React.useMemo(() => todosQuery.data?.contents ?? [], [todosQuery.data]);
-  // Refresh "now" whenever the underlying todo list changes so that overdue/upcoming buckets stay consistent.
-  const nowMs = React.useMemo(() => Date.now(), [allTodos]); // eslint-disable-line react-hooks/exhaustive-deps
-  const counts = React.useMemo(() => countTodosByFilter(allTodos, nowMs), [allTodos, nowMs]);
-  const filteredTodos = React.useMemo(
-    () => filterTodos(allTodos, filter, nowMs),
-    [allTodos, filter, nowMs],
+  const [storedStatus, setStoredStatus] = useRememberedState<unknown>(memoryKey, "status", "all");
+  const status = readTodoStatusFilter(storedStatus);
+  const [storedSort, setSort] = useRememberedState<unknown>(
+    memoryKey,
+    "sort",
+    getDefaultTodoSort(status),
+  );
+  const sort = readTodoSort(storedSort, status);
+  const todosQuery = useTodosQuery({ ...toTodoListParams(status, sort), size: 100 });
+  const countsQuery = useTodoCountsQuery();
+  const todos = React.useMemo(() => todosQuery.data?.contents ?? [], [todosQuery.data]);
+  // Refresh "now" whenever the list changes, so the fallback status check stays consistent.
+  const nowMs = React.useMemo(() => Date.now(), [todos]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A checked action leaves a status list at once, before the server list comes back.
+  const visibleTodos = React.useMemo(
+    () => todos.filter((todo) => isInStatusFilter(getTodoStatus(todo, nowMs), status)),
+    [nowMs, status, todos],
+  );
+  const sections = React.useMemo(
+    () => (status === "all" ? groupTodosByStatus(visibleTodos, nowMs) : null),
+    [nowMs, status, visibleTodos],
   );
 
-  const filterChips = FILTER_OPTIONS.map((option) => ({
-    label: `${option.label} ${counts[option.value]}`,
-    value: option.value,
-  }));
+  const handleStatusChange = React.useCallback(
+    (next: TodoStatusFilter) => {
+      setStoredStatus(next);
+      setSort(resolveTodoSortOnStatusChange(status, next, sort));
+    },
+    [setSort, setStoredStatus, sort, status],
+  );
 
-  const { isRefreshing, handleRefresh } = usePullToRefresh(todosQuery.refetch);
+  const { isRefreshing, handleRefresh } = usePullToRefresh(() =>
+    Promise.allSettled([todosQuery.refetch(), countsQuery.refetch()]),
+  );
   const { scrollViewRef, scrollViewProps } = useListScrollMemory({
     memoryKey,
-    contentKey: filter,
+    contentKey: [status, sort.key, sort.direction].join("|"),
     isLoading: todosQuery.isLoading,
-    hasContent: filteredTodos.length > 0,
+    hasContent: visibleTodos.length > 0,
   });
 
   return {
-    counts,
-    filter,
-    filterChips,
-    filteredTodos,
+    counts: countsQuery.data ?? null,
     handleRefresh,
+    handleRetry: () => {
+      void todosQuery.refetch();
+    },
+    handleSortChange: setSort,
+    handleStatusChange,
+    isLoadError: todosQuery.isError && !todosQuery.data,
     isLoading: todosQuery.isLoading,
     isRefreshing,
+    isRetrying: todosQuery.isFetching,
     nowMs,
     scrollViewProps,
     scrollViewRef,
-    setFilter,
-    totalCount: counts.all,
+    sections,
+    sort,
+    status,
+    visibleTodos,
   };
 }
 
@@ -101,20 +124,28 @@ function useToggleHandler() {
           todoId: todo.id,
         });
 
+        const nowMs = Date.now();
         const completedAt = nextChecked
-          ? (response.data?.completeAt ?? new Date().toISOString())
+          ? (response.data?.completeAt ?? new Date(nowMs).toISOString())
           : null;
+        const fromStatus = getTodoStatus(todo, nowMs);
+        const nextStatus = deriveTodoStatus({ ...todo, completedAt }, nowMs);
 
         queryClient.setQueriesData<{
-          contents: TodoListItem[];
+          contents?: TodoListItem[];
           [key: string]: unknown;
-        }>({ queryKey: ["todos", "list"] }, (data) => {
-          if (!data) return data;
+        }>({ queryKey: todoQueryKeys.lists() }, (data) => {
+          if (!data?.contents) return data;
           return {
             ...data,
-            contents: data.contents.map((t) => (t.id === todo.id ? { ...t, completedAt } : t)),
+            contents: data.contents.map((t) =>
+              t.id === todo.id ? { ...t, completedAt, status: nextStatus } : t,
+            ),
           };
         });
+        queryClient.setQueryData<TodoCounts>(todoQueryKeys.counts(), (current) =>
+          current ? applyToggleToCounts(current, fromStatus, nextStatus) : current,
+        );
 
         queryClient.setQueryData<LinkDetail>(getLinkDetailQueryKey(todo.linkId), (current) => {
           if (!current) return current;
@@ -156,7 +187,12 @@ function TodoDisplayItem({
   onPress: (todo: TodoListItem) => void;
 }) {
   const done = Boolean(todo.completedAt);
-  const schedule = formatTodoSchedule(todo, nowMs);
+  // The card's 지남 follows the server's status, so it matches the status chip it is under.
+  const schedule = formatTodoSchedule(
+    todo,
+    nowMs,
+    todo.status ? { overdue: todo.status === "OVERDUE" } : undefined,
+  );
 
   return (
     <TodoItem
@@ -188,19 +224,14 @@ function SectionHeader({ emoji, label, count }: { emoji: string; label: string; 
   );
 }
 
-type WideSection = { key: string; emoji: string; label: string; todos: TodoListItem[] };
-
-function WideTodoGrid({
-  todos,
-  nowMs,
-  onToggle,
-  onPress,
-}: {
+type TodoListProps = {
   todos: TodoListItem[];
   nowMs: number;
   onToggle: (todo: TodoListItem, nextChecked: boolean) => void;
   onPress: (todo: TodoListItem) => void;
-}) {
+};
+
+function WideTodoGrid({ todos, nowMs, onToggle, onPress }: TodoListProps) {
   const { itemStyle, onLayout } = useGridColumns({
     gap: TODO_GRID_GAP,
     minItemWidth: TODO_MIN_CARD_WIDTH,
@@ -231,19 +262,100 @@ function WideTodoGrid({
   );
 }
 
+function MobileTodoList({ todos, nowMs, onToggle, onPress }: TodoListProps) {
+  return (
+    <View className="gap-3">
+      {todos.map((todo) => (
+        <TodoDisplayItem
+          key={todo.id}
+          nowMs={nowMs}
+          onPress={onPress}
+          onToggle={onToggle}
+          todo={todo}
+        />
+      ))}
+    </View>
+  );
+}
+
+/** The list area: loading, error, empty, 전체's status sections, or one list for a status. */
+function TodosListBody({
+  isLoading,
+  isLoadError,
+  isRetrying,
+  onRetry,
+  sections,
+  todos,
+  List,
+  ...listProps
+}: Omit<TodoListProps, "todos"> & {
+  isLoading: boolean;
+  isLoadError: boolean;
+  isRetrying: boolean;
+  onRetry: () => void;
+  sections: TodoStatusSection[] | null;
+  todos: TodoListItem[];
+  List: React.ComponentType<TodoListProps>;
+}) {
+  if (isLoading) {
+    return (
+      <ActivityIndicator
+        size="large"
+        className="py-16"
+      />
+    );
+  }
+  if (isLoadError) {
+    return (
+      <LoadErrorState
+        title="액션을 불러오지 못했어요"
+        isRetrying={isRetrying}
+        onRetry={onRetry}
+      />
+    );
+  }
+  if (todos.length === 0) {
+    return (
+      <EmptyState
+        emoji="✅"
+        title="해당하는 액션이 없어요"
+        description="다른 필터를 선택해보세요."
+      />
+    );
+  }
+  if (!sections) {
+    return (
+      <List
+        todos={todos}
+        {...listProps}
+      />
+    );
+  }
+  return (
+    <View className="gap-6">
+      {sections.map((section) => (
+        <View
+          key={section.status}
+          className="gap-3"
+        >
+          <SectionHeader
+            emoji={section.emoji}
+            label={section.label}
+            count={section.todos.length}
+          />
+          <List
+            todos={section.todos}
+            {...listProps}
+          />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function WideTodosScreen() {
   const router = useRouter();
-  const {
-    filter,
-    filterChips,
-    filteredTodos,
-    isLoading,
-    nowMs,
-    scrollViewProps,
-    scrollViewRef,
-    setFilter,
-    totalCount,
-  } = useTodosScreenState("wide");
+  const state = useTodosScreenState("wide");
   const handleToggle = useToggleHandler();
   const handleTodoPress = React.useCallback(
     (todo: TodoListItem) => {
@@ -252,23 +364,10 @@ function WideTodosScreen() {
     [router],
   );
 
-  const sections = React.useMemo<WideSection[]>(() => {
-    const overdue = filteredTodos.filter((t) => getTodoBucket(t, nowMs) === "overdue");
-    const upcoming = filteredTodos.filter((t) => getTodoBucket(t, nowMs) === "upcoming");
-    const noReminder = filteredTodos.filter((t) => getTodoBucket(t, nowMs) === "noReminder");
-    const completed = filteredTodos.filter((t) => getTodoBucket(t, nowMs) === "completed");
-    return [
-      { key: "overdue", emoji: "🔥", label: "기간지남", todos: overdue },
-      { key: "upcoming", emoji: "⏰", label: "알림예정", todos: upcoming },
-      { key: "noReminder", emoji: "🕊", label: "알림없음", todos: noReminder },
-      { key: "completed", emoji: "✓", label: "완료", todos: completed },
-    ].filter((section) => section.todos.length > 0);
-  }, [filteredTodos, nowMs]);
-
   return (
     <ScrollView
-      ref={scrollViewRef}
-      {...scrollViewProps}
+      ref={state.scrollViewRef}
+      {...state.scrollViewProps}
       className="flex-1"
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
@@ -276,53 +375,30 @@ function WideTodosScreen() {
       <PageHeader
         title="액션"
         icon={CheckSquare}
-        meta={`${totalCount}개`}
+        meta={state.counts ? `${state.counts.all}개` : undefined}
       />
       <View className="gap-5 px-6 pb-10 pt-4 md:pt-0">
-        <SegmentedControl
-          options={filterChips}
-          selectionMode="single"
-          value={filter}
-          variant="chipsBadge"
-          onValueChange={(next) => {
-            if (typeof next === "string") {
-              setFilter(next as TodoFilter);
-            }
-          }}
+        <TodoFilterRow
+          counts={state.counts}
+          coverMode="content"
+          sort={state.sort}
+          status={state.status}
+          testID="todo-filter-row"
+          onSortChange={state.handleSortChange}
+          onStatusChange={state.handleStatusChange}
         />
-        {isLoading ? (
-          <ActivityIndicator
-            size="large"
-            className="py-16"
-          />
-        ) : filteredTodos.length === 0 ? (
-          <EmptyState
-            emoji="✅"
-            title="해당하는 액션이 없어요"
-            description="다른 필터를 선택해보세요."
-          />
-        ) : (
-          <View className="gap-6">
-            {sections.map((section) => (
-              <View
-                key={section.key}
-                className="gap-3"
-              >
-                <SectionHeader
-                  emoji={section.emoji}
-                  label={section.label}
-                  count={section.todos.length}
-                />
-                <WideTodoGrid
-                  nowMs={nowMs}
-                  todos={section.todos}
-                  onPress={handleTodoPress}
-                  onToggle={handleToggle}
-                />
-              </View>
-            ))}
-          </View>
-        )}
+        <TodosListBody
+          List={WideTodoGrid}
+          isLoadError={state.isLoadError}
+          isLoading={state.isLoading}
+          isRetrying={state.isRetrying}
+          nowMs={state.nowMs}
+          sections={state.sections}
+          todos={state.visibleTodos}
+          onPress={handleTodoPress}
+          onRetry={state.handleRetry}
+          onToggle={handleToggle}
+        />
       </View>
     </ScrollView>
   );
@@ -330,18 +406,7 @@ function WideTodosScreen() {
 
 function MobileTodosScreen() {
   const router = useRouter();
-  const {
-    filter,
-    filterChips,
-    filteredTodos,
-    handleRefresh,
-    isLoading,
-    isRefreshing,
-    nowMs,
-    scrollViewProps,
-    scrollViewRef,
-    setFilter,
-  } = useTodosScreenState("mobile");
+  const state = useTodosScreenState("mobile");
   const handleToggle = useToggleHandler();
   const handleTodoPress = React.useCallback(
     (todo: TodoListItem) => {
@@ -350,90 +415,42 @@ function MobileTodosScreen() {
     [router],
   );
 
-  const sections = React.useMemo<WideSection[]>(() => {
-    const overdue = filteredTodos.filter((t) => getTodoBucket(t, nowMs) === "overdue");
-    const upcoming = filteredTodos.filter((t) => getTodoBucket(t, nowMs) === "upcoming");
-    const noReminder = filteredTodos.filter((t) => getTodoBucket(t, nowMs) === "noReminder");
-    const completed = filteredTodos.filter((t) => getTodoBucket(t, nowMs) === "completed");
-    return [
-      { key: "overdue", emoji: "🔥", label: "기간지남", todos: overdue },
-      { key: "upcoming", emoji: "⏰", label: "알림예정", todos: upcoming },
-      { key: "noReminder", emoji: "🕊", label: "알림없음", todos: noReminder },
-      { key: "completed", emoji: "✓", label: "완료", todos: completed },
-    ].filter((section) => section.todos.length > 0);
-  }, [filteredTodos, nowMs]);
-
   return (
     <ScrollView
-      ref={scrollViewRef}
-      {...scrollViewProps}
+      ref={state.scrollViewRef}
+      {...state.scrollViewProps}
       className="flex-1"
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={handleRefresh}
+          refreshing={state.isRefreshing}
+          onRefresh={state.handleRefresh}
         />
       }
     >
       <View className="gap-5 px-4 pb-24 pt-4">
-        <ScrollView
-          horizontal
-          className="-my-1 -ml-1"
-          contentContainerClassName="p-1"
-          showsHorizontalScrollIndicator={false}
-        >
-          <SegmentedControl
-            options={filterChips}
-            selectionMode="single"
-            value={filter}
-            variant="chipsBadge"
-            onValueChange={(next) => {
-              if (typeof next === "string") {
-                setFilter(next as TodoFilter);
-              }
-            }}
-          />
-        </ScrollView>
-        {isLoading ? (
-          <ActivityIndicator
-            size="large"
-            className="py-16"
-          />
-        ) : sections.length === 0 ? (
-          <EmptyState
-            emoji="✅"
-            title="해당하는 액션이 없어요"
-            description="다른 필터를 선택해보세요."
-          />
-        ) : (
-          <View className="gap-6">
-            {sections.map((section) => (
-              <View
-                key={section.key}
-                className="gap-3"
-              >
-                <SectionHeader
-                  emoji={section.emoji}
-                  label={section.label}
-                  count={section.todos.length}
-                />
-                <View className="gap-3">
-                  {section.todos.map((todo) => (
-                    <TodoDisplayItem
-                      key={todo.id}
-                      nowMs={nowMs}
-                      onPress={handleTodoPress}
-                      onToggle={handleToggle}
-                      todo={todo}
-                    />
-                  ))}
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
+        <TodoFilterRow
+          counts={state.counts}
+          coverMode="fill"
+          sort={state.sort}
+          status={state.status}
+          testID="todo-filter-row"
+          onSortChange={state.handleSortChange}
+          onStatusChange={state.handleStatusChange}
+        />
+        <TodosListBody
+          List={MobileTodoList}
+          isLoadError={state.isLoadError}
+          isLoading={state.isLoading}
+          isRetrying={state.isRetrying}
+          nowMs={state.nowMs}
+          sections={state.sections}
+          todos={state.visibleTodos}
+          onPress={handleTodoPress}
+          onRetry={state.handleRetry}
+          onToggle={handleToggle}
+        />
       </View>
     </ScrollView>
   );

@@ -1,3 +1,5 @@
+import type { SortDirection } from "@/lib/list-sort";
+
 type SourceType = "INPUT" | "QR" | "IMPORT" | "COPY";
 
 type LinkStatus = "G" | "A" | "F" | "C";
@@ -194,12 +196,17 @@ type LinkScrollResponse = {
 
 type GetLinksResponse = ApiEnvelope<LinkScrollResponse>;
 
-type LinkOrder = "latest" | "earliest" | "laxico" | "similar";
+type LinkOrderKey = "created_at" | "title";
 
-type GetLinksParams = {
+type LinkListSortParams =
+  | { orderKey?: LinkOrderKey; order?: SortDirection }
+  // The old single sort value, still sent by the shortcut picker and the search dialog. The server
+  // reads it as `created_at desc`, and only without `orderKey`.
+  | { orderKey?: never; order: "latest" };
+
+type GetLinksParams = LinkListSortParams & {
   query?: string;
   folderId?: number;
-  order?: LinkOrder;
   cursor?: string;
   size?: number;
   isFavorite?: boolean;
@@ -247,7 +254,7 @@ export type {
   LinkListItem,
   PatchLinkRequest,
   LinkTodoCounts,
-  LinkOrder,
+  LinkOrderKey,
   LinkScrollResponse,
   LinkStatus,
   LinkTodo,

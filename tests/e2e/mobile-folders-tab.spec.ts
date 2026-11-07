@@ -159,16 +159,10 @@ test.describe("mobile folder tab", () => {
     const mine = sectionList(page, "내 폴더");
     await expect(folderRow(mine, 11)).toBeVisible();
 
-    for (const text of [
-      "전체",
-      "최신순",
-      "오래된순",
-      "가나다순",
-      "+ 새 폴더",
-      "+ 폴더 공유 시작",
-    ]) {
+    for (const text of ["전체", "+ 새 폴더", "+ 폴더 공유 시작"]) {
       await expect(page.getByText(text, { exact: true })).toHaveCount(0);
     }
+    await expect(page.getByRole("button", { name: /^정렬·필터/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^사이드바/ })).toHaveCount(0);
     await expect(toggle(page, "내 폴더")).toBeVisible();
     await expect(toggle(page, "공유 폴더")).toBeVisible();

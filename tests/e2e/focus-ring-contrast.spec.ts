@@ -127,20 +127,18 @@ async function expectRingNotClipped(target: Locator, name: string) {
 }
 
 test("changing the selected chip still changes the selection", async ({ page }) => {
-  test.skip(isWideProject(), "the order chips sit on the mobile home");
+  test.skip(isWideProject(), "the folder chips sit on the mobile home");
   await setup(page, "light", "blue");
   await page.goto("/home");
   await expectTheme(page, "light", "blue");
 
-  const latest = page.getByText("최신순", { exact: true }).first();
-  const earliest = page.getByText("오래된순", { exact: true }).first();
-  await expect(earliest).toBeVisible();
-  const before = await earliest.evaluate((node) => getComputedStyle(node).color);
-  await earliest.click();
-  await expect
-    .poll(() => earliest.evaluate((node) => getComputedStyle(node).color))
-    .not.toBe(before);
-  await expect.poll(() => latest.evaluate((node) => getComputedStyle(node).color)).toBe(before);
+  const all = page.getByText("전체", { exact: true }).first();
+  const folder = page.getByText("📚 공부", { exact: true }).first();
+  await expect(folder).toBeVisible();
+  const before = await folder.evaluate((node) => getComputedStyle(node).color);
+  await folder.click();
+  await expect.poll(() => folder.evaluate((node) => getComputedStyle(node).color)).not.toBe(before);
+  await expect.poll(() => all.evaluate((node) => getComputedStyle(node).color)).toBe(before);
 });
 
 test.describe("text on the accent fill", () => {
@@ -172,7 +170,7 @@ test.describe("keyboard focus ring", () => {
       await setup(page, theme, accent);
       await page.goto("/home");
       await expectTheme(page, theme, accent);
-      const chip = isWideProject() ? "🔀 통합" : "최신순";
+      const chip = isWideProject() ? "🔀 통합" : "📚 공부";
       await expectRingContrast(page, focusableWith(page, chip), `${chip} chip`);
       if (!isWideProject()) {
         // The folder chips sit in a horizontal scroll row that clips overflow.
@@ -218,7 +216,7 @@ test.describe("keyboard focus ring", () => {
     await page.goto("/home");
     await expectTheme(page, "light", "blue");
 
-    const chip = focusableWith(page, isWideProject() ? "🔀 통합" : "최신순");
+    const chip = focusableWith(page, isWideProject() ? "🔀 통합" : "📚 공부");
     await expect(chip).toBeVisible();
     const box = await chip.boundingBox();
     expect(box).not.toBeNull();

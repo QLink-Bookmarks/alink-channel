@@ -164,12 +164,12 @@ test.describe("todo screen", () => {
 
   test("wide shows several columns, phones one card per row", async ({ page }) => {
     if (isWideProject()) {
-      // The upcoming section holds two cards side by side.
-      const upcoming = page
+      // The 진행 중 section holds its three cards side by side.
+      const active = page
         .getByTestId("todo-grid")
         .nth(1)
         .getByTestId(/^todo-item(-overdue)?$/);
-      expect(await firstRowCount(upcoming)).toBe(2);
+      expect(await firstRowCount(active)).toBe(3);
     } else {
       await expect(page.getByTestId("todo-grid")).toHaveCount(0);
       expect(await firstRowCount(todoCards(page))).toBe(1);
@@ -371,7 +371,7 @@ test.describe("completing a todo keeps the other cards intact", () => {
     await expectSameHeights(todoCards(page), before, { changed: ["서류 최종 제출"] });
     await expectCardsComplete(overdue, { withReminder: true });
     await expectCardsComplete(todoCards(page));
-    await expectHeaderRightBelow(page, overdue, "🕊 알림없음");
+    await expectHeaderRightBelow(page, overdue, "⏳ 진행 중");
   });
 
   test("unchecking brings the todo back to the overdue section with every card intact", async ({
@@ -386,7 +386,7 @@ test.describe("completing a todo keeps the other cards intact", () => {
     await expectSameHeights(todoCards(page), before);
     await expectCardsComplete(overdue, { withReminder: true });
     await expectCardsComplete(todoCards(page));
-    await expectHeaderRightBelow(page, overdue, "🕊 알림없음");
+    await expectHeaderRightBelow(page, overdue, "⏳ 진행 중");
   });
 
   test("completing the last overdue todo removes the section and leaves the others intact", async ({
@@ -413,11 +413,11 @@ test.describe("completing a todo keeps the other cards intact", () => {
     const before = await heightsByTitle(todoCards(page));
     const card = todoCard(page, "알림 없는 할 일");
     await card.getByRole("checkbox").click();
-    await expect(sectionHeader(page, "🕊 알림없음")).toHaveCount(0);
+    await expect(sectionHeader(page, "⏳ 진행 중")).toHaveCount(0);
     await expectSameHeights(todoCards(page), before, { changed: ["알림 없는 할 일"] });
     await expectCardsComplete(todoCards(page));
     await card.getByRole("checkbox").click();
-    await expect(sectionHeader(page, "🕊 알림없음")).toHaveCount(1);
+    await expect(sectionHeader(page, "⏳ 진행 중")).toHaveCount(1);
     await expect(async () => {
       await expectSameHeights(todoCards(page), before);
     }).toPass();
