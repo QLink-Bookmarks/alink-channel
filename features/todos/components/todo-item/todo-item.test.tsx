@@ -176,6 +176,23 @@ describe("TodoItem display card names", () => {
     expect(screen.getByRole("button", { name: "숙소 2박 결제, 고치기" })).toBeOnTheScreen();
   });
 
+  it("puts no bare text in the card's views (native refuses text outside <Text>)", () => {
+    render(
+      <TodoItem
+        isShared
+        linkTitle="제주 여행 준비"
+        linkUrl="https://brunch.co.kr/@a/1"
+        reminderLabel="11/20 22:45"
+        text="렌터카 예약 확인"
+        variant="display"
+        onPress={jest.fn()}
+      />,
+    );
+    expect(
+      screen.getByTestId("todo-item").children.some((child) => typeof child === "string"),
+    ).toBe(false);
+  });
+
   it("reads the link row and the shared badge in the card's name", () => {
     render(
       <TodoItem

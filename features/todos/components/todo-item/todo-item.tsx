@@ -218,7 +218,7 @@ function TodoItem({
               </Text>
             </View>
           ) : null}
-        </Pressable>{" "}
+        </Pressable>
       </View>
     );
   }
