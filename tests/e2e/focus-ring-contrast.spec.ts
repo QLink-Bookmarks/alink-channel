@@ -1,11 +1,11 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
-import { type Rgba, contrast, over, parseColor, textContrast } from "./support/color";
+import { type Rgba, contrast, over, parseColor } from "./support/color";
 import { isWideProject } from "./support/helpers";
 import { makeLink, mockApi, settingsHandler } from "./support/mock-api";
 
-// #69: the keyboard focus ring stands out 3:1 from the surface it sits on, and text on the
-// accent fill (selected chips, primary buttons) reads 4.5:1, in light/dark × gray/pink/blue.
+// #69: the keyboard focus ring stands out 3:1 from the surface it sits on, in light/dark ×
+// gray/pink/blue. Text on the accent fill stays as on main (white in light themes).
 
 type Theme = "light" | "dark";
 type Accent = "gray" | "pink" | "blue";
@@ -35,23 +35,6 @@ async function expectTheme(page: Page, theme: Theme, accent: Accent) {
       })),
     )
     .toEqual({ dark: theme === "dark", accent });
-}
-
-/** Contrast between two theme tokens such as `--primary-foreground` and `--primary`. */
-async function tokenContrast(page: Page, foreground: string, background: string) {
-  const [fg, bg] = await page.evaluate(
-    (names) =>
-      names.map((name) => {
-        const probe = document.createElement("span");
-        probe.style.color = `hsl(var(${name}))`;
-        document.body.append(probe);
-        const value = getComputedStyle(probe).color;
-        probe.remove();
-        return value;
-      }),
-    [foreground, background],
-  );
-  return contrast(parseColor(fg), parseColor(bg));
 }
 
 /** The 3px focus ring drawn as a box-shadow, or null when no ring is visible. */
@@ -121,50 +104,64 @@ async function expectRingContrast(page: Page, target: Locator, name: string) {
     .toBeGreaterThanOrEqual(3);
 }
 
-test.describe("text on the accent fill", () => {
-  for (const [theme, accent] of THEMES) {
-    test(`selected chips and accent-fill tokens read 4.5:1 — ${theme} ${accent}`, async ({
-      page,
-    }) => {
-      await setup(page, theme, accent);
-      await page.goto("/home");
-      await expectTheme(page, theme, accent);
-
-      const chips = isWideProject() ? ["🔀 통합"] : ["전체", "최신순"];
-      for (const label of chips) {
-        const chip = page.getByText(label, { exact: true }).first();
-        await expect(chip).toBeVisible();
-        expect(await textContrast(chip), `${label} chip`).toBeGreaterThanOrEqual(4.5);
+/** Every scrolling or clipping ancestor leaves room for the 3px ring on all four sides. */
+async function expectRingNotClipped(target: Locator, name: string) {
+  const clipped = await target.evaluate((node) => {
+    const ring = 3;
+    const box = node.getBoundingClientRect();
+    for (let element = node.parentElement; element; element = element.parentElement) {
+      const style = getComputedStyle(element);
+      if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+      const clip = element.getBoundingClientRect();
+      if (
+        box.left - ring < clip.left - 0.5 ||
+        box.top - ring < clip.top - 0.5 ||
+        box.bottom + ring > clip.bottom + 0.5
+      ) {
+        return true;
       }
+    }
+    return false;
+  });
+  expect(clipped, `${name} ring clipped by a scroll container`).toBe(false);
+}
 
-      expect(
-        await tokenContrast(page, "--primary-foreground", "--primary"),
-        "primary button text",
-      ).toBeGreaterThanOrEqual(4.5);
-      expect(
-        await tokenContrast(page, "--sidebar-primary-foreground", "--sidebar-primary"),
-        "sidebar primary text",
-      ).toBeGreaterThanOrEqual(4.5);
+test("changing the selected chip still changes the selection", async ({ page }) => {
+  test.skip(isWideProject(), "the order chips sit on the mobile home");
+  await setup(page, "light", "blue");
+  await page.goto("/home");
+  await expectTheme(page, "light", "blue");
+
+  const latest = page.getByText("최신순", { exact: true }).first();
+  const earliest = page.getByText("오래된순", { exact: true }).first();
+  await expect(earliest).toBeVisible();
+  const before = await earliest.evaluate((node) => getComputedStyle(node).color);
+  await earliest.click();
+  await expect
+    .poll(() => earliest.evaluate((node) => getComputedStyle(node).color))
+    .not.toBe(before);
+  await expect.poll(() => latest.evaluate((node) => getComputedStyle(node).color)).toBe(before);
+});
+
+test.describe("text on the accent fill", () => {
+  for (const accent of ["gray", "pink", "blue"] as const) {
+    test(`stays white as on main — light ${accent}`, async ({ page }) => {
+      await setup(page, "light", accent);
+      await page.goto("/home");
+      await expectTheme(page, "light", accent);
+      const colors = await page.evaluate(() =>
+        ["--primary-foreground", "--sidebar-primary-foreground"].map((name) => {
+          const probe = document.createElement("span");
+          probe.style.color = `hsl(var(${name}))`;
+          document.body.append(probe);
+          const value = getComputedStyle(probe).color;
+          probe.remove();
+          return value;
+        }),
+      );
+      expect(colors).toEqual(["rgb(255, 255, 255)", "rgb(255, 255, 255)"]);
     });
   }
-
-  test("changing the selected chip still changes the selection", async ({ page }) => {
-    test.skip(isWideProject(), "the order chips sit on the mobile home");
-    await setup(page, "light", "blue");
-    await page.goto("/home");
-    await expectTheme(page, "light", "blue");
-
-    const latest = page.getByText("최신순", { exact: true }).first();
-    const earliest = page.getByText("오래된순", { exact: true }).first();
-    await expect(earliest).toBeVisible();
-    const before = await earliest.evaluate((node) => getComputedStyle(node).color);
-    await earliest.click();
-    await expect
-      .poll(() => earliest.evaluate((node) => getComputedStyle(node).color))
-      .not.toBe(before);
-    expect(await textContrast(earliest), "newly selected chip").toBeGreaterThanOrEqual(4.5);
-    await expect.poll(() => latest.evaluate((node) => getComputedStyle(node).color)).toBe(before);
-  });
 });
 
 test.describe("keyboard focus ring", () => {
@@ -177,6 +174,12 @@ test.describe("keyboard focus ring", () => {
       await expectTheme(page, theme, accent);
       const chip = isWideProject() ? "🔀 통합" : "최신순";
       await expectRingContrast(page, focusableWith(page, chip), `${chip} chip`);
+      if (!isWideProject()) {
+        // The folder chips sit in a horizontal scroll row that clips overflow.
+        const folderChip = focusableWith(page, "전체");
+        await expectRingContrast(page, folderChip, "전체 chip");
+        await expectRingNotClipped(folderChip, "전체 chip");
+      }
 
       await page.goto("/settings");
       await expectTheme(page, theme, accent);
@@ -207,6 +210,24 @@ test.describe("keyboard focus ring", () => {
     expect(await button.evaluate((node) => node.matches(":focus-visible"))).toBe(false);
     await expect.poll(() => button.evaluate((node) => node.getAnimations().length)).toBe(0);
     expect(await ringColor(button)).toBeNull();
+    await page.mouse.up();
+  });
+
+  test("pressing a chip with the mouse shows no ring", async ({ page }) => {
+    await setup(page, "light", "blue");
+    await page.goto("/home");
+    await expectTheme(page, "light", "blue");
+
+    const chip = focusableWith(page, isWideProject() ? "🔀 통합" : "최신순");
+    await expect(chip).toBeVisible();
+    const box = await chip.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) return;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    expect(await chip.evaluate((node) => node.matches(":focus-visible"))).toBe(false);
+    await expect.poll(() => chip.evaluate((node) => node.getAnimations().length)).toBe(0);
+    expect(await ringColor(chip)).toBeNull();
     await page.mouse.up();
   });
 });

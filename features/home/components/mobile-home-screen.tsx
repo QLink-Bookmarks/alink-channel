@@ -143,6 +143,8 @@ function MobileHomeScreen() {
 
           <ScrollView
             horizontal
+            className="-my-1 -ml-1"
+            contentContainerClassName="p-1"
             showsHorizontalScrollIndicator={false}
           >
             <SegmentedControl
