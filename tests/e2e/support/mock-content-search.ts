@@ -1,6 +1,6 @@
 import type { Page, Route } from "@playwright/test";
 
-import { type MockDetail, type MockLink, envelope } from "./mock-api";
+import { type MockDetail, type MockLink, envelope, readListSort } from "./mock-api";
 import {
   type ContentSnippet,
   type MatchedField,
@@ -15,7 +15,8 @@ import {
  *   plain, case-insensitive substrings: `%`, `_` and `\` are literal characters;
  * - a one-character query never searches the body;
  * - links with a metadata match come first, then links whose body alone matched, each group in
- *   the requested order (`latest` | `earliest` | `laxico`), cut to `size`;
+ *   the requested sort (`orderKey` + `order`, or the old `latest` | `earliest` | `laxico`), cut
+ *   to `size`;
  * - every body match carries a context of at most 100 UTF-16 units around the first match
  *   (≤15 before it, "…" on a cut side) with that match highlighted.
  *
@@ -24,6 +25,16 @@ import {
  */
 
 type SearchState = { links: MockLink[]; details: Record<number, MockDetail> };
+
+type ListSortQuery = { key: string; direction: "asc" | "desc" };
+
+const SEARCH_SORT_DEFAULTS = {
+  key: "created_at",
+  directions: { created_at: "desc", title: "asc", similarity: "desc" } as Record<
+    string,
+    "asc" | "desc"
+  >,
+};
 
 type ContentSearchOptions = {
   /** Body overrides by link id; otherwise the body from `mock-content.ts`. */
@@ -77,20 +88,21 @@ function searchLinks(
   state: SearchState,
   query: string,
   {
-    order = "latest",
+    sort = { key: "created_at", direction: "desc" },
     size,
     ...options
   }: ContentSearchOptions & {
-    order?: string;
+    sort?: ListSortQuery;
     size?: number;
   } = {},
 ) {
+  const sign = sort.direction === "asc" ? 1 : -1;
   const byOrder = (a: MockLink, b: MockLink) =>
-    order === "earliest"
-      ? a.createdAt.localeCompare(b.createdAt)
-      : order === "laxico"
-        ? a.title.localeCompare(b.title, "ko")
-        : b.createdAt.localeCompare(a.createdAt);
+    sort.key === "title"
+      ? sign * a.title.localeCompare(b.title, "ko")
+      : sort.key === "created_at"
+        ? sign * a.createdAt.localeCompare(b.createdAt)
+        : 0;
   const meta: unknown[] = [];
   const bodyOnly: unknown[] = [];
   for (const link of [...state.links].sort(byOrder)) {
@@ -136,10 +148,23 @@ async function mockContentSearch(
         await route.fallback();
         return;
       }
+      const sort = readListSort(url, SEARCH_SORT_DEFAULTS);
+      if (!sort) {
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({
+            success: false,
+            data: null,
+            error: { code: "COMMON_INVALID_SORT_ORDER", message: "COMMON_INVALID_SORT_ORDER" },
+          }),
+        });
+        return;
+      }
       queries.push(query);
       const contents = searchLinks(getState(), query, {
         ...options,
-        order: url.searchParams.get("order") ?? "latest",
+        sort,
         size: Number(url.searchParams.get("size") ?? "0"),
       });
       await route.fulfill({

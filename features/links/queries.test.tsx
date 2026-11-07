@@ -3,6 +3,7 @@ import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
+import { getLinks } from "./api";
 import { extractLinkPreview } from "./lib/link-preview/extract-link-preview";
 import {
   getLinkDetailQueryKey,
@@ -11,15 +12,17 @@ import {
   invalidateLinkListAndSearchQueries,
   useLinkDetailExcerptRecheck,
   useLinkPreviewQuery,
+  useLinksQuery,
 } from "./queries";
-import type { LinkDetailContent, LinkPreview } from "./types";
+import type { GetLinksParams, LinkDetailContent, LinkPreview } from "./types";
 
-jest.mock("./api", () => ({}));
+jest.mock("./api", () => ({ getLinks: jest.fn() }));
 jest.mock("./lib/link-preview/extract-link-preview", () => ({
   extractLinkPreview: jest.fn(),
 }));
 
 const extract = extractLinkPreview as jest.MockedFunction<typeof extractLinkPreview>;
+const fetchLinks = getLinks as jest.MockedFunction<typeof getLinks>;
 
 const URL_A = "https://example.com/a";
 const URL_B = "https://example.com/b";
@@ -142,10 +145,55 @@ describe("useLinkPreviewQuery", () => {
   });
 });
 
+describe("useLinksQuery", () => {
+  const emptyPage = { isEmpty: true, contents: [], nextCursor: null, hasNext: false };
+
+  function renderLinksHook(params?: GetLinksParams) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    return renderHook(() => useLinksQuery(params), { wrapper });
+  }
+
+  beforeEach(() => {
+    fetchLinks.mockReset();
+    fetchLinks.mockResolvedValue({ success: true, data: emptyPage, error: null });
+  });
+
+  it("sorts by save date, newest first, when no sort is given", async () => {
+    const { result } = renderLinksHook({ folderId: 3 });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchLinks).toHaveBeenCalledWith({
+      orderKey: "created_at",
+      order: "desc",
+      size: 30,
+      folderId: 3,
+    });
+  });
+
+  it("sends the given criterion and direction", async () => {
+    const { result } = renderLinksHook({ orderKey: "title", order: "asc", isFavorite: true });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchLinks).toHaveBeenCalledWith({
+      orderKey: "title",
+      order: "asc",
+      size: 30,
+      isFavorite: true,
+    });
+  });
+
+  it("leaves the direction to the server when only a criterion is given", async () => {
+    const { result } = renderLinksHook({ orderKey: "title", size: 50 });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchLinks).toHaveBeenCalledWith({ orderKey: "title", size: 50 });
+  });
+});
+
 describe("invalidateLinkListAndSearchQueries", () => {
   it("invalidates the link lists and the search results only", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
-    const listKey = getLinksQueryKey({ order: "latest", size: 30 });
+    const listKey = getLinksQueryKey({ orderKey: "created_at", order: "desc", size: 30 });
     const searchKey = ["search", "links", "제주"] as const;
     const previewKey = getLinkPreviewQueryKey("https://example.com/a");
     const detailKey = getLinkDetailQueryKey(7);
