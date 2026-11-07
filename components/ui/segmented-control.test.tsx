@@ -6,18 +6,26 @@ const SIZE_OPTIONS = [
   { label: "크게", value: "large" },
 ];
 
+const MODE_OPTIONS = [
+  { label: "알림 없음", value: "none" },
+  { label: "한 번", value: "time" },
+  { label: "반복", value: "recurring" },
+];
+
 describe("SegmentedControl", () => {
-  it("exposes each item as a button that says whether it is selected (iOS)", () => {
+  it("reads a single choice as a radio group with the checked radio", () => {
     render(
       <SegmentedControl
-        options={SIZE_OPTIONS}
-        value="large"
-        variant="track"
+        accessibilityLabel="알림"
+        options={MODE_OPTIONS}
+        value="time"
       />,
     );
 
-    expect(screen.getByRole("button", { name: "크게", selected: true })).toBeOnTheScreen();
-    expect(screen.getByRole("button", { name: "작게", selected: false })).toBeOnTheScreen();
+    expect(screen.getByLabelText("알림")).toHaveProp("role", "radiogroup");
+    expect(screen.getByRole("radio", { name: "한 번" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "알림 없음" })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: "반복" })).not.toBeChecked();
   });
 
   it("gives track items a 44pt touch height without changing their size", () => {
@@ -30,17 +38,18 @@ describe("SegmentedControl", () => {
       />,
     );
 
-    const item = screen.getByRole("button", { name: "작게" });
+    const item = screen.getByRole("radio", { name: "작게" });
     expect(item).toHaveProp("hitSlop", { top: 6, bottom: 6 });
     expect(item).toHaveStyle({ minHeight: 32 });
     // 32pt item + 3px padding + 1px border = 40pt track; it reaches 44pt with 2pt more each side.
     expect(screen.getByTestId("size-control")).toHaveProp("hitSlop", { top: 2, bottom: 2 });
   });
 
-  it("reports the pressed item and marks every selected item in multiple selection", () => {
+  it("reads a multiple choice as checkboxes and reports the pressed item", () => {
     const handleValueChange = jest.fn();
     render(
       <SegmentedControl
+        accessibilityLabel="요일"
         options={[
           { label: "월", value: "mon" },
           { label: "화", value: "tue" },
@@ -52,8 +61,29 @@ describe("SegmentedControl", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "월", selected: true })).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole("button", { name: "화", selected: false }));
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "월" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "화" })).not.toBeChecked();
+    fireEvent.press(screen.getByRole("checkbox", { name: "화" }));
     expect(handleValueChange).toHaveBeenCalledWith(["mon", "tue"]);
+  });
+
+  it("locks every option while disabled", () => {
+    const handleValueChange = jest.fn();
+    render(
+      <SegmentedControl
+        disabled
+        accessibilityLabel="알림"
+        options={MODE_OPTIONS}
+        value="time"
+        onValueChange={handleValueChange}
+      />,
+    );
+
+    for (const name of ["알림 없음", "한 번", "반복"]) {
+      expect(screen.getByRole("radio", { name })).toBeDisabled();
+    }
+    fireEvent.press(screen.getByRole("radio", { name: "반복" }));
+    expect(handleValueChange).not.toHaveBeenCalled();
   });
 });

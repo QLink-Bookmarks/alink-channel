@@ -253,7 +253,7 @@ test.describe("action cards", () => {
     await openDetail(page, 1);
     await card(page, "렌터카 예약 확인").getByRole("checkbox", { name: "완료 표시" }).click();
     await expect(card(page, "렌터카 예약 확인").getByRole("checkbox")).toHaveAccessibleName(
-      "완료 취소",
+      "완료 취소, 렌터카 예약 확인",
     );
     await expect(editor(page)).toHaveCount(0);
     await expect
@@ -261,7 +261,7 @@ test.describe("action cards", () => {
       .toBe(true);
     await page.reload();
     await expect(card(page, "렌터카 예약 확인").getByRole("checkbox")).toHaveAccessibleName(
-      "완료 취소",
+      "완료 취소, 렌터카 예약 확인",
     );
   });
 });
@@ -368,7 +368,7 @@ test.describe("editing actions in place", () => {
     await page.getByTestId("link-detail-todos-cancel").click();
     await expect(editor(page)).toHaveCount(0);
     await expect(card(page, "렌터카 예약 확인").getByRole("checkbox")).toHaveAccessibleName(
-      "완료 표시",
+      "완료 표시, 렌터카 예약 확인",
     );
     expect(writes(state)).toEqual([]);
 
@@ -377,7 +377,7 @@ test.describe("editing actions in place", () => {
     await page.getByTestId("link-detail-todos-save").click();
     await expect(editor(page)).toHaveCount(0);
     await expect(card(page, "렌터카 예약 확인").getByRole("checkbox")).toHaveAccessibleName(
-      "완료 취소",
+      "완료 취소, 렌터카 예약 확인",
     );
     expect(writes(state)).toEqual([]);
     expect(state.requests.filter((r) => r.path === "/api/todos/21/completed")).toHaveLength(1);
@@ -388,7 +388,7 @@ test.describe("editing actions in place", () => {
         .getByTestId(/^todo-item(-overdue)?$/)
         .filter({ hasText: "렌터카 예약 확인" })
         .getByRole("checkbox"),
-    ).toHaveAccessibleName("완료 취소");
+    ).toHaveAccessibleName("완료 취소, 렌터카 예약 확인");
   });
 
   test("저장 sends only what changed: a new title and schedule, a removed action and a new one; the detail and the actions tab follow", async ({
@@ -447,7 +447,9 @@ test.describe("editing actions in place", () => {
     await expect(editor(page)).toHaveCount(0);
     const put = state.requests.find((r) => r.method === "PUT" && r.path === "/api/todos/41");
     expect(put?.body).toMatchObject({ title: "물때 확인함", reminderAt: null });
-    await expect(card(page, "물때 확인함").getByRole("checkbox")).toHaveAccessibleName("완료 취소");
+    await expect(card(page, "물때 확인함").getByRole("checkbox")).toHaveAccessibleName(
+      "완료 취소, 물때 확인함",
+    );
   });
 
   test("취소 drops every change", async ({ page }) => {

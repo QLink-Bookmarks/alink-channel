@@ -74,7 +74,7 @@ function cards(page: Page) {
 function sizeOption(page: Page, label: "작게" | "크게") {
   return page
     .getByTestId("settings-link-card-size")
-    .getByRole("button", { name: label, exact: true });
+    .getByRole("radio", { name: label, exact: true });
 }
 
 /** Columns the confirmed rule gives for the grid's current width. */
@@ -90,7 +90,7 @@ async function expectColumns(page: Page, count: number) {
 
 async function pickSize(page: Page, label: "작게" | "크게") {
   await sizeOption(page, label).click();
-  await expect(sizeOption(page, label)).toHaveAttribute("aria-pressed", "true");
+  await expect(sizeOption(page, label)).toHaveAttribute("aria-checked", "true");
 }
 
 /** Wide: the sidebar button. Phones: the bottom tab, which has no button role. */
@@ -131,8 +131,8 @@ test.describe("settings row", () => {
 
     const row = page.getByTestId("settings-link-card-size");
     await expect(row.getByText("링크 카드 크기", { exact: true })).toBeVisible();
-    await expect(sizeOption(page, "크게")).toHaveAttribute("aria-pressed", "true");
-    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-pressed", "false");
+    await expect(sizeOption(page, "크게")).toHaveAttribute("aria-checked", "true");
+    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-checked", "false");
 
     const sectionTitle = await page.getByText("화면 표시", { exact: true }).boundingBox();
     const darkSwitch = await page.getByRole("switch", { name: "다크 모드" }).boundingBox();
@@ -153,8 +153,8 @@ test.describe("settings row", () => {
 
     const row = page.getByTestId("settings-link-card-size");
     await expect(row).toBeVisible();
-    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-pressed", "true");
-    await expect(sizeOption(page, "크게")).toHaveAttribute("aria-pressed", "false");
+    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-checked", "true");
+    await expect(sizeOption(page, "크게")).toHaveAttribute("aria-checked", "false");
 
     const main = page.locator("main").or(page.locator("body")).first();
     const profile = await main.getByText("프로필", { exact: true }).last().boundingBox();
@@ -174,10 +174,10 @@ test.describe("settings row", () => {
     await setup(page);
     await page.goto("/settings");
     await pickSize(page, "작게");
-    await expect(sizeOption(page, "크게")).toHaveAttribute("aria-pressed", "false");
+    await expect(sizeOption(page, "크게")).toHaveAttribute("aria-checked", "false");
     expect(await storedSize(page)).toBe("small");
     await pickSize(page, "크게");
-    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-pressed", "false");
+    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-checked", "false");
     expect(await storedSize(page)).toBe("large");
   });
 });
@@ -627,7 +627,7 @@ test.describe("keeping the choice", () => {
     await page.goto("/settings");
     await pickSize(page, "작게");
     await page.reload();
-    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-pressed", "true");
+    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-checked", "true");
     await page.goto("/home");
     await expectColumns(page, isWideProject() ? 4 : 2);
     await page.close();
@@ -637,7 +637,7 @@ test.describe("keeping the choice", () => {
     await next.goto("/home");
     await expectColumns(next, isWideProject() ? 4 : 2);
     await next.goto("/settings");
-    await expect(sizeOption(next, "작게")).toHaveAttribute("aria-pressed", "true");
+    await expect(sizeOption(next, "작게")).toHaveAttribute("aria-checked", "true");
   });
 
   test("signing out and back in on this device keeps the chosen size", async ({ page }) => {
@@ -654,7 +654,7 @@ test.describe("keeping the choice", () => {
     await expectColumns(page, 2);
     await page.goto("/settings");
     await expect(sizeOption(page, isWideProject() ? "크게" : "작게")).toHaveAttribute(
-      "aria-pressed",
+      "aria-checked",
       "true",
     );
   });
@@ -701,8 +701,8 @@ test.describe("keeping the choice", () => {
     for (const label of order) {
       await sizeOption(page, label).click({ delay: 0 });
     }
-    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-pressed", "true");
-    await expect(sizeOption(page, "크게")).toHaveAttribute("aria-pressed", "false");
+    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-checked", "true");
+    await expect(sizeOption(page, "크게")).toHaveAttribute("aria-checked", "false");
     expect(await storedSize(page)).toBe("small");
     await openHome(page);
     await expectColumns(page, isWideProject() ? 4 : 2);
@@ -717,7 +717,7 @@ test.describe("keeping the choice", () => {
     await pickSize(page, "작게");
     await page.getByRole("switch", { name: "다크 모드" }).click();
     await page.getByRole("radio", { name: "강조색 분홍" }).click();
-    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-pressed", "true");
+    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-checked", "true");
     const settingsSaves = () =>
       state.requests.filter(
         (request) => request.path === "/api/users/me/settings" && request.method === "PATCH",
@@ -730,7 +730,7 @@ test.describe("keeping the choice", () => {
     }
 
     await page.reload();
-    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-pressed", "true");
+    await expect(sizeOption(page, "작게")).toHaveAttribute("aria-checked", "true");
     expect(await storedSize(page)).toBe("small");
   });
 });
@@ -762,7 +762,7 @@ test.describe("dark mode", () => {
     await expect(page.locator("html.dark, body.dark, .dark").first()).toBeAttached();
     const selected = sizeOption(page, isWideProject() ? "작게" : "크게");
     const unselected = sizeOption(page, isWideProject() ? "크게" : "작게");
-    await expect(selected).toHaveAttribute("aria-pressed", "true");
+    await expect(selected).toHaveAttribute("aria-checked", "true");
 
     const background = (target: Locator) =>
       target.evaluate((node) => getComputedStyle(node).backgroundColor);

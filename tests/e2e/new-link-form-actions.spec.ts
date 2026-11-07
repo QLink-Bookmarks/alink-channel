@@ -658,6 +658,8 @@ test.describe("mobile new link sheet (#46)", () => {
   test("AI 정리 옵션, the caption and the buttons stay fixed at the bottom of the sheet while only the body scrolls", async ({
     page,
   }) => {
+    // A short screen, so the body is longer than the full-height sheet (#89) and scrolls.
+    await page.setViewportSize({ width: 390, height: 640 });
     await setUpFormServer(page);
     await openForm(page);
     await settledSheetTop(page);

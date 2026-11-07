@@ -60,6 +60,7 @@ function TodoScheduleChip({
       aria-expanded={open}
       className={cn(
         "relative h-8 max-w-full flex-row items-center gap-1.5 self-start rounded-[10px] border border-border bg-card px-2.5",
+        "web:outline-none web:focus-visible:ring-[3px] web:focus-visible:ring-ring",
         open && "border-primary",
         invalid && "border-destructive/70",
         disabled && "opacity-50",

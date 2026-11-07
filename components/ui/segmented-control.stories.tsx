@@ -114,16 +114,16 @@ function MultipleSelectionStory() {
 }
 
 /**
- * Two options in the track style, as the link card size row in settings. Each item is a button
- * that announces whether it is selected (`aria-pressed` on web, the selected trait on iOS) and
- * is at least 44pt tall to touch on iOS without changing the layout, inside a 44pt-tall row.
+ * Two options in the track style, as the link card size row in settings. Each item is a radio
+ * announced with its checked state and is at least 44pt tall to touch on iOS without changing
+ * the layout, inside a 44pt-tall row.
  */
 export const TwoOptionTrack: Story = {
   name: "두 칸 트랙 (링크 카드 크기)",
   render: () => <TwoOptionTrackStory />,
 };
 
-/** Several selected at once: each selected item is announced as pressed (web) or selected (iOS). */
+/** Several selected at once: each item is a checkbox announced with its checked state. */
 export const MultipleSelection: Story = {
   name: "여러 개 선택",
   render: () => <MultipleSelectionStory />,
@@ -162,6 +162,21 @@ export const Variants: Story = {
         value={value}
         variant="track"
         block
+      />
+    </View>
+  ),
+};
+
+export const Disabled: Story = {
+  name: "잠금",
+  render: ({ value }) => (
+    <View className="opacity-50">
+      <SegmentedControl
+        disabled
+        value={value}
+        variant="track"
+        block
+        options={options}
       />
     </View>
   ),

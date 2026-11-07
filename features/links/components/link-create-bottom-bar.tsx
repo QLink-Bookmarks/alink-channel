@@ -350,7 +350,7 @@ function LinkCreateButtons({
         className={cn(
           "flex-row gap-2 rounded-xl bg-primary/15 shadow-none active:bg-primary/20",
           process.env.EXPO_OS === "web" && "hover:bg-primary/20",
-          isSheet ? "h-12 flex-1" : "h-10 min-w-[104px] px-[18px] sm:h-10",
+          isSheet ? "h-12 flex-1 sm:h-12" : "h-10 min-w-[104px] px-[18px] sm:h-10",
         )}
         disabled={isBusy}
         variant="secondary"
@@ -370,7 +370,7 @@ function LinkCreateButtons({
       <Button
         className={cn(
           "flex-row gap-2 rounded-xl",
-          isSheet ? "h-12 flex-1" : "h-10 min-w-[104px] px-[18px] sm:h-10",
+          isSheet ? "h-12 flex-1 sm:h-12" : "h-10 min-w-[104px] px-[18px] sm:h-10",
         )}
         disabled={isBusy}
         variant="gradient"

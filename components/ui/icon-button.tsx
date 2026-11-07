@@ -117,7 +117,10 @@ function IconButton({
           !hasWebHitSlop && "overflow-hidden",
           !disabled && "active:bg-accent",
           Platform.select({
-            web: !disabled ? "transition-colors duration-150 ease-out hover:bg-accent" : undefined,
+            web: cn(
+              "outline-none focus-visible:ring-[3px] focus-visible:ring-ring",
+              !disabled && "transition-colors duration-150 ease-out hover:bg-accent",
+            ),
           }),
           sizeConfig.button,
           active && "bg-accent",
@@ -147,9 +150,11 @@ function IconButton({
         "items-center justify-center rounded-full",
         !hasWebHitSlop && "overflow-hidden",
         Platform.select({
-          web: !disabled
-            ? "transition-colors duration-150 ease-out hover:bg-primary focus-visible:bg-primary"
-            : undefined,
+          web: cn(
+            "outline-none focus-visible:ring-[3px] focus-visible:ring-ring",
+            !disabled &&
+              "transition-colors duration-150 ease-out hover:bg-primary focus-visible:bg-primary",
+          ),
         }),
         sizeConfig.button,
         active ? "bg-primary" : "bg-primary/10",

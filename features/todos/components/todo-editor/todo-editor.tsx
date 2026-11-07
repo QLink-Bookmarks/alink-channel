@@ -8,6 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { type TimeValue } from "@/components/ui/time-picker";
 import {
+  getTodoDoneToggleLabel,
+  getTodoRemoveLabel,
+} from "@/features/todos/lib/todo-accessibility-label";
+import {
   DATE_AND_TIME_REQUIRED_ERROR,
   DATE_REQUIRED_ERROR,
   PAST_REMINDER_ERROR,
@@ -36,6 +40,10 @@ import { X } from "lucide-react-native/icons";
 type TodoEditorId = number | string;
 
 const TODO_TITLE_COUNTER_FROM = 40;
+
+// Press areas past the visible size: the 16px checkbox reaches 40×40 on web, the 32px × 44×44.
+const CHECKBOX_WEB_HIT_SLOP = 12;
+const REMOVE_HIT_SLOP = 6;
 
 const MISSING_SCHEDULE_ERRORS = new Set([
   DATE_AND_TIME_REQUIRED_ERROR,
@@ -156,11 +164,12 @@ function TodoEditorBase({
     >
       {check ? (
         <Checkbox
-          accessibilityLabel={done ? "완료 취소" : "완료 표시"}
+          accessibilityLabel={getTodoDoneToggleLabel(value, done)}
           checked={done}
           className={isMobile ? "mt-[11px]" : "mt-2"}
           shape="round"
           disabled={disabled}
+          webHitSlop={CHECKBOX_WEB_HIT_SLOP}
           onCheckedChange={(next) => onChangeDone?.(id, next)}
         />
       ) : null}
@@ -205,8 +214,9 @@ function TodoEditorBase({
             ) : null}
           </View>
           <IconButton
-            accessibilityLabel="액션 삭제"
+            accessibilityLabel={getTodoRemoveLabel(value)}
             disabled={disabled}
+            hitSlop={REMOVE_HIT_SLOP}
             icon={X}
             size="sm"
             variant="ghost"

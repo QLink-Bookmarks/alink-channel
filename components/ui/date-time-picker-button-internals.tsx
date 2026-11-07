@@ -28,6 +28,7 @@ type CommonProps = {
   mode: Mode;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 };
 
 type DateTimePickerButtonProps = CommonProps &
@@ -83,6 +84,7 @@ function formatLabel(
 function buttonClassName(extra?: string) {
   return cn(
     "h-10 flex-1 flex-row items-center justify-start gap-2 rounded-md border border-input bg-background px-3 shadow-sm shadow-black/5",
+    "web:outline-none web:focus-visible:ring-[3px] web:focus-visible:ring-ring",
     extra,
   );
 }
@@ -221,7 +223,7 @@ function WidePopoverBody(props: {
  * Sheet-based variant can't be driven by gestures).
  */
 function PopoverVariant(props: DateTimePickerButtonProps) {
-  const { kind, value, className } = props;
+  const { kind, value, className, disabled } = props;
   const placeholder = props.placeholder ?? defaultPlaceholder(kind);
   const label = formatLabel(kind, value, placeholder);
   const autoSide = useAutoPopoverSide();
@@ -240,6 +242,7 @@ function PopoverVariant(props: DateTimePickerButtonProps) {
         <PopoverTrigger asChild>
           <Pressable
             className={buttonClassName(className)}
+            disabled={disabled}
             onPressIn={autoSide.handlePressIn}
           >
             <ButtonContent
@@ -274,7 +277,7 @@ function PopoverVariant(props: DateTimePickerButtonProps) {
  * where a sheet is the natural touch UX.
  */
 function SheetVariant(props: DateTimePickerButtonProps) {
-  const { kind, value, className } = props;
+  const { kind, value, className, disabled } = props;
   const placeholder = props.placeholder ?? defaultPlaceholder(kind);
   const label = formatLabel(kind, value, placeholder);
   const [open, setOpen] = React.useState(false);
@@ -283,6 +286,7 @@ function SheetVariant(props: DateTimePickerButtonProps) {
     <>
       <Pressable
         className={buttonClassName(className)}
+        disabled={disabled}
         onPress={() => setOpen(true)}
       >
         <ButtonContent

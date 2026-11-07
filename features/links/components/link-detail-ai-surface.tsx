@@ -31,8 +31,9 @@ function SurfaceHeading({ title, children }: { title: string; children?: React.R
   return (
     <View className="min-h-5 flex-row items-center justify-between gap-3">
       <Text
-        accessibilityRole="header"
+        aria-level={2}
         className="text-xs font-semibold text-muted-foreground"
+        role="heading"
       >
         {title}
       </Text>

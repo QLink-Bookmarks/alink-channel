@@ -24,6 +24,10 @@ const isWeb = process.env.EXPO_OS === "web";
 const TOOLBAR_HIT_SLOP = { top: 6, bottom: 6, left: 1, right: 1 };
 const ROW_BUTTON_HIT_SLOP = 6;
 
+// The theme focus ring every press target of the detail shows on keyboard focus (web).
+const FOCUS_RING_CLASS_NAME =
+  "web:outline-none web:focus-visible:ring-[3px] web:focus-visible:ring-ring";
+
 /**
  * Shows `label` as a hover tooltip on web. Native has no hover, so the child is returned as is
  * (it still carries its own accessible name).
@@ -126,6 +130,7 @@ function DetailToolbarButton({
       aria-disabled={disabled}
       className={cn(
         "group h-8 shrink-0 flex-row items-center rounded-[10px]",
+        FOCUS_RING_CLASS_NAME,
         compact ? "gap-1 px-1.5" : "gap-[5px] px-2",
         !disabled && "active:bg-accent web:transition-colors web:hover:bg-accent",
         disabled && "opacity-40",
@@ -257,6 +262,7 @@ function DetailRowEditButton({
       aria-disabled={disabled}
       className={cn(
         "size-8 items-center justify-center rounded-[10px]",
+        FOCUS_RING_CLASS_NAME,
         !disabled && "active:bg-accent web:transition-colors web:hover:bg-accent",
         disabled && "opacity-40",
       )}
@@ -298,6 +304,7 @@ function DetailRowAddButton({
       aria-disabled={disabled}
       className={cn(
         "group h-8 flex-row items-center gap-1 self-start rounded-[10px] px-2",
+        FOCUS_RING_CLASS_NAME,
         align === "start" ? "-ml-2" : "-mr-2",
         !disabled && "active:bg-accent web:transition-colors web:hover:bg-accent",
         disabled && "opacity-40",
@@ -355,6 +362,7 @@ export {
   DetailRowAddButton,
   DetailRowEditButton,
   DetailToolbarButton,
+  FOCUS_RING_CLASS_NAME,
   HoverLabel,
   RefreshButton,
 };
