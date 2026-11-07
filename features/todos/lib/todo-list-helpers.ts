@@ -18,14 +18,6 @@ function getTodoBucket(todo: TodoListItem, nowMs: number): TodoBucket {
   return "upcoming";
 }
 
-function isOverdue(todo: TodoListItem, nowMs: number): boolean {
-  if (todo.completedAt || !todo.reminderAt) {
-    return false;
-  }
-  const reminderMs = new Date(todo.reminderAt).getTime();
-  return !Number.isNaN(reminderMs) && reminderMs < nowMs;
-}
-
 function formatReminderLabel(
   reminderAt?: string | null,
   options?: { withOverdueSuffix?: boolean },
@@ -110,12 +102,5 @@ function groupTodosByLink(
   return Array.from(map.values());
 }
 
-export {
-  countTodosByFilter,
-  filterTodos,
-  formatReminderLabel,
-  getTodoBucket,
-  groupTodosByLink,
-  isOverdue,
-};
+export { countTodosByFilter, filterTodos, formatReminderLabel, getTodoBucket, groupTodosByLink };
 export type { TodoBucket, TodoFilter };

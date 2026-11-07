@@ -14,6 +14,9 @@ type TodoListItem = {
   id: number;
   title: string;
   reminderAt?: string | null;
+  repeatUntil?: string | null;
+  repeatDays?: RepeatDay[] | null;
+  repeatTime?: string | null;
   completedAt?: string | null;
   linkId: number;
   linkUrl: string;

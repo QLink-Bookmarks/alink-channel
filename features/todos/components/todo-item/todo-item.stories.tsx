@@ -58,6 +58,22 @@ export const Display: Story = {
       <TodoItem
         {...args}
         variant="display"
+        text="매주 회고 정리"
+        reminderLabel="매주 월·목 오전 8:00 · 12월 31일까지"
+        scheduleKind="repeat"
+        linkUrl="https://velog.io/@devkim/tanstack-query-v5"
+        linkTitle="TanStack Query v5 마이그레이션 정리"
+      />
+      <TodoItem
+        {...args}
+        variant="display"
+        text="아침 스트레칭"
+        reminderLabel="매일 오전 7:30"
+        scheduleKind="repeat"
+      />
+      <TodoItem
+        {...args}
+        variant="display"
         overdue
         text="토요일 2시 방문"
         reminderLabel="10/25 14:00 (지남)"
@@ -69,6 +85,7 @@ export const Display: Story = {
         variant="display"
         done
         text="queryKey 규칙 팀에 공유"
+        reminderLabel="10/24 10:00"
         linkUrl="https://velog.io/@devkim/tanstack-query-v5"
         linkTitle="TanStack Query v5 마이그레이션 정리"
       />

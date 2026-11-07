@@ -26,7 +26,7 @@ function Checkbox({
   return (
     <CheckboxPrimitive.Root
       className={cn(
-        "shrink-0 border border-input shadow-sm shadow-black/5 dark:bg-input/30",
+        "shrink-0 border-[1.5px] border-muted-foreground/75 shadow-sm shadow-black/5 dark:bg-input/30",
         size === "sm" ? "size-3.5" : "size-4",
         shape === "round" ? "rounded-full" : "rounded-[4px]",
         Platform.select({
@@ -43,7 +43,7 @@ function Checkbox({
       <CheckboxPrimitive.Indicator
         className={cn(
           "h-full w-full items-center justify-center bg-primary",
-          shape === "round" ? "rounded-full" : "rounded-[3px]",
+          shape === "round" ? "rounded-full" : "rounded-[2.5px]",
           indicatorClassName,
         )}
       >

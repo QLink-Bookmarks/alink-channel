@@ -86,3 +86,56 @@ export const Disabled: Story = {
     disabled: true,
   },
 };
+
+export const Unchecked: Story = {
+  name: "선택 안 됨",
+  args: {
+    checked: false,
+  },
+};
+
+export const Round: Story = {
+  name: "둥근 모양",
+  args: {
+    label: "액션 완료",
+    checked: false,
+    shape: "round",
+  },
+};
+
+export const States: Story = {
+  name: "상태 모음",
+  render: () => (
+    <View className="gap-3 p-4">
+      {(["square", "round"] as const).map((shape) => (
+        <View
+          key={shape}
+          className="flex-row items-center gap-6 rounded-[14px] border border-border bg-card p-4"
+        >
+          <Checkbox
+            checked={false}
+            shape={shape}
+            onCheckedChange={() => {}}
+          />
+          <Checkbox
+            checked
+            shape={shape}
+            onCheckedChange={() => {}}
+          />
+          <Checkbox
+            checked={false}
+            disabled
+            shape={shape}
+            onCheckedChange={() => {}}
+          />
+          <Checkbox
+            checked={false}
+            shape={shape}
+            size="sm"
+            onCheckedChange={() => {}}
+          />
+        </View>
+      ))}
+    </View>
+  ),
+};
