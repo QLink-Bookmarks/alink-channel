@@ -38,7 +38,7 @@ function MobileHomeScreen() {
     ALL_VALUE,
   );
   const [storedSort, setSort] = useRememberedState<unknown>(memoryKey, "sort", DEFAULT_LINK_SORT);
-  const sort = readLinkSort(storedSort);
+  const sort = React.useMemo(() => readLinkSort(storedSort), [storedSort]);
   const [favoriteOnly, setFavoriteOnly] = useRememberedState(memoryKey, "favoriteOnly", false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState("");

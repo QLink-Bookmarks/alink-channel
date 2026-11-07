@@ -169,6 +169,19 @@ test.describe("mobile home", () => {
     await expectTitles(page, NEWEST);
   });
 
+  test("Space and Enter toggle ★ from the keyboard", async ({ page }) => {
+    await mockLinks(page);
+    await page.goto("/home");
+    await openCover(page);
+    await favoriteToggle(page).focus();
+    await page.keyboard.press("Space");
+    await expect(favoriteToggle(page)).toBeChecked();
+    await expectTitles(page, [4, 2]);
+    await page.keyboard.press("Enter");
+    await expect(favoriteToggle(page)).not.toBeChecked();
+    await expectTitles(page, NEWEST);
+  });
+
   test("the collapsed button reads the applied values and goes back to its icon at the default", async ({
     page,
   }) => {
@@ -285,6 +298,71 @@ test.describe("mobile home", () => {
     await expect(sortChip(page, "저장일, 내림차순")).toBeVisible();
     release();
     await expectTitles(page, NEWEST);
+  });
+
+  test("pressing one criterion fast many times sorts by the arrow it ends on", async ({ page }) => {
+    await mockLinks(page);
+    // 제목 ↑ answers late and 제목 ↓ at once, so the answers come back out of order.
+    await page.route(
+      (url) =>
+        url.pathname === "/api/links" &&
+        url.searchParams.get("orderKey") === "title" &&
+        url.searchParams.get("order") === "asc",
+      async (route: Route) => {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        await route.fallback();
+      },
+    );
+    await page.goto("/home");
+    await expectTitles(page, NEWEST);
+    await openCover(page);
+    // Off → ↑ → ↓ → ↑ → ↓ → ↑
+    for (let press = 0; press < 5; press += 1) {
+      await sortChip(page, /^제목/).click();
+    }
+    await expect(coverButton(page)).toHaveAttribute("aria-expanded", "false", { timeout: 5_000 });
+    await expect(coverButton(page)).toHaveAccessibleName("정렬·필터 열기, 적용 중: 제목 오름차순");
+    await expectTitles(page, TITLE_ASC);
+  });
+
+  test("a new link shows in its 가나다 place under 제목 ↑ and on top under 저장일 ↓", async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await mockLinks(page);
+    await page.goto("/home");
+    await page.evaluate(() => navigator.clipboard.writeText(""));
+    await openCover(page);
+    await sortChip(page, "제목").click();
+    await closeCover(page);
+    await expectTitles(page, TITLE_ASC);
+
+    await page.getByLabel("새 링크").click();
+    await page.getByRole("textbox", { name: "URL", exact: true }).fill("https://example.com/new");
+    await page.getByRole("textbox", { name: "제목", exact: true }).fill("다리미 사용법");
+    const save = page.getByRole("button", { name: "저장", exact: true });
+    await expect(save).toBeEnabled();
+    await save.click();
+    await expect(page.getByText("새 링크 추가", { exact: true })).toHaveCount(0);
+    // Saving opens the new link's detail; back to the list.
+    await expect(page).toHaveURL(/\/links\/6$/);
+    await page.getByRole("button", { name: "뒤로" }).click();
+    await expect(page).toHaveURL(/\/home$/);
+
+    // 가나 · 나무 · 다람쥐 · 다리미 · 라면 · 마늘빵
+    await expect(titles(page)).toHaveText([
+      TITLES[2],
+      TITLES[4],
+      TITLES[1],
+      "다리미 사용법",
+      TITLES[5],
+      TITLES[3],
+    ]);
+
+    await openCover(page);
+    await sortChip(page, "저장일").click();
+    await expect(titles(page)).toHaveText(["다리미 사용법", ...NEWEST.map((id) => TITLES[id])]);
   });
 });
 

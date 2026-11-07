@@ -48,7 +48,7 @@ function LinkListView({
   const listVariant = useViewportListVariant();
   const memoryKey = useListMemoryKey(listVariant);
   const [storedSort, setSort] = useRememberedState<unknown>(memoryKey, "sort", DEFAULT_LINK_SORT);
-  const sort = readLinkSort(storedSort);
+  const sort = React.useMemo(() => readLinkSort(storedSort), [storedSort]);
   const [favoriteOnly, setFavoriteOnly] = useRememberedState(memoryKey, "favoriteOnly", false);
   const linksQuery = useLinksQuery({
     ...toLinkListParams(sort, favoriteOnly),

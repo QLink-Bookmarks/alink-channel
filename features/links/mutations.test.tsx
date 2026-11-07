@@ -23,7 +23,7 @@ function setup() {
     },
   });
   const keys = {
-    list: ["links", "list", { order: "latest" }],
+    list: ["links", "list", { orderKey: "created_at", order: "desc" }],
     search: ["search", "links", "성산일출봉"],
     detail: getLinkDetailQueryKey(LINK_ID),
     otherDetail: getLinkDetailQueryKey(8),

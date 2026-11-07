@@ -55,6 +55,12 @@ jest.mock("../../queries", () => ({
   useTodoCountsQuery: () => mockCountsQuery,
 }));
 
+const mockToggleCompleted = jest.fn();
+
+jest.mock("../../mutations", () => ({
+  useToggleTodoCompletedMutation: () => ({ mutateAsync: mockToggleCompleted }),
+}));
+
 const TODO: TodoListItem = {
   id: 1,
   title: "지원서 작성",
@@ -69,8 +75,7 @@ const TODO: TodoListItem = {
   linkFaviconUrl: null,
 };
 
-function renderTodos(mode: "mobile" | "wide" = "mobile") {
-  const queryClient = new QueryClient();
+function renderTodos(mode: "mobile" | "wide" = "mobile", queryClient = new QueryClient()) {
   return render(
     <QueryClientProvider client={queryClient}>
       <TodosScreen mode={mode} />
@@ -310,5 +315,92 @@ describe("TodosScreen status filter", () => {
       </QueryClientProvider>,
     );
     expect(screen.getByText("6개")).toBeOnTheScreen();
+  });
+});
+
+describe("TodosScreen checking an action", () => {
+  const LIST_KEY = ["todos", "list", { orderKey: "reminder_at", order: "asc", size: 100 }];
+  const COUNTS_KEY = ["todos", "list", "counts"];
+  const COUNTS: TodoCounts = { all: 3, active: 2, overdue: 0, completed: 1 };
+
+  beforeEach(() => {
+    resetQueries();
+    mockToggleCompleted.mockReset();
+  });
+
+  function renderWithCache() {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
+    queryClient.setQueryData(LIST_KEY, { contents: [TODO] });
+    queryClient.setQueryData(COUNTS_KEY, COUNTS);
+    mockTodosQuery.data = { contents: [TODO] };
+    mockCountsQuery.data = COUNTS;
+    renderTodos("mobile", queryClient);
+    return queryClient;
+  }
+
+  it("marks the action done in the list caches and moves one from 진행 중 to 완료", async () => {
+    mockToggleCompleted.mockResolvedValue({ data: { completeAt: "2026-11-07T03:00:00.000Z" } });
+    const queryClient = renderWithCache();
+
+    await act(async () => {
+      fireEvent.press(screen.getByRole("checkbox"));
+    });
+
+    expect(mockToggleCompleted).toHaveBeenCalledWith({
+      payload: { isCompleted: true },
+      todoId: TODO.id,
+    });
+    expect(
+      queryClient.getQueryData<{ contents: TodoListItem[] }>(LIST_KEY)?.contents[0],
+    ).toMatchObject({ completedAt: "2026-11-07T03:00:00.000Z", status: "COMPLETED" });
+    expect(queryClient.getQueryData(COUNTS_KEY)).toEqual({
+      all: 3,
+      active: 1,
+      overdue: 0,
+      completed: 2,
+    });
+  });
+
+  it("moves a done action with a past reminder back to 기간지남 when unchecked", async () => {
+    const done: TodoListItem = {
+      ...TODO,
+      status: "COMPLETED",
+      completedAt: "2026-11-01T00:00:00.000Z",
+      reminderAt: "2020-01-05T09:00:00.000Z",
+    };
+    mockToggleCompleted.mockResolvedValue({ data: { completeAt: null } });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
+    queryClient.setQueryData(LIST_KEY, { contents: [done] });
+    queryClient.setQueryData(COUNTS_KEY, COUNTS);
+    mockTodosQuery.data = { contents: [done] };
+    renderTodos("mobile", queryClient);
+
+    await act(async () => {
+      fireEvent.press(screen.getByRole("checkbox"));
+    });
+
+    expect(
+      queryClient.getQueryData<{ contents: TodoListItem[] }>(LIST_KEY)?.contents[0],
+    ).toMatchObject({ completedAt: null, status: "OVERDUE" });
+    expect(queryClient.getQueryData(COUNTS_KEY)).toEqual({
+      all: 3,
+      active: 2,
+      overdue: 1,
+      completed: 0,
+    });
+  });
+
+  it("leaves the caches as they were when the request fails", async () => {
+    mockToggleCompleted.mockRejectedValue(new Error("network"));
+    const queryClient = renderWithCache();
+
+    await act(async () => {
+      fireEvent.press(screen.getByRole("checkbox"));
+    });
+
+    expect(queryClient.getQueryData<{ contents: TodoListItem[] }>(LIST_KEY)?.contents[0]).toEqual(
+      TODO,
+    );
+    expect(queryClient.getQueryData(COUNTS_KEY)).toEqual(COUNTS);
   });
 });
