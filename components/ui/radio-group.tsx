@@ -29,7 +29,7 @@ function RadioGroupItem({
         "aspect-square shrink-0 items-center justify-center rounded-full border border-muted-foreground shadow-sm shadow-black/5 dark:bg-input/30",
         size === "sm" ? "size-3.5" : "size-4",
         Platform.select({
-          web: "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive outline-none transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed aria-checked:border-primary",
+          web: "aria-invalid:ring-destructive aria-invalid:border-destructive outline-none transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring disabled:cursor-not-allowed aria-checked:border-primary",
         }),
         props.disabled && "opacity-50",
         className,

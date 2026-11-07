@@ -20,7 +20,7 @@ function Switch({
         "relative flex shrink-0 flex-row items-center overflow-hidden rounded-full border border-transparent",
         isSmall ? "h-4 w-7" : "h-[1.15rem] w-8",
         Platform.select({
-          web: "peer inline-flex outline-none transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed",
+          web: "peer inline-flex outline-none transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring disabled:cursor-not-allowed",
         }),
         props.checked ? "shadow-qlink-sm" : "bg-input shadow-sm shadow-black/5 dark:bg-input/80",
         props.disabled && "opacity-50",

@@ -381,6 +381,8 @@ function MobileTodosScreen() {
       <View className="gap-5 px-4 pb-24 pt-4">
         <ScrollView
           horizontal
+          className="-my-1 -ml-1"
+          contentContainerClassName="p-1"
           showsHorizontalScrollIndicator={false}
         >
           <SegmentedControl
