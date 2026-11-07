@@ -320,6 +320,47 @@ test.describe("checking an action", () => {
     await expect(statusChip(page, "기간지남 3")).toBeVisible();
   });
 
+  // Regression (found on the dev server): a status list seen before stayed as it was after a check
+  // elsewhere, so 완료 lacked the action just completed until a pull to refresh.
+  test("checked under 진행 중, it is in 완료 when that chip is opened next", async ({ page }) => {
+    await mockTodos(page);
+    await page.goto("/todos");
+    // See 완료 first, so its list is cached without the action.
+    await statusChip(page, /^완료/).click();
+    await expectTodoTitles(page, ["끝낸 일 1", "끝낸 일 2"]);
+    await statusChip(page, /^진행 중/).click();
+    await expectTodoTitles(page, ["곧 알림", "나중 알림", "알림 없음"]);
+    await page
+      .getByTestId("todo-item")
+      .filter({ hasText: "곧 알림" })
+      .getByRole("checkbox")
+      .click();
+    await expect(statusChip(page, "완료 3")).toBeVisible();
+
+    await statusChip(page, "완료 3").click();
+    // 완료일 ↓: the action just completed comes first.
+    await expectTodoTitles(page, ["곧 알림", "끝낸 일 1", "끝낸 일 2"]);
+  });
+
+  test("unchecked under 완료, it is in 진행 중 when that chip is opened next", async ({ page }) => {
+    await mockTodos(page);
+    await page.goto("/todos");
+    // See 진행 중 first, so its list is cached without the action.
+    await statusChip(page, /^진행 중/).click();
+    await expectTodoTitles(page, ["곧 알림", "나중 알림", "알림 없음"]);
+    await statusChip(page, /^완료/).click();
+    await page
+      .getByTestId("todo-item")
+      .filter({ hasText: "끝낸 일 2" })
+      .getByRole("checkbox")
+      .click();
+    await expect(statusChip(page, "진행 중 4")).toBeVisible();
+
+    await statusChip(page, "진행 중 4").click();
+    await expect(todoTitles(page)).toHaveCount(4);
+    await expect(todoTitles(page).filter({ hasText: "끝낸 일 2" })).toBeVisible();
+  });
+
   test("under 전체 it moves to the 완료 section", async ({ page }) => {
     await mockTodos(page);
     await page.goto("/todos");

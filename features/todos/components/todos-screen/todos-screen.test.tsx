@@ -361,6 +361,26 @@ describe("TodosScreen checking an action", () => {
     });
   });
 
+  it("leaves the other statuses' lists to refetch, so 완료 shows the action just completed", async () => {
+    mockToggleCompleted.mockResolvedValue({ data: { completeAt: "2026-11-07T03:00:00.000Z" } });
+    const queryClient = renderWithCache();
+    // A 완료 list seen earlier, still cached without the action.
+    const doneListKey = [
+      "todos",
+      "list",
+      { status: "completed", orderKey: "completed_at", order: "desc", size: 100 },
+    ];
+    queryClient.setQueryData(doneListKey, { contents: [] });
+
+    await act(async () => {
+      fireEvent.press(screen.getByRole("checkbox"));
+    });
+
+    expect(queryClient.getQueryState(doneListKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(LIST_KEY)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(COUNTS_KEY)?.isInvalidated).toBe(true);
+  });
+
   it("moves a done action with a past reminder back to 기간지남 when unchecked", async () => {
     const done: TodoListItem = {
       ...TODO,

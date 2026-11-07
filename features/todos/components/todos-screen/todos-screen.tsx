@@ -158,6 +158,10 @@ function useToggleHandler() {
             ),
           };
         });
+        // The writes above also mark the lists of the other statuses fresh, which would keep e.g. the
+        // 완료 list without the action just completed. Invalidate after them: the list on screen
+        // (and the counts) refetch, the others refetch when their status is opened.
+        void queryClient.invalidateQueries({ queryKey: todoQueryKeys.lists() });
         // Link cards show todo counts, so the link lists change with the todo.
         void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
       } catch (error: unknown) {
