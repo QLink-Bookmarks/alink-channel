@@ -56,7 +56,7 @@ function useTodosScreenState(mode: TodosScreenMode) {
     "sort",
     getDefaultTodoSort(status),
   );
-  const sort = readTodoSort(storedSort, status);
+  const sort = React.useMemo(() => readTodoSort(storedSort, status), [status, storedSort]);
   const todosQuery = useTodosQuery({ ...toTodoListParams(status, sort), size: 100 });
   const countsQuery = useTodoCountsQuery();
   const todos = React.useMemo(() => todosQuery.data?.contents ?? [], [todosQuery.data]);

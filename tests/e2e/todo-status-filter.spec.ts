@@ -61,7 +61,16 @@ function buildTodos(): MockTodo[] {
 async function mockTodos(page: Page, todos = buildTodos(), handlers = {}) {
   return mockApi(page, {
     links: [LINK],
-    details: { [LINK.id]: makeDetail(LINK) },
+    details: {
+      [LINK.id]: makeDetail(LINK, {
+        todos: todos.map(({ id, title, reminderAt, completedAt }) => ({
+          id,
+          title,
+          reminderAt,
+          completedAt,
+        })),
+      }),
+    },
     todos,
     handlers,
   });
@@ -255,6 +264,32 @@ test.describe("sort", () => {
 });
 
 test.describe("checking an action", () => {
+  test("done in the link detail, it is under 완료 with the counts moved", async ({ page }) => {
+    await mockTodos(page);
+    await page.goto("/todos");
+    await expect(statusChip(page, "완료 2")).toBeVisible();
+    await todoTitles(page).filter({ hasText: "곧 알림" }).click();
+    await expect(page).toHaveURL(isWideProject() ? /\/todos\?linkId=1/ : /\/links\/1$/);
+
+    const detailCard = page
+      .getByTestId("link-detail-todos")
+      .getByTestId(/^todo-item(-overdue)?$/)
+      .filter({ hasText: "곧 알림" });
+    await detailCard.getByRole("checkbox").click();
+    await expect(detailCard.getByRole("checkbox")).toBeChecked();
+    if (isWideProject()) {
+      await page.getByTestId("link-detail-close").click();
+    } else {
+      await page.getByRole("button", { name: "뒤로" }).click();
+    }
+    await expect(page).toHaveURL(/\/todos$/);
+
+    await expect(statusChip(page, "완료 3")).toBeVisible();
+    await expect(statusChip(page, "진행 중 2")).toBeVisible();
+    await statusChip(page, /^완료/).click();
+    await expectTodoTitles(page, ["곧 알림", "끝낸 일 1", "끝낸 일 2"]);
+  });
+
   test("under 진행 중 it leaves the list and the counts move", async ({ page }) => {
     await mockTodos(page);
     await page.goto("/todos");

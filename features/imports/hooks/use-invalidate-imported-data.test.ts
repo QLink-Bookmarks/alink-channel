@@ -42,12 +42,15 @@ describe("invalidateImportedData", () => {
     const client = createClient();
     client.setQueryData(["imports", "detail", 1], { id: 1 });
     client.setQueryData(["imports", "reversal-preview", 1], { folders: [] });
-    client.setQueryData(["todos", "list", { order: "latest" }], []);
+    client.setQueryData(["todos", "list", { orderKey: "reminder_at", order: "asc" }], []);
 
     await invalidateImportedData(client, { includeTodos: true });
 
     expect(client.getQueryState(["imports", "detail", 1])?.isInvalidated).toBe(true);
     expect(client.getQueryState(["imports", "reversal-preview", 1])?.isInvalidated).toBe(true);
-    expect(client.getQueryState(["todos", "list", { order: "latest" }])?.isInvalidated).toBe(true);
+    expect(
+      client.getQueryState(["todos", "list", { orderKey: "reminder_at", order: "asc" }])
+        ?.isInvalidated,
+    ).toBe(true);
   });
 });

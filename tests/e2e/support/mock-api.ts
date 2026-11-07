@@ -728,6 +728,23 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
         const page = paginate(sorted, url);
         return json(scroll(page.contents, page.nextCursor));
       }
+      if (method === "POST" && path === "/api/links") {
+        const payload = (body ?? {}) as { url?: string; title?: string; folderId?: number | null };
+        const id = Math.max(0, ...state.links.map((link) => link.id)) + 1;
+        const link = placeLink(
+          makeLink({
+            id,
+            url: payload.url ?? `https://example.com/posts/${id}`,
+            title: payload.title ?? `링크 ${id}`,
+            createdAt: new Date().toISOString(),
+          }),
+          payload.folderId ?? null,
+        );
+        state.links = [link, ...state.links];
+        state.details[id] = makeDetail(link);
+        shiftFolderCount(link.folderId, 1);
+        return json(envelope({ id }), 201);
+      }
       const detailMatch = path.match(/^\/api\/links\/(\d+)$/);
       if (detailMatch) {
         const id = Number(detailMatch[1]);

@@ -98,6 +98,18 @@ function LinkFilterRow({
     () => toFilterPill(getLinkPill(sort, favoriteOnly)),
     [sort, favoriteOnly],
   );
+  const handleFavoritePress = () => onFavoriteOnlyChange(!favoriteOnly);
+  // react-native-web presses on Space only for buttons; a switch toggles on Space as well.
+  const favoriteKeyProps = isWeb
+    ? ({
+        onKeyDown: (event: { key: string; preventDefault: () => void }) => {
+          if (event.key === " " || event.key === "Spacebar") {
+            event.preventDefault();
+            handleFavoritePress();
+          }
+        },
+      } as Record<string, unknown>)
+    : {};
 
   return (
     <FilterCoverRow
@@ -120,11 +132,13 @@ function LinkFilterRow({
               className={cn(
                 "size-8 items-center justify-center rounded-full border",
                 favoriteOnly ? "border-warning bg-warning/15" : "border-border bg-card",
-                isWeb && "outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                isWeb &&
+                  "outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring",
               )}
               hitSlop={STAR_HIT_SLOP}
               testID={testID ? `${testID}-favorite` : undefined}
-              onPress={() => onFavoriteOnlyChange(!favoriteOnly)}
+              onPress={handleFavoritePress}
+              {...favoriteKeyProps}
             >
               <PressableHitSlopArea hitSlop={STAR_HIT_SLOP} />
               <Icon
