@@ -86,8 +86,8 @@ describe("TodoDraftListEditor schedule chip", () => {
 
     expect(chipTexts()).toEqual([
       "알림 없음",
-      "시간 빠짐",
-      "날짜 빠짐",
+      "시간 미정",
+      "날짜 미정",
       "11/20 09:00",
       "매주 월·목 오전 8:00 · 12월 31일까지",
     ]);

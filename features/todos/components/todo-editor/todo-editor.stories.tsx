@@ -185,7 +185,7 @@ export const PastError: Story = {
 };
 
 export const MissingTimeAndTitle: Story = {
-  name: "제목 오류 + 시간 빠짐",
+  name: "제목 오류 + 시간 미정",
   args: {
     initialTodos: [
       draft({

@@ -242,10 +242,10 @@ test.describe("action editor in the create form (wide)", () => {
     expect(dateLabel.x).toBeLessThan(timeLabel.x);
     await expect(panel.getByText("날짜 선택", { exact: true })).toBeVisible();
     await expect(panel.getByText("시간 선택", { exact: true })).toBeVisible();
-    await expect(chipOf(action)).toHaveText("날짜 빠짐");
+    await expect(chipOf(action)).toHaveText("날짜 미정");
 
     await pickDate(page, action, 11, 20);
-    await expect(chipOf(action)).toHaveText("시간 빠짐");
+    await expect(chipOf(action)).toHaveText("시간 미정");
     await pickTime(page, panel.getByText("시간 선택", { exact: true }));
     await expect(chipOf(action)).toHaveText("11/20 09:00");
   });
@@ -305,7 +305,7 @@ test.describe("action editor in the create form (wide)", () => {
     expect(server.linkCreates).toHaveLength(0);
   });
 
-  test("a one-time reminder without a time shows 시간 빠짐, a red time field, its message and the summary", async ({
+  test("a one-time reminder without a time shows 시간 미정, a red time field, its message and the summary", async ({
     page,
   }) => {
     const server = await setUpFormServer(page);
@@ -317,21 +317,21 @@ test.describe("action editor in the create form (wide)", () => {
     const restBorder = await borderColor(timeField);
     await saveButton(page).click();
 
-    await expect(chipOf(action)).toHaveText("시간 빠짐");
+    await expect(chipOf(action)).toHaveText("시간 미정");
     await expect(action.getByText("시간을 선택해주세요.", { exact: true })).toBeVisible();
     expect(await borderColor(timeField)).not.toBe(restBorder);
     await expect(form(page).getByText("확인할 액션이 1개 있어요", { exact: true })).toBeVisible();
     expect(server.linkCreates).toHaveLength(0);
   });
 
-  test("a one-time reminder without a date shows 날짜 빠짐", async ({ page }) => {
+  test("a one-time reminder without a date shows 날짜 미정", async ({ page }) => {
     await setUpFormServer(page);
     await openForm(page);
     const action = await addAction(form(page), "숙소 2박 결제");
     await pickMode(action, "한 번");
     await pickTime(page, panelOf(action).getByText("시간 선택", { exact: true }));
 
-    await expect(chipOf(action)).toHaveText("날짜 빠짐");
+    await expect(chipOf(action)).toHaveText("날짜 미정");
   });
 
   test("a past one-time reminder is refused as soon as it is picked and clears once moved ahead", async ({

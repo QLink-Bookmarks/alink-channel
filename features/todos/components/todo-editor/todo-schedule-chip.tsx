@@ -13,9 +13,9 @@ import { AlarmClock, ChevronDown, ChevronUp, Repeat } from "lucide-react-native/
 const NO_SCHEDULE_LABEL = "알림 없음";
 
 const GAP_LABEL: Record<DraftScheduleGap, string> = {
-  date: "날짜 빠짐",
-  time: "시간 빠짐",
-  weekdays: "요일 빠짐",
+  date: "날짜 미정",
+  time: "시간 미정",
+  weekdays: "요일 미정",
 };
 
 const CHIP_HIT_SLOP = { top: 6, bottom: 6, left: 2, right: 2 };
