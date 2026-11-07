@@ -6,7 +6,7 @@ import { Text } from "@/components/ui/text";
 
 import { useDeviceNotificationStatus } from "../hooks/use-device-notification-status";
 
-import { BellOff } from "lucide-react-native/icons";
+import { BellOff, BellRing } from "lucide-react-native/icons";
 
 type DeviceNotificationNoticeProps = {
   enabledMessage?: string;
@@ -26,9 +26,16 @@ function DeviceNotificationNotice({ enabledMessage }: DeviceNotificationNoticePr
       return null;
     }
     return (
-      <Text className="text-center text-[15px] font-semibold text-foreground">
-        {enabledMessage}
-      </Text>
+      <View className="min-h-9 flex-row items-center gap-3">
+        <Icon
+          as={BellRing}
+          size={20}
+          className="text-foreground"
+        />
+        <Text className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+          {enabledMessage}
+        </Text>
+      </View>
     );
   }
 
