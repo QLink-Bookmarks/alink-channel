@@ -1,5 +1,6 @@
 import * as React from "react";
 import {
+  AccessibilityInfo,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -13,7 +14,6 @@ import Animated, {
   ReduceMotion,
   interpolate,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withDelay,
   withTiming,
@@ -51,6 +51,10 @@ const CONTENT_PADDING_LEFT = 20;
 const COVER_PADDING_RIGHT = 8;
 // The 1st chip row fades out over its last 16px when it scrolls.
 const PRIMARY_FADE_WIDTH = 16;
+// The 1st chip scroll reaches 4px past the row on both sides and pads its content back, so the
+// 3px keyboard focus ring of the first and last chip is not clipped (as in #69). Chip x values
+// come from inside that padding.
+const PRIMARY_RING_ROOM = 4;
 // Pill: 10px before the label, the 30px icon box at the right end, 1px border on both sides.
 const PILL_PADDING_LEFT = 10;
 // Where the first pill piece starts (border + padding) and the space between pieces (gap-1).
@@ -168,12 +172,40 @@ function toTransparent(color: string) {
   return match ? `hsla(${match[1]}, ${match[2]}%, ${match[3]}%, 0)` : "transparent";
 }
 
+function offsetOrNull(right: number | null) {
+  return right == null ? null : right - PRIMARY_RING_ROOM;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
 function emptyCopyLayout(): PillCopyLayout {
   return { pieces: new Map() };
+}
+
+/**
+ * The system "reduce motion" setting, read through React Native (matchMedia on the web) so screens
+ * that render the row under the stock Reanimated jest mock need nothing extra.
+ */
+function useReduceMotionEnabled() {
+  const [isEnabled, setIsEnabled] = React.useState(false);
+  React.useEffect(() => {
+    let isMounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (isMounted) {
+          setIsEnabled(enabled);
+        }
+      })
+      .catch(() => {});
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setIsEnabled);
+    return () => {
+      isMounted = false;
+      subscription?.remove();
+    };
+  }, []);
+  return isEnabled;
 }
 
 /** Invisible copy of the pill at one level, measured for its width and its pieces' places. */
@@ -273,7 +305,7 @@ function FilterCoverRow({
   className,
   testID,
 }: FilterCoverRowProps) {
-  const isReducedMotion = useReducedMotion();
+  const isReducedMotion = useReduceMotionEnabled();
   const theme = useDisplaySettings((state) => state.display.theme);
   const accent = useDisplaySettings((state) => state.display.accent);
   const pageColor = React.useMemo(() => getThemeTokens(theme, accent).background, [theme, accent]);
@@ -317,7 +349,9 @@ function FilterCoverRow({
   const rowWidth = rowSize.width;
   const coverPaddingLeft = coverMode === "fill" ? FILL_PADDING_LEFT : CONTENT_PADDING_LEFT;
   const protectRight =
-    coverMode === "fill" ? getProtectedPrimaryRight(primaryChipLayouts.values()) : null;
+    coverMode === "fill"
+      ? offsetOrNull(getProtectedPrimaryRight(primaryChipLayouts.values()))
+      : null;
   const pillLevel: FilterPillLevel = pickPillLevel({ rowWidth, protectRight, pillWidths });
   const pillWidth = hasPill
     ? (pillWidths[pillLevel] ?? pillWidths.text ?? BUTTON_SIZE)
@@ -573,7 +607,7 @@ function FilterCoverRow({
 
   const handlePrimaryLayout = React.useCallback(
     (event: LayoutChangeEvent) => {
-      primaryMeasureRef.current.viewport = event.nativeEvent.layout.width;
+      primaryMeasureRef.current.viewport = event.nativeEvent.layout.width + PRIMARY_RING_ROOM * 2;
       updatePrimaryFade();
     },
     [updatePrimaryFade],
@@ -708,7 +742,11 @@ function FilterCoverRow({
             horizontal
             className="grow-0"
             contentContainerClassName="items-center gap-1"
-            contentContainerStyle={{ paddingVertical: BUTTON_HIT_SLOP }}
+            contentContainerStyle={{
+              paddingVertical: BUTTON_HIT_SLOP,
+              paddingHorizontal: PRIMARY_RING_ROOM,
+            }}
+            style={{ marginHorizontal: -PRIMARY_RING_ROOM }}
             scrollEventThrottle={32}
             showsHorizontalScrollIndicator={false}
             onContentSizeChange={handlePrimaryContentSize}
@@ -718,12 +756,12 @@ function FilterCoverRow({
           </ScrollView>
           {primaryFade ? (
             <LinearGradient
-              className="absolute bottom-0 right-0 top-0"
+              className="absolute bottom-0 top-0"
               colors={[transparentPage, pageColor]}
               end={{ x: 1, y: 0 }}
               pointerEvents="none"
               start={{ x: 0, y: 0 }}
-              style={{ width: PRIMARY_FADE_WIDTH }}
+              style={{ right: -PRIMARY_RING_ROOM, width: PRIMARY_FADE_WIDTH + PRIMARY_RING_ROOM }}
             />
           ) : null}
         </View>
@@ -817,76 +855,7 @@ function FilterCoverRow({
           </Animated.View>
         </View>
 
-        {/* Button visuals: the pill window, the open X circle and the two icons */}
-        <View
-          accessibilityElementsHidden
-          className="absolute right-0 overflow-hidden"
-          importantForAccessibility="no-hide-descendants"
-          pointerEvents="none"
-          style={{ top: (rowSize.height - BUTTON_SIZE) / 2, width: pillWidth, height: BUTTON_SIZE }}
-        >
-          {/* Animated views take only `style`; their looks live on plain views inside. */}
-          <Animated.View
-            style={[
-              {
-                position: "absolute",
-                right: 0,
-                top: 0,
-                width: pillWidth,
-                height: BUTTON_SIZE,
-                borderRadius: BUTTON_SIZE / 2,
-                overflow: "hidden",
-              },
-              pillWindowStyle,
-            ]}
-          >
-            <Animated.View style={[{ width: pillWidth, height: BUTTON_SIZE }, pillInnerStyle]}>
-              <View
-                className={cn(
-                  "h-8 flex-row items-center rounded-full border",
-                  isPillTinted ? "border-primary bg-primary/10" : "border-border bg-card",
-                )}
-                style={{ width: pillWidth, paddingLeft: PILL_PADDING_LEFT }}
-              >
-                {hasPill ? (
-                  <Animated.View style={[PILL_LABEL_ROW_STYLE, pillLabelStyle]}>
-                    <TextClassContext.Provider value="text-sm font-semibold text-primary">
-                      {pill.parts.map((part) => (
-                        <View
-                          key={part.id}
-                          className="flex-row items-center"
-                        >
-                          {pillLevel === "text" ? part.text : part.mark}
-                        </View>
-                      ))}
-                    </TextClassContext.Provider>
-                  </Animated.View>
-                ) : null}
-              </View>
-            </Animated.View>
-          </Animated.View>
-          <Animated.View style={[OPEN_CIRCLE_POSITION_STYLE, openCircleStyle]}>
-            <View className="size-8 rounded-full border border-border bg-card" />
-          </Animated.View>
-          <View className="absolute right-0 top-0 size-8 items-center justify-center">
-            <Animated.View style={[ICON_LAYER_STYLE, filterIconStyle]}>
-              <Icon
-                as={SlidersHorizontal}
-                className={isPillTinted ? "text-primary" : "text-muted-foreground"}
-                size={16}
-              />
-            </Animated.View>
-            <Animated.View style={[ICON_LAYER_STYLE, closeIconStyle]}>
-              <Icon
-                as={X}
-                className="text-foreground"
-                size={16}
-              />
-            </Animated.View>
-          </View>
-        </View>
-
-        {/* Button press area: the visible pill or circle, reaching 6px past it */}
+        {/* The button: its press area is the visible pill or circle, reaching 6px past it */}
         <Pressable
           ref={buttonRef}
           accessibilityLabel={buttonLabel}
@@ -895,7 +864,7 @@ function FilterCoverRow({
           aria-expanded={isOpen}
           className={cn(
             "absolute right-0 h-8 rounded-full",
-            isWeb && "outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            isWeb && "outline-none focus-visible:ring-[3px] focus-visible:ring-ring",
           )}
           hitSlop={hitSlop}
           style={{
@@ -907,6 +876,75 @@ function FilterCoverRow({
           {...ariaControls}
         >
           <PressableHitSlopArea hitSlop={hitSlop} />
+          {/* Looks: the pill window, the open X circle and the two icons. Drawn for the eye only; the
+              button name says the same. */}
+          <View
+            accessibilityElementsHidden
+            className="absolute right-0 overflow-hidden"
+            importantForAccessibility="no-hide-descendants"
+            pointerEvents="none"
+            style={{ top: 0, width: pillWidth, height: BUTTON_SIZE }}
+          >
+            {/* Animated views take only `style`; their looks live on plain views inside. */}
+            <Animated.View
+              style={[
+                {
+                  position: "absolute",
+                  right: 0,
+                  top: 0,
+                  width: pillWidth,
+                  height: BUTTON_SIZE,
+                  borderRadius: BUTTON_SIZE / 2,
+                  overflow: "hidden",
+                },
+                pillWindowStyle,
+              ]}
+            >
+              <Animated.View style={[{ width: pillWidth, height: BUTTON_SIZE }, pillInnerStyle]}>
+                <View
+                  className={cn(
+                    "h-8 flex-row items-center rounded-full border",
+                    isPillTinted ? "border-primary bg-primary/10" : "border-border bg-card",
+                  )}
+                  style={{ width: pillWidth, paddingLeft: PILL_PADDING_LEFT }}
+                >
+                  {hasPill ? (
+                    <Animated.View style={[PILL_LABEL_ROW_STYLE, pillLabelStyle]}>
+                      <TextClassContext.Provider value="text-sm font-semibold text-primary">
+                        {pill.parts.map((part) => (
+                          <View
+                            key={part.id}
+                            className="flex-row items-center"
+                          >
+                            {pillLevel === "text" ? part.text : part.mark}
+                          </View>
+                        ))}
+                      </TextClassContext.Provider>
+                    </Animated.View>
+                  ) : null}
+                </View>
+              </Animated.View>
+            </Animated.View>
+            <Animated.View style={[OPEN_CIRCLE_POSITION_STYLE, openCircleStyle]}>
+              <View className="size-8 rounded-full border border-border bg-card" />
+            </Animated.View>
+            <View className="absolute right-0 top-0 size-8 items-center justify-center">
+              <Animated.View style={[ICON_LAYER_STYLE, filterIconStyle]}>
+                <Icon
+                  as={SlidersHorizontal}
+                  className={isPillTinted ? "text-primary" : "text-muted-foreground"}
+                  size={16}
+                />
+              </Animated.View>
+              <Animated.View style={[ICON_LAYER_STYLE, closeIconStyle]}>
+                <Icon
+                  as={X}
+                  className="text-foreground"
+                  size={16}
+                />
+              </Animated.View>
+            </View>
+          </View>
         </Pressable>
 
         {ghosts.map((ghost) => (

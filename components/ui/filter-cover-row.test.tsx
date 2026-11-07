@@ -9,14 +9,9 @@ import { FilterChip } from "./filter-chip";
 import { FilterCoverRow, type FilterPill, getFilterCoverButtonLabel } from "./filter-cover-row";
 import { FILTER_COVER_IDLE_MS } from "./use-filter-cover-auto-close";
 
-let mockReducedMotion = false;
-
 /* eslint-disable @typescript-eslint/no-require-imports -- jest.mock factories must require */
 jest.mock("react-native-worklets", () => require("react-native-worklets/src/mock"));
-jest.mock("react-native-reanimated", () => ({
-  ...require("react-native-reanimated/mock"),
-  useReducedMotion: () => mockReducedMotion,
-}));
+jest.mock("react-native-reanimated", () => require("react-native-reanimated/mock"));
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const PILL: FilterPill = {
@@ -72,8 +67,8 @@ function pressInsideCover() {
 }
 
 beforeEach(() => {
-  mockReducedMotion = false;
   jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled").mockResolvedValue(false);
+  jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -221,7 +216,7 @@ describe("FilterCoverRow", () => {
   });
 
   it("opens and closes the same way with reduced motion", async () => {
-    mockReducedMotion = true;
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true);
     await renderRow({ pill: PILL, appliedLabel: "제목 오름차순, 바로가기만" });
     openRow();
     expect(screen.getByRole("switch", { name: "바로가기만 보기" })).toBeTruthy();

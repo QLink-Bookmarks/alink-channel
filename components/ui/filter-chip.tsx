@@ -56,7 +56,7 @@ function FilterChip({
         selected ? "border-primary bg-primary" : "border-border bg-card",
         !disabled && "active:opacity-70",
         disabled && "opacity-50",
-        isWeb && "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+        isWeb && "outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring",
         className,
       )}
       disabled={disabled}
