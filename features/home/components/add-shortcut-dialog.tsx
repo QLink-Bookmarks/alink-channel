@@ -25,7 +25,12 @@ function AddShortcutDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const linksQuery = useLinksQuery({ isFavorite: false, order: "latest", size: 50 });
+  const linksQuery = useLinksQuery({
+    isFavorite: false,
+    orderKey: "created_at",
+    order: "desc",
+    size: 50,
+  });
   const setFavorite = useSetLinkFavoriteMutation();
 
   const links = React.useMemo<LinkListItem[]>(

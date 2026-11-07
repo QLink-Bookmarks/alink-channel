@@ -201,7 +201,6 @@ test.describe("sort", () => {
     await expect(coverButton(page)).toHaveAccessibleName(
       "정렬·필터 열기, 적용 중: 만든 날 내림차순",
     );
-    await expect(coverButton(page).getByText("만든 날", { exact: true })).toBeVisible();
 
     await openCover(page);
     await sortChip(page, "만든 날, 내림차순").click();

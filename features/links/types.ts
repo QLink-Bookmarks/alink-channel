@@ -198,13 +198,9 @@ type GetLinksResponse = ApiEnvelope<LinkScrollResponse>;
 
 type LinkOrderKey = "created_at" | "title";
 
-type LinkListSortParams =
-  | { orderKey?: LinkOrderKey; order?: SortDirection }
-  // The old single sort value, still sent by the shortcut picker and the search dialog. The server
-  // reads it as `created_at desc`, and only without `orderKey`.
-  | { orderKey?: never; order: "latest" };
-
-type GetLinksParams = LinkListSortParams & {
+type GetLinksParams = {
+  orderKey?: LinkOrderKey;
+  order?: SortDirection;
   query?: string;
   folderId?: number;
   cursor?: string;
