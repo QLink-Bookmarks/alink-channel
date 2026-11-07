@@ -614,6 +614,9 @@ function LinkDetailView({
 
   const body = (
     <ScrollView
+      // iOS: the keyboard insets the scroll area, so the action editor's 저장 can be
+      // scrolled above it while a title is being typed.
+      automaticallyAdjustKeyboardInsets
       className={cn("flex-1", isPanel ? "bg-surface" : "bg-background")}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
