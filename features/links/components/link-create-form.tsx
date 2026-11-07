@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
-import { SheetFooter } from "@/components/layout/sheet";
+import { SheetFooter, type SheetScroll, useSheetScroll } from "@/components/layout/sheet";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { type DateValue } from "@/components/ui/date-picker";
 import { Icon } from "@/components/ui/icon";
@@ -138,24 +138,37 @@ function getFieldErrors(kind: SubmitKind, url: string, title: string): FieldErro
   return errors;
 }
 
-// Brings the action row at `index` into view once the folded group has opened.
-// Web finds the row in the DOM; native scrolls the dialog to the action list.
+type HostNode = { children?: ArrayLike<HostNode> };
+
+// The action row at `index`: the list wraps the editor list, whose children are the rows.
+// Native refs walk the host tree like the DOM does (React Native 0.82+).
+function findActionRow(actionList: View, index: number): View | null {
+  const list = (actionList as unknown as HostNode).children?.[0];
+  return (list?.children?.[index] as View | undefined) ?? null;
+}
+
+// Brings the action row at `index` into view once the folded group has opened: the
+// dialog scrolls its own body, the sheet scrolls through its handle, and web lets the
+// browser bring the row to the middle.
 function scrollToActionRow(
   index: number,
   actionList: View | null,
-  scrollContent: View | null,
-  scrollView: ScrollView | null,
+  scrollTarget: { scrollContent: View | null; scrollView: ScrollView | null } | SheetScroll | null,
 ) {
   if (!actionList) return;
+  const row = findActionRow(actionList, index) ?? actionList;
   if (process.env.EXPO_OS === "web") {
-    const rows = (actionList as unknown as HTMLElement).querySelectorAll?.(
-      '[data-testid="todo-editor"]',
-    );
-    rows?.[index]?.scrollIntoView({ block: "center" });
+    (row as unknown as HTMLElement).scrollIntoView?.({ block: "center" });
     return;
   }
+  if (!scrollTarget) return;
+  if ("scrollToView" in scrollTarget) {
+    scrollTarget.scrollToView(row);
+    return;
+  }
+  const { scrollContent, scrollView } = scrollTarget;
   if (!scrollContent || !scrollView) return;
-  actionList.measureLayout(
+  row.measureLayout(
     scrollContent,
     (_x, y) => scrollView.scrollTo({ y: Math.max(0, y - 16), animated: true }),
     () => undefined,
@@ -218,6 +231,7 @@ function LinkCreateForm({
   const scrollViewRef = React.useRef<ScrollView>(null);
   const scrollContentRef = React.useRef<View>(null);
   const actionListRef = React.useRef<View>(null);
+  const sheetScroll = useSheetScroll();
 
   // The save failure notice goes away with the next edit.
   const hasSaveErrorRef = React.useRef(hasSaveError);
@@ -495,12 +509,14 @@ function LinkCreateForm({
       scrollToActionRow(
         errorScrollRequest.index,
         actionListRef.current,
-        scrollContentRef.current,
-        scrollViewRef.current,
+        sheetScroll ?? {
+          scrollContent: scrollContentRef.current,
+          scrollView: scrollViewRef.current,
+        },
       );
     });
     return () => cancelAnimationFrame(frame);
-  }, [errorScrollRequest]);
+  }, [errorScrollRequest, sheetScroll]);
 
   const handleScanQr = React.useCallback(() => {
     router.push("/qr-scan" as Href);
