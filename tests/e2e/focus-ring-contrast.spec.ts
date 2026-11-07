@@ -81,10 +81,13 @@ async function tabTo(page: Page, target: Locator) {
   throw new Error("could not reach the element with Tab");
 }
 
-/** The focusable element that wraps a visible label, e.g. a chip or a row Pressable. */
+/**
+ * The focusable element that wraps a visible label, e.g. a chip or a row Pressable. Chips are
+ * native `<button>`s, focusable without a `tabindex` attribute.
+ */
 function focusableWith(page: Page, label: string): Locator {
   return page
-    .locator("[tabindex]")
+    .locator("[tabindex], button")
     .filter({ has: page.getByText(label, { exact: true }) })
     .last();
 }

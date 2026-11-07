@@ -55,7 +55,9 @@ type LinkCardProps = {
 /**
  * Link card: 16:9 image cell, then title (two lines), domain and status, an optional excerpt
  * line (or search context), tags and todo counts. Every other part below the image has a
- * fixed height; only the excerpt line comes and goes, so card heights may differ.
+ * fixed height; only the excerpt line comes and goes. The card fills the height of a column
+ * parent (such as a grid cell), so cards side by side in a row match the tallest one, with the
+ * tags and todo counts at the bottom.
  */
 function LinkCard({
   className,
@@ -85,7 +87,7 @@ function LinkCard({
   return (
     <View
       className={cn(
-        "group relative overflow-hidden rounded-[14px] border border-border bg-card",
+        "group relative grow overflow-hidden rounded-[14px] border border-border bg-card",
         "web:transition-colors web:hover:border-primary",
         active && "border-primary",
         className,
@@ -113,7 +115,7 @@ function LinkCard({
         // contain another button on web.
         accessibilityHint="상세 열기"
         accessibilityLabel={snippetLabel ? `${title}, ${snippetLabel}` : title}
-        className="gap-1.5 px-3 pb-3 pt-2.5"
+        className="grow gap-1.5 px-3 pb-3 pt-2.5"
         testID="link-card-body"
         onPress={onPress}
       >
@@ -136,7 +138,7 @@ function LinkCard({
         )}
         <View className="h-[18px] min-w-0 flex-row items-center justify-between gap-2">
           <Text
-            className="min-w-0 flex-1 text-[11px] text-muted-foreground"
+            className="min-w-[25%] flex-1 text-[11px] text-muted-foreground"
             numberOfLines={1}
           >
             {domain}
@@ -144,7 +146,7 @@ function LinkCard({
           {statusLabel ? (
             <Text
               className={cn(
-                "shrink-0 text-[11px] font-semibold",
+                "min-w-0 shrink text-[11px] font-semibold",
                 statusVariant ? statusVariantClasses[statusVariant] : "text-muted-foreground",
               )}
               numberOfLines={1}
@@ -171,7 +173,7 @@ function LinkCard({
             {excerpt}
           </Text>
         ) : null}
-        <View className="h-5 min-w-0 flex-row items-center gap-2">
+        <View className="mt-auto h-5 min-w-0 flex-row items-center gap-2">
           {/* Tags that do not fit wrap out of the fixed-height row instead of being cut. */}
           <View
             className="h-5 min-w-0 flex-1 flex-row flex-wrap content-start items-center gap-1.5 overflow-hidden"

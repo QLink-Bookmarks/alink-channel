@@ -30,6 +30,7 @@ import { EmojiPickerGrid } from "@/components/ui/emoji-picker-grid";
 import { Icon } from "@/components/ui/icon";
 import { ImageUploader } from "@/components/ui/image-uploader";
 import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
@@ -58,6 +59,8 @@ import { FeedbackEditor } from "@/features/feedback/components/feedback-editor";
 import { useUploadImageMutation } from "@/features/images/mutations";
 import type { ImageUploadInput } from "@/features/images/types";
 import { IMPORTS_PATH } from "@/features/imports/lib/import-paths";
+import { useLinkCardSize } from "@/features/links/hooks/use-link-card-size";
+import { type LinkCardSize, normalizeLinkCardSize } from "@/features/links/lib/link-card-size";
 import { DeviceNotificationNotice } from "@/features/notifications/components/device-notification-notice";
 import { unregisterDevice } from "@/features/notifications/lib/unregister-device";
 import { reportError } from "@/lib/error-reporting";
@@ -131,7 +134,7 @@ function SettingsScreen({ mode }: { mode: SettingsScreenMode }) {
             connectedProviders={settings?.providers ?? []}
           />
 
-          {mode === "mobile" ? <DisplaySection /> : null}
+          {mode === "mobile" ? <DisplaySection /> : <WideDisplaySection />}
 
           <AiProviderSection mode={mode} />
 
@@ -657,7 +660,52 @@ function DisplaySection() {
         onAccentChange={setAccent}
         onModeChange={setTheme}
       />
+      <LinkCardSizeRow />
     </SettingsSectionCard>
+  );
+}
+
+const LINK_CARD_SIZE_OPTIONS: { label: string; value: LinkCardSize }[] = [
+  { label: "작게", value: "small" },
+  { label: "크게", value: "large" },
+];
+
+// Wide keeps mode and accent in the sidebar palette, so its 화면 표시 holds the card size only.
+function WideDisplaySection() {
+  return (
+    <SettingsSectionCard title="화면 표시">
+      <LinkCardSizeRow />
+    </SettingsSectionCard>
+  );
+}
+
+function LinkCardSizeRow() {
+  const { linkCardSize, setLinkCardSize } = useLinkCardSize();
+
+  const handleValueChange = React.useCallback(
+    (next: string | string[]) => {
+      const size = normalizeLinkCardSize(next);
+      if (size) {
+        setLinkCardSize(size);
+      }
+    },
+    [setLinkCardSize],
+  );
+
+  return (
+    <View
+      className="min-h-11 flex-row items-center justify-between gap-3"
+      testID="settings-link-card-size"
+    >
+      <Text className="min-w-0 flex-1 text-sm font-semibold text-foreground">링크 카드 크기</Text>
+      <SegmentedControl
+        accessibilityLabel="링크 카드 크기"
+        options={LINK_CARD_SIZE_OPTIONS}
+        value={linkCardSize}
+        variant="track"
+        onValueChange={handleValueChange}
+      />
+    </View>
   );
 }
 
