@@ -209,6 +209,10 @@ async function openForm(page: Page, path = "/home") {
   await expect(page.getByText("새 링크 추가", { exact: true }).first()).toBeVisible();
   await page.getByRole("textbox", { name: "URL", exact: true }).fill(LINK_URL);
   await expect(aiButton(page)).toBeEnabled();
+  await form(page)
+    .getByRole("button", { name: /^메모·액션/ })
+    .click();
+  await expect(form(page).getByRole("textbox", { name: "메모", exact: true })).toBeVisible();
 }
 
 async function fillMemo(page: Page, memo: string) {
@@ -244,7 +248,8 @@ async function pickDateAndTime(page: Page, container: Locator = form(page)) {
   await datePopover.getByText("03월", { exact: true }).click();
   await datePopover.getByText("15일", { exact: true }).click();
   await datePopover.getByRole("button", { name: "확인", exact: true }).click();
-  await expect(container.getByText(`${NEXT_YEAR}-03-15`, { exact: true })).toBeVisible();
+  const weekday = "일월화수목금토"[new Date(NEXT_YEAR, 2, 15).getDay()];
+  await expect(container.getByText(`3월 15일 (${weekday})`, { exact: true })).toBeVisible();
 
   await container.getByText("시간 선택", { exact: true }).last().click();
   const timePopover = page.getByText("시간선택", { exact: true }).locator("..");

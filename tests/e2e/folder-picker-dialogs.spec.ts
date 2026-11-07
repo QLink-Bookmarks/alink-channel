@@ -107,7 +107,7 @@ async function openNewLinkPicker(page: Page) {
     return scope;
   }
   await page.getByLabel("새 링크").click();
-  await page.getByRole("button", { name: "변경" }).first().click();
+  await page.getByRole("button", { name: /^폴더, / }).click();
   await expect(page.getByRole("radio", { name: NONE_LABEL })).toBeVisible();
   return page;
 }
@@ -880,8 +880,8 @@ test.describe("window fit, width and marks (#27)", () => {
     await page.goto("/home");
     await page.getByLabel("새 링크").click();
     const sheet = page.getByLabel("Bottom Sheet", { exact: true });
-    await expect(sheet.getByText("없음 - ✨ AI 자동 분류", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "변경" }).first().click();
+    await expect(sheet.getByRole("button", { name: "폴더, 없음" })).toBeVisible();
+    await page.getByRole("button", { name: /^폴더, / }).click();
     await radio(page, 43).click();
     await expect(sheet.getByText("📁 폴더 43", { exact: true })).toBeVisible();
     await expect(sheet.getByText(/✨/)).toHaveCount(0);

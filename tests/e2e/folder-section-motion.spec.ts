@@ -117,7 +117,7 @@ const SHEETS: Record<string, (page: Page) => Promise<void>> = {
   "new link sheet folder step": async (page) => {
     await page.goto("/home");
     await page.getByLabel("새 링크").click();
-    await page.getByRole("button", { name: "변경" }).first().click();
+    await page.getByRole("button", { name: /^폴더, / }).click();
     await expect(page.getByRole("radio", { name: "없음 - ✨ AI 자동 분류" })).toBeVisible();
   },
 };

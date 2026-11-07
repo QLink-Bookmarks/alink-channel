@@ -6,12 +6,19 @@ import { type ApiHandler, mockSignedInApi } from "./support/mock-save-flow-api";
 
 // #74 U2: the action editor (V4 face, ghost title, schedule chip and panel, 50-character
 // title, inline errors and the error summary). Checked in the create form, which has the
-// editor on wide only until U3, and in the link detail's action sheet on mobile.
+// editor folded under 메모·액션, and in the link detail's action sheet on mobile.
 
 const NEXT_YEAR = new Date().getFullYear() + 1;
 const PAST_REMINDER_ERROR = "이미 지난 시간이에요";
 const TITLE_REQUIRED_ERROR = "액션 제목을 입력해 주세요";
 const LINK_URL = "https://example.com/plain";
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+const DATE_FIELD_LABEL = /^\d{1,2}월 \d{1,2}일 \([일월화수목금토]\)$/;
+
+// A picked date in the date field: `11월 20일 (금)`.
+function dateFieldLabel(year: number, month: number, day: number) {
+  return `${month}월 ${day}일 (${WEEKDAYS[new Date(year, month - 1, day).getDay()]})`;
+}
 
 type FormServer = { linkCreates: Record<string, unknown>[] };
 
@@ -49,6 +56,10 @@ async function openForm(page: Page) {
   await page.getByRole("textbox", { name: "URL", exact: true }).fill(LINK_URL);
   await page.getByRole("textbox", { name: "제목", exact: true }).fill("직접 저장");
   await expect(saveButton(page)).toBeEnabled();
+  await form(page)
+    .getByRole("button", { name: /^메모·액션/ })
+    .click();
+  await expect(form(page).getByText("액션 추가", { exact: true })).toBeVisible();
 }
 
 function actions(container: Locator) {
@@ -98,7 +109,7 @@ async function pickDate(
   day: number,
   { year = NEXT_YEAR, field = "날짜 선택" }: { year?: number; field?: string } = {},
 ) {
-  const picked = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const picked = dateFieldLabel(year, month, day);
   let fieldLabel = field;
   // The wheels keep snapping while they scroll, so a press can miss; pick again until the
   // field shows the date.
@@ -118,13 +129,8 @@ async function pickDate(
     await expect(page.getByRole("button", { name: "확인", exact: true })).toHaveCount(0);
     const shown = panelOf(action).getByText(picked, { exact: true });
     if ((await shown.count()) === 0) {
-      fieldLabel = (await panelOf(action)
-        .getByText(/^\d{4}-\d{2}-\d{2}$/)
-        .count())
-        ? ((await panelOf(action)
-            .getByText(/^\d{4}-\d{2}-\d{2}$/)
-            .first()
-            .textContent()) ?? field)
+      fieldLabel = (await panelOf(action).getByText(DATE_FIELD_LABEL).count())
+        ? ((await panelOf(action).getByText(DATE_FIELD_LABEL).first().textContent()) ?? field)
         : field;
     }
     await expect(shown).toBeVisible({ timeout: 1000 });

@@ -1,14 +1,15 @@
 import * as React from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, View, useWindowDimensions } from "react-native";
 
 import { Button } from "@/components/ui/button";
 import {
   DatePicker,
   type DateValue,
-  formatDateLabel,
+  dateValueToDate,
   todayDateValue,
 } from "@/components/ui/date-picker";
 import { DatePickerOverlay, TimePickerOverlay } from "@/components/ui/date-time-picker-overlay";
+import { Icon as UiIcon } from "@/components/ui/icon";
 import {
   Popover,
   PopoverContent,
@@ -46,9 +47,19 @@ type DateTimePickerButtonProps = CommonProps &
   );
 
 const DEFAULT_TIME: TimeValue = { hour: 9, minute: 0 };
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+// Rough height of the picker popover (title, wheels, buttons). When the space under
+// the button is smaller and the space above is larger, the popover opens upward.
+const POPOVER_ESTIMATED_HEIGHT = 360;
 
 function defaultPlaceholder(kind: "date" | "time") {
   return kind === "date" ? "년-월-일" : "오전 09:00";
+}
+
+// `11월 20일 (금)`.
+function formatButtonDateLabel(value: DateValue) {
+  const weekday = WEEKDAY_LABELS[dateValueToDate(value).getDay()];
+  return `${value.month}월 ${value.day}일 (${weekday})`;
 }
 
 function formatLabel(
@@ -58,15 +69,66 @@ function formatLabel(
 ) {
   if (!value) return placeholder;
   return kind === "date"
-    ? formatDateLabel(value as DateValue)
+    ? formatButtonDateLabel(value as DateValue)
     : formatTimeLabel(value as TimeValue);
 }
 
 function buttonClassName(extra?: string) {
   return cn(
-    "h-10 flex-1 flex-row items-center justify-between rounded-md border border-input bg-background px-4 shadow-sm shadow-black/5",
+    "h-10 flex-1 flex-row items-center justify-start gap-2 rounded-md border border-input bg-background px-3 shadow-sm shadow-black/5",
     extra,
   );
+}
+
+function ButtonContent({
+  kind,
+  label,
+  filled,
+}: {
+  kind: "date" | "time";
+  label: string;
+  filled: boolean;
+}) {
+  return (
+    <>
+      <UiIcon
+        as={kind === "date" ? CalendarDays : Clock3}
+        size={15}
+        className="shrink-0 text-muted-foreground"
+      />
+      <Text
+        className={cn("min-w-0 flex-1", labelClassName(filled))}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </>
+  );
+}
+
+// The side with room for the popover: below the button unless the space there is
+// short and the space above is larger.
+function pickPopoverSide(
+  triggerY: number,
+  triggerHeight: number,
+  windowHeight: number,
+): "top" | "bottom" {
+  const spaceBelow = windowHeight - (triggerY + triggerHeight);
+  return spaceBelow < POPOVER_ESTIMATED_HEIGHT && triggerY > spaceBelow ? "top" : "bottom";
+}
+
+function useAutoPopoverSide() {
+  const anchorRef = React.useRef<View>(null);
+  const { height: windowHeight } = useWindowDimensions();
+  const [side, setSide] = React.useState<"top" | "bottom">("bottom");
+
+  const handlePressIn = React.useCallback(() => {
+    anchorRef.current?.measureInWindow((_x, y, _width, height) => {
+      setSide(pickPopoverSide(y, height, windowHeight));
+    });
+  }, [windowHeight]);
+
+  return { anchorRef, side, handlePressIn };
 }
 
 function labelClassName(filled: boolean) {
@@ -153,8 +215,7 @@ function PopoverVariant(props: DateTimePickerButtonProps) {
   const { kind, value, className } = props;
   const placeholder = props.placeholder ?? defaultPlaceholder(kind);
   const label = formatLabel(kind, value, placeholder);
-  const Icon = kind === "date" ? CalendarDays : Clock3;
-  const iconSize = kind === "date" ? 18 : 20;
+  const autoSide = useAutoPopoverSide();
 
   // The Popover root renders a wrapping View. Without h-10 here the row's
   // stretch alignment would collapse the inner button to its text height
@@ -163,15 +224,26 @@ function PopoverVariant(props: DateTimePickerButtonProps) {
   // fill its row slot horizontally.
   return (
     <Popover className="h-10 flex-1">
-      <PopoverTrigger asChild>
-        <Pressable className={buttonClassName(className)}>
-          <Text className={labelClassName(value != null)}>{label}</Text>
-          <Icon size={iconSize} />
-        </Pressable>
-      </PopoverTrigger>
+      <View
+        ref={autoSide.anchorRef}
+        className="h-10 flex-1 flex-row"
+      >
+        <PopoverTrigger asChild>
+          <Pressable
+            className={buttonClassName(className)}
+            onPressIn={autoSide.handlePressIn}
+          >
+            <ButtonContent
+              filled={value != null}
+              kind={kind}
+              label={label}
+            />
+          </Pressable>
+        </PopoverTrigger>
+      </View>
       <PopoverContent
         align="start"
-        side="bottom"
+        side={autoSide.side}
         className="w-80 p-4"
       >
         <WidePopoverBody
@@ -196,8 +268,6 @@ function SheetVariant(props: DateTimePickerButtonProps) {
   const { kind, value, className } = props;
   const placeholder = props.placeholder ?? defaultPlaceholder(kind);
   const label = formatLabel(kind, value, placeholder);
-  const Icon = kind === "date" ? CalendarDays : Clock3;
-  const iconSize = kind === "date" ? 18 : 20;
   const [open, setOpen] = React.useState(false);
 
   return (
@@ -206,8 +276,11 @@ function SheetVariant(props: DateTimePickerButtonProps) {
         className={buttonClassName(className)}
         onPress={() => setOpen(true)}
       >
-        <Text className={labelClassName(value != null)}>{label}</Text>
-        <Icon size={iconSize} />
+        <ButtonContent
+          filled={value != null}
+          kind={kind}
+          label={label}
+        />
       </Pressable>
       {kind === "date" ? (
         <DatePickerOverlay
@@ -239,4 +312,4 @@ function SheetVariant(props: DateTimePickerButtonProps) {
 }
 
 export type { DateTimePickerButtonProps, Mode };
-export { PopoverVariant, SheetVariant };
+export { PopoverVariant, SheetVariant, pickPopoverSide };

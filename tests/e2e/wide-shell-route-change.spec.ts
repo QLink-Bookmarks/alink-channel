@@ -68,7 +68,9 @@ test.describe("wide new link dialog on a route change", () => {
     await page.goto("/settings");
     await page.getByText("새 링크", { exact: true }).first().click();
     await newLinkDialog(page).getByPlaceholder(URL_PLACEHOLDER).fill("https://example.com/saved");
-    await newLinkDialog(page).getByPlaceholder("AI 생성으로 자동 정리해보세요").fill("저장한 링크");
+    await newLinkDialog(page)
+      .getByRole("textbox", { name: "제목", exact: true })
+      .fill("저장한 링크");
 
     await newLinkDialog(page).getByRole("button", { name: "저장", exact: true }).click();
 
