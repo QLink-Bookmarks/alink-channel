@@ -118,7 +118,7 @@ const SHEETS: Record<string, (page: Page) => Promise<void>> = {
     await page.goto("/home");
     await page.getByLabel("새 링크").click();
     await page.getByRole("button", { name: /^폴더, / }).click();
-    await expect(page.getByRole("radio", { name: "없음 - ✨ AI 자동 분류" })).toBeVisible();
+    await expect(page.getByRole("radio", { name: "없음", exact: true })).toBeVisible();
   },
 };
 
@@ -407,7 +407,7 @@ test.describe("wide", () => {
     await page.getByText("새 링크", { exact: true }).first().click();
     await page.getByRole("button", { name: /^폴더, / }).click();
     await expect(
-      page.getByRole("dialog").last().getByRole("radio", { name: "없음 - ✨ AI 자동 분류" }),
+      page.getByRole("dialog").last().getByRole("radio", { name: "없음", exact: true }),
     ).toBeVisible();
     await ready(page, "shared", '[role="dialog"]');
 

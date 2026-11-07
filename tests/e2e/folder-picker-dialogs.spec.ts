@@ -32,7 +32,7 @@ const DARK_SETTINGS = {
 
 const MOVE_ERROR = "폴더를 옮기지 못했어요. 다시 시도해 주세요.";
 const ADD_ERROR = "폴더에 추가하지 못했어요. 다시 시도해 주세요.";
-const NONE_LABEL = "없음 - ✨ AI 자동 분류";
+const NONE_LABEL = "없음";
 const UNCATEGORIZED_LABEL = "미분류";
 const LONG_NAME =
   "2027 교토·오사카 여행 준비 체크리스트와 숙소 후보, 맛집 지도까지 모아 둔 아주 긴 이름의 폴더";
@@ -103,12 +103,12 @@ async function openNewLinkPicker(page: Page) {
     await page.getByText("새 링크", { exact: true }).first().click();
     await page.getByRole("button", { name: /^폴더, / }).click();
     const scope = page.getByRole("dialog").last();
-    await expect(scope.getByRole("radio", { name: NONE_LABEL })).toBeVisible();
+    await expect(scope.getByRole("radio", { name: NONE_LABEL, exact: true })).toBeVisible();
     return scope;
   }
   await page.getByLabel("새 링크").click();
   await page.getByRole("button", { name: /^폴더, / }).click();
-  await expect(page.getByRole("radio", { name: NONE_LABEL })).toBeVisible();
+  await expect(page.getByRole("radio", { name: NONE_LABEL, exact: true })).toBeVisible();
   return page;
 }
 
@@ -172,9 +172,9 @@ test.describe("new link folder picker", () => {
     const listBox = await boxOf(mine);
     const viewport = page.viewportSize()?.height ?? 0;
     expect(listBox.height).toBeLessThanOrEqual(isWideProject() ? 201 : viewport * 0.4 + 1);
-    const noneBefore = await boxOf(scope.getByRole("radio", { name: NONE_LABEL }));
+    const noneBefore = await boxOf(scope.getByRole("radio", { name: NONE_LABEL, exact: true }));
     await scrollUntilVisible(mine, radio(mine, 1));
-    const noneAfter = await boxOf(scope.getByRole("radio", { name: NONE_LABEL }));
+    const noneAfter = await boxOf(scope.getByRole("radio", { name: NONE_LABEL, exact: true }));
     expect(noneAfter.y).toBe(noneBefore.y);
     expect(noneAfter.y).toBeLessThan((await boxOf(toggle(scope, "내 폴더"))).y);
   });
@@ -187,12 +187,12 @@ test.describe("new link folder picker", () => {
     await radio(scope, 43).click();
     if (isWideProject()) {
       await expect(page.getByRole("button", { name: "폴더, 📁 폴더 43" })).toBeVisible();
-      await expect(page.getByRole("radio", { name: NONE_LABEL })).toHaveCount(0);
+      await expect(page.getByRole("radio", { name: NONE_LABEL, exact: true })).toHaveCount(0);
     } else {
       await expect(
         page.getByLabel("Bottom Sheet", { exact: true }).getByText("📁 폴더 43", { exact: true }),
       ).toBeVisible();
-      await expect(page.getByRole("radio", { name: NONE_LABEL })).toHaveCount(0);
+      await expect(page.getByRole("radio", { name: NONE_LABEL, exact: true })).toHaveCount(0);
     }
     expect(countRequests(state, "POST", /^\/api\/links$/)).toBe(0);
   });
@@ -212,7 +212,7 @@ test.describe("new link folder picker", () => {
     const created = scope.getByRole("radio", { name: "함께 갈 곳" });
     await expect(created).toBeVisible();
     await expect(created).not.toBeChecked();
-    await expect(scope.getByRole("radio", { name: NONE_LABEL })).toBeChecked();
+    await expect(scope.getByRole("radio", { name: NONE_LABEL, exact: true })).toBeChecked();
     await expect(toggle(scope, "공유 폴더")).toHaveAccessibleName("공유 폴더 접기");
 
     await scope.getByRole("button", { name: "내 폴더에 폴더 추가" }).click();
@@ -502,7 +502,7 @@ test.describe("move window in the link detail", () => {
 });
 
 test.describe("uncategorized row in the move window", () => {
-  test("shows 미분류 without the AI wording, moves the link out of its folder, and the new link form keeps the AI row", async ({
+  test("shows 미분류 without the AI wording, moves the link out of its folder, and the new link form keeps its 없음 row", async ({
     page,
   }) => {
     const state = await mockWithLink(page, linkIn(44));
@@ -512,7 +512,7 @@ test.describe("uncategorized row in the move window", () => {
       scope.getByRole("radio", { name: UNCATEGORIZED_LABEL, exact: true }),
     ).toBeVisible();
     await expect(scope.getByText(/AI 자동 분류/)).toHaveCount(0);
-    await expect(scope.getByRole("radio", { name: NONE_LABEL })).toHaveCount(0);
+    await expect(scope.getByRole("radio", { name: NONE_LABEL, exact: true })).toHaveCount(0);
 
     await scope.getByRole("radio", { name: UNCATEGORIZED_LABEL, exact: true }).click();
     await scope.getByRole("button", { name: "확인", exact: true }).click();
@@ -528,7 +528,7 @@ test.describe("uncategorized row in the move window", () => {
     await expect(await folderCountLabel(page, 44)).toHaveAccessibleName("폴더 44, 링크 3개");
 
     const picker = await openNewLinkPicker(page);
-    await expect(picker.getByRole("radio", { name: NONE_LABEL })).toBeVisible();
+    await expect(picker.getByRole("radio", { name: NONE_LABEL, exact: true })).toBeVisible();
     await expect(picker.getByRole("radio", { name: UNCATEGORIZED_LABEL, exact: true })).toHaveCount(
       0,
     );
@@ -596,7 +596,7 @@ test.describe("add to a personal folder", () => {
     const scope = await openAddWindow(page);
     await expect(toggle(scope, "내 폴더")).toBeVisible();
     await expect(toggle(scope, "공유 폴더")).toHaveCount(0);
-    await expect(scope.getByRole("radio", { name: NONE_LABEL })).toHaveCount(0);
+    await expect(scope.getByRole("radio", { name: NONE_LABEL, exact: true })).toHaveCount(0);
     await expect(scope.getByRole("button", { name: "추가", exact: true })).toBeDisabled();
     await expect(radio(scope, 42)).toHaveCount(0);
     await radio(scope, 44).click();
@@ -848,7 +848,9 @@ test.describe("window fit, width and marks (#27)", () => {
       expect(opensBelow || popover.y + popover.height <= trigger.y).toBe(true);
       expect(popover.y).toBeGreaterThanOrEqual(0);
       expect(popover.y + popover.height).toBeLessThanOrEqual(height - 16 + 1);
-      await expect(scope.getByRole("radio", { name: NONE_LABEL })).toBeInViewport({ ratio: 1 });
+      await expect(scope.getByRole("radio", { name: NONE_LABEL, exact: true })).toBeInViewport({
+        ratio: 1,
+      });
       await expect(toggle(scope, "내 폴더")).toBeInViewport({ ratio: 1 });
       await expect(toggle(scope, "공유 폴더")).toBeInViewport({ ratio: 1 });
       const mine = sectionList(scope, "내 폴더");
@@ -939,9 +941,7 @@ test.describe("window fit, width and marks (#27)", () => {
     expect(Math.round((await boxOf(scope)).width)).toBe(420);
   });
 
-  test("the chosen row shows a check mark instead of the sparkle, and the none row keeps its AI wording", async ({
-    page,
-  }) => {
+  test("the chosen row shows a check mark, and the none row reads 없음", async ({ page }) => {
     await mockWithLink(page, linkIn(44));
     await openDetail(page);
     const move = await openMoveWindow(page);
@@ -951,7 +951,7 @@ test.describe("window fit, width and marks (#27)", () => {
     await move.getByRole("button", { name: "취소", exact: true }).click();
 
     const picker = await openNewLinkPicker(page);
-    const none = picker.getByRole("radio", { name: NONE_LABEL });
+    const none = picker.getByRole("radio", { name: NONE_LABEL, exact: true });
     await expect(none).toBeChecked();
     await expect(picker.getByTestId("folder-picker-selected-mark")).toHaveCount(1);
     await expect(none.getByTestId("folder-picker-selected-mark")).toBeVisible();
@@ -1050,14 +1050,15 @@ test.describe("design critique follow-ups (#27)", () => {
     expect(frames[0].height).toBe(Math.min(640, Math.round(800 * 0.8)));
   });
 
-  test("the none row shows the sparkle once, and the wide form button reads 없음", async ({
+  test("the none row reads 없음 without the sparkle, like the wide form button", async ({
     page,
   }) => {
     await mockApi(page, { folders: makeFolders(12, 3) });
     const picker = await openNewLinkPicker(page);
-    const none = picker.getByRole("radio", { name: NONE_LABEL });
+    const none = picker.getByRole("radio", { name: NONE_LABEL, exact: true });
     await expect(none).toBeVisible();
-    expect((await none.innerText()).match(/✨/g)).toHaveLength(1);
+    expect((await none.innerText()).trim()).toBe(NONE_LABEL);
+    await expect(picker.getByText(/✨|AI 자동 분류/)).toHaveCount(0);
     if (isWideProject()) {
       await page.keyboard.press("Escape");
       await expect(page.getByRole("button", { name: "폴더, 없음" })).toBeVisible();
@@ -1172,7 +1173,7 @@ test.describe("folder picker rows look like the sidebar (#27)", () => {
     const frame = isWideProject()
       ? (picker as Locator)
       : page.getByLabel("Bottom Sheet", { exact: true });
-    await expectListRows(frame, picker.getByRole("radio", { name: NONE_LABEL }), [
+    await expectListRows(frame, picker.getByRole("radio", { name: NONE_LABEL, exact: true }), [
       radio(picker, 11),
       radio(picker, 10),
     ]);
