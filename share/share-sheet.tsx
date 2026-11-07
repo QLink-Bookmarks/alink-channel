@@ -1,5 +1,4 @@
 import * as React from "react";
-import { View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -42,6 +41,7 @@ import {
   toModelOptions,
 } from "./share-options";
 import { ShareSheetFrame } from "./share-sheet-frame";
+import { DEFAULT_SHEET_HEIGHT, getFolderStepHeight } from "./share-sheet-height";
 import { ShareStepLayer, type ShareStepPosition } from "./share-step-layer";
 
 import { close, openHostApp } from "expo-share-extension";
@@ -54,6 +54,10 @@ type ShareSheetProps = {
 };
 
 type Phase = "loading" | "unauthenticated" | "invalid" | "ready";
+
+type MeasuredStep = "main" | "ai" | "notice";
+
+type MeasuredHeights = Partial<Record<MeasuredStep, number>>;
 
 function getStepPosition(step: ShareStep, current: ShareStep): ShareStepPosition {
   if (step === current) return 0;
@@ -119,6 +123,8 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
   const [hasSucceeded, setHasSucceeded] = React.useState(false);
   const [toastKey, setToastKey] = React.useState<number | null>(null);
   const submitLockRef = React.useRef(false);
+  const [availableHeight, setAvailableHeight] = React.useState(DEFAULT_SHEET_HEIGHT);
+  const [measuredHeights, setMeasuredHeights] = React.useState<MeasuredHeights>({});
   const isReducedMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
 
@@ -208,7 +214,25 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
 
   const handleFinished = React.useCallback(() => close(), []);
 
-  const handleSwipeDismiss = React.useCallback(() => close(), []);
+  const handleDismiss = React.useCallback(() => close(), []);
+
+  const setMeasuredHeight = React.useCallback((key: MeasuredStep, height: number) => {
+    setMeasuredHeights((current) =>
+      current[key] === height ? current : { ...current, [key]: height },
+    );
+  }, []);
+  const handleMainHeight = React.useCallback(
+    (height: number) => setMeasuredHeight("main", height),
+    [setMeasuredHeight],
+  );
+  const handleAiHeight = React.useCallback(
+    (height: number) => setMeasuredHeight("ai", height),
+    [setMeasuredHeight],
+  );
+  const handleNoticeHeight = React.useCallback(
+    (height: number) => setMeasuredHeight("notice", height),
+    [setMeasuredHeight],
+  );
 
   const handleGoToLogin = React.useCallback(() => {
     // Deep-link straight to /login. An empty path crashes the extension's URL
@@ -220,6 +244,16 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
 
   const hasBottomInset = insets.bottom > 0;
   const paddingBottom = hasBottomInset ? insets.bottom + 8 : 16;
+  const folderStepHeight = React.useMemo(() => {
+    const mineCount = folders.filter((entry) => !entry.isShared).length;
+    const sharedCount = folders.length - mineCount;
+    return getFolderStepHeight({
+      sectionRowCounts: [mineCount, sharedCount].filter((count) => count > 0),
+      paddingBottom,
+      maxHeight: availableHeight,
+    });
+  }, [availableHeight, folders, paddingBottom]);
+  const stepHeight = step === "folder" ? folderStepHeight : measuredHeights[step];
   const header = (
     <ShareLinkHeader
       domain={getSharedDomain(sharedUrl)}
@@ -233,16 +267,21 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
     const isAuthNotice = phase === "unauthenticated";
     return (
       <ShareSheetFrame
+        contentHeight={measuredHeights.notice}
         hasRoundedCorners={hasBottomInset}
         isCompleting={false}
+        isDismissEnabled
         isReducedMotion={isReducedMotion}
         isSwipeEnabled
-        onSwipeDismiss={handleSwipeDismiss}
+        onAvailableHeightChange={setAvailableHeight}
+        onDismiss={handleDismiss}
       >
         <ShareStepLayer
           isReducedMotion={isReducedMotion}
+          maxHeight={availableHeight}
           paddingBottom={paddingBottom}
           position={0}
+          onHeightChange={handleNoticeHeight}
         >
           <ShareNotice
             actionLabel={isAuthNotice ? "로그인 하러가기" : "닫기"}
@@ -251,7 +290,7 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
             message={
               isAuthNotice ? "로그인을 먼저 해주세요" : "북마크 가능한 웹페이지 url이 아니에요"
             }
-            onAction={isAuthNotice ? handleGoToLogin : handleSwipeDismiss}
+            onAction={isAuthNotice ? handleGoToLogin : handleDismiss}
           />
         </ShareStepLayer>
       </ShareSheetFrame>
@@ -260,27 +299,23 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
 
   return (
     <ShareSheetFrame
+      contentHeight={stepHeight}
       hasRoundedCorners={hasBottomInset}
       isCompleting={hasSucceeded}
+      isDismissEnabled={!isInputLocked}
       isReducedMotion={isReducedMotion}
       isSwipeEnabled={step === "main" && !isInputLocked}
-      overlay={
-        hasSucceeded ? (
-          <View
-            className="absolute inset-0"
-            pointerEvents="none"
-          >
-            <ArchivedSuccess onFinished={handleFinished} />
-          </View>
-        ) : null
-      }
-      onSwipeDismiss={handleSwipeDismiss}
+      overlay={hasSucceeded ? <ArchivedSuccess onFinished={handleFinished} /> : null}
+      onAvailableHeightChange={setAvailableHeight}
+      onDismiss={handleDismiss}
     >
       <ShareStepLayer
         isReducedMotion={isReducedMotion}
+        maxHeight={availableHeight}
         paddingBottom={paddingBottom}
         position={getStepPosition("main", step)}
         testID="share-step-main"
+        onHeightChange={handleMainHeight}
       >
         <ShareMainStep
           folder={folder}
@@ -298,7 +333,9 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
         />
       </ShareStepLayer>
       <ShareStepLayer
+        height={folderStepHeight}
         isReducedMotion={isReducedMotion}
+        maxHeight={availableHeight}
         paddingBottom={paddingBottom}
         position={getStepPosition("folder", step)}
         testID="share-step-folder"
@@ -313,9 +350,11 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
       {models.length > 0 ? (
         <ShareStepLayer
           isReducedMotion={isReducedMotion}
+          maxHeight={availableHeight}
           paddingBottom={paddingBottom}
           position={getStepPosition("ai", step)}
           testID="share-step-ai"
+          onHeightChange={handleAiHeight}
         >
           <ShareAiStep
             generateTodo={generateTodo}

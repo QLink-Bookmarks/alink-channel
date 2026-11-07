@@ -17,8 +17,8 @@ type ShareNoticeProps = {
 
 function ShareNotice({ icon, message, actionLabel, actionTone, onAction }: ShareNoticeProps) {
   return (
-    <View className="min-h-0 flex-1">
-      <View className="min-h-0 flex-1 items-center justify-center gap-3 px-3">
+    <View>
+      <View className="items-center gap-3 px-3 py-6">
         <View className="size-[52px] items-center justify-center rounded-full bg-muted">
           <Icon
             as={icon}

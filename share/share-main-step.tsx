@@ -1,5 +1,11 @@
 import * as React from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import {
+  ActivityIndicator,
+  type LayoutChangeEvent,
+  Pressable,
+  ScrollView,
+  View,
+} from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -55,20 +61,34 @@ function ShareMainStep({
   const hasAi = models.length > 0;
   const isRowLocked = isLoading || isLocked || submitting !== null;
   const isHintShown = !isLoading && shouldShowUncategorizedHint(folder, models);
+  const [scrollFrameHeight, setScrollFrameHeight] = React.useState(0);
+  const [scrollContentHeight, setScrollContentHeight] = React.useState(0);
+  const isScrollable = scrollContentHeight > scrollFrameHeight + 0.5;
+
+  const handleScrollLayout = React.useCallback(
+    (event: LayoutChangeEvent) => setScrollFrameHeight(event.nativeEvent.layout.height),
+    [],
+  );
+  const handleContentSizeChange = React.useCallback(
+    (_width: number, height: number) => setScrollContentHeight(height),
+    [],
+  );
 
   return (
-    <View className="min-h-0 flex-1">
+    <View className="min-h-0 shrink">
       <ScrollView
         bounces={false}
-        className="min-h-0 flex-1"
-        contentContainerClassName="grow"
+        className="min-h-0 shrink grow-0"
         contentInsetAdjustmentBehavior="automatic"
+        scrollEnabled={isScrollable}
         showsVerticalScrollIndicator={false}
+        onContentSizeChange={handleContentSizeChange}
+        onLayout={handleScrollLayout}
       >
         {header}
         <View
           aria-hidden
-          className="min-h-4 flex-1"
+          className="h-5"
         />
         <View className="overflow-hidden rounded-[14px] border border-border-soft bg-card">
           <ShareSettingRow

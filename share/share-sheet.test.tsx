@@ -12,6 +12,7 @@ import {
   requestSharedAiSummary,
 } from "./share-api";
 import { ShareSheet } from "./share-sheet";
+import { FACE_FALLBACK_MS } from "./share-sheet-frame";
 
 import { close, openHostApp } from "expo-share-extension";
 
@@ -114,6 +115,12 @@ async function flush() {
   });
 }
 
+function passFaceFallback() {
+  act(() => {
+    jest.advanceTimersByTime(FACE_FALLBACK_MS);
+  });
+}
+
 async function renderReady(props: Partial<React.ComponentProps<typeof ShareSheet>> = {}) {
   render(
     <ShareSheet
@@ -124,6 +131,7 @@ async function renderReady(props: Partial<React.ComponentProps<typeof ShareSheet
   );
   await flush();
   await flush();
+  passFaceFallback();
 }
 
 beforeEach(() => {
@@ -159,6 +167,30 @@ describe("ShareSheet", () => {
     expect(screen.getByText("요약·태그까지 정리", { includeHiddenElements: true })).toBeTruthy();
   });
 
+  it("shows the sheet after the fallback delay even when no layout is ever measured", async () => {
+    render(
+      <ShareSheet
+        preprocessingResults={PREPROCESSING}
+        url={SHARED_URL}
+      />,
+    );
+    await flush();
+    await flush();
+
+    expect(screen.getByText("저장", { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText("저장")).toBeNull();
+
+    act(() => {
+      jest.advanceTimersByTime(FACE_FALLBACK_MS - 1);
+    });
+    expect(screen.queryByText("저장")).toBeNull();
+
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(screen.getByText("저장")).toBeTruthy();
+  });
+
   it("ignores presses while folders and providers are still loading", async () => {
     const folders = deferred<Folder[]>();
     mockFetchFolders.mockReturnValue(folders.promise);
@@ -169,6 +201,7 @@ describe("ShareSheet", () => {
       />,
     );
     await flush();
+    passFaceFallback();
 
     fireEvent.press(screen.getByText("저장"));
     fireEvent.press(screen.getByText("AI 정리"));
@@ -398,6 +431,34 @@ describe("ShareSheet", () => {
 
     expect(mockOpenHostApp).toHaveBeenCalledWith("login");
     expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes without saving when the area above the sheet is tapped", async () => {
+    await renderReady();
+
+    fireEvent.press(screen.getByTestId("share-sheet-backdrop"));
+    await act(async () => {
+      jest.runAllTicks();
+    });
+
+    expect(mockClose).toHaveBeenCalledTimes(1);
+    expect(mockCreateSharedLink).not.toHaveBeenCalled();
+    expect(mockRequestSharedAiSummary).not.toHaveBeenCalled();
+  });
+
+  it("ignores taps above the sheet while saving", async () => {
+    const request = deferred<Awaited<ReturnType<typeof createSharedLink>>>();
+    mockCreateSharedLink.mockReturnValue(request.promise);
+    await renderReady();
+
+    fireEvent.press(screen.getByText("저장"));
+    await flush();
+    fireEvent.press(screen.getByTestId("share-sheet-backdrop"));
+    await act(async () => {
+      jest.runAllTicks();
+    });
+
+    expect(mockClose).not.toHaveBeenCalled();
   });
 
   it("explains a non-web share and closes from 닫기", async () => {

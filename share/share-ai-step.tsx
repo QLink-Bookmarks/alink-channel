@@ -26,13 +26,13 @@ function ShareAiStep({
   onBack,
 }: ShareAiStepProps) {
   return (
-    <View className="min-h-0 flex-1">
+    <View className="min-h-0 shrink">
       <ShareStepNav
         title="AI 옵션"
         onBack={onBack}
       />
       <ScrollView
-        className="min-h-0 flex-1"
+        className="min-h-0 shrink grow-0"
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >

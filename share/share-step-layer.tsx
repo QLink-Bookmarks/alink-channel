@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useWindowDimensions } from "react-native";
+import { type LayoutChangeEvent, useWindowDimensions } from "react-native";
 import Animated, {
   Easing,
   ReduceMotion,
@@ -20,7 +20,10 @@ type ShareStepLayerProps = {
   position: ShareStepPosition;
   isReducedMotion: boolean;
   paddingBottom: number;
+  height?: number;
+  maxHeight: number;
   testID?: string;
+  onHeightChange?: (height: number) => void;
   children: React.ReactNode;
 };
 
@@ -28,8 +31,11 @@ function ShareStepLayer({
   position,
   isReducedMotion,
   paddingBottom,
+  height,
+  maxHeight,
   testID,
   children,
+  onHeightChange,
 }: ShareStepLayerProps) {
   const { width } = useWindowDimensions();
   const progress = useSharedValue<number>(position);
@@ -66,19 +72,25 @@ function ShareStepLayer({
 
   const isActive = position === 0;
 
+  const handleLayout = React.useCallback(
+    (event: LayoutChangeEvent) => onHeightChange?.(event.nativeEvent.layout.height),
+    [onHeightChange],
+  );
+
   return (
     <Animated.View
       accessibilityElementsHidden={!isActive}
-      className="absolute inset-0 px-4 pt-5"
+      className="absolute left-0 right-0 top-0 px-4 pt-5"
       importantForAccessibility={isActive ? "auto" : "no-hide-descendants"}
       pointerEvents={isActive ? "auto" : "none"}
-      style={[{ paddingBottom }, animatedStyle]}
+      style={[height == null ? { maxHeight } : { height }, { paddingBottom }, animatedStyle]}
       testID={testID}
+      onLayout={handleLayout}
     >
       {children}
     </Animated.View>
   );
 }
 
-export { FADE_DURATION_MS, PUSH_DURATION_MS, ShareStepLayer };
+export { FADE_DURATION_MS, PUSH_DURATION_MS, PUSH_EASING, ShareStepLayer };
 export type { ShareStepPosition };
