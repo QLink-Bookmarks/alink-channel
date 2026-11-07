@@ -45,7 +45,9 @@ async function openFolderStep(page: Page) {
   await expect(closeButton(page)).toBeVisible();
   await expect(backButton(page)).toHaveCount(0);
 
-  await sheet(page).getByRole("button", { name: "변경" }).first().click();
+  await sheet(page)
+    .getByRole("button", { name: /^폴더, / })
+    .click();
   await expect(sheet(page).getByText("폴더 선택", { exact: true })).toBeVisible();
   await expect(page.getByRole("radio", { name: NONE_LABEL })).toBeVisible();
 }
@@ -78,7 +80,9 @@ test.describe("new link sheet folder step (#27)", () => {
     await backButton(page).click();
     await expect(sheet(page).getByText("새 링크 추가", { exact: true })).toBeVisible();
 
-    await sheet(page).getByRole("button", { name: "변경" }).nth(1).click();
+    await sheet(page)
+      .getByRole("button", { name: /^AI 제공자, / })
+      .click();
     await expect(sheet(page).getByText("AI 제공자 선택", { exact: true })).toBeVisible();
     await expect(backButton(page)).toBeVisible();
     await expect(closeButton(page)).toHaveCount(0);

@@ -6,10 +6,12 @@ import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
+import { getAiProviderKind } from "../lib/provider-kind";
 import { useAiProviderCatalogQuery } from "../queries";
 import type { AiProviderModel, AiProviderWithModels } from "../types";
+import { AiProviderLogo } from "./ai-provider-logo";
 
-import { Sparkles } from "lucide-react-native/icons";
+import { Check } from "lucide-react-native/icons";
 
 type AiProviderSelection = {
   providerId: number;
@@ -18,9 +20,15 @@ type AiProviderSelection = {
 
 type AiProviderPickerListProps = {
   selectedProviderId: number | null;
+  /** The provider used when none is picked; its row carries a 기본 tag. */
+  defaultProviderId?: number | null;
   onSelect: (selection: AiProviderSelection) => void;
   className?: string;
 };
+
+const PROVIDERS_LOADING_LABEL = "불러오는 중";
+const NO_PROVIDERS_TITLE = "사용할 수 있는 AI 제공자가 없어요";
+const NO_PROVIDERS_DESCRIPTION = "잠시 후 다시 시도해주세요.";
 
 function getProviderLabel(provider: AiProviderWithModels): string {
   switch (provider.providerType) {
@@ -49,6 +57,7 @@ function getProviderSelection(provider: AiProviderWithModels): AiProviderSelecti
 
 function AiProviderPickerList({
   selectedProviderId,
+  defaultProviderId = null,
   onSelect,
   className,
 }: AiProviderPickerListProps) {
@@ -58,6 +67,7 @@ function AiProviderPickerList({
   if (providersQuery.isLoading) {
     return (
       <ActivityIndicator
+        accessibilityLabel={PROVIDERS_LOADING_LABEL}
         size="large"
         className={cn("py-8", className)}
       />
@@ -67,20 +77,22 @@ function AiProviderPickerList({
   if (providers.length === 0) {
     return (
       <EmptyState
-        emoji="🤖"
-        title="사용할 수 있는 AI 제공자가 없어요"
-        description="잠시 후 다시 시도해주세요."
+        className={cn("py-7", className)}
+        description={NO_PROVIDERS_DESCRIPTION}
+        testID="ai-provider-picker-empty"
+        title={NO_PROVIDERS_TITLE}
       />
     );
   }
 
   return (
-    <View className={cn("gap-4", className)}>
-      <View className="gap-2">
+    <View className={cn("gap-3", className)}>
+      <View className="gap-1.5">
         {providers.map((provider) => (
           <AiProviderPickerRow
             key={provider.providerId}
             provider={provider}
+            isDefault={defaultProviderId === provider.providerId}
             selected={selectedProviderId === provider.providerId}
             onPress={() => onSelect(getProviderSelection(provider))}
           />
@@ -93,38 +105,54 @@ function AiProviderPickerList({
 
 function AiProviderPickerRow({
   provider,
+  isDefault,
   selected,
   onPress,
 }: {
   provider: AiProviderWithModels;
+  isDefault: boolean;
   selected: boolean;
   onPress: () => void;
 }) {
+  const label = getProviderLabel(provider);
+
   return (
     <Pressable
       className={cn(
-        "flex-row items-center justify-between rounded-xl border border-border bg-card px-4 py-3",
+        "h-12 flex-row items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 web:hover:border-primary",
         selected && "border-primary bg-accent",
       )}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${getProviderLabel(provider)} 선택`}
+      accessibilityLabel={`${label} 선택`}
       accessibilityState={{ selected }}
     >
-      <Text
-        className={cn("min-w-0 flex-1 font-semibold", selected && "text-accent-foreground")}
-        numberOfLines={1}
+      <AiProviderLogo
+        kind={getAiProviderKind(provider.providerType)}
+        name={label}
+        className="min-w-0 shrink"
+        nameClassName={cn("text-sm", selected && "text-accent-foreground")}
       >
-        {getProviderLabel(provider)}
-      </Text>
+        {isDefault ? <DefaultProviderTag /> : null}
+      </AiProviderLogo>
+      <View className="flex-1" />
       {selected ? (
         <Icon
-          as={Sparkles}
+          as={Check}
           size={18}
           className="text-primary"
+          testID="ai-provider-picker-check"
         />
       ) : null}
     </Pressable>
+  );
+}
+
+function DefaultProviderTag() {
+  return (
+    <View className="ml-1 rounded-md border border-border-soft bg-surface-elevated px-1.5 py-px">
+      <Text className="text-[11px] font-semibold text-muted-foreground">기본</Text>
+    </View>
   );
 }
 
@@ -155,5 +183,12 @@ function AiProviderModelNotice({ providers }: { providers: AiProviderWithModels[
   );
 }
 
-export { AiProviderPickerList, getProviderLabel, getProviderSelection };
+export {
+  AiProviderPickerList,
+  NO_PROVIDERS_DESCRIPTION,
+  NO_PROVIDERS_TITLE,
+  PROVIDERS_LOADING_LABEL,
+  getProviderLabel,
+  getProviderSelection,
+};
 export type { AiProviderPickerListProps, AiProviderSelection };

@@ -11,8 +11,11 @@ const PNG_PIXEL = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkaPhfDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",
 );
-const PREVIEW_LOADING = "미리보기를 불러오는 중";
 const SAVE_FAILED = "링크 저장에 실패했습니다. 잠시 후 다시 시도해주세요.";
+const TITLE_REQUIRED = "저장하려면 제목이 필요해요";
+const URL_HINT = "복사해 둔 링크가 있으면 자동으로 채워요";
+const FOLDER_HINT = "비워 두면 AI 정리가 폴더를 골라요";
+const CAPTION = "AI 정리는 요약·태그·폴더를 AI가 정해요";
 
 type FormServer = {
   linkCreates: Record<string, unknown>[];
@@ -174,6 +177,18 @@ function aiButton(page: Page) {
   return page.getByRole("button", { name: "AI 정리", exact: true });
 }
 
+function folderTrigger(page: Page) {
+  return form(page).getByRole("button", { name: /^폴더, / });
+}
+
+function providerTrigger(page: Page) {
+  return form(page).getByRole("button", { name: /^AI 제공자, / });
+}
+
+function aiOptions(page: Page) {
+  return form(page).getByTestId("link-create-ai-options");
+}
+
 function closeButton(page: Page) {
   return isWide(page)
     ? form(page).getByRole("button", { name: /close|닫기/i })
@@ -226,7 +241,7 @@ test.beforeEach(async ({ context }) => {
 });
 
 test.describe("new link form actions and copy (#46)", () => {
-  test("one filled 주 버튼: AI 정리 is the gradient and wider, 저장 is the soft accent button, and there is no 취소", async ({
+  test("one filled 주 버튼: AI 정리 is the gradient after 저장, 저장 is the soft accent button, and there is no 취소", async ({
     page,
   }) => {
     await setUpFormServer(page);
@@ -242,7 +257,6 @@ test.describe("new link form actions and copy (#46)", () => {
       .toBeLessThanOrEqual(1);
     const save = await boxOf(saveButton(page));
     const ai = await boxOf(aiButton(page));
-    expect(ai.width).toBeGreaterThan(save.width);
     expect(ai.x).toBeGreaterThan(save.x);
 
     const saveLook = await saveButton(page).evaluate((node) => {
@@ -271,51 +285,67 @@ test.describe("new link form actions and copy (#46)", () => {
     expect(aiHasGradient).toBe(true);
   });
 
-  test("wide and mobile share the same title, field names and folder default, and say 액션 instead of 할 일", async ({
+  test("wide and mobile share the same title, field names, hints and folder default, and say 액션 instead of 할 일", async ({
     page,
   }) => {
     await setUpFormServer(page);
     await openForm(page);
     const scope = form(page);
 
-    for (const text of ["새 링크 추가", "URL", "📋 클립보드 자동 감지", "제목", "AI 제공자"]) {
+    for (const text of [
+      "새 링크 추가",
+      "링크",
+      "URL",
+      URL_HINT,
+      "제목",
+      "· AI 정리는 비워도 돼요",
+      "폴더",
+      "없음",
+      FOLDER_HINT,
+      "메모·액션",
+      "선택",
+      "AI 정리 옵션",
+      "액션 자동 추가",
+      CAPTION,
+    ]) {
       await expect(scope.getByText(text, { exact: true }).first()).toBeVisible();
     }
-    await expect(scope.getByText("폴더", { exact: true }).first()).toBeVisible();
-    await expect(scope.getByText("없음 - ✨ AI 자동 분류", { exact: true })).toBeVisible();
     await expect(urlInput(page)).toHaveAttribute("placeholder", "https://www.example.com");
-    await expect(scope.getByText("링크 추가", { exact: true })).toHaveCount(0);
-    await expect(scope.getByText("링크 제목", { exact: true })).toHaveCount(0);
-    await expect(scope.getByText("액션 생성", { exact: true })).toBeVisible();
-    await expect(
-      scope.getByText("AI 정리 때 링크에 마감일이 있으면 액션을 자동으로 만들어줘요"),
-    ).toBeVisible();
+    await expect(titleInput(page)).toHaveAttribute("placeholder", "링크 제목");
+    await expect(scope.getByText(/[🤖📋✅✨]/u)).toHaveCount(0);
     await expect(scope.getByText(/할 일/)).toHaveCount(0);
+    await expect(scope.getByText("기본 제공자 사용")).toHaveCount(0);
 
-    if (isWide(page)) {
-      await expect(scope.getByText("✅ 액션 (선택, 여러 개 가능)")).toBeAttached();
-      await expect(scope.getByText("액션 추가")).toBeAttached();
-      await expect(scope.getByText("메모 (선택)")).toBeAttached();
-    } else {
-      await expect(scope.getByText(/✅ 액션/)).toHaveCount(0);
-      await expect(scope.getByText("메모 (선택)")).toHaveCount(0);
-    }
+    // 메모·액션 starts folded; pressing it shows the memo and the action list right under it.
+    await expect(scope.getByRole("textbox", { name: "메모", exact: true })).toHaveCount(0);
+    await scope.getByRole("button", { name: /^메모·액션/ }).click();
+    await expect(scope.getByRole("textbox", { name: "메모", exact: true })).toBeVisible();
+    await expect(scope.getByText("액션 추가", { exact: true })).toBeVisible();
+    await expect(scope.getByText(/[🤖📋✅✨]/u)).toHaveCount(0);
   });
 
-  test("a picked folder shows its name without the AI sparkle", async ({ page }) => {
+  test("the URL hint shows only while the URL is empty", async ({ page }) => {
     await setUpFormServer(page);
     await openForm(page);
 
-    if (isWide(page)) {
-      await form(page)
-        .getByRole("button", { name: /^폴더, / })
-        .click();
-    } else {
-      await form(page).getByRole("button", { name: "변경" }).first().click();
-    }
+    await expect(form(page).getByText(URL_HINT, { exact: true })).toBeVisible();
+    await urlInput(page).fill("https://example.com/plain");
+    await expect(form(page).getByText(URL_HINT, { exact: true })).toHaveCount(0);
+    await urlInput(page).fill("");
+    await expect(form(page).getByText(URL_HINT, { exact: true })).toBeVisible();
+  });
+
+  test("a picked folder shows its name without the AI sparkle and drops the folder hint", async ({
+    page,
+  }) => {
+    await setUpFormServer(page);
+    await openForm(page);
+
+    await folderTrigger(page).click();
     await page.getByRole("radio", { name: /가볼 곳/ }).click();
     await expect(form(page).getByText("☕ 가볼 곳", { exact: true })).toBeVisible();
     await expect(form(page).getByText(/✨/)).toHaveCount(0);
+    await expect(form(page).getByText(FOLDER_HINT, { exact: true })).toHaveCount(0);
   });
 
   test("empty URL and empty title keep the form open with the field messages", async ({ page }) => {
@@ -324,20 +354,33 @@ test.describe("new link form actions and copy (#46)", () => {
 
     await saveButton(page).click();
     await expect(page.getByText("URL을 입력해주세요.")).toBeVisible();
-    await expect(page.getByText("제목을 입력해주세요.")).toBeVisible();
+    await expect(page.getByText(TITLE_REQUIRED)).toBeVisible();
     await aiButton(page).click();
     await expect(page.getByText("URL을 입력해주세요.")).toBeVisible();
+    await expect(page.getByText(TITLE_REQUIRED)).toHaveCount(0);
 
     await urlInput(page).fill("https://example.com/plain");
     await expect(saveButton(page)).toBeEnabled();
     await saveButton(page).click();
-    await expect(page.getByText("제목을 입력해주세요.")).toBeVisible();
+    await expect(page.getByText(TITLE_REQUIRED)).toBeVisible();
     await expect(page.getByText("URL을 입력해주세요.")).toHaveCount(0);
+    await expect(page.getByRole("alert").filter({ hasText: SAVE_FAILED })).toHaveCount(0);
     expect(server.linkCreates).toHaveLength(0);
     await expect(form(page)).toBeVisible();
   });
 
-  test("a failed save shows the message right above the buttons, keeps the input, and a retry closes the form", async ({
+  test("a title of spaces is refused like an empty one", async ({ page }) => {
+    const server = await setUpFormServer(page);
+    await openForm(page);
+
+    await urlInput(page).fill("https://example.com/plain");
+    await titleInput(page).fill("   ");
+    await saveButton(page).click();
+    await expect(page.getByText(TITLE_REQUIRED)).toBeVisible();
+    expect(server.linkCreates).toHaveLength(0);
+  });
+
+  test("a failed save shows the message above the AI options, keeps the input, clears on the next edit, and a retry closes the form", async ({
     page,
   }) => {
     const server = await setUpFormServer(page);
@@ -354,14 +397,18 @@ test.describe("new link form actions and copy (#46)", () => {
     await expect
       .poll(async () => {
         const alertBox = await boxOf(alert);
+        const optionsBox = await boxOf(aiOptions(page));
         const saveBox = await boxOf(saveButton(page));
-        const gap = saveBox.y - (alertBox.y + alertBox.height);
+        const gap = optionsBox.y - (alertBox.y + alertBox.height);
         return (
           gap >= -1 && gap < 24 && saveBox.y + saveBox.height <= (page.viewportSize()?.height ?? 0)
         );
       })
       .toBe(true);
     await expect(titleInput(page)).toHaveValue("실패 뒤 다시 저장");
+
+    await titleInput(page).fill("실패 뒤 다시 저장!");
+    await expect(alert).toHaveCount(0);
 
     await saveButton(page).click();
     await expectClosed(page);
@@ -386,13 +433,7 @@ test.describe("new link form actions and copy (#46)", () => {
     await openForm(page);
     await urlInput(page).fill("https://example.com/plain");
     await titleInput(page).fill("폴더에 저장한 새 링크");
-    if (isWide(page)) {
-      await form(page)
-        .getByRole("button", { name: /^폴더, / })
-        .click();
-    } else {
-      await form(page).getByRole("button", { name: "변경" }).first().click();
-    }
+    await folderTrigger(page).click();
     await page.getByRole("radio", { name: /가볼 곳/ }).click();
     await expect(saveButton(page)).toBeEnabled();
     await saveButton(page).click();
@@ -454,13 +495,7 @@ test.describe("new link form actions and copy (#46)", () => {
     server.folders = [{ ...PICKABLE_FOLDER, name: LONG_FOLDER_NAME }];
     await openForm(page);
 
-    if (isWide(page)) {
-      await form(page)
-        .getByRole("button", { name: /^폴더, / })
-        .click();
-    } else {
-      await form(page).getByRole("button", { name: "변경" }).first().click();
-    }
+    await folderTrigger(page).click();
     await page.getByRole("radio", { name: new RegExp(LONG_FOLDER_NAME.slice(0, 8)) }).click();
     const label = form(page).getByText(`☕ ${LONG_FOLDER_NAME}`, { exact: true });
     await expect(label).toBeVisible();
@@ -474,8 +509,7 @@ test.describe("new link form actions and copy (#46)", () => {
         return (
           Math.round(save.height) === buttonHeight &&
           Math.round(ai.height) === buttonHeight &&
-          Math.abs(ai.y - save.y) <= 1 &&
-          ai.width > save.width
+          Math.abs(ai.y - save.y) <= 1
         );
       })
       .toBe(true);
@@ -486,26 +520,25 @@ test.describe("new link form actions and copy (#46)", () => {
     await openForm(page);
     await urlInput(page).fill("https://example.com/plain");
     await titleInput(page).fill("버릴 제목");
-    if (isWide(page)) {
-      await form(page)
-        .getByRole("button", { name: /^폴더, / })
-        .click();
-    } else {
-      await form(page).getByRole("button", { name: "변경" }).first().click();
-    }
+    await folderTrigger(page).click();
     await page.getByRole("radio", { name: /가볼 곳/ }).click();
     await expect(form(page).getByText("☕ 가볼 곳", { exact: true })).toBeVisible();
     const generateAction = form(page).getByRole("switch");
     await generateAction.click();
     await expect(generateAction).toBeChecked();
+    await form(page)
+      .getByRole("button", { name: /^메모·액션/ })
+      .click();
+    await form(page).getByRole("textbox", { name: "메모", exact: true }).fill("버릴 메모");
 
     await closeButton(page).click();
     await expectClosed(page);
     await openForm(page);
     await expect(urlInput(page)).toHaveValue("");
     await expect(titleInput(page)).toHaveValue("");
-    await expect(form(page).getByText("없음 - ✨ AI 자동 분류", { exact: true })).toBeVisible();
+    await expect(folderTrigger(page)).toHaveAccessibleName("폴더, 없음");
     await expect(form(page).getByRole("switch")).not.toBeChecked();
+    await expect(form(page).getByRole("button", { name: "메모·액션, 선택" })).toBeVisible();
   });
 });
 
@@ -521,7 +554,7 @@ test.describe("저장 label contrast on its tint (#46 follow-up)", () => {
     }
   }
 
-  test("while the preview loads, 저장 shows the spinner instead of its icon and stays visible", async ({
+  test("while the preview loads, 저장 and AI 정리 keep their look and stay pressable", async ({
     page,
   }) => {
     await setUpFormServer(page);
@@ -531,13 +564,14 @@ test.describe("저장 label contrast on its tint (#46 follow-up)", () => {
     });
     await openForm(page);
     await urlInput(page).fill(PAGE_WITH_IMAGE);
-    const loadingSave = page.getByRole("button", { name: /저장/ }).first();
-    await expect(loadingSave).toBeDisabled();
-    await expect(loadingSave.getByLabel(PREVIEW_LOADING)).toBeVisible();
-    await expect(loadingSave.locator("svg")).toHaveCount(1);
-    await expect(loadingSave.getByRole("progressbar").locator("svg")).toHaveCount(1);
-    const opacity = await loadingSave.evaluate((node) => Number(getComputedStyle(node).opacity));
-    expect(opacity).toBeGreaterThanOrEqual(0.5);
+    await expect(form(page).getByTestId("link-create-title-loading")).toBeVisible();
+    for (const button of [saveButton(page), aiButton(page)]) {
+      await expect(button).toBeEnabled();
+      await expect(button.getByRole("progressbar")).toHaveCount(0);
+      const opacity = await button.evaluate((node) => Number(getComputedStyle(node).opacity));
+      expect(opacity).toBe(1);
+    }
+    await expect(saveButton(page).locator("svg")).toHaveCount(1);
   });
 });
 
@@ -553,31 +587,40 @@ test.describe("wide new link dialog (#46)", () => {
     await expectClosed(page);
   });
 
-  test("the AI 제공자 field next to 폴더 opens the provider list and shows the pick", async ({
+  test("the provider trigger in AI 정리 옵션 opens the list above itself and shows the pick", async ({
     page,
   }) => {
     await setUpFormServer(page);
     await openForm(page);
-    const folderField = await boxOf(form(page).getByRole("button", { name: /^폴더, / }));
-    const providerTrigger = form(page).getByRole("button", { name: /^AI 제공자, / });
-    const providerField = await boxOf(providerTrigger);
-    expect(Math.abs(providerField.y - folderField.y)).toBeLessThanOrEqual(1);
-    expect(providerField.x).toBeGreaterThan(folderField.x);
 
-    await providerTrigger.click();
-    await page.getByRole("button", { name: "OpenAI 선택" }).click();
-    await expect(page.getByRole("button", { name: "OpenAI 선택" })).toHaveCount(0);
-    await expect(form(page).getByRole("button", { name: "AI 제공자, OpenAI" })).toBeVisible();
+    await providerTrigger(page).click();
+    const row = page.getByRole("button", { name: "OpenAI 선택" });
+    await expect(row).toBeVisible();
+    expect((await boxOf(row)).y).toBeLessThan((await boxOf(providerTrigger(page))).y);
+    await row.click();
+    await expect(row).toHaveCount(0);
+    await expect(providerTrigger(page)).toHaveAccessibleName("AI 제공자, OpenAI");
   });
 
-  test("the bottom row holds only 저장 and AI 정리, with the provider above it in the form", async ({
+  test("the bottom keeps AI 정리 옵션 above the caption and the buttons, with the caption left of the buttons", async ({
     page,
   }) => {
     await setUpFormServer(page);
     await openForm(page);
+    // The dialog animates in; read the boxes once they stop moving.
+    await expect
+      .poll(async () => {
+        const save = await boxOf(saveButton(page));
+        const caption = await boxOf(form(page).getByText(CAPTION, { exact: true }));
+        return Math.abs(caption.y + caption.height / 2 - (save.y + save.height / 2)) < 4;
+      })
+      .toBe(true);
     const save = await boxOf(saveButton(page));
-    const provider = await boxOf(form(page).getByRole("button", { name: /^AI 제공자, / }));
-    expect(provider.y + provider.height).toBeLessThan(save.y);
+    const options = await boxOf(aiOptions(page));
+    const caption = await boxOf(form(page).getByText(CAPTION, { exact: true }));
+    expect(options.y + options.height).toBeLessThan(save.y);
+    expect(options.y + options.height).toBeLessThan(caption.y);
+    expect(caption.x + caption.width).toBeLessThanOrEqual(save.x);
     await expect(form(page).getByRole("button", { name: "취소", exact: true })).toHaveCount(0);
     await expect(form(page).getByRole("button", { name: /기본 제공자 사용/ })).toHaveCount(0);
   });
@@ -605,7 +648,7 @@ test.describe("mobile new link sheet (#46)", () => {
     test.skip(isWideProject(), "mobile sheet");
   });
 
-  test("the buttons sit below the option cards at the bottom of the sheet and stay put while the content scrolls", async ({
+  test("AI 정리 옵션, the caption and the buttons stay fixed at the bottom of the sheet while only the body scrolls", async ({
     page,
   }) => {
     await setUpFormServer(page);
@@ -621,6 +664,10 @@ test.describe("mobile new link sheet (#46)", () => {
     const ai = await boxOf(aiButton(page));
     expect(viewportHeight - (save.y + save.height)).toBeLessThanOrEqual(40);
     expect(Math.abs(ai.y - save.y)).toBeLessThanOrEqual(1);
+    const options = await boxOf(aiOptions(page));
+    const caption = await boxOf(form(page).getByText(CAPTION, { exact: true }));
+    expect(options.y + options.height).toBeLessThanOrEqual(caption.y);
+    expect(caption.y + caption.height).toBeLessThanOrEqual(save.y);
 
     const scrolled = await form(page).evaluate((node) => {
       const scroller = Array.from(node.querySelectorAll<HTMLElement>("*")).find(
@@ -634,13 +681,14 @@ test.describe("mobile new link sheet (#46)", () => {
     });
     expect(scrolled).toBe(true);
 
-    const lastCard = form(page).getByRole("button", { name: "변경" }).last();
+    const lastRow = form(page).getByRole("button", { name: /^메모·액션/ });
     await expect
       .poll(async () => {
-        const card = await boxOf(lastCard);
-        return card.y + card.height < save.y;
+        const row = await boxOf(lastRow);
+        return row.y + row.height < (await boxOf(aiOptions(page))).y;
       })
       .toBe(true);
+    expect(Math.round((await boxOf(aiOptions(page))).y)).toBe(Math.round(options.y));
     expect(Math.round((await boxOf(saveButton(page))).y)).toBe(Math.round(save.y));
   });
 
@@ -669,7 +717,7 @@ test.describe("mobile new link sheet (#46)", () => {
     await urlInput(page).fill("https://example.com/plain");
     await titleInput(page).fill("QR 다녀온 제목");
 
-    await form(page).getByRole("button", { name: /QR/ }).click();
+    await form(page).getByRole("button", { name: "QR 스캔" }).click();
     await expect(page).toHaveURL(/\/qr-scan$/);
     await page.goBack();
     await expect(page).toHaveURL(/\/home$/);
@@ -686,7 +734,7 @@ test.describe("mobile new link sheet (#46)", () => {
     await setUpFormServer(page);
     await openForm(page);
 
-    await form(page).getByRole("button", { name: "변경" }).first().click();
+    await folderTrigger(page).click();
     await expect(form(page).getByText("폴더 선택", { exact: true })).toBeVisible();
     await expect(saveButton(page)).toHaveCount(0);
     await expect(aiButton(page)).toHaveCount(0);
@@ -696,12 +744,12 @@ test.describe("mobile new link sheet (#46)", () => {
     await expect(saveButton(page)).toBeVisible();
     await expect(page.getByRole("button", { name: "닫기", exact: true })).toBeVisible();
 
-    await form(page).getByRole("button", { name: "변경" }).last().click();
+    await providerTrigger(page).click();
     await expect(form(page).getByText("AI 제공자 선택", { exact: true })).toBeVisible();
     await expect(saveButton(page)).toHaveCount(0);
     await page.getByRole("button", { name: "OpenAI 선택" }).click();
     await expect(form(page).getByText("새 링크 추가", { exact: true })).toBeVisible();
-    await expect(form(page).getByText("OpenAI", { exact: true })).toBeVisible();
+    await expect(providerTrigger(page)).toHaveAccessibleName("AI 제공자, OpenAI");
     await expect(saveButton(page)).toBeVisible();
   });
 });
