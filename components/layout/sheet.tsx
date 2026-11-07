@@ -22,6 +22,7 @@ import {
   type BottomSheetFooterProps,
   BottomSheetModal,
   BottomSheetScrollView,
+  type BottomSheetScrollViewMethods,
   useBottomSheetInternal,
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
@@ -40,6 +41,18 @@ const SheetContext = React.createContext<boolean>(false);
 
 function useIsInsideSheet() {
   return React.useContext(SheetContext);
+}
+
+type SheetScroll = {
+  /** Scrolls the sheet body so `target`, a view inside it, sits `offset` px below the top. */
+  scrollToView: (target: View, offset?: number) => void;
+};
+
+const SheetScrollContext = React.createContext<SheetScroll | null>(null);
+
+// The scroll handle of the sheet around the caller; null outside a sheet.
+function useSheetScroll() {
+  return React.use(SheetScrollContext);
 }
 
 type SheetMotion = {
@@ -267,7 +280,31 @@ function Sheet({
 }: SheetProps) {
   const [footerHeight, setFooterHeight] = React.useState(0);
   const [hasSlotFooter, setHasSlotFooter] = React.useState(false);
-  const contentRef = useSheetHostScrollLock();
+  const hostScrollLockRef = useSheetHostScrollLock();
+  const scrollViewRef = React.useRef<BottomSheetScrollViewMethods>(null);
+  const bodyRef = React.useRef<View | null>(null);
+  const contentRef = React.useCallback(
+    (node: View | null) => {
+      bodyRef.current = node;
+      hostScrollLockRef?.(node);
+    },
+    [hostScrollLockRef],
+  );
+  const sheetScroll = React.useMemo<SheetScroll>(
+    () => ({
+      scrollToView: (target, offset = 16) => {
+        const body = bodyRef.current;
+        const scrollView = scrollViewRef.current;
+        if (!body || !scrollView) return;
+        target.measureLayout(
+          body,
+          (_x, y) => scrollView.scrollTo({ y: Math.max(0, y - offset), animated: true }),
+          () => undefined,
+        );
+      },
+    }),
+    [],
+  );
   const resizeConfigs = useBottomSheetTimingConfigs({
     duration: resizeTiming?.duration,
     easing: resizeTiming?.easing,
@@ -534,19 +571,22 @@ function Sheet({
     >
       <SheetContext.Provider value={true}>
         <SheetFooterSlotContext value={footerSlot}>
-          <SheetMotionProvider>
-            <BottomSheetScrollView
-              className="scrollbar-none"
-              showsVerticalScrollIndicator={false}
-            >
-              {content}
-            </BottomSheetScrollView>
-          </SheetMotionProvider>
+          <SheetScrollContext value={sheetScroll}>
+            <SheetMotionProvider>
+              <BottomSheetScrollView
+                ref={scrollViewRef}
+                className="scrollbar-none"
+                showsVerticalScrollIndicator={false}
+              >
+                {content}
+              </BottomSheetScrollView>
+            </SheetMotionProvider>
+          </SheetScrollContext>
         </SheetFooterSlotContext>
       </SheetContext.Provider>
     </BottomSheetModal>
   );
 }
 
-export { Sheet, SheetFooter, useIsInsideSheet, useSheetMotion };
-export type { SheetMotion, SheetProps };
+export { Sheet, SheetFooter, useIsInsideSheet, useSheetMotion, useSheetScroll };
+export type { SheetMotion, SheetProps, SheetScroll };

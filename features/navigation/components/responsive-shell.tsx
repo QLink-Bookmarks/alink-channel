@@ -24,6 +24,7 @@ import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
 import { useFolderQuery } from "@/features/folders/queries";
 import { DetailPanel } from "@/features/links/components/detail-panel/detail-panel";
 import { LinkCreateForm } from "@/features/links/components/link-create-form";
+import { isLinkNotFound } from "@/features/links/lib/is-link-not-found";
 import { useLinkDetailQuery } from "@/features/links/queries";
 import { NotificationBellButton } from "@/features/notifications/components/notification-bell-button";
 import { SearchDialog } from "@/features/search/components/search-dialog";
@@ -93,9 +94,11 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const mobileFolderQuery = useFolderQuery(mobileFolderId, {
     enabled: !routeState.isWideView && mobileFolderId !== UNCATEGORIZED_FOLDER_ID,
   });
-  // Link title for the mobile detail header (enabled only on /links/[id]).
+  // The mobile link detail draws its own header (back + toolbar) once the detail is loaded.
   const mobileLinkDetailId = /^\/links\/([^/]+)$/.exec(routeState.pathname)?.[1];
-  const mobileLinkDetailQuery = useLinkDetailQuery(mobileLinkDetailId);
+  const mobileLinkDetailQuery = useLinkDetailQuery(
+    routeState.isWideView ? null : mobileLinkDetailId,
+  );
   const { detail, error, handleOpenChange, isLoading, isOpen, notFound } = useLinkOverlayState({
     isWideView: routeState.isWideView,
     overlayBaseHref: routeState.overlayBaseHref,
@@ -466,12 +469,13 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   // the role-dependent actions on the right. Every other mobile header stays centered.
   const isMobileFolderDetail = getFolderIdFromPath(routeState.pathname) !== undefined;
   const mobileFolder = mobileFolderQuery.folder;
-  const mobileLinkTitle = mobileLinkDetailId
-    ? mobileLinkDetailQuery.data?.title?.trim()
-    : undefined;
+  const isMobileLinkDetailShown =
+    mobileLinkDetailId !== undefined &&
+    mobileLinkDetailQuery.data !== undefined &&
+    !(mobileLinkDetailQuery.isError && isLinkNotFound(mobileLinkDetailQuery.error));
   const mobileHeaderTitle = mobileFolder
     ? `${mobileFolder.emoji ? `${mobileFolder.emoji} ` : ""}${mobileFolder.name}`
-    : mobileLinkTitle || routeState.routeTitle;
+    : routeState.routeTitle;
   const showMobileFab =
     routeState.pathname === "/home" ||
     routeState.pathname === "/todos" ||
@@ -481,38 +485,40 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     <>
       {redirectCover}
       <View className={cn("flex-1 bg-background", redirectHref && "hidden")}>
-        <AppHeader
-          back={!isMobileHome && routeState.showBackButton}
-          onBack={handleBack}
-          leftSlot={isMobileHome ? <BrandHeader className="px-0 pt-0" /> : undefined}
-          rightSlot={
-            isMobileHome ? (
-              <View className="flex-row items-center gap-2">
-                <IconButton
-                  accessibilityLabel="검색"
-                  hitSlop={4}
-                  icon={Search}
-                  size="sm"
-                  variant="ghost"
-                  onPress={handleMobileSearchPress}
+        {isMobileLinkDetailShown ? null : (
+          <AppHeader
+            back={!isMobileHome && routeState.showBackButton}
+            onBack={handleBack}
+            leftSlot={isMobileHome ? <BrandHeader className="px-0 pt-0" /> : undefined}
+            rightSlot={
+              isMobileHome ? (
+                <View className="flex-row items-center gap-2">
+                  <IconButton
+                    accessibilityLabel="검색"
+                    hitSlop={4}
+                    icon={Search}
+                    size="sm"
+                    variant="ghost"
+                    onPress={handleMobileSearchPress}
+                  />
+                  <NotificationBellButton
+                    size="sm"
+                    onPress={handleNotificationsPress}
+                  />
+                </View>
+              ) : mobileFolder ? (
+                <FolderHeaderActions
+                  folder={mobileFolder}
+                  mode="mobile"
                 />
-                <NotificationBellButton
-                  size="sm"
-                  onPress={handleNotificationsPress}
-                />
-              </View>
-            ) : mobileFolder ? (
-              <FolderHeaderActions
-                folder={mobileFolder}
-                mode="mobile"
-              />
-            ) : isAnnouncementsListRoute ? (
-              <AnnouncementsHeaderAction mode="mobile" />
-            ) : undefined
-          }
-          title={isMobileHome ? undefined : mobileHeaderTitle}
-          titleAlign={isMobileFolderDetail ? "start" : "center"}
-        />
+              ) : isAnnouncementsListRoute ? (
+                <AnnouncementsHeaderAction mode="mobile" />
+              ) : undefined
+            }
+            title={isMobileHome ? undefined : mobileHeaderTitle}
+            titleAlign={isMobileFolderDetail ? "start" : "center"}
+          />
+        )}
         <View
           className="flex-1"
           role="main"

@@ -128,6 +128,8 @@ function isWide(page: Page) {
 
 async function openAddLink(page: Page) {
   await page.goto("/home");
+  // A URL left in the clipboard would fill the field and fetch its preview on open.
+  await page.evaluate(() => navigator.clipboard.writeText(""));
   if (isWide(page)) {
     await page.getByText("새 링크", { exact: true }).first().click();
   } else {
@@ -156,11 +158,15 @@ function previewImage(page: Page) {
   return page.getByTestId("link-create-preview-image");
 }
 
+// #74: while the preview loads, the image slot and the title field spin, and both
+// buttons stay pressable without a spinner of their own.
 async function expectPreviewLoading(page: Page) {
   await expect(page.getByTestId("link-create-preview-image-loading")).toBeVisible();
   await expect(page.getByTestId("link-create-title-loading")).toBeVisible();
-  await expect(saveButton(page)).toBeDisabled();
-  await expect(aiButton(page)).toBeDisabled();
+  await expect(saveButton(page)).toBeEnabled();
+  await expect(aiButton(page)).toBeEnabled();
+  await expect(saveButton(page).getByRole("progressbar")).toHaveCount(0);
+  await expect(aiButton(page).getByRole("progressbar")).toHaveCount(0);
 }
 
 async function expectPreviewDone(page: Page) {
@@ -180,7 +186,7 @@ test.beforeEach(async ({ context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 });
 
-test("typed URL: waits for typing to pause, shows loading and locks both buttons, then fills title and image", async ({
+test("typed URL: waits for typing to pause, shows loading with both buttons pressable, then fills title and image", async ({
   page,
 }) => {
   const server = await setUpPreviewServer(page);
@@ -196,10 +202,8 @@ test("typed URL: waits for typing to pause, shows loading and locks both buttons
   expect(server.requests[0].url).toBe(PAGE_WITH_IMAGE);
   expect(server.requests[0].at - typedAt).toBeGreaterThanOrEqual(400);
 
-  // Still loading while the server works; the buttons stay locked.
+  // Still loading while the server works; the buttons stay pressable.
   await expectPreviewLoading(page);
-  await saveButton(page).click({ force: true });
-  expect(server.linkCreates).toHaveLength(0);
 
   server.release();
   await expectPreviewDone(page);
@@ -277,7 +281,7 @@ test("page without a title: title stays empty, direct save needs a title, AI org
   await expect(previewImage(page)).toHaveCount(0);
 
   await saveButton(page).click();
-  await expect(page.getByText("제목을 입력해주세요.")).toBeVisible();
+  await expect(page.getByText("저장하려면 제목이 필요해요")).toBeVisible();
   expect(server.linkCreates).toHaveLength(0);
 
   await aiButton(page).click();
@@ -342,5 +346,81 @@ test("changing the URL fetches again; a title the user edited is kept", async ({
     title: "내가 정한 제목",
     thumbnailUrl: null,
     faviconUrl: FAVICON_URL,
+  });
+});
+
+test.describe("saving while the preview loads (#74)", () => {
+  test("a title typed during loading shows no hint and stays when the preview arrives; clearing it brings the preview title back", async ({
+    page,
+  }) => {
+    const server = await setUpPreviewServer(page);
+    await openAddLink(page);
+    server.hold();
+
+    await urlInput(page).fill(PAGE_WITH_IMAGE);
+    await expectPreviewLoading(page);
+    await titleInput(page).fill("기다리지 않고 쓴 제목");
+    await expect(titleInput(page)).toHaveValue("기다리지 않고 쓴 제목");
+    await expect(page.getByText(/제목을 불러오는 중|미리보기를 불러오는 중/)).toHaveCount(0);
+    await expect(titleInput(page)).toHaveAttribute("placeholder", "링크 제목");
+
+    server.release();
+    await expectPreviewDone(page);
+    await expect(previewImage(page)).toBeVisible();
+    await expect(titleInput(page)).toHaveValue("기다리지 않고 쓴 제목");
+
+    await titleInput(page).fill("");
+    await titleInput(page).blur();
+    await expect(titleInput(page)).toHaveValue("미리보기 대표 제목");
+  });
+
+  test("저장 before the preview arrives saves the typed title without images and closes the form", async ({
+    page,
+  }) => {
+    const server = await setUpPreviewServer(page);
+    await openAddLink(page);
+    server.hold();
+
+    await urlInput(page).fill(PAGE_WITH_IMAGE);
+    await expectPreviewLoading(page);
+    await titleInput(page).fill("미리보기 전에 저장");
+    await saveButton(page).click();
+
+    expect(await lastRequest(server.linkCreates)).toMatchObject({
+      url: PAGE_WITH_IMAGE,
+      title: "미리보기 전에 저장",
+      thumbnailUrl: null,
+      faviconUrl: null,
+      isVideo: false,
+    });
+    await expect(page.getByText("새 링크 추가", { exact: true })).toHaveCount(0);
+
+    // The late preview changes nothing: no form comes back and nothing else is sent.
+    server.release();
+    await expect.poll(() => server.requests.length).toBe(1);
+    await expect(page.getByText("새 링크 추가", { exact: true })).toHaveCount(0);
+    expect(server.linkCreates).toHaveLength(1);
+  });
+
+  test("AI 정리 before the preview arrives is accepted without images and closes the form", async ({
+    page,
+  }) => {
+    const server = await setUpPreviewServer(page);
+    await openAddLink(page);
+    server.hold();
+
+    await urlInput(page).fill(PAGE_WITH_IMAGE);
+    await expectPreviewLoading(page);
+    await aiButton(page).click();
+
+    expect(await lastRequest(server.aiRequests)).toMatchObject({
+      url: PAGE_WITH_IMAGE,
+      title: null,
+      thumbnailUrl: null,
+      faviconUrl: null,
+      isVideo: false,
+    });
+    await expect(page.getByText("새 링크 추가", { exact: true })).toHaveCount(0);
+    server.release();
   });
 });

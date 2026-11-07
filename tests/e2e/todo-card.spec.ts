@@ -330,13 +330,14 @@ async function expectSameHeights(
   }
 }
 
-async function expectCardsComplete(cards: Locator, { withReminder = false } = {}) {
+async function expectCardsComplete(cards: Locator, { withReminder = false, withLink = true } = {}) {
   const count = await cards.count();
   for (let index = 0; index < count; index += 1) {
     const card = cards.nth(index);
     await expect(card.getByRole("checkbox")).toBeVisible();
     await expect(card.getByTestId("todo-item-title")).toBeVisible();
-    await expect(card.getByTestId("todo-item-link")).toBeVisible();
+    // The link detail's cards leave out the link row (#74); the actions tab keeps it.
+    await expect(card.getByTestId("todo-item-link")).toHaveCount(withLink ? 1 : 0);
     if (withReminder) {
       await expect(card.getByTestId("todo-item-reminder")).toBeVisible();
     }
@@ -456,11 +457,11 @@ test.describe("completing a todo keeps the other cards intact", () => {
     await checkbox.click();
     await expect(checkbox).toBeChecked();
     await expectSameHeights(cards, before, { changed: ["서류 최종 제출"] });
-    await expectCardsComplete(cards);
+    await expectCardsComplete(cards, { withLink: false });
     await checkbox.click();
     await expect(checkbox).not.toBeChecked();
     await expectSameHeights(cards, before);
-    await expectCardsComplete(cards);
+    await expectCardsComplete(cards, { withLink: false });
   });
 });
 

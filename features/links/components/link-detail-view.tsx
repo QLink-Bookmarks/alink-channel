@@ -1,13 +1,7 @@
 import * as React from "react";
-import {
-  type AccessibilityActionEvent,
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 
+import { AppHeader } from "@/components/layout/app-header";
 import { Sheet } from "@/components/layout/sheet";
 import {
   AlertDialog,
@@ -19,9 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { type DateValue } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -30,11 +22,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
-import { IconButton } from "@/components/ui/icon-button";
+import { PressableHitSlopArea } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
-import { type TimeValue } from "@/components/ui/time-picker";
 import { useMyProfileQuery } from "@/features/account/queries";
 import { FolderPickerDialog } from "@/features/folders/components/folder-picker-dialog";
 import {
@@ -43,14 +34,7 @@ import {
 } from "@/features/folders/components/folder-picker-list";
 import { getMoveTargetFolderId } from "@/features/folders/lib/folder-pages";
 import { useFoldersQuery } from "@/features/folders/queries";
-import {
-  formatLinkStatus,
-  formatSummaryModelLabel,
-  getDomainFromUrl,
-} from "@/features/home/lib/link-card-mapper";
 import { buildShareText } from "@/features/links/lib/build-share-text";
-import { formatTagLabel } from "@/features/links/lib/format-tag-label";
-import { openLinkUrl } from "@/features/links/lib/open-link-url";
 import { shareLink } from "@/features/links/lib/share-link";
 import {
   useCopyLinkMutation,
@@ -60,166 +44,26 @@ import {
   useUpdateLinkMutation,
 } from "@/features/links/mutations";
 import { getLinkDetailQueryKey, useLinkDetailExcerptRecheck } from "@/features/links/queries";
-import type {
-  LinkDetail,
-  LinkDetailResponse,
-  LinkTodo,
-  UpdateLinkRequest,
-} from "@/features/links/types";
-import {
-  type TodoDraftEditorItem,
-  TodoDraftListEditor,
-} from "@/features/todos/components/todo-draft-list-editor";
-import { type WeekdayValue } from "@/features/todos/components/todo-editor/todo-editor";
-import { TodoItem } from "@/features/todos/components/todo-item/todo-item";
-import { formatReminderLabel } from "@/features/todos/lib/todo-list-helpers";
-import {
-  PAST_REMINDER_ERROR,
-  buildScheduleApiFields,
-  readScheduleFromTodo,
-  validateTodoDrafts,
-} from "@/features/todos/lib/todo-schedule";
-import {
-  useCreateTodoMutation,
-  useDeleteTodoMutation,
-  useToggleTodoCompletedMutation,
-  useUpdateTodoMutation,
-} from "@/features/todos/mutations";
+import type { LinkDetail, LinkDetailResponse, UpdateLinkRequest } from "@/features/links/types";
 import { reportError } from "@/lib/error-reporting";
-import { useGridColumns } from "@/lib/hooks/use-grid-columns";
 import { cn } from "@/lib/utils";
 import type { FolderSection } from "@/stores/folder-navigation";
 import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { ExcerptContinueLink } from "./excerpt-continue-link";
-import { DetailActionButton, HoverLabel, RefreshButton } from "./link-detail-parts";
-import { LinkThumbnail } from "./link-thumbnail/link-thumbnail";
+import { LinkDetailActionsSection } from "./link-detail-actions-section";
+import { LinkDetailAiSurface } from "./link-detail-ai-surface";
+import { LinkDetailHead } from "./link-detail-head";
+import { LinkDetailMyNotes, type LinkFieldsUpdate } from "./link-detail-my-notes";
+import { LinkDetailToolbar } from "./link-detail-toolbar";
 
 import { type Href, useRouter } from "expo-router";
-import { Ellipsis, FolderPlus, Pencil, Share2, Star, Trash2, X } from "lucide-react-native/icons";
+import { Trash2 } from "lucide-react-native/icons";
 
-const TODO_GRID_GAP = 10;
+type ShareOutcome = "shared" | "copied" | "cancelled" | "failed";
+
 const PERSONAL_FOLDER_SECTIONS: FolderSection[] = ["mine"];
-
-const defaultWeekdays: WeekdayValue[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-
-function getTodoTitle(todo: LinkTodo) {
-  return todo.title ?? todo.content ?? "액션";
-}
-
-function getTodoDone(todo: LinkTodo) {
-  return todo.done ?? todo.completed ?? Boolean(todo.completedAt);
-}
-
-function buildTodoDrafts(todos: LinkTodo[]): TodoDraftEditorItem[] {
-  return todos.map((todo) => {
-    const schedule = readScheduleFromTodo({
-      reminderAt: todo.reminderAt,
-      dueAt: todo.dueAt,
-      repeatUntil: todo.repeatUntil,
-      repeatDays: todo.repeatDays ?? null,
-      repeatTime: todo.repeatTime,
-    });
-    return {
-      id: todo.id,
-      mode: schedule.mode,
-      date: schedule.date,
-      time: schedule.time,
-      selectedWeekdays: schedule.selectedWeekdays.length
-        ? schedule.selectedWeekdays
-        : defaultWeekdays,
-      title: getTodoTitle(todo),
-    };
-  });
-}
-
-function createEmptyTodoDraft(index: number): TodoDraftEditorItem {
-  return {
-    id: `draft-${Date.now()}-${index}`,
-    mode: "none",
-    date: null,
-    time: null,
-    selectedWeekdays: defaultWeekdays,
-    title: "",
-  };
-}
-
-function DetailSection({
-  title,
-  action,
-  children,
-  testID,
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-  testID?: string;
-}) {
-  return (
-    <View
-      className="gap-2.5"
-      testID={testID}
-    >
-      <View className="min-h-8 flex-row items-center justify-between gap-3">
-        <Text className="text-xs font-semibold text-muted-foreground">{title}</Text>
-        {action}
-      </View>
-      {children}
-    </View>
-  );
-}
-
-// The action's name is what VoiceOver reads, so it is the visible link's wording.
-const OPEN_ORIGINAL_ACTION = "이어 읽기";
-
-/**
- * Native: VoiceOver cannot reach an inline view inside a Text, so the excerpt paragraph
- * offers "이어 읽기" as a custom action that opens the original.
- */
-function getExcerptAccessibilityProps(url: string) {
-  return {
-    accessibilityActions: [{ name: OPEN_ORIGINAL_ACTION }],
-    onAccessibilityAction: (event: AccessibilityActionEvent) => {
-      if (event.nativeEvent.actionName === OPEN_ORIGINAL_ACTION) {
-        openLinkUrl(url);
-      }
-    },
-  };
-}
-
-/**
- * The page excerpt under the summary: no heading, a left quote bar and muted text, with an
- * inline "이어 읽기" link right after the trailing "…" that opens the original.
- */
-function DetailExcerpt({ excerpt, url }: { excerpt: string; url: string }) {
-  return (
-    <View
-      className="border-l-2 border-border pl-3"
-      testID="link-detail-excerpt"
-    >
-      <Text
-        selectable
-        {...(process.env.EXPO_OS === "web" ? {} : getExcerptAccessibilityProps(url))}
-        // Native: the bottom padding (cancelled by the negative margin) lets the inline link's
-        // hitSlop reach below the last line; touches outside the paragraph never reach it.
-        className="native:-mb-3 native:pb-3 text-[13px] leading-5 text-muted-foreground"
-        lineBreakStrategyIOS="hangul-word"
-        testID="link-detail-excerpt-text"
-      >
-        {excerpt} <ExcerptContinueLink url={url} />
-      </Text>
-    </View>
-  );
-}
-
-function DetailPlaceholder({ label }: { label: string }) {
-  return (
-    <View className="rounded-[14px] border border-dashed border-border px-4 py-3.5">
-      <Text className="text-xs font-medium text-muted-foreground">{label}</Text>
-    </View>
-  );
-}
+const DELETE_HIT_SLOP = 4;
 
 function buildUpdateLinkPayload(
   detail: LinkDetail,
@@ -234,9 +78,9 @@ function buildUpdateLinkPayload(
     folderId: detail.folderId ?? null,
     isVideo: detail.isVideo ?? false,
     thumbnailUrl: detail.thumbnailUrl ?? null,
-    memo: overrides.memo ?? detail.memo,
+    memo: overrides.memo !== undefined ? overrides.memo : detail.memo,
     sourceType: detail.sourceType,
-    summary: overrides.summary ?? detail.summary,
+    summary: overrides.summary !== undefined ? overrides.summary : detail.summary,
     tags: overrides.tags ?? detail.tags,
     title: overrides.title ?? detail.title,
     url: detail.url,
@@ -326,6 +170,27 @@ function mergeLinkDetail(base: LinkDetail, incoming: Partial<LinkDetail>): LinkD
   };
 }
 
+function DeleteLinkButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityLabel="링크 삭제"
+      accessibilityRole="button"
+      className="h-9 flex-row items-center gap-1.5 self-start rounded-[10px] px-2 active:bg-destructive/10 web:transition-colors web:hover:bg-destructive/10"
+      hitSlop={DELETE_HIT_SLOP}
+      testID="link-detail-delete"
+      onPress={onPress}
+    >
+      <PressableHitSlopArea hitSlop={DELETE_HIT_SLOP} />
+      <Icon
+        as={Trash2}
+        size={15}
+        className="text-destructive"
+      />
+      <Text className="text-[13px] font-semibold text-destructive">링크 삭제</Text>
+    </Pressable>
+  );
+}
+
 function LinkDetailView({
   detail,
   mode,
@@ -339,7 +204,6 @@ function LinkDetailView({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const memoInputRef = React.useRef<TextInput>(null);
   const updateLinkMutation = useUpdateLinkMutation(detail.id);
   const setFavoriteMutation = useSetLinkFavoriteMutation();
   const myProfileQuery = useMyProfileQuery();
@@ -349,27 +213,15 @@ function LinkDetailView({
   const showToast = useToastStore((state) => state.showToast);
   const dismissToast = useToastStore((state) => state.dismissToast);
   const deleteLinkMutation = useDeleteLinkMutation(detail.id);
-  const createTodoMutation = useCreateTodoMutation();
-  const updateTodoMutation = useUpdateTodoMutation();
-  const deleteTodoMutation = useDeleteTodoMutation();
-  const toggleTodoCompletedMutation = useToggleTodoCompletedMutation();
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [hasRefreshFailed, setHasRefreshFailed] = React.useState(false);
+  const [isEditingActions, setIsEditingActions] = React.useState(false);
   const isRefreshingRef = React.useRef(false);
   const isSavingEditRef = React.useRef(false);
-  const todoGrid = useGridColumns({
-    gap: TODO_GRID_GAP,
-    // The wide panel is 380–520px inside its padding: 180px keeps it at two columns.
-    minItemWidth: mode === "panel" ? 180 : 300,
-  });
-  const domain = React.useMemo(() => getDomainFromUrl(detail.url), [detail.url]);
+  // Covers the detail refetch before the PUT too, which the mutation's own state does not.
+  const [isSavingEdit, setIsSavingEdit] = React.useState(false);
   const tags = React.useMemo(() => detail.tags ?? [], [detail.tags]);
   const todos = React.useMemo(() => detail.todos ?? [], [detail.todos]);
-  const dueTodos = todos.filter((todo) => !getTodoDone(todo));
-  const [isTagInputVisible, setIsTagInputVisible] = React.useState(false);
-  const [tagDraft, setTagDraft] = React.useState("");
-  const [isTagEditMode, setIsTagEditMode] = React.useState(false);
-  const [pendingTagName, setPendingTagName] = React.useState<string | null>(null);
   const [isFolderMoveOpen, setIsFolderMoveOpen] = React.useState(false);
   const [isCopyFolderOpen, setIsCopyFolderOpen] = React.useState(false);
   const [isEditOpen, setIsEditOpen] = React.useState(false);
@@ -383,25 +235,7 @@ function LinkDetailView({
   const [summaryDraft, setSummaryDraft] = React.useState("");
   const [isUnsavedEditOpen, setIsUnsavedEditOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
-  const [isMemoEditing, setIsMemoEditing] = React.useState(false);
-  const [memoDraft, setMemoDraft] = React.useState(detail.memo ?? "");
-  const [isTodoEditorOpen, setIsTodoEditorOpen] = React.useState(false);
-  const [pendingTodoIds, setPendingTodoIds] = React.useState<string[]>([]);
-  const [todoDrafts, setTodoDrafts] = React.useState<TodoDraftEditorItem[]>(() =>
-    buildTodoDrafts(todos),
-  );
-  const [todoEditorError, setTodoEditorError] = React.useState<string | null>(null);
-  const excerpt = detail.content?.excerpt ?? null;
   useLinkDetailExcerptRecheck(detail.id, detail.content);
-
-  const linkStatusMeta = React.useMemo(
-    () => formatLinkStatus(detail.status, detail.workModel),
-    [detail.status, detail.workModel],
-  );
-  const summaryModelLabel = React.useMemo(
-    () => formatSummaryModelLabel(detail.status, detail.workModel),
-    [detail.status, detail.workModel],
-  );
 
   const currentFolder = React.useMemo(
     () =>
@@ -416,36 +250,6 @@ function LinkDetailView({
     myProfileQuery.data?.id != null &&
     currentFolder.ownerId === myProfileQuery.data.id;
   const isMyOwnLink = !isSharedFolder || isFolderOwner;
-  const folderLabel = detail.folderName
-    ? `${detail.folderEmoji ?? "📁"} ${detail.folderName}`
-    : "📭 폴더 없음";
-
-  const isTodoMutationPending =
-    createTodoMutation.isPending || updateTodoMutation.isPending || deleteTodoMutation.isPending;
-  const hasInvalidTodoDraft = todoDrafts.some((todo) => !todo.title.trim());
-
-  React.useEffect(() => {
-    setMemoDraft(detail.memo ?? "");
-  }, [detail.memo]);
-
-  React.useEffect(() => {
-    if (!isTodoEditorOpen) {
-      setTodoDrafts(buildTodoDrafts(todos));
-      setTodoEditorError(null);
-    }
-  }, [isTodoEditorOpen, todos]);
-
-  React.useEffect(() => {
-    if (!isMemoEditing) {
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      memoInputRef.current?.focus();
-    }, 0);
-
-    return () => clearTimeout(timeoutId);
-  }, [isMemoEditing]);
 
   const handleDetailUpdated = React.useCallback(
     (response: LinkDetailResponse) => {
@@ -458,16 +262,29 @@ function LinkDetailView({
     [detail, queryClient],
   );
 
-  const refreshDetail = React.useCallback(async () => {
-    await queryClient.invalidateQueries({
-      queryKey: getLinkDetailQueryKey(detail.id),
-    });
-  }, [detail.id, queryClient]);
+  // PUT replaces the whole link: read the latest detail first, so a representative image
+  // the server filled in after the detail opened (alink-backend#195) is sent back as is.
+  const updateLinkFields = React.useCallback(
+    async (overrides: Partial<Pick<UpdateLinkRequest, "memo" | "summary" | "tags" | "title">>) => {
+      const queryKey = getLinkDetailQueryKey(detail.id);
+      await queryClient.refetchQueries({ exact: true, queryKey }, { throwOnError: true });
+      const latest = queryClient.getQueryData<LinkDetail>(queryKey) ?? detail;
+      const response = await updateLinkMutation.mutateAsync(
+        buildUpdateLinkPayload(latest, overrides),
+      );
+      handleDetailUpdated(response);
+      // The merge keeps known values over nulls, so a cleared memo or summary is set here.
+      queryClient.setQueryData<LinkDetail>(queryKey, (current) =>
+        current ? { ...current, ...overrides } : current,
+      );
+    },
+    [detail, handleDetailUpdated, queryClient, updateLinkMutation],
+  );
 
-  // Link cards show todo counts, so every todo change also refreshes the link lists.
-  const invalidateLinkLists = React.useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
-  }, [queryClient]);
+  const handleUpdateNotes = React.useCallback(
+    (update: LinkFieldsUpdate) => updateLinkFields(update),
+    [updateLinkFields],
+  );
 
   const handleRefresh = React.useCallback(async () => {
     // One refresh at a time: extra presses while it runs are ignored.
@@ -532,150 +349,6 @@ function LinkDetailView({
     [detail.id, handleDetailUpdated, patchLinkMutation, queryClient, showToast],
   );
 
-  const handleTodoCompletedChange = React.useCallback(
-    async (todoId: number | string, checked: boolean) => {
-      const todoKey = String(todoId);
-
-      if (pendingTodoIds.includes(todoKey)) {
-        return;
-      }
-
-      const queryKey = getLinkDetailQueryKey(detail.id);
-      const previousDetail = queryClient.getQueryData<LinkDetail>(queryKey) ?? detail;
-
-      setPendingTodoIds((currentIds) => [...currentIds, todoKey]);
-
-      queryClient.setQueryData<LinkDetail>(queryKey, (currentDetail) => {
-        const baseDetail = currentDetail ?? previousDetail;
-
-        return {
-          ...baseDetail,
-          todos: (baseDetail.todos ?? []).map((todo) =>
-            String(todo.id) === String(todoId)
-              ? {
-                  ...todo,
-                  completed: checked,
-                  completedAt: checked ? (todo.completedAt ?? new Date().toISOString()) : null,
-                  done: checked,
-                }
-              : todo,
-          ),
-        };
-      });
-
-      try {
-        const response = await toggleTodoCompletedMutation.mutateAsync({
-          payload: { isCompleted: checked },
-          todoId,
-        });
-
-        queryClient.setQueryData<LinkDetail>(queryKey, (currentDetail) => {
-          const baseDetail = currentDetail ?? previousDetail;
-
-          return {
-            ...baseDetail,
-            todos: (baseDetail.todos ?? []).map((todo) =>
-              String(todo.id) === String(todoId)
-                ? {
-                    ...todo,
-                    completed: checked,
-                    completedAt: checked ? (response.data?.completeAt ?? null) : null,
-                    done: checked,
-                  }
-                : todo,
-            ),
-          };
-        });
-
-        await refreshDetail();
-        invalidateLinkLists();
-      } catch (error: unknown) {
-        queryClient.setQueryData(queryKey, previousDetail);
-        reportError(error, {
-          area: "link-detail-view:toggle-todo-completed",
-          extra: { isCompleted: checked, linkId: detail.id, todoId },
-        });
-      } finally {
-        setPendingTodoIds((currentIds) => currentIds.filter((id) => id !== todoKey));
-      }
-    },
-    [
-      detail,
-      invalidateLinkLists,
-      pendingTodoIds,
-      queryClient,
-      refreshDetail,
-      toggleTodoCompletedMutation,
-    ],
-  );
-
-  const handleOpenOriginal = React.useCallback(() => {
-    openLinkUrl(detail.url);
-  }, [detail.url]);
-
-  const handleShowTagInput = React.useCallback(() => {
-    setIsTagInputVisible(true);
-    setTagDraft("");
-    setIsTagEditMode(false);
-  }, []);
-
-  const handleTagCreateBlur = React.useCallback(async () => {
-    const nextTag = tagDraft.trim();
-    setIsTagInputVisible(false);
-
-    if (!nextTag) {
-      setTagDraft("");
-      return;
-    }
-
-    setPendingTagName(nextTag);
-
-    try {
-      const response = await updateLinkMutation.mutateAsync(
-        buildUpdateLinkPayload(detail, {
-          tags: [...tags, nextTag],
-        }),
-      );
-
-      handleDetailUpdated(response);
-    } catch (error: unknown) {
-      reportError(error, {
-        area: "link-detail-view:add-tag",
-        extra: { linkId: detail.id, tag: nextTag },
-      });
-    } finally {
-      setPendingTagName(null);
-      setTagDraft("");
-    }
-  }, [detail, handleDetailUpdated, tagDraft, tags, updateLinkMutation]);
-
-  const handleTagRemove = React.useCallback(
-    async (tagToRemove: string) => {
-      setPendingTagName(tagToRemove);
-
-      try {
-        const response = await updateLinkMutation.mutateAsync(
-          buildUpdateLinkPayload(detail, {
-            tags: tags.filter((tag) => tag !== tagToRemove),
-          }),
-        );
-
-        handleDetailUpdated(response);
-        if (tags.length <= 1) {
-          setIsTagEditMode(false);
-        }
-      } catch (error: unknown) {
-        reportError(error, {
-          area: "link-detail-view:remove-tag",
-          extra: { linkId: detail.id, tag: tagToRemove },
-        });
-      } finally {
-        setPendingTagName(null);
-      }
-    },
-    [detail, handleDetailUpdated, tags, updateLinkMutation],
-  );
-
   const handleToggleFavorite = React.useCallback(async () => {
     const next = !detail.isFavorite;
     try {
@@ -705,7 +378,8 @@ function LinkDetailView({
       linkUrl: detail.url,
     });
     try {
-      const result = await shareLink(payload);
+      // The web build can also copy the text or fail; the native one only shares.
+      const result = (await shareLink(payload)) as ShareOutcome;
       if (result === "copied") {
         showToast({
           description: "공유 문구가 복사됐어요. 원하는 곳에 붙여넣어 주세요.",
@@ -828,14 +502,12 @@ function LinkDetailView({
       return;
     }
     isSavingEditRef.current = true;
+    setIsSavingEdit(true);
     try {
-      const response = await updateLinkMutation.mutateAsync(
-        buildUpdateLinkPayload(detail, {
-          summary: summaryDraft.trim() ? summaryDraft.trim() : null,
-          title: nextTitle,
-        }),
-      );
-      handleDetailUpdated(response);
+      await updateLinkFields({
+        summary: summaryDraft.trim() ? summaryDraft.trim() : null,
+        title: nextTitle,
+      });
       setIsUnsavedEditOpen(false);
       setEditSheetOpen(false);
       showToast({
@@ -857,21 +529,14 @@ function LinkDetailView({
       });
     } finally {
       isSavingEditRef.current = false;
+      setIsSavingEdit(false);
     }
-  }, [
-    detail,
-    handleDetailUpdated,
-    setEditSheetOpen,
-    showToast,
-    summaryDraft,
-    titleDraft,
-    updateLinkMutation,
-  ]);
+  }, [detail.id, setEditSheetOpen, showToast, summaryDraft, titleDraft, updateLinkFields]);
 
   // Edits live in a modal, so the user can't scroll away and lose the save
   // action. If they try to dismiss with unsaved changes, confirm first.
   const handleRequestCloseEdit = React.useCallback(() => {
-    if (!isEditOpenRef.current) {
+    if (!isEditOpenRef.current || isSavingEditRef.current) {
       return;
     }
     if (isEditDirty) {
@@ -920,634 +585,109 @@ function LinkDetailView({
     }
   }, [deleteLinkMutation, detail.id, onDeleted, queryClient]);
 
-  const handleMemoEditStart = React.useCallback(() => {
-    setMemoDraft(detail.memo ?? "");
-    setIsMemoEditing(true);
-  }, [detail.memo]);
-
-  const handleMemoEditCancel = React.useCallback(() => {
-    setMemoDraft(detail.memo ?? "");
-    setIsMemoEditing(false);
-  }, [detail.memo]);
-
-  const handleMemoConfirm = React.useCallback(async () => {
-    try {
-      const response = await updateLinkMutation.mutateAsync(
-        buildUpdateLinkPayload(detail, {
-          memo: memoDraft.trim() ? memoDraft.trim() : null,
-        }),
-      );
-
-      handleDetailUpdated(response);
-      setMemoDraft(response.data.memo ?? "");
-      setIsMemoEditing(false);
-    } catch (error: unknown) {
-      reportError(error, {
-        area: "link-detail-view:update-memo",
-        extra: { linkId: detail.id },
-      });
-    }
-  }, [detail, handleDetailUpdated, memoDraft, updateLinkMutation]);
-
-  const handleTodoEditorOpen = React.useCallback(() => {
-    setTodoDrafts(buildTodoDrafts(todos));
-    setTodoEditorError(null);
-    setIsTodoEditorOpen(true);
-  }, [todos]);
-
-  const handleTodoEditorClose = React.useCallback(() => {
-    if (isTodoMutationPending) {
+  const handleBack = React.useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
       return;
     }
+    router.replace("/home" as Href);
+  }, [router]);
 
-    setIsTodoEditorOpen(false);
-    setTodoDrafts(buildTodoDrafts(todos));
-    setTodoEditorError(null);
-  }, [isTodoMutationPending, todos]);
-
-  const handleAddTodoDraft = React.useCallback(() => {
-    setTodoDrafts((currentDrafts) => [
-      ...currentDrafts,
-      createEmptyTodoDraft(currentDrafts.length),
-    ]);
-  }, []);
-
-  const handleTodoDraftTitleChange = React.useCallback(
-    (todoId: number | string, nextTitle: string) => {
-      setTodoDrafts((currentDrafts) =>
-        currentDrafts.map((todo) => (todo.id === todoId ? { ...todo, title: nextTitle } : todo)),
-      );
-    },
-    [],
+  const isPanel = mode === "panel";
+  const toolbar = (
+    <LinkDetailToolbar
+      isCopyPending={copyLinkMutation.isPending}
+      isEditing={isEditingActions}
+      isFavorite={detail.isFavorite}
+      isMyOwnLink={isMyOwnLink}
+      mode={mode}
+      refreshFailed={hasRefreshFailed}
+      refreshing={isRefreshing}
+      onClose={onClose}
+      onCopy={handleOpenCopyFolder}
+      onEdit={openEditSheet}
+      onRefresh={handleRefresh}
+      onShare={handleShare}
+      onToggleFavorite={handleToggleFavorite}
+    />
   );
 
-  const handleTodoDraftModeChange = React.useCallback(
-    (todoId: number | string, nextMode: TodoDraftEditorItem["mode"]) => {
-      setTodoDrafts((currentDrafts) =>
-        currentDrafts.map((todo) =>
-          todo.id === todoId ? { ...todo, mode: nextMode, validationError: null } : todo,
-        ),
-      );
-    },
-    [],
-  );
-
-  const handleTodoDraftWeekdaysChange = React.useCallback(
-    (todoId: number | string, nextWeekdays: WeekdayValue[]) => {
-      setTodoDrafts((currentDrafts) =>
-        currentDrafts.map((todo) =>
-          todo.id === todoId ? { ...todo, selectedWeekdays: nextWeekdays } : todo,
-        ),
-      );
-    },
-    [],
-  );
-
-  const handleTodoDraftRemove = React.useCallback((todoId: number | string) => {
-    setTodoDrafts((currentDrafts) => currentDrafts.filter((todo) => todo.id !== todoId));
-  }, []);
-
-  const handleTodoDraftDateChange = React.useCallback(
-    (todoId: number | string, nextDate: DateValue) => {
-      setTodoDrafts((currentDrafts) =>
-        currentDrafts.map((todo) =>
-          todo.id === todoId ? { ...todo, date: nextDate, validationError: null } : todo,
-        ),
-      );
-    },
-    [],
-  );
-
-  const handleTodoDraftTimeChange = React.useCallback(
-    (todoId: number | string, nextTime: TimeValue) => {
-      setTodoDrafts((currentDrafts) =>
-        currentDrafts.map((todo) =>
-          todo.id === todoId ? { ...todo, time: nextTime, validationError: null } : todo,
-        ),
-      );
-    },
-    [],
-  );
-
-  const handleTodoSave = React.useCallback(async () => {
-    if (hasInvalidTodoDraft) {
-      setTodoEditorError("액션 제목을 모두 입력해주세요.");
-      return;
-    }
-
-    // Schedule validation: any todo with title that's in time/recurring mode must
-    // have date + time (and recurring needs at least one weekday), and a one-time
-    // reminder must be ahead of now — every action is sent again on save, and the
-    // server refuses a past one on update too. A past time is explained under its
-    // action only.
-    const checkedDrafts = validateTodoDrafts(todoDrafts);
-    if (checkedDrafts.hasError) {
-      setTodoDrafts(checkedDrafts.todos);
-      const hasMissingSchedule = checkedDrafts.todos.some(
-        (draft) => draft.validationError != null && draft.validationError !== PAST_REMINDER_ERROR,
-      );
-      setTodoEditorError(hasMissingSchedule ? "필수 항목을 입력해주세요." : null);
-      return;
-    }
-
-    setTodoEditorError(null);
-
-    const originalTodosById = new Map(todos.map((todo) => [String(todo.id), todo]));
-    const removedTodoIds = todos
-      .filter((todo) => !todoDrafts.some((draft) => String(draft.id) === String(todo.id)))
-      .map((todo) => todo.id);
-
-    try {
-      for (const todoId of removedTodoIds) {
-        await deleteTodoMutation.mutateAsync(todoId);
-      }
-
-      for (const draft of todoDrafts) {
-        const trimmedTitle = draft.title.trim();
-        const originalTodo = originalTodosById.get(String(draft.id));
-        const schedule = buildScheduleApiFields(draft);
-
-        if (originalTodo) {
-          await updateTodoMutation.mutateAsync({
-            payload: {
-              linkId: detail.id,
-              title: trimmedTitle,
-              ...schedule,
-            },
-            todoId: draft.id,
-          });
-          continue;
-        }
-
-        await createTodoMutation.mutateAsync({
-          linkId: detail.id,
-          title: trimmedTitle,
-          ...schedule,
-        });
-      }
-
-      await refreshDetail();
-      setIsTodoEditorOpen(false);
-    } catch (error: unknown) {
-      setTodoEditorError("액션 저장에 실패했습니다. 서버 응답을 확인해주세요.");
-      reportError(error, {
-        area: "link-detail-view:save-todos",
-        extra: { linkId: detail.id },
-      });
-    } finally {
-      // Some todos may have changed even when a later request failed.
-      invalidateLinkLists();
-    }
-  }, [
-    createTodoMutation,
-    deleteTodoMutation,
-    detail.id,
-    todos,
-    hasInvalidTodoDraft,
-    invalidateLinkLists,
-    refreshDetail,
-    todoDrafts,
-    updateTodoMutation,
-  ]);
-
-  const tagRows = tags.map((tag) => (
-    <Pressable
-      key={tag}
-      className="relative z-40"
-      delayLongPress={300}
-      hitSlop={8}
-      onLongPress={() => setIsTagEditMode(true)}
+  const body = (
+    <ScrollView
+      // iOS: the keyboard insets the scroll area, so the action editor's 저장 can be
+      // scrolled above it while a title is being typed.
+      automaticallyAdjustKeyboardInsets
+      className={cn("flex-1", isPanel ? "bg-surface" : "bg-background")}
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      testID="link-detail"
     >
-      <Badge
-        className="px-3 py-1"
-        variant="tag"
-      >
-        {pendingTagName === tag ? (
-          <ActivityIndicator size="small" />
-        ) : (
-          <Text>{formatTagLabel(tag)}</Text>
+      <View
+        className={cn(
+          isPanel
+            ? "gap-4 px-5 pb-8 pt-2"
+            : "w-full max-w-[600px] gap-3.5 self-center px-4 pb-10 pt-3",
         )}
-      </Badge>
-      {isTagEditMode && pendingTagName !== tag ? (
-        <Pressable
-          className="absolute -right-2 -top-2 size-5 items-center justify-center rounded-full bg-foreground"
-          onPress={() => handleTagRemove(tag)}
+      >
+        {isPanel ? toolbar : null}
+        <LinkDetailHead
+          faviconUrl={detail.faviconUrl}
+          isVideo={detail.isVideo}
+          mode={mode}
+          status={detail.status}
+          thumbnailUrl={detail.thumbnailUrl}
+          title={detail.title}
+          url={detail.url}
+          workModel={detail.workModel}
+        />
+        <LinkDetailAiSurface
+          excerpt={detail.content?.excerpt ?? null}
+          status={detail.status}
+          summary={detail.summary}
+          url={detail.url}
+          workModel={detail.workModel}
+        />
+        <LinkDetailMyNotes
+          key={detail.id}
+          folderEmoji={detail.folderEmoji}
+          folderName={detail.folderName}
+          isEditingActions={isEditingActions}
+          linkId={detail.id}
+          memo={detail.memo}
+          tags={tags}
+          onOpenFolderMove={handleOpenFolderMove}
+          onUpdateLink={handleUpdateNotes}
         >
-          <Icon
-            as={X}
-            size={12}
-            className="text-background"
+          <LinkDetailActionsSection
+            key={detail.id}
+            linkId={detail.id}
+            mode={mode}
+            todos={todos}
+            onEditingChange={setIsEditingActions}
           />
-        </Pressable>
-      ) : null}
-    </Pressable>
-  ));
-
-  const memoAction = isMemoEditing ? (
-    <View className="flex-row items-center gap-2">
-      <Button
-        className="h-8 rounded-xl px-3"
-        disabled={updateLinkMutation.isPending}
-        size="sm"
-        variant="outline"
-        onPress={handleMemoEditCancel}
-      >
-        <Text>취소</Text>
-      </Button>
-      <Button
-        className="h-8 rounded-xl px-3"
-        disabled={updateLinkMutation.isPending}
-        size="sm"
-        onPress={handleMemoConfirm}
-      >
-        <Text>{updateLinkMutation.isPending ? "저장 중..." : "확인"}</Text>
-      </Button>
-    </View>
-  ) : (
-    <Button
-      className="h-8 rounded-xl px-3"
-      size="sm"
-      variant="outline"
-      onPress={handleMemoEditStart}
-    >
-      <Icon
-        as={Pencil}
-        size={14}
-        className="text-foreground"
-      />
-      <Text>{detail.memo ? "메모 수정" : "메모 추가"}</Text>
-    </Button>
-  );
-
-  const overlayMode = mode === "panel" ? "wide" : "mobile";
-
-  const todoEditorContent = (
-    <View className="gap-4">
-      <TodoDraftListEditor
-        addLabel="액션 추가"
-        pickerMode={overlayMode}
-        todos={todoDrafts}
-        onAddTodo={handleAddTodoDraft}
-        onChangeTodoTitle={handleTodoDraftTitleChange}
-        onChangeTodoMode={handleTodoDraftModeChange}
-        onChangeTodoWeekdays={handleTodoDraftWeekdaysChange}
-        onChangeTodoDate={handleTodoDraftDateChange}
-        onChangeTodoTime={handleTodoDraftTimeChange}
-        onRemoveTodo={handleTodoDraftRemove}
-      />
-      {todoEditorError ? (
-        <Text className="text-sm font-medium text-destructive">{todoEditorError}</Text>
-      ) : null}
-      <View className="flex-row justify-end gap-3">
-        <Button
-          className="h-10"
-          disabled={isTodoMutationPending}
-          variant="outline"
-          onPress={handleTodoEditorClose}
-        >
-          <Text>취소</Text>
-        </Button>
-        <Button
-          className="h-10"
-          disabled={isTodoMutationPending || hasInvalidTodoDraft}
-          onPress={handleTodoSave}
-        >
-          <Text>{isTodoMutationPending ? "저장 중..." : "저장"}</Text>
-        </Button>
+        </LinkDetailMyNotes>
+        <View className="mt-1 border-t border-border-soft pt-3">
+          <DeleteLinkButton onPress={() => setIsDeleteDialogOpen(true)} />
+        </View>
       </View>
-    </View>
+    </ScrollView>
   );
 
   return (
     <>
-      <ScrollView
-        className="flex-1 bg-background"
-        contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}
-        testID="link-detail"
-      >
-        <View
-          className={cn("relative gap-5", mode === "panel" ? "px-5 pb-8 pt-4" : "px-4 pb-10 pt-3")}
-        >
-          {isTagEditMode && !isTagInputVisible ? (
-            <Pressable
-              className="absolute inset-0 z-20"
-              onPress={() => setIsTagEditMode(false)}
-            />
-          ) : null}
-
-          <View className="flex-row items-center gap-2">
-            <Text
-              className="min-w-0 flex-1 text-[11px] text-muted-foreground"
-              numberOfLines={1}
-              testID="link-detail-url"
-            >
-              {detail.url}
-            </Text>
-            <RefreshButton
-              failed={hasRefreshFailed}
-              hitSlop={4}
-              refreshing={isRefreshing}
-              onPress={handleRefresh}
-            />
-            {mode === "panel" ? (
-              <IconButton
-                accessibilityLabel="닫기"
-                hitSlop={4}
-                icon={X}
-                size="sm"
-                testID="link-detail-close"
-                variant="ghost"
-                onPress={onClose}
-              />
-            ) : null}
-          </View>
-
-          <HoverLabel label="원본 열기">
-            <Pressable
-              accessibilityLabel="원본 열기"
-              accessibilityRole="link"
-              className={cn(
-                "overflow-hidden rounded-[14px] border border-border-soft",
-                "web:transition-colors web:hover:border-primary",
-              )}
-              testID="link-detail-image"
-              onPress={handleOpenOriginal}
-            >
-              <LinkThumbnail
-                className={mode === "panel" ? "max-h-[260px]" : undefined}
-                domain={domain}
-                fallback="domain"
-                faviconUrl={detail.faviconUrl}
-                fit="auto"
-                isVideo={detail.isVideo}
-                showHint
-                testID="link-detail-thumbnail"
-                thumbnailUrl={detail.thumbnailUrl}
-              />
-            </Pressable>
-          </HoverLabel>
-
-          <View className="-mt-1 gap-1.5">
-            <Text
-              className={cn(
-                "font-bold leading-snug text-foreground",
-                mode === "panel" ? "text-xl" : "text-lg",
-              )}
-              testID="link-detail-title"
-            >
-              {detail.title}
-            </Text>
-            {linkStatusMeta.label ? (
-              <Text
-                className={cn(
-                  "text-[11px] font-semibold",
-                  linkStatusMeta.variant === "progress" && "text-primary",
-                  linkStatusMeta.variant === "error" && "text-destructive",
-                  linkStatusMeta.variant === "success" && "text-muted-foreground",
-                )}
-              >
-                {linkStatusMeta.label}
-              </Text>
-            ) : null}
-          </View>
-
-          <View
-            className="flex-row items-center gap-1.5"
-            testID="link-detail-actions"
-          >
-            <HoverLabel
-              label="폴더 이동"
-              shrink
-            >
-              <Pressable
-                accessibilityLabel={`폴더 이동, 현재 ${folderLabel}`}
-                accessibilityRole="button"
-                className={cn(
-                  "h-10 min-w-0 max-w-[180px] flex-row items-center gap-1.5 rounded-xl border border-border bg-card px-3",
-                  "active:border-primary web:transition-colors web:hover:border-primary",
-                )}
-                // Inline so it wins over react-native-web's default `flex-shrink: 0`: a long
-                // folder name shrinks the chip and the buttons stay on one line.
-                style={{ flexShrink: 1 }}
-                testID="link-detail-folder"
-                onPress={handleOpenFolderMove}
-              >
-                <Text
-                  className="min-w-0 shrink text-[13px] font-semibold text-foreground"
-                  numberOfLines={1}
-                >
-                  {folderLabel}
-                </Text>
-              </Pressable>
-            </HoverLabel>
-            <DetailActionButton
-              active={detail.isFavorite}
-              icon={Star}
-              label={detail.isFavorite ? "바로가기 해제" : "바로가기 추가"}
-              testID="link-detail-favorite"
-              onPress={handleToggleFavorite}
-            />
-            <DetailActionButton
-              icon={Share2}
-              label="공유"
-              testID="link-detail-share"
-              onPress={handleShare}
-            />
-            {isMyOwnLink ? (
-              <DetailActionButton
-                icon={Pencil}
-                label="수정하기"
-                testID="link-detail-edit"
-                onPress={openEditSheet}
-              />
-            ) : (
-              <DetailActionButton
-                disabled={copyLinkMutation.isPending}
-                icon={FolderPlus}
-                label="개인 폴더로 추가"
-                testID="link-detail-copy"
-                onPress={handleOpenCopyFolder}
-              />
-            )}
-            <View className="min-w-0 flex-1" />
-            <DetailActionButton
-              icon={Trash2}
-              label="링크 삭제"
-              testID="link-detail-delete"
-              tone="destructive"
-              onPress={() => setIsDeleteDialogOpen(true)}
-            />
-          </View>
-
-          <DetailSection
-            title="한 줄 요약"
-            testID="link-detail-summary"
-            action={
-              summaryModelLabel ? (
-                <Text
-                  className="text-[11px] font-medium text-muted-foreground"
-                  numberOfLines={1}
-                >
-                  {summaryModelLabel}
-                </Text>
-              ) : null
-            }
-          >
-            {detail.summary ? (
-              <Text className="text-[13px] leading-5 text-foreground">{detail.summary}</Text>
-            ) : (
-              <DetailPlaceholder label="요약이 아직 없어요" />
-            )}
-          </DetailSection>
-
-          {excerpt ? (
-            <DetailExcerpt
-              excerpt={excerpt}
-              url={detail.url}
-            />
-          ) : null}
-
-          <View
-            className="relative z-30 gap-2.5"
-            testID="link-detail-tags"
-          >
-            <View className="relative z-40 min-h-8 flex-row items-center gap-1">
-              <Text className="text-xs font-semibold text-muted-foreground">태그</Text>
-              <IconButton
-                accessibilityLabel="태그 편집"
-                className="size-7"
-                icon={Ellipsis}
-                size="sm"
-                variant="ghost"
-                hitSlop={8}
-                onPress={() => setIsTagEditMode(true)}
-              />
-            </View>
-            <View className="relative z-40 flex-row flex-wrap items-center gap-2">
-              {tagRows}
-              {pendingTagName && !tags.includes(pendingTagName) ? (
-                <Badge
-                  className="px-3 py-1"
-                  variant="tag"
-                >
-                  <ActivityIndicator size="small" />
-                </Badge>
-              ) : null}
-              {isTagInputVisible ? (
-                <View className="relative z-50 min-w-28 flex-row items-center gap-2 rounded-[10px] border border-border bg-surface-elevated px-3 py-1">
-                  <Text className="text-xs font-medium text-muted-foreground">#</Text>
-                  <Input
-                    autoFocus
-                    className="h-7 min-w-16 flex-1 border-0 bg-transparent px-0 py-0 text-sm"
-                    value={tagDraft}
-                    placeholder="태그"
-                    onBlur={handleTagCreateBlur}
-                    onChangeText={setTagDraft}
-                  />
-                </View>
-              ) : (
-                <Button
-                  className="relative z-50 h-8 self-auto rounded-xl px-3"
-                  size="sm"
-                  variant="outline"
-                  onPress={handleShowTagInput}
-                >
-                  <Text>+ 태그 추가</Text>
-                </Button>
-              )}
-            </View>
-          </View>
-
-          <DetailSection
-            title="메모"
-            action={memoAction}
-            testID="link-detail-memo"
-          >
-            {isMemoEditing ? (
-              <Textarea
-                ref={memoInputRef}
-                className="min-h-28 rounded-[14px] border-border bg-card px-4 py-4 text-base"
-                value={memoDraft}
-                placeholder="메모를 입력해주세요"
-                variant="memo"
-                onChangeText={setMemoDraft}
-              />
-            ) : detail.memo ? (
-              <View className="rounded-[14px] border border-border bg-card px-4 py-3.5">
-                <Text className="text-[13px] leading-5 text-foreground">{detail.memo}</Text>
-              </View>
-            ) : (
-              <DetailPlaceholder label="메모가 아직 없어요" />
-            )}
-          </DetailSection>
-
-          <DetailSection
-            title={`액션 ${dueTodos.length}개`}
-            testID="link-detail-todos"
-          >
-            <View className="gap-3">
-              {todos.length ? (
-                <View
-                  className="w-full flex-row flex-wrap"
-                  style={{ gap: TODO_GRID_GAP }}
-                  testID="link-detail-todo-grid"
-                  onLayout={todoGrid.onLayout}
-                >
-                  {todos.map((todo) => {
-                    const done = getTodoDone(todo);
-                    const reminderAt = todo.reminderAt ?? todo.dueAt ?? null;
-                    const reminderMs = reminderAt ? new Date(reminderAt).getTime() : Number.NaN;
-                    const overdue = !done && !Number.isNaN(reminderMs) && reminderMs < Date.now();
-                    const reminderLabel = formatReminderLabel(reminderAt, {
-                      withOverdueSuffix: overdue,
-                    });
-
-                    return (
-                      <View
-                        key={todo.id}
-                        style={todoGrid.itemStyle}
-                      >
-                        <TodoItem
-                          className="grow"
-                          variant="display"
-                          text={getTodoTitle(todo)}
-                          done={done}
-                          overdue={overdue}
-                          reminderLabel={reminderLabel}
-                          linkUrl={detail.url}
-                          linkTitle={detail.title}
-                          linkThumbnailUrl={detail.thumbnailUrl}
-                          linkFaviconUrl={detail.faviconUrl}
-                          onToggle={(nextChecked) =>
-                            handleTodoCompletedChange(todo.id, nextChecked)
-                          }
-                        />
-                      </View>
-                    );
-                  })}
-                </View>
-              ) : (
-                <View className="items-center rounded-[14px] border border-dashed border-border px-4 py-3.5">
-                  <Text className="text-xs font-medium text-muted-foreground">
-                    아직 연결된 액션이 없어요
-                  </Text>
-                </View>
-              )}
-              <Pressable
-                accessibilityRole="button"
-                className="items-center rounded-[14px] border border-dashed border-border px-4 py-3.5 web:transition-colors web:hover:border-primary"
-                testID="link-detail-todo-edit"
-                onPress={handleTodoEditorOpen}
-              >
-                <Text className="text-[13px] font-semibold text-muted-foreground">
-                  + 액션 추가 / 수정
-                </Text>
-              </Pressable>
-            </View>
-          </DetailSection>
+      {isPanel ? (
+        body
+      ) : (
+        <View className="flex-1 bg-background">
+          <AppHeader
+            back
+            rightSlot={toolbar}
+            onBack={handleBack}
+          />
+          {body}
         </View>
-      </ScrollView>
+      )}
 
       <FolderPickerDialog
         confirmLabel="확인"
@@ -1557,7 +697,7 @@ function LinkDetailView({
         noneOption={UNCATEGORIZED_PICKER_OPTION}
         open={isFolderMoveOpen}
         pendingLabel="옮기는 중"
-        presentation={mode === "panel" ? "dialog" : "sheet"}
+        presentation={isPanel ? "dialog" : "sheet"}
         title="폴더 이동"
         onConfirm={handleFolderMoveConfirm}
         onOpenChange={setIsFolderMoveOpen}
@@ -1570,61 +710,12 @@ function LinkDetailView({
         noneOption={null}
         open={isCopyFolderOpen}
         pendingLabel="추가하는 중"
-        presentation={mode === "panel" ? "dialog" : "sheet"}
+        presentation={isPanel ? "dialog" : "sheet"}
         title="개인 폴더로 추가"
         visibleSections={PERSONAL_FOLDER_SECTIONS}
         onConfirm={handleCopyToPersonalConfirm}
         onOpenChange={setIsCopyFolderOpen}
       />
-
-      {mode === "panel" ? (
-        <Dialog
-          open={isTodoEditorOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              handleTodoEditorClose();
-            } else {
-              setIsTodoEditorOpen(true);
-            }
-          }}
-        >
-          <DialogContent className="max-h-[80vh] max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>액션 추가 / 수정</DialogTitle>
-              <DialogDescription>
-                각 액션에 시간 또는 반복 알림을 설정할 수 있어요.
-              </DialogDescription>
-            </DialogHeader>
-            <ScrollView
-              className="flex-1"
-              contentInsetAdjustmentBehavior="automatic"
-              showsVerticalScrollIndicator={false}
-            >
-              {todoEditorContent}
-            </ScrollView>
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <Sheet
-          open={isTodoEditorOpen}
-          fitContent
-          onOpenChange={(open) => {
-            if (!open) {
-              handleTodoEditorClose();
-            } else {
-              setIsTodoEditorOpen(true);
-            }
-          }}
-        >
-          <View className="gap-2">
-            <Text className="text-lg font-semibold text-foreground">액션 추가 / 수정</Text>
-            <Text className="text-sm leading-6 text-muted-foreground">
-              각 액션에 시간 또는 반복 알림을 설정할 수 있어요.
-            </Text>
-          </View>
-          {todoEditorContent}
-        </Sheet>
-      )}
 
       <AlertDialog
         open={isDeleteDialogOpen}
@@ -1654,7 +745,7 @@ function LinkDetailView({
         </AlertDialogContent>
       </AlertDialog>
 
-      {mode === "panel" ? (
+      {isPanel ? (
         <Dialog
           open={isEditOpen}
           onOpenChange={(next) => (next ? setEditSheetOpen(true) : handleRequestCloseEdit())}
@@ -1667,7 +758,7 @@ function LinkDetailView({
             <LinkEditFields
               title={titleDraft}
               summary={summaryDraft}
-              saving={updateLinkMutation.isPending}
+              saving={isSavingEdit}
               canSave={isEditDirty}
               onChangeTitle={setTitleDraft}
               onChangeSummary={setSummaryDraft}
@@ -1687,7 +778,7 @@ function LinkDetailView({
             <LinkEditFields
               title={titleDraft}
               summary={summaryDraft}
-              saving={updateLinkMutation.isPending}
+              saving={isSavingEdit}
               canSave={isEditDirty}
               onChangeTitle={setTitleDraft}
               onChangeSummary={setSummaryDraft}
@@ -1710,16 +801,16 @@ function LinkDetailView({
           <AlertDialogFooter className="flex-row justify-end gap-2">
             <Button
               variant="outline"
-              disabled={updateLinkMutation.isPending}
+              disabled={isSavingEdit}
               onPress={handleDiscardEdit}
             >
               <Text>저장 안 함</Text>
             </Button>
             <Button
-              disabled={updateLinkMutation.isPending}
+              disabled={isSavingEdit}
               onPress={handleSaveEdit}
             >
-              {updateLinkMutation.isPending ? <ActivityIndicator /> : <Text>저장</Text>}
+              {isSavingEdit ? <ActivityIndicator /> : <Text>저장</Text>}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

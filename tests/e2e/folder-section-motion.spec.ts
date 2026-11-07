@@ -111,14 +111,14 @@ const SHEETS: Record<string, (page: Page) => Promise<void>> = {
   "move sheet": async (page) => {
     await page.goto("/links/1");
     await expect(page.getByTestId("link-detail-title")).toBeVisible();
-    await page.getByRole("button", { name: /^폴더 이동, 현재/ }).click();
+    await page.getByTestId("link-detail-folder-move").click();
     await expect(page.getByRole("button", { name: "확인", exact: true })).toBeVisible();
   },
   "new link sheet folder step": async (page) => {
     await page.goto("/home");
     await page.getByLabel("새 링크").click();
-    await page.getByRole("button", { name: "변경" }).first().click();
-    await expect(page.getByRole("radio", { name: "없음 - ✨ AI 자동 분류" })).toBeVisible();
+    await page.getByRole("button", { name: /^폴더, / }).click();
+    await expect(page.getByRole("radio", { name: "없음", exact: true })).toBeVisible();
   },
 };
 
@@ -383,7 +383,7 @@ test.describe("wide", () => {
     await prepare(page, "picker", "shared");
     await page.goto("/links?linkId=1");
     await expect(page.getByTestId("link-detail-title")).toBeVisible();
-    await page.getByRole("button", { name: /^폴더 이동, 현재/ }).click();
+    await page.getByTestId("link-detail-folder-move").click();
     const dialog = page.getByRole("dialog", { name: "폴더 이동" });
     const confirm = dialog.getByRole("button", { name: "확인", exact: true });
     await expect(confirm).toBeVisible();
@@ -407,7 +407,7 @@ test.describe("wide", () => {
     await page.getByText("새 링크", { exact: true }).first().click();
     await page.getByRole("button", { name: /^폴더, / }).click();
     await expect(
-      page.getByRole("dialog").last().getByRole("radio", { name: "없음 - ✨ AI 자동 분류" }),
+      page.getByRole("dialog").last().getByRole("radio", { name: "없음", exact: true }),
     ).toBeVisible();
     await ready(page, "shared", '[role="dialog"]');
 

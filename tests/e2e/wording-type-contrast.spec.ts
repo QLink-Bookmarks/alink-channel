@@ -385,12 +385,18 @@ test.describe("the todo feature is called 액션", () => {
 
     await page.goto(isWideProject() ? "/links?linkId=1" : "/links/1");
     await expect(page.getByTestId("link-detail-title")).toBeVisible();
-    await expect(page.getByText("액션 3개")).toBeVisible();
-    await expect(page.getByRole("button", { name: "+ 액션 추가 / 수정" })).toBeVisible();
+    await expect(
+      page.getByTestId("link-detail-todos").getByText("액션", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("link-detail-todos").getByRole("button", { name: "액션 추가" }),
+    ).toBeVisible();
     expect(await visibleCopy(page)).not.toMatch(OLD_NAMES);
 
     await page.goto(isWideProject() ? "/links?linkId=2" : "/links/2");
-    await expect(page.getByText("아직 연결된 액션이 없어요")).toBeVisible();
+    await expect(
+      page.getByTestId("link-detail-todos").getByRole("button", { name: "액션 추가" }),
+    ).toBeVisible();
 
     await page.goto("/notifications");
     await expect(page.getByText("액션", { exact: true }).first()).toBeVisible();
@@ -401,7 +407,9 @@ test.describe("the todo feature is called 액션", () => {
     expect(await visibleCopy(page)).not.toMatch(OLD_NAMES);
   });
 
-  test("the action editor uses 액션 in its title, fields and failure message", async ({ page }) => {
+  test("the link detail's action editor uses 액션 in its fields and failure message", async ({
+    page,
+  }) => {
     await setup(page);
     await page.route(
       (url) => url.pathname.startsWith("/api/todos"),
@@ -411,23 +419,18 @@ test.describe("the todo feature is called 액션", () => {
           : route.fulfill({ status: 500, contentType: "application/json", body: "{}" }),
     );
     await page.goto(isWideProject() ? "/links?linkId=2" : "/links/2");
-    await page.getByRole("button", { name: "+ 액션 추가 / 수정" }).click();
-    await expect(page.getByText("액션 추가 / 수정").first()).toBeVisible();
-    await expect(
-      page.getByText("각 액션에 시간 또는 반복 알림을 설정할 수 있어요.").first(),
-    ).toBeVisible();
-    await page.getByText("액션 추가", { exact: true }).last().click();
+    await page.getByTestId("link-detail-todos").getByRole("button", { name: "액션 추가" }).click();
     const field = page.getByPlaceholder("액션 제목").last();
     await expect(field).toBeVisible();
     expect(await visibleCopy(page)).not.toMatch(OLD_NAMES);
 
-    const save = page.getByRole("button", { name: "저장", exact: true }).filter({ visible: true });
-    await expect(save.last()).toBeDisabled();
+    const save = page.getByTestId("link-detail-todos-save");
+    await expect(save).toBeEnabled();
 
     await field.fill("마감 전에 제출");
-    await save.last().click();
+    await save.click();
     await expect(
-      page.getByText("액션 저장에 실패했습니다. 서버 응답을 확인해주세요."),
+      page.getByText("액션을 저장하지 못했어요. 잠시 후 다시 시도해주세요."),
     ).toBeVisible();
     await expect(field).toHaveValue("마감 전에 제출");
   });
@@ -592,7 +595,7 @@ test.describe("status colours meet AA", () => {
       await expectTheme(page, theme, accent);
 
       const sheet = page.getByRole("slider", { name: "Bottom Sheet" });
-      await page.getByRole("button", { name: "수정하기" }).click();
+      await page.getByRole("button", { name: "수정", exact: true }).click();
       await sheet.getByPlaceholder("링크 제목").fill("고친 제목");
       await sheet.getByRole("button", { name: "저장", exact: true }).click();
       const saved = page.getByText("수정했어요.").first();
@@ -607,7 +610,7 @@ test.describe("status colours meet AA", () => {
       await page.route("**/api/links/1", (route) =>
         route.request().method() === "PUT" ? route.abort("internetdisconnected") : route.fallback(),
       );
-      await page.getByRole("button", { name: "수정하기" }).click();
+      await page.getByRole("button", { name: "수정", exact: true }).click();
       await sheet.getByPlaceholder("링크 제목").fill("실패할 제목");
       await sheet.getByRole("button", { name: "저장", exact: true }).click();
       const failed = page.getByText("수정에 실패했어요.").first();
@@ -699,9 +702,9 @@ test.describe("dialog close button", () => {
     await expect(dialog).toHaveCount(0);
 
     // The folder dialog's emoji grid keeps growing under Tab, so the keyboard check uses
-    // the action editor, which has the same close button and few stops.
+    // the link edit dialog, which has the same close button and few stops.
     await page.goto("/links?linkId=2");
-    await page.getByRole("button", { name: "+ 액션 추가 / 수정" }).click();
+    await page.getByRole("button", { name: "수정", exact: true }).click();
     await expect(dialog).toBeVisible();
     const editorClose = dialog.getByRole("button", { name: "닫기", exact: true });
     let focused = false;

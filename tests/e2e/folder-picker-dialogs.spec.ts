@@ -32,7 +32,7 @@ const DARK_SETTINGS = {
 
 const MOVE_ERROR = "폴더를 옮기지 못했어요. 다시 시도해 주세요.";
 const ADD_ERROR = "폴더에 추가하지 못했어요. 다시 시도해 주세요.";
-const NONE_LABEL = "없음 - ✨ AI 자동 분류";
+const NONE_LABEL = "없음";
 const UNCATEGORIZED_LABEL = "미분류";
 const LONG_NAME =
   "2027 교토·오사카 여행 준비 체크리스트와 숙소 후보, 맛집 지도까지 모아 둔 아주 긴 이름의 폴더";
@@ -84,7 +84,7 @@ function windowScope(page: Page, title: string): Locator | Page {
 }
 
 async function openMoveWindow(page: Page) {
-  await page.getByRole("button", { name: /^폴더 이동, 현재/ }).click();
+  await page.getByTestId("link-detail-folder-move").click();
   const scope = windowScope(page, "폴더 이동");
   await expect(scope.getByRole("button", { name: "확인", exact: true })).toBeVisible();
   return scope;
@@ -103,12 +103,12 @@ async function openNewLinkPicker(page: Page) {
     await page.getByText("새 링크", { exact: true }).first().click();
     await page.getByRole("button", { name: /^폴더, / }).click();
     const scope = page.getByRole("dialog").last();
-    await expect(scope.getByRole("radio", { name: NONE_LABEL })).toBeVisible();
+    await expect(scope.getByRole("radio", { name: NONE_LABEL, exact: true })).toBeVisible();
     return scope;
   }
   await page.getByLabel("새 링크").click();
-  await page.getByRole("button", { name: "변경" }).first().click();
-  await expect(page.getByRole("radio", { name: NONE_LABEL })).toBeVisible();
+  await page.getByRole("button", { name: /^폴더, / }).click();
+  await expect(page.getByRole("radio", { name: NONE_LABEL, exact: true })).toBeVisible();
   return page;
 }
 
@@ -172,9 +172,9 @@ test.describe("new link folder picker", () => {
     const listBox = await boxOf(mine);
     const viewport = page.viewportSize()?.height ?? 0;
     expect(listBox.height).toBeLessThanOrEqual(isWideProject() ? 201 : viewport * 0.4 + 1);
-    const noneBefore = await boxOf(scope.getByRole("radio", { name: NONE_LABEL }));
+    const noneBefore = await boxOf(scope.getByRole("radio", { name: NONE_LABEL, exact: true }));
     await scrollUntilVisible(mine, radio(mine, 1));
-    const noneAfter = await boxOf(scope.getByRole("radio", { name: NONE_LABEL }));
+    const noneAfter = await boxOf(scope.getByRole("radio", { name: NONE_LABEL, exact: true }));
     expect(noneAfter.y).toBe(noneBefore.y);
     expect(noneAfter.y).toBeLessThan((await boxOf(toggle(scope, "내 폴더"))).y);
   });
@@ -187,12 +187,12 @@ test.describe("new link folder picker", () => {
     await radio(scope, 43).click();
     if (isWideProject()) {
       await expect(page.getByRole("button", { name: "폴더, 📁 폴더 43" })).toBeVisible();
-      await expect(page.getByRole("radio", { name: NONE_LABEL })).toHaveCount(0);
+      await expect(page.getByRole("radio", { name: NONE_LABEL, exact: true })).toHaveCount(0);
     } else {
       await expect(
         page.getByLabel("Bottom Sheet", { exact: true }).getByText("📁 폴더 43", { exact: true }),
       ).toBeVisible();
-      await expect(page.getByRole("radio", { name: NONE_LABEL })).toHaveCount(0);
+      await expect(page.getByRole("radio", { name: NONE_LABEL, exact: true })).toHaveCount(0);
     }
     expect(countRequests(state, "POST", /^\/api\/links$/)).toBe(0);
   });
@@ -212,7 +212,7 @@ test.describe("new link folder picker", () => {
     const created = scope.getByRole("radio", { name: "함께 갈 곳" });
     await expect(created).toBeVisible();
     await expect(created).not.toBeChecked();
-    await expect(scope.getByRole("radio", { name: NONE_LABEL })).toBeChecked();
+    await expect(scope.getByRole("radio", { name: NONE_LABEL, exact: true })).toBeChecked();
     await expect(toggle(scope, "공유 폴더")).toHaveAccessibleName("공유 폴더 접기");
 
     await scope.getByRole("button", { name: "내 폴더에 폴더 추가" }).click();
@@ -274,7 +274,7 @@ test.describe("move window in the link detail", () => {
     await expect(page.getByRole("button", { name: "옮기는 중" })).toHaveCount(0, {
       timeout: 10_000,
     });
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 43" })).toBeVisible();
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 43");
     expect(countRequests(state, "PATCH", /^\/api\/links\/1$/)).toBe(1);
 
     await page.goto("/folders/43");
@@ -300,7 +300,7 @@ test.describe("move window in the link detail", () => {
 
     state.linkMutations.failMove = false;
     await scope.getByRole("button", { name: "확인", exact: true }).click();
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 43" })).toBeVisible();
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 43");
     await expect(page.getByText(MOVE_ERROR)).toHaveCount(0);
   });
 
@@ -327,7 +327,7 @@ test.describe("move window in the link detail", () => {
         page.getByRole("button", { name: "확인", exact: true }),
         closer.name,
       ).toHaveCount(0);
-      await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 44" })).toBeVisible();
+      await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 44");
     }
     expect(countRequests(state, "PATCH", /^\/api\/links\/1$/)).toBe(0);
   });
@@ -347,7 +347,7 @@ test.describe("move window in the link detail", () => {
     await page.keyboard.press("Escape");
     await page.mouse.click(8, 8);
     await expect(pending).toBeVisible();
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 43" })).toBeVisible({
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 43", {
       timeout: 10_000,
     });
     await expect(page.getByRole("button", { name: "옮기는 중" })).toHaveCount(0);
@@ -359,7 +359,7 @@ test.describe("move window in the link detail", () => {
     const scope = await openMoveWindow(page);
     await radio(scope, 43).click();
     await scope.getByRole("button", { name: "확인", exact: true }).dblclick();
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 43" })).toBeVisible();
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 43");
     expect(countRequests(state, "PATCH", /^\/api\/links\/1$/)).toBe(1);
   });
 
@@ -371,7 +371,7 @@ test.describe("move window in the link detail", () => {
     const scope = await openMoveWindow(page);
     await radio(scope, 43).click();
     await scope.getByRole("button", { name: "확인", exact: true }).click();
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📁 폴더 43" })).toBeVisible();
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("📁 폴더 43");
     await expect(await folderCountLabel(page, 43)).toHaveAccessibleName("폴더 43, 링크 4개");
     await expect(await folderCountLabel(page, 44)).toHaveAccessibleName("폴더 44, 링크 3개");
   });
@@ -502,7 +502,7 @@ test.describe("move window in the link detail", () => {
 });
 
 test.describe("uncategorized row in the move window", () => {
-  test("shows 미분류 without the AI wording, moves the link out of its folder, and the new link form keeps the AI row", async ({
+  test("shows 미분류 without the AI wording, moves the link out of its folder, and the new link form keeps its 없음 row", async ({
     page,
   }) => {
     const state = await mockWithLink(page, linkIn(44));
@@ -512,11 +512,11 @@ test.describe("uncategorized row in the move window", () => {
       scope.getByRole("radio", { name: UNCATEGORIZED_LABEL, exact: true }),
     ).toBeVisible();
     await expect(scope.getByText(/AI 자동 분류/)).toHaveCount(0);
-    await expect(scope.getByRole("radio", { name: NONE_LABEL })).toHaveCount(0);
+    await expect(scope.getByRole("radio", { name: NONE_LABEL, exact: true })).toHaveCount(0);
 
     await scope.getByRole("radio", { name: UNCATEGORIZED_LABEL, exact: true }).click();
     await scope.getByRole("button", { name: "확인", exact: true }).click();
-    await expect(page.getByRole("button", { name: "폴더 이동, 현재 📭 폴더 없음" })).toBeVisible();
+    await expect(page.getByTestId("link-detail-folder-name")).toHaveText("폴더 없음");
     expect(state.requests.find((r) => r.method === "PATCH")?.body).toEqual({ folderId: 0 });
     expect(state.links[0].folderId).toBeNull();
 
@@ -528,7 +528,7 @@ test.describe("uncategorized row in the move window", () => {
     await expect(await folderCountLabel(page, 44)).toHaveAccessibleName("폴더 44, 링크 3개");
 
     const picker = await openNewLinkPicker(page);
-    await expect(picker.getByRole("radio", { name: NONE_LABEL })).toBeVisible();
+    await expect(picker.getByRole("radio", { name: NONE_LABEL, exact: true })).toBeVisible();
     await expect(picker.getByRole("radio", { name: UNCATEGORIZED_LABEL, exact: true })).toHaveCount(
       0,
     );
@@ -596,7 +596,7 @@ test.describe("add to a personal folder", () => {
     const scope = await openAddWindow(page);
     await expect(toggle(scope, "내 폴더")).toBeVisible();
     await expect(toggle(scope, "공유 폴더")).toHaveCount(0);
-    await expect(scope.getByRole("radio", { name: NONE_LABEL })).toHaveCount(0);
+    await expect(scope.getByRole("radio", { name: NONE_LABEL, exact: true })).toHaveCount(0);
     await expect(scope.getByRole("button", { name: "추가", exact: true })).toBeDisabled();
     await expect(radio(scope, 42)).toHaveCount(0);
     await radio(scope, 44).click();
@@ -832,7 +832,7 @@ test("pressing the oldest folder of more than 40 opens its detail instead of not
 });
 
 test.describe("window fit, width and marks (#27)", () => {
-  test("in a low window the new link folder popover stays 16px inside the screen and only the folder list shrinks", async ({
+  test("in a low window the new link folder popover stays 16px inside the screen without covering its button", async ({
     page,
   }) => {
     test.skip(!isWideProject(), "wide popover");
@@ -843,16 +843,21 @@ test.describe("window fit, width and marks (#27)", () => {
       await settle(page);
       const popover = await boxOf(scope as Locator);
       const trigger = await boxOf(page.getByRole("button", { name: /^폴더, / }));
-      expect(popover.y).toBeGreaterThanOrEqual(trigger.y + trigger.height);
+      // #74 moved the folder field lower in the form, so a low window opens it upward.
+      const opensBelow = popover.y >= trigger.y + trigger.height;
+      expect(opensBelow || popover.y + popover.height <= trigger.y).toBe(true);
+      expect(popover.y).toBeGreaterThanOrEqual(0);
       expect(popover.y + popover.height).toBeLessThanOrEqual(height - 16 + 1);
-      await expect(scope.getByRole("radio", { name: NONE_LABEL })).toBeInViewport({ ratio: 1 });
+      await expect(scope.getByRole("radio", { name: NONE_LABEL, exact: true })).toBeInViewport({
+        ratio: 1,
+      });
       await expect(toggle(scope, "내 폴더")).toBeInViewport({ ratio: 1 });
       await expect(toggle(scope, "공유 폴더")).toBeInViewport({ ratio: 1 });
       const mine = sectionList(scope, "내 폴더");
       expect(await mine.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
       const listHeight = (await boxOf(mine)).height;
       expect(listHeight).toBeLessThanOrEqual(200);
-      if (height === 520) {
+      if (height === 520 && opensBelow) {
         expect(popover.y + popover.height).toBeGreaterThanOrEqual(height - 16 - 1);
         expect(listHeight).toBeLessThan(200);
       }
@@ -880,8 +885,8 @@ test.describe("window fit, width and marks (#27)", () => {
     await page.goto("/home");
     await page.getByLabel("새 링크").click();
     const sheet = page.getByLabel("Bottom Sheet", { exact: true });
-    await expect(sheet.getByText("없음 - ✨ AI 자동 분류", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "변경" }).first().click();
+    await expect(sheet.getByRole("button", { name: "폴더, 없음" })).toBeVisible();
+    await page.getByRole("button", { name: /^폴더, / }).click();
     await radio(page, 43).click();
     await expect(sheet.getByText("📁 폴더 43", { exact: true })).toBeVisible();
     await expect(sheet.getByText(/✨/)).toHaveCount(0);
@@ -936,9 +941,7 @@ test.describe("window fit, width and marks (#27)", () => {
     expect(Math.round((await boxOf(scope)).width)).toBe(420);
   });
 
-  test("the chosen row shows a check mark instead of the sparkle, and the none row keeps its AI wording", async ({
-    page,
-  }) => {
+  test("the chosen row shows a check mark, and the none row reads 없음", async ({ page }) => {
     await mockWithLink(page, linkIn(44));
     await openDetail(page);
     const move = await openMoveWindow(page);
@@ -948,7 +951,7 @@ test.describe("window fit, width and marks (#27)", () => {
     await move.getByRole("button", { name: "취소", exact: true }).click();
 
     const picker = await openNewLinkPicker(page);
-    const none = picker.getByRole("radio", { name: NONE_LABEL });
+    const none = picker.getByRole("radio", { name: NONE_LABEL, exact: true });
     await expect(none).toBeChecked();
     await expect(picker.getByTestId("folder-picker-selected-mark")).toHaveCount(1);
     await expect(none.getByTestId("folder-picker-selected-mark")).toBeVisible();
@@ -989,7 +992,7 @@ test.describe("window fit, width and marks (#27)", () => {
     await expect(moved).toHaveCount(0, { timeout: 1000 });
   });
 
-  test("with a mouse in a narrow window, pressing the folder chip hides its hover name as the sheet opens", async ({
+  test("with a mouse in a narrow window, pressing the folder row's pencil opens the sheet without a hover name", async ({
     browser,
   }) => {
     test.skip(isWideProject(), "narrow window");
@@ -1001,10 +1004,9 @@ test.describe("window fit, width and marks (#27)", () => {
       const page = await context.newPage();
       await mockWithLink(page, linkIn(44));
       await openDetail(page);
-      const chip = page.getByTestId("link-detail-folder");
-      await chip.hover();
-      await expect(page.getByRole("tooltip")).toHaveCount(1);
-      await chip.click();
+      const pencil = page.getByTestId("link-detail-folder-move");
+      await pencil.hover();
+      await pencil.click();
       await expect(page.getByRole("button", { name: "확인", exact: true })).toBeVisible();
       await page.waitForTimeout(400);
       expect(await page.getByRole("tooltip").count()).toBe(0);
@@ -1047,17 +1049,18 @@ test.describe("design critique follow-ups (#27)", () => {
     expect(frames[0].height).toBe(Math.min(640, Math.round(800 * 0.8)));
   });
 
-  test("the none row shows the sparkle once, and the wide form button uses the same wording", async ({
+  test("the none row reads 없음 without the sparkle, like the wide form button", async ({
     page,
   }) => {
     await mockApi(page, { folders: makeFolders(12, 3) });
     const picker = await openNewLinkPicker(page);
-    const none = picker.getByRole("radio", { name: NONE_LABEL });
+    const none = picker.getByRole("radio", { name: NONE_LABEL, exact: true });
     await expect(none).toBeVisible();
-    expect((await none.innerText()).match(/✨/g)).toHaveLength(1);
+    expect((await none.innerText()).trim()).toBe(NONE_LABEL);
+    await expect(picker.getByText(/✨|AI 자동 분류/)).toHaveCount(0);
     if (isWideProject()) {
       await page.keyboard.press("Escape");
-      await expect(page.getByRole("button", { name: `폴더, ${NONE_LABEL}` })).toBeVisible();
+      await expect(page.getByRole("button", { name: "폴더, 없음" })).toBeVisible();
     }
   });
 
@@ -1169,7 +1172,7 @@ test.describe("folder picker rows look like the sidebar (#27)", () => {
     const frame = isWideProject()
       ? (picker as Locator)
       : page.getByLabel("Bottom Sheet", { exact: true });
-    await expectListRows(frame, picker.getByRole("radio", { name: NONE_LABEL }), [
+    await expectListRows(frame, picker.getByRole("radio", { name: NONE_LABEL, exact: true }), [
       radio(picker, 11),
       radio(picker, 10),
     ]);
