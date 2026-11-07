@@ -85,7 +85,6 @@ function TodoEditorBase({
   date = null,
   time = null,
   validationError,
-  showPastWarning,
   onChangeText,
   onModeChange,
   onSelectedWeekdaysChange,
@@ -103,8 +102,6 @@ function TodoEditorBase({
   time?: TimeValue | null;
   /** Inline error rendered under the date/time row when the user attempts save. */
   validationError?: string | null;
-  /** Non-blocking hint when the chosen date+time is already in the past. */
-  showPastWarning?: boolean;
   visibility?: TodoEditorVisibility;
   onChangeText?: (value: string) => void;
   onModeChange?: (value: TodoEditorMode) => void;
@@ -199,11 +196,6 @@ function TodoEditorBase({
           </View>
           {validationError ? (
             <Text className="text-xs font-medium text-destructive">{validationError}</Text>
-          ) : null}
-          {showPastWarning ? (
-            <Text className="text-xs font-medium text-muted-foreground">
-              과거 일자는 알림 발송은 되지 않아요
-            </Text>
           ) : null}
         </View>
       ) : null}

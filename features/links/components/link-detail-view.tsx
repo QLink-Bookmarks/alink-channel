@@ -74,10 +74,10 @@ import { type WeekdayValue } from "@/features/todos/components/todo-editor/todo-
 import { TodoItem } from "@/features/todos/components/todo-item/todo-item";
 import { formatReminderLabel } from "@/features/todos/lib/todo-list-helpers";
 import {
+  PAST_REMINDER_ERROR,
   buildScheduleApiFields,
-  isScheduleInPast,
   readScheduleFromTodo,
-  validateDraft,
+  validateTodoDrafts,
 } from "@/features/todos/lib/todo-schedule";
 import {
   useCreateTodoMutation,
@@ -984,7 +984,9 @@ function LinkDetailView({
   const handleTodoDraftModeChange = React.useCallback(
     (todoId: number | string, nextMode: TodoDraftEditorItem["mode"]) => {
       setTodoDrafts((currentDrafts) =>
-        currentDrafts.map((todo) => (todo.id === todoId ? { ...todo, mode: nextMode } : todo)),
+        currentDrafts.map((todo) =>
+          todo.id === todoId ? { ...todo, mode: nextMode, validationError: null } : todo,
+        ),
       );
     },
     [],
@@ -1034,17 +1036,17 @@ function LinkDetailView({
     }
 
     // Schedule validation: any todo with title that's in time/recurring mode must
-    // have date + time (and recurring needs at least one weekday).
-    let hasScheduleError = false;
-    const nextDrafts = todoDrafts.map((draft) => {
-      if (draft.title.trim().length === 0) return draft;
-      const error = validateDraft(draft);
-      if (error) hasScheduleError = true;
-      return { ...draft, validationError: error };
-    });
-    if (hasScheduleError) {
-      setTodoDrafts(nextDrafts);
-      setTodoEditorError("필수 항목을 입력해주세요.");
+    // have date + time (and recurring needs at least one weekday), and a one-time
+    // reminder must be ahead of now — every action is sent again on save, and the
+    // server refuses a past one on update too. A past time is explained under its
+    // action only.
+    const checkedDrafts = validateTodoDrafts(todoDrafts);
+    if (checkedDrafts.hasError) {
+      setTodoDrafts(checkedDrafts.todos);
+      const hasMissingSchedule = checkedDrafts.todos.some(
+        (draft) => draft.validationError != null && draft.validationError !== PAST_REMINDER_ERROR,
+      );
+      setTodoEditorError(hasMissingSchedule ? "필수 항목을 입력해주세요." : null);
       return;
     }
 
@@ -1177,11 +1179,6 @@ function LinkDetailView({
     </Button>
   );
 
-  const decoratedTodoDrafts = React.useMemo(
-    () => todoDrafts.map((todo) => ({ ...todo, isPast: isScheduleInPast(todo) })),
-    [todoDrafts],
-  );
-
   const overlayMode = mode === "panel" ? "wide" : "mobile";
 
   const todoEditorContent = (
@@ -1189,7 +1186,7 @@ function LinkDetailView({
       <TodoDraftListEditor
         addLabel="액션 추가"
         pickerMode={overlayMode}
-        todos={decoratedTodoDrafts}
+        todos={todoDrafts}
         onAddTodo={handleAddTodoDraft}
         onChangeTodoTitle={handleTodoDraftTitleChange}
         onChangeTodoMode={handleTodoDraftModeChange}

@@ -37,11 +37,8 @@ import {
   type TodoEditorMode,
   type WeekdayValue,
 } from "@/features/todos/components/todo-editor/todo-editor";
-import {
-  buildScheduleApiFields,
-  isScheduleInPast,
-  validateDraft,
-} from "@/features/todos/lib/todo-schedule";
+import { validateTodoDrafts } from "@/features/todos/lib/todo-schedule";
+import { todoQueryKeys } from "@/features/todos/queries";
 import { useClipboardFailureFeedback } from "@/lib/clipboard-feedback";
 import { reportError } from "@/lib/error-reporting";
 import { cn } from "@/lib/utils";
@@ -50,11 +47,12 @@ import { useQrScanStore } from "@/stores/qr-scan";
 import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { buildAiMemoAndTodoFields, buildLinkTodoRequests } from "../lib/link-create-todos";
 import { getLinkPreviewRequestFields } from "../lib/link-preview/link-preview-result";
 import { getSaveLabelClassName } from "../lib/save-label-class-name";
 import { useCreateLinkMutation } from "../mutations";
 import { useLinkPreviewQuery } from "../queries";
-import type { CreateLinkTodoRequest, LinkPreview } from "../types";
+import type { LinkPreview } from "../types";
 
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
@@ -146,6 +144,8 @@ function LinkCreateForm({
   const myProviders = myProvidersQuery.data;
   const defaultProvider = useDisplaySettings((state) => state.ai.defaultProvider);
   const requestAiSummaryMutation = useRequestAiSummaryMutation();
+  // Blocks a second AI 정리 press before the pending state re-renders the button.
+  const isAiOrganizingRef = React.useRef(false);
   const [url, setUrl] = React.useState("");
   const [urlFillMode, setUrlFillMode] = React.useState<UrlFillMode>("instant");
   // Latest URL for async callbacks (the clipboard read) that must not clobber it.
@@ -312,7 +312,9 @@ function LinkCreateForm({
   const handleTodoModeChange = React.useCallback(
     (todoId: string | number, nextMode: TodoEditorMode) => {
       setTodos((currentTodos) =>
-        currentTodos.map((todo) => (todo.id === todoId ? { ...todo, mode: nextMode } : todo)),
+        currentTodos.map((todo) =>
+          todo.id === todoId ? { ...todo, mode: nextMode, validationError: null } : todo,
+        ),
       );
     },
     [],
@@ -362,7 +364,7 @@ function LinkCreateForm({
   }, [clearQrResult, fillUrlInstantly, open, pendingQrResult]);
 
   const handleAiOrganize = React.useCallback(async () => {
-    if (isPreviewLoading) {
+    if (isPreviewLoading || isAiOrganizingRef.current || createLinkMutation.isPending) {
       return;
     }
     const trimmedUrl = url.trim();
@@ -382,6 +384,13 @@ function LinkCreateForm({
       return;
     }
 
+    const checkedTodos = validateTodoDrafts(todos);
+    if (checkedTodos.hasError) {
+      setErrors({});
+      setTodos(checkedTodos.todos);
+      return;
+    }
+
     // userProviderId only exists on the caller's own providers, so the request is
     // built from myProviders — the catalog the picker shows cannot supply it.
     const target = resolveProviderRequest(myProviders, aiProvider?.providerId ?? null);
@@ -397,7 +406,9 @@ function LinkCreateForm({
       return;
     }
 
+    isAiOrganizingRef.current = true;
     setErrors({});
+    const aiMemoAndTodoFields = buildAiMemoAndTodoFields(memo, todos);
 
     try {
       const response = await requestAiSummaryMutation.mutateAsync({
@@ -408,6 +419,7 @@ function LinkCreateForm({
         url: trimmedUrl,
         userProviderId: target.userProviderId,
         ...getLinkPreviewRequestFields(linkPreview),
+        ...aiMemoAndTodoFields,
       });
 
       showToast({
@@ -420,6 +432,10 @@ function LinkCreateForm({
       });
 
       invalidateLinkQueries();
+      // The actions sent with the request now exist, so the 액션 lists are stale.
+      if (aiMemoAndTodoFields.todos) {
+        void queryClient.invalidateQueries({ queryKey: todoQueryKeys.lists() });
+      }
       resetForm();
       onCancel();
       // Surface the newly-queued link so the user can watch it move through G → A.
@@ -446,23 +462,29 @@ function LinkCreateForm({
         title: "AI 정리 실패",
         variant: "warning",
       });
+    } finally {
+      isAiOrganizingRef.current = false;
     }
   }, [
     aiProvider?.providerId,
+    createLinkMutation.isPending,
     folder.id,
     myProviders,
     generateTodo,
     invalidateLinkQueries,
     isPreviewLoading,
     linkPreview,
+    memo,
     mode,
     onCancel,
     onSaved,
+    queryClient,
     requestAiSummaryMutation,
     resetForm,
     router,
     showToast,
     title,
+    todos,
     url,
   ]);
 
@@ -483,31 +505,18 @@ function LinkCreateForm({
   }, [title, url]);
 
   const handleSave = React.useCallback(async () => {
-    if (isPreviewLoading || !validate()) {
+    if (isPreviewLoading || isAiOrganizingRef.current || !validate()) {
       return;
     }
 
-    // Validate todo schedules. Non-empty todos whose mode is "time" or
-    // "recurring" must have both date and time. Show inline errors and abort.
-    const todosWithTitles = todos.filter((todo) => todo.title.trim().length > 0);
-    let hasScheduleError = false;
-    const nextTodos = todos.map((todo) => {
-      const hasTitle = todo.title.trim().length > 0;
-      const scheduleError = hasTitle ? validateDraft(todo) : null;
-      if (scheduleError) hasScheduleError = true;
-      return { ...todo, validationError: scheduleError };
-    });
-    if (hasScheduleError) {
-      setTodos(nextTodos);
+    const checkedTodos = validateTodoDrafts(todos);
+    if (checkedTodos.hasError) {
+      setTodos(checkedTodos.todos);
       return;
     }
 
     try {
-      const todoPayload: CreateLinkTodoRequest[] = todosWithTitles.map((todo) => {
-        const trimmedTitle = todo.title.trim();
-        const schedule = buildScheduleApiFields(todo);
-        return { title: trimmedTitle, ...schedule };
-      });
+      const todoPayload = buildLinkTodoRequests(todos);
 
       const response = await createLinkMutation.mutateAsync({
         url: url.trim(),
@@ -521,6 +530,9 @@ function LinkCreateForm({
       });
 
       invalidateLinkQueries();
+      if (todoPayload.length > 0) {
+        void queryClient.invalidateQueries({ queryKey: todoQueryKeys.lists() });
+      }
       resetForm();
       onSaved?.(response.data.id);
     } catch (error: unknown) {
@@ -538,6 +550,7 @@ function LinkCreateForm({
     memo,
     mode,
     onSaved,
+    queryClient,
     resetForm,
     title,
     todos,
@@ -546,13 +559,10 @@ function LinkCreateForm({
   ]);
 
   const aiProviderLabel = aiProvider?.providerLabel ?? "기본 제공자 사용";
-  const isSaveDisabled = isPreviewLoading || createLinkMutation.isPending;
-  const isAiOrganizeDisabled = isPreviewLoading || requestAiSummaryMutation.isPending;
-
-  const decoratedTodos = React.useMemo(
-    () => todos.map((todo) => ({ ...todo, isPast: isScheduleInPast(todo) })),
-    [todos],
-  );
+  const isSaveDisabled =
+    isPreviewLoading || createLinkMutation.isPending || requestAiSummaryMutation.isPending;
+  const isAiOrganizeDisabled =
+    isPreviewLoading || createLinkMutation.isPending || requestAiSummaryMutation.isPending;
 
   const actions = (
     <LinkCreateActions
@@ -809,7 +819,7 @@ function LinkCreateForm({
           <TodoDraftListEditor
             addLabel="액션 추가"
             pickerMode={mode}
-            todos={decoratedTodos}
+            todos={todos}
             onAddTodo={handleAddTodo}
             onChangeTodoTitle={handleTodoTitleChange}
             onChangeTodoMode={handleTodoModeChange}

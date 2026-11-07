@@ -67,18 +67,6 @@ function defaultTimeValue(): TimeValue {
   return { hour: 9, minute: 0 };
 }
 
-function isScheduleInPast(draft: TodoDraftEditorItem, nowMs: number = Date.now()): boolean {
-  if (draft.mode === "none") return false;
-  if (!draft.date || !draft.time) return false;
-
-  if (draft.mode === "time") {
-    return combineDateAndTime(draft.date, draft.time).getTime() < nowMs;
-  }
-
-  // recurring: warn when the repeatUntil window has already passed.
-  return combineDateEndOfDay(draft.date).getTime() < nowMs;
-}
-
 function validateDraft(draft: TodoDraftEditorItem): string | null {
   if (draft.mode === "none") return null;
   if (!draft.date && !draft.time) return "날짜와 시간을 선택해주세요.";
@@ -88,6 +76,38 @@ function validateDraft(draft: TodoDraftEditorItem): string | null {
     return "반복 요일을 하나 이상 선택해주세요.";
   }
   return null;
+}
+
+// Shown under an action whose one-time reminder is not ahead of now.
+const PAST_REMINDER_ERROR = "이미 지난 시간이에요";
+
+// Same rule as the server: an action sent with a reminderAt (no repeat) is refused
+// unless that time is still ahead, both when it is created and when it is updated.
+function isReminderAtPast(draft: TodoDraftEditorItem, nowMs: number = Date.now()): boolean {
+  const { reminderAt } = buildScheduleApiFields(draft);
+  return reminderAt != null && Date.parse(reminderAt) <= nowMs;
+}
+
+// Titled actions whose mode is "time" or "recurring" need both a date and a time,
+// and a one-time reminder must be ahead of now. Each draft gets its schedule error
+// (or null), so the editor can show them inline.
+function validateTodoDrafts(
+  todos: TodoDraftEditorItem[],
+  nowMs: number = Date.now(),
+): {
+  todos: TodoDraftEditorItem[];
+  hasError: boolean;
+} {
+  let hasError = false;
+  const checkedTodos = todos.map((todo) => {
+    const validationError =
+      todo.title.trim().length > 0
+        ? (validateDraft(todo) ?? (isReminderAtPast(todo, nowMs) ? PAST_REMINDER_ERROR : null))
+        : null;
+    if (validationError) hasError = true;
+    return { ...todo, validationError };
+  });
+  return { todos: checkedTodos, hasError };
 }
 
 function buildScheduleApiFields(draft: TodoDraftEditorItem): TodoScheduleApiFields {
@@ -178,6 +198,7 @@ function readScheduleFromTodo(source: ScheduleSourceFields): {
 export type { RepeatDay, ScheduleSourceFields, TodoScheduleApiFields };
 export {
   DEFAULT_WEEKDAYS,
+  PAST_REMINDER_ERROR,
   buildScheduleApiFields,
   combineDateAndTime,
   combineDateEndOfDay,
@@ -185,8 +206,9 @@ export {
   deviceTimezone,
   formatDateLabel,
   formatTimeLabel,
-  isScheduleInPast,
+  isReminderAtPast,
   readScheduleFromTodo,
   todayDateValue,
   validateDraft,
+  validateTodoDrafts,
 };

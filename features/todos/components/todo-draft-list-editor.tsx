@@ -21,8 +21,6 @@ type TodoDraftEditorItem = {
   time: TimeValue | null;
   /** Inline error rendered by the editor when the user attempts save with missing values. */
   validationError?: string | null;
-  /** True when the chosen schedule is already in the past (warning only, not blocking). */
-  isPast?: boolean;
 };
 
 function TodoDraftListEditor({
@@ -61,7 +59,6 @@ function TodoDraftListEditor({
           date={todo.date}
           time={todo.time}
           validationError={todo.validationError ?? null}
-          showPastWarning={todo.isPast ?? false}
           pickerMode={pickerMode}
           onChangeText={(nextTitle) => onChangeTodoTitle(todo.id, nextTitle)}
           onModeChange={(nextMode) => onChangeTodoMode(todo.id, nextMode)}
