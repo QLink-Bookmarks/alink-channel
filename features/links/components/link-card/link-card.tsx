@@ -8,7 +8,7 @@ import { formatTagLabel } from "../../lib/format-tag-label";
 import type { ContentSnippet } from "../../types";
 import { LinkThumbnail } from "../link-thumbnail/link-thumbnail";
 import { HighlightedText } from "../snippet-text/highlighted-text";
-import { SnippetText } from "../snippet-text/snippet-text";
+import { SnippetText, getSnippetLabel } from "../snippet-text/snippet-text";
 import { TodoCountBadge } from "./todo-count-badge";
 
 type LinkCardStatusVariant = "progress" | "success" | "error" | null;
@@ -79,6 +79,9 @@ function LinkCard({
   onPress,
   onImagePress,
 }: LinkCardProps) {
+  // While searching, the context says why the card matched; the domain is left out because
+  // the image cell already reads it.
+  const snippetLabel = snippet ? getSnippetLabel(snippet.text) : "";
   return (
     <View
       className={cn(
@@ -109,7 +112,7 @@ function LinkCard({
         // No button role: the todo counts inside are a tooltip trigger, and a button must not
         // contain another button on web.
         accessibilityHint="상세 열기"
-        accessibilityLabel={title}
+        accessibilityLabel={snippetLabel ? `${title}, ${snippetLabel}` : title}
         className="gap-1.5 px-3 pb-3 pt-2.5"
         testID="link-card-body"
         onPress={onPress}
@@ -153,7 +156,7 @@ function LinkCard({
         </View>
         {snippet ? (
           <SnippetText
-            className="text-xs leading-[17px] text-muted-foreground"
+            className="text-xs leading-[18px] text-muted-foreground"
             highlights={snippet.highlights}
             numberOfLines={2}
             testID="link-card-snippet"

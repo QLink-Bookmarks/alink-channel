@@ -40,14 +40,64 @@ function isValidRange(text: string, { start, end }: HighlightRange) {
   );
 }
 
+const ELLIPSIS = "…";
+
 /**
- * Splits `text` at the highlight ranges. Ranges out of bounds, empty, cutting an emoji in
- * half or overlapping an earlier valid range are ignored; the rest apply in order of `start`.
+ * Folds every run of whitespace (line breaks included) into one space and moves the ranges
+ * onto the folded text. A run is dropped at either end, right after a leading "…" and right
+ * before a trailing "…". Ranges must be valid over `text`; one left empty is dropped.
  */
-function splitSnippet(text: string, highlights: HighlightRange[]): SnippetSegment[] {
-  const ranges = highlights
-    .filter((range) => isValidRange(text, range))
-    .sort((a, b) => a.start - b.start || a.end - b.end);
+function collapseSnippet(
+  text: string,
+  highlights: HighlightRange[],
+): { text: string; highlights: HighlightRange[] } {
+  // Index of the last non-whitespace character before `end`, or -1.
+  const lastWordIndex = (end: number) => text.slice(0, end).search(/\S\s*$/);
+  const last = lastWordIndex(text.length);
+  // Whitespace past this index only leads to the end or to a trailing "…".
+  const keepBefore = text[last] === ELLIPSIS ? lastWordIndex(last) : last;
+  // positions[i] is where the raw index i lands in the folded text.
+  const positions: number[] = [];
+  let folded = "";
+  for (let index = 0; index < text.length; index += 1) {
+    positions.push(folded.length);
+    const char = text[index];
+    if (!/\s/.test(char)) {
+      folded += char;
+    } else if (
+      index < keepBefore &&
+      folded !== "" &&
+      folded !== ELLIPSIS &&
+      !folded.endsWith(" ")
+    ) {
+      folded += " ";
+    }
+  }
+  positions.push(folded.length);
+  return {
+    text: folded,
+    highlights: highlights
+      .map(({ start, end }) => ({ start: positions[start], end: positions[end] }))
+      .filter(({ start, end }) => start < end),
+  };
+}
+
+/** The search context as one line of words for a screen reader: folded, no "…" at the ends. */
+function getSnippetLabel(text: string) {
+  return collapseSnippet(text, []).text.replace(/^…|…$/g, "");
+}
+
+/**
+ * Splits `text` at the highlight ranges after folding its whitespace (`collapseSnippet`).
+ * Ranges out of bounds, empty, cutting an emoji in half or overlapping an earlier valid range
+ * are ignored; the rest apply in order of `start`.
+ */
+function splitSnippet(rawText: string, rawHighlights: HighlightRange[]): SnippetSegment[] {
+  const { text, highlights } = collapseSnippet(
+    rawText,
+    rawHighlights.filter((range) => isValidRange(rawText, range)),
+  );
+  const ranges = highlights.sort((a, b) => a.start - b.start || a.end - b.end);
   const segments: SnippetSegment[] = [];
   let cursor = 0;
   for (const range of ranges) {
@@ -98,5 +148,5 @@ function SnippetText({
   );
 }
 
-export { SnippetText, splitSnippet };
+export { getSnippetLabel, SnippetText, splitSnippet };
 export type { SnippetSegment, SnippetTextProps };

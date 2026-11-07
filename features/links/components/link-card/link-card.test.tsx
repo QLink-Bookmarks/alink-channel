@@ -94,6 +94,26 @@ describe("LinkCard", () => {
     expect(screen.getByText("성산일출봉")).toBeOnTheScreen();
   });
 
+  it("names the card by its title and the search context while searching, without the domain", () => {
+    renderCard({
+      excerpt: "본문 앞부분…",
+      snippet: {
+        text: "…공항에서\n\n성산일출봉으로 이동…",
+        highlights: [{ start: 8, end: 13 }],
+      },
+    });
+    expect(screen.getByTestId("link-card-body").props.accessibilityLabel).toBe(
+      "TanStack Query v5 마이그레이션 정리, 공항에서 성산일출봉으로 이동",
+    );
+  });
+
+  it("names the card by its title alone when there is no search context", () => {
+    renderCard({ excerpt: "본문 앞부분…" });
+    expect(screen.getByTestId("link-card-body").props.accessibilityLabel).toBe(
+      "TanStack Query v5 마이그레이션 정리",
+    );
+  });
+
   it("highlights the query in the title while searching", () => {
     const { onPress } = renderCard({ highlightQuery: "query" });
     expect(screen.getByTestId("link-card-title")).toHaveTextContent(

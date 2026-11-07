@@ -1,6 +1,6 @@
 import { type Page, type Route, expect, test } from "@playwright/test";
 
-import { boxOf, isWideProject, openedUrls, stubWindowOpen } from "./support/helpers";
+import { boxOf, cssOf, isWideProject, openedUrls, stubWindowOpen } from "./support/helpers";
 import { type MockDetail, envelope, makeDetail, makeLink, mockApi } from "./support/mock-api";
 import {
   LONG_BODY,
@@ -10,6 +10,7 @@ import {
   excerptOf,
   withContent,
 } from "./support/mock-content";
+import { mockContentSearch } from "./support/mock-content-search";
 
 // #58 C1: the detail excerpt, its silent re-check, the card's excerpt line, and the mobile
 // search card's context and title highlight. Server responses are controlled; the page
@@ -137,6 +138,46 @@ async function routeSearch(page: Page, getState: () => MockState) {
   );
 }
 
+const ORIGINAL_URL = "https://brunch.co.kr/@jeju/east-3days";
+
+/**
+ * Answers the original page with an empty document, so a tab opened by the 이어 읽기 link
+ * loads without the network. Returns every tab opened from then on, counted the moment it
+ * opens; read their addresses with `tabUrls`.
+ */
+async function recordNewTabs(page: Page) {
+  await page
+    .context()
+    .route(`${ORIGINAL_URL}**`, (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<title>원본</title>" }),
+    );
+  const tabs: Page[] = [];
+  page.context().on("page", (tab) => tabs.push(tab));
+  return tabs;
+}
+
+async function tabUrls(tabs: Page[]) {
+  await Promise.all(tabs.map((tab) => tab.waitForURL(ORIGINAL_URL)));
+  return tabs.map((tab) => tab.url());
+}
+
+/** The right edge of the last "…" in the excerpt paragraph, in page pixels. */
+async function ellipsisRight(page: Page) {
+  return page.getByTestId("link-detail-excerpt-text").evaluate((node) => {
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    let right = -1;
+    for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+      const index = (text.textContent ?? "").lastIndexOf("…");
+      if (index < 0) continue;
+      const range = document.createRange();
+      range.setStart(text, index);
+      range.setEnd(text, index + 1);
+      right = range.getBoundingClientRect().right;
+    }
+    return right;
+  });
+}
+
 async function openDetail(page: Page, id: number) {
   await page.goto(isWideProject() ? `/links?linkId=${id}` : `/links/${id}`);
   await expect(page.getByTestId("link-detail-title")).toBeVisible();
@@ -202,53 +243,102 @@ test.describe("detail excerpt", () => {
     expect(text.slice(0, text.indexOf("…"))).toHaveLength(Math.floor(SHORT_BODY.length * 0.3));
   });
 
-  test("이어 읽기 opens the original like the image does, and the detail stays", async ({
+  test("이어 읽기 is a link to the original: one click opens one new tab, and the detail stays", async ({
     page,
   }) => {
     await stubWindowOpen(page);
+    const tabs = await recordNewTabs(page);
     await mockApi(page, buildFixtures());
     await openDetail(page, 1);
 
     await page.getByTestId("link-detail-excerpt-text").click({ position: { x: 4, y: 4 } });
-    expect(await openedUrls(page)).toEqual([]);
+    await page.waitForTimeout(300);
+    expect(tabs).toHaveLength(0);
 
-    await page.getByRole("link", { name: "이어 읽기", exact: true }).click();
-    await expect.poll(() => openedUrls(page)).toEqual(["https://brunch.co.kr/@jeju/east-3days"]);
+    const link = page.getByRole("link", { name: "이어 읽기", exact: true });
+    await expect(link).toHaveAttribute("href", ORIGINAL_URL);
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    await link.click();
+    await expect.poll(() => tabs.length).toBe(1);
+    expect(await tabUrls(tabs)).toEqual([ORIGINAL_URL]);
+    await page.waitForTimeout(300);
+    expect(tabs).toHaveLength(1);
+    expect(await openedUrls(page)).toEqual([]);
+    // The image still opens the original as before.
     await page.getByTestId("link-detail-image").click();
-    await expect
-      .poll(() => openedUrls(page))
-      .toEqual(["https://brunch.co.kr/@jeju/east-3days", "https://brunch.co.kr/@jeju/east-3days"]);
+    await expect.poll(() => openedUrls(page)).toEqual([ORIGINAL_URL]);
     await expect(page.getByTestId("link-detail-title")).toHaveText(
       "제주 2박 3일 동쪽 일주 코스와 비용 정리",
     );
+  });
+
+  test("on wide, Tab shows the buttons' focus ring on 이어 읽기 clear of the …, and Enter opens the original", async ({
+    page,
+  }) => {
+    test.skip(!isWideProject(), "keyboard focus on wide");
+    const tabs = await recordNewTabs(page);
+    await mockApi(page, buildFixtures());
+    await openDetail(page, 1);
+    const link = page.getByTestId("link-detail-continue");
+
+    // A click on the excerpt sets where Tab starts; the next stop is the link.
+    await page.getByTestId("link-detail-excerpt-text").click({ position: { x: 4, y: 4 } });
+    await page.keyboard.press("Tab");
+    await expect(link).toBeFocused();
+    // No browser outline (Tailwind's outline-none is a transparent one), the 3px ring instead.
+    await expect(link).toHaveCSS("outline-color", "rgba(0, 0, 0, 0)");
+    expect(await cssOf(link, "box-shadow")).toMatch(/0px 0px 0px 3px/);
+    // The 3px ring stays right of the "…".
+    const box = await boxOf(link);
+    expect(box.x - 3).toBeGreaterThanOrEqual((await ellipsisRight(page)) - 0.5);
+
+    await page.keyboard.press("Enter");
+    await expect.poll(() => tabs.length).toBe(1);
+    expect(await tabUrls(tabs)).toEqual([ORIGINAL_URL]);
+    await expect(page.getByTestId("link-detail-title")).toHaveText(
+      "제주 2박 3일 동쪽 일주 코스와 비용 정리",
+    );
+  });
+
+  test("on wide, hovering 이어 읽기 thickens its underline", async ({ page }) => {
+    test.skip(!isWideProject(), "pointer hover on wide");
+    await mockApi(page, buildFixtures());
+    await openDetail(page, 1);
+    const link = page.getByTestId("link-detail-continue");
+    await expect(link).toHaveCSS("text-decoration-thickness", "1px");
+    await link.hover();
+    await expect(link).toHaveCSS("text-decoration-thickness", "2px");
   });
 
   test("on wide, pressing the excerpt line just above 이어 읽기 opens nothing", async ({
     page,
   }) => {
     test.skip(!isWideProject(), "the 44px area is mobile only; a pointer needs none");
-    await stubWindowOpen(page);
+    const tabs = await recordNewTabs(page);
     await mockApi(page, buildFixtures());
     await openDetail(page, 1);
     const link = await boxOf(page.getByTestId("link-detail-continue"));
     // One 20px line up, at the link's horizontal centre: excerpt text, not the link.
     await page.mouse.click(link.x + link.width / 2, link.y + link.height / 2 - 20);
     await page.waitForTimeout(300);
-    expect(await openedUrls(page)).toEqual([]);
+    expect(tabs).toHaveLength(0);
     await page.getByTestId("link-detail-continue").click();
-    await expect.poll(() => openedUrls(page)).toHaveLength(1);
+    await expect.poll(() => tabs.length).toBe(1);
+    expect(await tabUrls(tabs)).toEqual([ORIGINAL_URL]);
   });
 
   test("이어 읽기 has a 44px press area on mobile", async ({ page }) => {
     test.skip(isWideProject(), "touch target on web mobile");
-    await stubWindowOpen(page);
+    const tabs = await recordNewTabs(page);
     await mockApi(page, buildFixtures());
     await openDetail(page, 1);
     const box = await boxOf(page.getByTestId("link-detail-continue"));
     expect(box.height).toBeGreaterThanOrEqual(44);
-    // Pressing the top edge of the padded area still opens the original.
+    // Pressing the top edge of the padded area still opens the original, in one tab.
     await page.getByTestId("link-detail-continue").click({ position: { x: box.width / 2, y: 2 } });
-    await expect.poll(() => openedUrls(page)).toHaveLength(1);
+    await expect.poll(() => tabs.length).toBe(1);
+    expect(await tabUrls(tabs)).toEqual([ORIGINAL_URL]);
   });
 
   test("the excerpt text can be selected", async ({ page }) => {
@@ -559,7 +649,7 @@ test.describe("mobile search cards", () => {
     await expect(match).toBeVisible();
     await expect(match).toHaveCSS("font-weight", "600");
     const contextBox = await boxOf(context);
-    expect(contextBox.height).toBeLessThan(17 * 2 + 4);
+    expect(contextBox.height).toBeLessThan(18 * 2 + 4);
     // The match is inside the visible lines, not cut off behind the ellipsis.
     const matchBox = await boxOf(match);
     expect(matchBox.y + matchBox.height).toBeLessThanOrEqual(contextBox.y + contextBox.height + 1);
@@ -573,6 +663,45 @@ test.describe("mobile search cards", () => {
     await expect(
       page.getByTestId("link-card-title").getByText(SEARCH_WORD, { exact: true }),
     ).toHaveCount(0);
+  });
+
+  test("a context with blank lines reads as one run of words, the match inside its two lines; the card is named by title and context", async ({
+    page,
+  }) => {
+    const title = "제주 동부 카페 지도 (2026 업데이트)";
+    const state = await mockApi(page, buildFixtures());
+    await mockContentSearch(page, () => state, {
+      bodies: {
+        6: `동쪽 해안도로를 따라 카페가 이어진다\n\n${SEARCH_WORD}\n\n아래 카페는 아침 일곱 시에 문을 연다. 창가 자리에서 일출을 보며 커피를 마실 수 있고 주차장은 넓다. 오후에는 단체 손님이 많아서 오전에 가는 편이 낫다. 영수증을 보여 주면 근처 식당에서 할인을 받는다.`,
+      },
+    });
+    await page.goto("/home");
+    await expect(page.getByTestId("link-card")).toHaveCount(8);
+    await page.getByPlaceholder("링크 · 요약 · 태그 검색…").fill(SEARCH_WORD);
+
+    const bodyMatch = card(page, title);
+    const context = bodyMatch.getByTestId("link-card-snippet");
+    const text = (await context.textContent()) ?? "";
+    expect(text).toMatch(/^….+…$/);
+    // No line breaks or runs of spaces, and no space next to the "…" at either end.
+    expect(text).not.toMatch(/\s{2}|[^\S ]|^… | …$/);
+    const match = context.getByText(SEARCH_WORD, { exact: true });
+    await expect(match).toHaveCSS("font-weight", "600");
+    const contextBox = await boxOf(context);
+    const matchBox = await boxOf(match);
+    expect(contextBox.height).toBeLessThan(18 * 2 + 4);
+    expect(matchBox.y + matchBox.height).toBeLessThanOrEqual(contextBox.y + contextBox.height + 1);
+    await expect(context).toHaveCSS("line-height", "18px");
+
+    // The card is named "{title}, {context}" without the "…" or the domain.
+    await expect(bodyMatch.getByTestId("link-card-body")).toHaveAttribute(
+      "aria-label",
+      `${title}, ${text.slice(1, -1)}`,
+    );
+    // A title match has no context, so it keeps the title alone.
+    await expect(
+      card(page, "성산일출봉 일출 시간표").getByTestId("link-card-body"),
+    ).toHaveAttribute("aria-label", "성산일출봉 일출 시간표와 입장 마감 안내");
   });
 });
 
