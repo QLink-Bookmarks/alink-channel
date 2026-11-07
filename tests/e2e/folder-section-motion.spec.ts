@@ -111,7 +111,7 @@ const SHEETS: Record<string, (page: Page) => Promise<void>> = {
   "move sheet": async (page) => {
     await page.goto("/links/1");
     await expect(page.getByTestId("link-detail-title")).toBeVisible();
-    await page.getByRole("button", { name: /^폴더 이동, 현재/ }).click();
+    await page.getByTestId("link-detail-folder-move").click();
     await expect(page.getByRole("button", { name: "확인", exact: true })).toBeVisible();
   },
   "new link sheet folder step": async (page) => {
@@ -383,7 +383,7 @@ test.describe("wide", () => {
     await prepare(page, "picker", "shared");
     await page.goto("/links?linkId=1");
     await expect(page.getByTestId("link-detail-title")).toBeVisible();
-    await page.getByRole("button", { name: /^폴더 이동, 현재/ }).click();
+    await page.getByTestId("link-detail-folder-move").click();
     const dialog = page.getByRole("dialog", { name: "폴더 이동" });
     const confirm = dialog.getByRole("button", { name: "확인", exact: true });
     await expect(confirm).toBeVisible();

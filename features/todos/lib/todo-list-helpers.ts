@@ -18,26 +18,6 @@ function getTodoBucket(todo: TodoListItem, nowMs: number): TodoBucket {
   return "upcoming";
 }
 
-function formatReminderLabel(
-  reminderAt?: string | null,
-  options?: { withOverdueSuffix?: boolean },
-): string | null {
-  if (!reminderAt) {
-    return null;
-  }
-  const date = new Date(reminderAt);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const base = `${month}/${day} ${hours}:${minutes}`;
-  const overdue = options?.withOverdueSuffix && date.getTime() < Date.now();
-  return overdue ? `${base} (지남)` : base;
-}
-
 function filterTodos(todos: TodoListItem[], filter: TodoFilter, nowMs: number): TodoListItem[] {
   return todos.filter((todo) => {
     const bucket = getTodoBucket(todo, nowMs);
@@ -102,5 +82,5 @@ function groupTodosByLink(
   return Array.from(map.values());
 }
 
-export { countTodosByFilter, filterTodos, formatReminderLabel, getTodoBucket, groupTodosByLink };
+export { countTodosByFilter, filterTodos, getTodoBucket, groupTodosByLink };
 export type { TodoBucket, TodoFilter };
