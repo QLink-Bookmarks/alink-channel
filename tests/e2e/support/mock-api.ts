@@ -48,6 +48,9 @@ type MockTodo = {
   id: number;
   title: string;
   reminderAt: string | null;
+  repeatDays?: string[] | null;
+  repeatTime?: string | null;
+  repeatUntil?: string | null;
   completedAt: string | null;
   linkId: number;
   linkUrl: string;

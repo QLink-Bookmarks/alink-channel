@@ -8,7 +8,9 @@ import { getDomainFromUrl } from "@/features/home/lib/link-card-mapper";
 import { LinkThumbnail } from "@/features/links/components/link-thumbnail/link-thumbnail";
 import { cn } from "@/lib/utils";
 
-import { AlarmClock, Users } from "lucide-react-native/icons";
+import type { TodoScheduleKind } from "../../lib/todo-schedule-label";
+
+import { AlarmClock, Repeat, Users } from "lucide-react-native/icons";
 
 /**
  * On web we need to stop click bubbling so the checkbox tap doesn't also fire the outer
@@ -30,8 +32,10 @@ type TodoItemProps = {
   variant?: TodoItemVariant;
   text: string;
   done?: boolean;
-  /** Pre-formatted reminder string (e.g. "06/04 09:36" or "06/04 09:36 (지남)"). */
+  /** Pre-formatted schedule line (e.g. "06/04 09:36 (지남)" or "매주 월·목 오전 8:00"). */
   reminderLabel?: string | null;
+  /** Picks the schedule icon on the display variant: an alarm clock or a repeat arrow. */
+  scheduleKind?: TodoScheduleKind;
   overdue?: boolean;
   /** Source-link URL — when set on the display variant, renders the linked-link row. */
   linkUrl?: string | null;
@@ -50,19 +54,36 @@ type TodoItemProps = {
   onPress?: () => void;
 };
 
-function ReminderLabel({ label, overdue }: { label: string; overdue?: boolean }) {
+function ReminderLabel({
+  label,
+  kind,
+  overdue,
+}: {
+  label: string;
+  kind: TodoScheduleKind;
+  overdue?: boolean;
+}) {
   return (
     <View
       className="flex-row items-center gap-1"
       testID="todo-item-reminder"
     >
-      <Icon
-        as={AlarmClock}
-        size={12}
-        className={overdue ? "text-destructive" : "text-primary"}
-      />
+      <View
+        className="size-3"
+        testID={kind === "repeat" ? "todo-item-reminder-repeat" : "todo-item-reminder-once"}
+      >
+        <Icon
+          as={kind === "repeat" ? Repeat : AlarmClock}
+          size={12}
+          className={overdue ? "text-destructive" : "text-primary"}
+        />
+      </View>
       <Text
-        className={cn("text-[11px] font-semibold", overdue ? "text-destructive" : "text-primary")}
+        className={cn(
+          "min-w-0 shrink text-[11px] font-semibold",
+          overdue ? "text-destructive" : "text-muted-foreground",
+        )}
+        testID="todo-item-reminder-text"
       >
         {label}
       </Text>
@@ -76,6 +97,7 @@ function TodoItem({
   text,
   done,
   reminderLabel,
+  scheduleKind = "once",
   overdue,
   linkUrl,
   linkTitle,
@@ -91,6 +113,7 @@ function TodoItem({
     const domain = linkUrl ? getDomainFromUrl(linkUrl) : null;
     const hasLinkRow = Boolean(linkUrl || linkTitle);
     const isOverdue = Boolean(overdue && !done);
+    const scheduleLabel = done ? null : reminderLabel;
 
     return (
       <Pressable
@@ -126,11 +149,12 @@ function TodoItem({
             >
               {text}
             </Text>
-            {reminderLabel || isShared ? (
+            {scheduleLabel || isShared ? (
               <View className="flex-row flex-wrap gap-x-3 gap-y-1">
-                {reminderLabel ? (
+                {scheduleLabel ? (
                   <ReminderLabel
-                    label={reminderLabel}
+                    kind={scheduleKind}
+                    label={scheduleLabel}
                     overdue={isOverdue}
                   />
                 ) : null}

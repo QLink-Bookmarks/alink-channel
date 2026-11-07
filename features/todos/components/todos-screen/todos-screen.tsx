@@ -22,10 +22,9 @@ import {
   type TodoFilter,
   countTodosByFilter,
   filterTodos,
-  formatReminderLabel,
   getTodoBucket,
-  isOverdue,
 } from "../../lib/todo-list-helpers";
+import { formatTodoSchedule } from "../../lib/todo-schedule-label";
 import { useToggleTodoCompletedMutation } from "../../mutations";
 import { useTodosQuery } from "../../queries";
 import type { TodoListItem } from "../../types";
@@ -157,8 +156,7 @@ function TodoDisplayItem({
   onPress: (todo: TodoListItem) => void;
 }) {
   const done = Boolean(todo.completedAt);
-  const overdue = isOverdue(todo, nowMs);
-  const reminderLabel = formatReminderLabel(todo.reminderAt, { withOverdueSuffix: overdue });
+  const schedule = formatTodoSchedule(todo, nowMs);
 
   return (
     <TodoItem
@@ -166,8 +164,9 @@ function TodoDisplayItem({
       variant="display"
       text={todo.title}
       done={done}
-      overdue={overdue}
-      reminderLabel={reminderLabel}
+      overdue={schedule.overdue}
+      reminderLabel={schedule.label}
+      scheduleKind={schedule.kind}
       linkUrl={todo.linkUrl}
       linkTitle={todo.linkTitle}
       linkThumbnailUrl={todo.linkThumbnailUrl}

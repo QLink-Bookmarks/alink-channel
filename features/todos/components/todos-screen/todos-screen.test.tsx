@@ -104,3 +104,62 @@ describe("TodosScreen pull to refresh", () => {
     expect(refreshControl().props.refreshing).toBe(false);
   });
 });
+
+describe("TodosScreen schedule line", () => {
+  beforeEach(() => {
+    useListMemoryStore.getState().clear();
+    mockTodosQuery.isLoading = false;
+    mockTodosQuery.isFetching = false;
+    mockTodosQuery.refetch = jest.fn();
+  });
+
+  it("shows a one-time reminder as MM/DD HH:mm and a repeat as its summary", () => {
+    mockTodosQuery.data = {
+      contents: [
+        {
+          ...TODO,
+          id: 1,
+          title: "한 번 알림",
+          reminderAt: new Date(2099, 10, 20, 9, 0).toISOString(),
+        },
+        {
+          ...TODO,
+          id: 2,
+          title: "반복 알림",
+          repeatDays: ["THU", "MON"],
+          repeatTime: "08:00",
+          repeatUntil: new Date(2099, 11, 31, 23, 59, 59, 999).toISOString(),
+        },
+      ],
+    };
+    renderMobileTodos();
+
+    expect(screen.getByText("11/20 09:00")).toBeOnTheScreen();
+    expect(screen.getByText("매주 월·목 오전 8:00 · 12월 31일까지")).toBeOnTheScreen();
+    expect(screen.getByTestId("todo-item-reminder-repeat")).toBeOnTheScreen();
+  });
+
+  it("adds (지남) to a past reminder and hides the schedule once done", () => {
+    mockTodosQuery.data = {
+      contents: [
+        {
+          ...TODO,
+          id: 1,
+          title: "지난 알림",
+          reminderAt: new Date(2020, 0, 5, 9, 0).toISOString(),
+        },
+        {
+          ...TODO,
+          id: 2,
+          title: "끝낸 알림",
+          reminderAt: new Date(2020, 0, 6, 9, 0).toISOString(),
+          completedAt: new Date(2020, 0, 6, 10, 0).toISOString(),
+        },
+      ],
+    };
+    renderMobileTodos();
+
+    expect(screen.getByText("01/05 09:00 (지남)")).toBeOnTheScreen();
+    expect(screen.queryByText(/01\/06 09:00/)).toBeNull();
+  });
+});
