@@ -16,8 +16,7 @@ async function openNewLinkWithFolderPopover(page: Page) {
   await expect(newLinkDialog(page)).toBeVisible();
   await newLinkDialog(page).getByPlaceholder(URL_PLACEHOLDER).fill("https://example.com/typed");
   await newLinkDialog(page)
-    .getByRole("button", { name: /AI 자동 분류/ })
-    .first()
+    .getByRole("button", { name: /^폴더, / })
     .click();
   await expect(page.getByText("공유 폴더", { exact: true }).last()).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(2);

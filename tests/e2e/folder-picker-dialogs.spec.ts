@@ -832,7 +832,7 @@ test("pressing the oldest folder of more than 40 opens its detail instead of not
 });
 
 test.describe("window fit, width and marks (#27)", () => {
-  test("in a low window the new link folder popover stays 16px inside the screen and only the folder list shrinks", async ({
+  test("in a low window the new link folder popover stays 16px inside the screen without covering its button", async ({
     page,
   }) => {
     test.skip(!isWideProject(), "wide popover");
@@ -843,7 +843,10 @@ test.describe("window fit, width and marks (#27)", () => {
       await settle(page);
       const popover = await boxOf(scope as Locator);
       const trigger = await boxOf(page.getByRole("button", { name: /^폴더, / }));
-      expect(popover.y).toBeGreaterThanOrEqual(trigger.y + trigger.height);
+      // #74 moved the folder field lower in the form, so a low window opens it upward.
+      const opensBelow = popover.y >= trigger.y + trigger.height;
+      expect(opensBelow || popover.y + popover.height <= trigger.y).toBe(true);
+      expect(popover.y).toBeGreaterThanOrEqual(0);
       expect(popover.y + popover.height).toBeLessThanOrEqual(height - 16 + 1);
       await expect(scope.getByRole("radio", { name: NONE_LABEL })).toBeInViewport({ ratio: 1 });
       await expect(toggle(scope, "내 폴더")).toBeInViewport({ ratio: 1 });
@@ -852,7 +855,7 @@ test.describe("window fit, width and marks (#27)", () => {
       expect(await mine.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
       const listHeight = (await boxOf(mine)).height;
       expect(listHeight).toBeLessThanOrEqual(200);
-      if (height === 520) {
+      if (height === 520 && opensBelow) {
         expect(popover.y + popover.height).toBeGreaterThanOrEqual(height - 16 - 1);
         expect(listHeight).toBeLessThan(200);
       }
@@ -1047,7 +1050,7 @@ test.describe("design critique follow-ups (#27)", () => {
     expect(frames[0].height).toBe(Math.min(640, Math.round(800 * 0.8)));
   });
 
-  test("the none row shows the sparkle once, and the wide form button uses the same wording", async ({
+  test("the none row shows the sparkle once, and the wide form button reads 없음", async ({
     page,
   }) => {
     await mockApi(page, { folders: makeFolders(12, 3) });
@@ -1057,7 +1060,7 @@ test.describe("design critique follow-ups (#27)", () => {
     expect((await none.innerText()).match(/✨/g)).toHaveLength(1);
     if (isWideProject()) {
       await page.keyboard.press("Escape");
-      await expect(page.getByRole("button", { name: `폴더, ${NONE_LABEL}` })).toBeVisible();
+      await expect(page.getByRole("button", { name: "폴더, 없음" })).toBeVisible();
     }
   });
 
