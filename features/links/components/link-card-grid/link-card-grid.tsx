@@ -23,21 +23,20 @@ import { mapLinkListItem } from "@/features/home/lib/link-card-mapper";
 import { deleteLink, patchLink } from "@/features/links/api";
 import { LinkCard } from "@/features/links/components/link-card/link-card";
 import { LinkCardSkeleton } from "@/features/links/components/link-card/link-card-skeleton";
+import { useLinkCardSize } from "@/features/links/hooks/use-link-card-size";
+import { getLinkCardMinWidth } from "@/features/links/lib/link-card-size";
 import { openLinkUrl } from "@/features/links/lib/open-link-url";
 import { useSetLinkFavoriteMutation } from "@/features/links/mutations";
 import { invalidateLinkListAndSearchQueries } from "@/features/links/queries";
 import type { LinkListItem } from "@/features/links/types";
 import { reportError } from "@/lib/error-reporting";
 import { useGridColumns } from "@/lib/hooks/use-grid-columns";
-import { useWideView } from "@/lib/hooks/use-wide-view";
 import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { ExternalLink, FolderOpen, Star, Trash2 } from "lucide-react-native/icons";
 
 const GRID_GAP = 12;
-const WIDE_MIN_CARD_WIDTH = 196;
-const MOBILE_MIN_CARD_WIDTH = 280;
 
 function HoverActionButton({
   icon,
@@ -104,8 +103,10 @@ type LinkCardGridProps = {
 };
 
 /**
- * Link cards in as many columns as the container width allows: at least 196px per card on
- * wide, 280px on mobile (one column on phones). On wide, hovering a card shows its actions.
+ * Link cards in as many columns as the container width allows, each at least the minimum width
+ * of the link card size picked in settings (`getLinkCardMinWidth`): small 196px on wide and
+ * 150px on mobile, large 360px on wide and 280px on mobile. On wide, hovering a card shows its
+ * actions.
  */
 function LinkCardGrid({
   links,
@@ -127,10 +128,10 @@ function LinkCardGrid({
       patchLink(id, { folderId }),
   });
   const favoriteMutation = useSetLinkFavoriteMutation();
-  const isWideView = useWideView();
+  const { isWideView, linkCardSize } = useLinkCardSize();
   const { itemStyle, onLayout } = useGridColumns({
     gap: GRID_GAP,
-    minItemWidth: isWideView ? WIDE_MIN_CARD_WIDTH : MOBILE_MIN_CARD_WIDTH,
+    minItemWidth: getLinkCardMinWidth(linkCardSize, isWideView),
   });
 
   const handleBookmark = React.useCallback(

@@ -136,7 +136,7 @@ function LinkCard({
         )}
         <View className="h-[18px] min-w-0 flex-row items-center justify-between gap-2">
           <Text
-            className="min-w-0 flex-1 text-[11px] text-muted-foreground"
+            className="min-w-[25%] flex-1 text-[11px] text-muted-foreground"
             numberOfLines={1}
           >
             {domain}
@@ -144,7 +144,7 @@ function LinkCard({
           {statusLabel ? (
             <Text
               className={cn(
-                "shrink-0 text-[11px] font-semibold",
+                "min-w-0 shrink text-[11px] font-semibold",
                 statusVariant ? statusVariantClasses[statusVariant] : "text-muted-foreground",
               )}
               numberOfLines={1}
