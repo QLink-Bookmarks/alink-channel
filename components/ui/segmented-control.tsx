@@ -1,5 +1,5 @@
 import * as React from "react";
-import { type StyleProp, TouchableOpacity, View, type ViewStyle } from "react-native";
+import { Platform, type StyleProp, TouchableOpacity, View, type ViewStyle } from "react-native";
 
 import { Text } from "@/components/ui/text";
 import { type ThemeTokens, getThemeTokens } from "@/lib/theme";
@@ -188,6 +188,9 @@ function SegmentedItemBase({
   return (
     <TouchableOpacity
       activeOpacity={0.7}
+      className={Platform.select({
+        web: "outline-none focus-visible:ring-[3px] focus-visible:ring-ring",
+      })}
       disabled={option.disabled}
       style={chipStyle}
       onPress={handlePress}

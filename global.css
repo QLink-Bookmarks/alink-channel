@@ -176,7 +176,7 @@
     --popover-foreground: 326 39% 17%;
     --primary: 338 100% 71%;
     --primary-2: 282 65% 73%;
-    --primary-foreground: 0 0% 100%;
+    --primary-foreground: 326 39% 17%;
     --secondary: 330 79% 94%;
     --secondary-foreground: 326 39% 17%;
     --muted: 335 100% 96.7%;
@@ -185,7 +185,7 @@
     --accent-foreground: 338 100% 45%;
     --border: 340 100% 88%;
     --input: 340 100% 88%;
-    --ring: 338 100% 71%;
+    --ring: 338 100% 45%;
     --chart-1: 338 100% 71%;
     --chart-2: 282 65% 73%;
     --chart-3: 218 100% 65%;
@@ -200,11 +200,11 @@
     --sidebar: 335 100% 96.7%;
     --sidebar-foreground: 326 39% 17%;
     --sidebar-primary: 338 100% 71%;
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary-foreground: 326 39% 17%;
     --sidebar-accent: 0 0% 100%;
     --sidebar-accent-foreground: 338 100% 71%;
     --sidebar-border: 327 56% 92%;
-    --sidebar-ring: 338 100% 71%;
+    --sidebar-ring: 338 100% 45%;
     --sidebar-text-muted: 327 18% 44%;
     --sidebar-text-hover: 326 39% 17%;
     --sidebar-surface-2: 330 79% 94%;
@@ -264,7 +264,7 @@
     --popover-foreground: 218 49% 20%;
     --primary: 218 100% 65%;
     --primary-2: 220 95% 78%;
-    --primary-foreground: 0 0% 100%;
+    --primary-foreground: 218 49% 14%;
     --secondary: 220 100% 93%;
     --secondary-foreground: 218 49% 20%;
     --muted: 218 100% 96%;
@@ -273,7 +273,7 @@
     --accent-foreground: 218 100% 45%;
     --border: 220 100% 88%;
     --input: 220 100% 88%;
-    --ring: 218 100% 65%;
+    --ring: 218 100% 45%;
     --chart-1: 218 100% 65%;
     --chart-2: 220 95% 78%;
     --chart-3: 338 100% 71%;
@@ -288,11 +288,11 @@
     --sidebar: 218 100% 96%;
     --sidebar-foreground: 218 49% 20%;
     --sidebar-primary: 218 100% 65%;
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary-foreground: 218 49% 14%;
     --sidebar-accent: 0 0% 100%;
     --sidebar-accent-foreground: 218 100% 65%;
     --sidebar-border: 217 56% 92%;
-    --sidebar-ring: 218 100% 65%;
+    --sidebar-ring: 218 100% 45%;
     --sidebar-text-muted: 218 19% 42%;
     --sidebar-text-hover: 218 49% 20%;
     --sidebar-surface-2: 220 100% 93%;

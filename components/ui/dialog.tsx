@@ -100,7 +100,7 @@ function DialogContent({
                 closeDisabled ? "opacity-30" : "opacity-70 active:opacity-100",
                 Platform.select({
                   web: cn(
-                    "transition-opacity focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring data-[state=open]:bg-accent",
+                    "transition-opacity focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[state=open]:bg-accent",
                     closeDisabled ? "cursor-not-allowed" : "hover:opacity-100",
                   ),
                 }),
