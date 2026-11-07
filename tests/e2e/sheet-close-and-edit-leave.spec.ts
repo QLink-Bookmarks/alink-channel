@@ -178,6 +178,17 @@ test.describe("new link sheet head (#88)", () => {
     await openForm(page);
     await fillMemoAndActions(page);
     const title = heading(page, "새 링크 추가");
+    // The preview spinner leaves and the sheet resizes; measure once it holds still.
+    await expect(form(page).getByTestId("link-create-preview-image-loading")).toHaveCount(0);
+    let previous = -1;
+    await expect
+      .poll(async () => {
+        const current = Math.round((await boxOf(title)).y);
+        const steady = current === previous;
+        previous = current;
+        return steady;
+      })
+      .toBe(true);
     const before = { title: await boxOf(title), close: await boxOf(closeButton(page)) };
 
     const scrolled = await scrollSheetBody(page, "end");

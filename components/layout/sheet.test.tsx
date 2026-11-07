@@ -357,6 +357,20 @@ describe("Sheet", () => {
     });
   });
 
+  it("draws the fixed head from the first frame with fixedHeader, before a SheetHeader fills it", () => {
+    render(
+      <Sheet
+        open
+        fixedHeader
+        onOpenChange={jest.fn()}
+      >
+        <React.Fragment />
+      </Sheet>,
+    );
+    expect(screen.getByRole("header")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "닫기" })).toBeOnTheScreen();
+  });
+
   describe("onCloseRequest", () => {
     function renderGuarded(onCloseRequest: () => boolean, onOpenChange: (open: boolean) => void) {
       return (

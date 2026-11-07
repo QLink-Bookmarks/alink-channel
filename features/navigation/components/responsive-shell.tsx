@@ -572,6 +572,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
           <Sheet
             open={isAddLinkSheetOpen}
             fitContent
+            fixedHeader
             hideCloseButton={isAddLinkSheetSubStep}
             resizeTiming={FOLDER_SECTIONS_SHEET_TIMING}
             onCloseRequest={handleAddLinkSheetCloseRequest}

@@ -64,6 +64,8 @@ type SheetHeaderSlot = {
 
 const SheetHeaderSlotContext = React.createContext<SheetHeaderSlot | null>(null);
 
+const EMPTY_HEADER: SheetHeaderState = { title: "", hasBack: false };
+
 /**
  * Puts a fixed head on the sheet around it: the title in the middle, an optional back
  * button on the left and the close button on the right, above a divider. The body
@@ -358,6 +360,11 @@ type SheetProps = {
    * is also asked if another "switch" sheet minimises this one, which cannot be held.
    */
   onCloseRequest?: () => boolean;
+  /**
+   * Draws the fixed head from the first frame for a sheet whose content puts a SheetHeader
+   * in it, so the head does not grow in while the sheet slides in.
+   */
+  fixedHeader?: boolean;
 };
 
 function Sheet({
@@ -379,6 +386,7 @@ function Sheet({
   stackBehavior = "switch",
   resizeTiming,
   onCloseRequest,
+  fixedHeader = false,
 }: SheetProps) {
   const [footerHeight, setFooterHeight] = React.useState(0);
   const [hasSlotFooter, setHasSlotFooter] = React.useState(false);
@@ -624,10 +632,10 @@ function Sheet({
   );
 
   const renderHandle = React.useCallback(() => {
-    if (header) {
+    if (header || fixedHeader) {
       return (
         <SheetHeaderBar
-          header={header}
+          header={header ?? EMPTY_HEADER}
           showCloseButton={dismissible && !hideCloseButton}
           onBack={() => headerBackRef.current?.()}
           onClose={handleClosePress}
@@ -656,7 +664,7 @@ function Sheet({
         ) : null}
       </View>
     );
-  }, [dismissible, handleClosePress, header, hideCloseButton]);
+  }, [dismissible, fixedHeader, handleClosePress, header, hideCloseButton]);
 
   const safeBottomInset = Math.max(insets.bottom, 16);
   const hasFooter = footer != null || hasSlotFooter;
