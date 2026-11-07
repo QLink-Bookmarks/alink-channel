@@ -89,31 +89,31 @@ function OpenInAppBanner({ token, folderId }: OpenInAppBannerProps) {
   };
 
   return (
-    <View className="gap-3 border-b border-border bg-card px-4 py-3">
-      <View className="flex-row items-center gap-3">
-        <View className="flex-1">
-          <Text className="text-sm font-semibold text-foreground">저희 앱도 있어요..</Text>
-          <Text className="text-xs text-muted-foreground">앱도 한 번 써보시죠</Text>
-        </View>
-        <Button
-          accessibilityLabel="배너 닫기"
-          size="icon"
-          variant="ghost"
-          onPress={() => setDismissed(true)}
-        >
-          <Icon
-            as={X}
-            size={16}
-            className="text-muted-foreground"
-          />
-        </Button>
+    <View className="flex-row items-center gap-3 border-b border-border bg-card px-4 py-3">
+      <View className="min-w-0 flex-1">
+        <Text className="text-sm font-semibold text-foreground">저희 앱도 있어요..</Text>
+        <Text className="text-xs text-muted-foreground">앱도 한 번 써보시죠</Text>
       </View>
       <Button
+        className="self-center"
         size="sm"
         variant="gradient"
         onPress={handleOpenApp}
       >
-        <Text>앱에서 열기</Text>
+        <Text className="whitespace-nowrap">앱에서 열기</Text>
+      </Button>
+      <Button
+        accessibilityLabel="배너 닫기"
+        className="self-center"
+        size="icon"
+        variant="ghost"
+        onPress={() => setDismissed(true)}
+      >
+        <Icon
+          as={X}
+          size={16}
+          className="text-muted-foreground"
+        />
       </Button>
     </View>
   );
