@@ -33,7 +33,7 @@ function ExcerptContinueLink({ url }: ExcerptContinueLinkProps) {
       accessibilityLabel="이어 읽기"
       accessibilityRole="link"
       className={cn(
-        "font-semibold text-foreground underline web:cursor-pointer web:whitespace-nowrap web:rounded-sm web:decoration-1 web:outline-none web:transition-[text-decoration-thickness] web:hover:decoration-2 web:focus-visible:ring-[3px] web:focus-visible:ring-ring/50",
+        "font-semibold text-foreground underline web:cursor-pointer web:whitespace-nowrap web:rounded-sm web:decoration-1 web:outline-none web:transition-[text-decoration-thickness] web:hover:decoration-2 web:focus-visible:ring-[3px] web:focus-visible:ring-ring",
         // Mobile width only: on wide the padding would cover the line above (a pointer
         // needs no 44px target there).
         !isWideView && "web:py-3.5",
