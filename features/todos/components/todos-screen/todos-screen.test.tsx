@@ -199,12 +199,12 @@ describe("TodosScreen schedule line", () => {
     expect(screen.queryByText(/01\/06 09:00/)).toBeNull();
   });
 
-  it("follows the server's status for 지남, not the reminder time", () => {
+  it("marks a one-time reminder past its time as 지남 even when the server still says ACTIVE", () => {
     mockTodosQuery.data = {
       contents: [
         {
           ...TODO,
-          title: "서버는 진행 중",
+          title: "막 지난 알림",
           status: "ACTIVE",
           reminderAt: new Date(2020, 0, 5, 9, 0).toISOString(),
         },
@@ -212,8 +212,47 @@ describe("TodosScreen schedule line", () => {
     };
     renderMobileTodos();
 
-    expect(screen.getByText("01/05 09:00")).toBeOnTheScreen();
-    expect(screen.queryByText(/지남\)/)).toBeNull();
+    expect(screen.getByText("01/05 09:00 (지남)")).toBeOnTheScreen();
+  });
+
+  it("marks a repeat past its end date as 지남 like the detail, while the server says ACTIVE", () => {
+    mockTodosQuery.data = {
+      contents: [
+        {
+          ...TODO,
+          id: 1,
+          title: "끝난 반복",
+          status: "ACTIVE",
+          repeatDays: ["MON"],
+          repeatTime: "08:00",
+          repeatUntil: new Date(2020, 0, 6, 23, 59, 59).toISOString(),
+        },
+        {
+          ...TODO,
+          id: 2,
+          title: "이어지는 반복",
+          status: "ACTIVE",
+          repeatDays: ["TUE"],
+          repeatTime: "08:00",
+          repeatUntil: new Date(2099, 11, 31, 23, 59, 59).toISOString(),
+        },
+        {
+          ...TODO,
+          id: 3,
+          title: "끝낸 반복",
+          status: "COMPLETED",
+          repeatDays: ["WED"],
+          repeatTime: "08:00",
+          repeatUntil: new Date(2020, 0, 6, 23, 59, 59).toISOString(),
+          completedAt: new Date(2020, 0, 6, 10, 0).toISOString(),
+        },
+      ],
+    };
+    renderMobileTodos();
+
+    expect(screen.getByText("매주 월 오전 8:00 · 1월 6일까지 (지남)")).toBeOnTheScreen();
+    expect(screen.getByText("매주 화 오전 8:00 · 12월 31일까지")).toBeOnTheScreen();
+    expect(screen.queryByText(/매주 수.*지남/)).toBeNull();
   });
 });
 

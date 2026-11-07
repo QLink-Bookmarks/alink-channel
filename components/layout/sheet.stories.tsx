@@ -8,7 +8,7 @@ import { Text } from "@/components/ui/text";
 import { type AccentName, type ThemeMode } from "@/lib/theme";
 import type { Meta, StoryObj } from "@storybook/react-native";
 
-import { Sheet, SheetFooter, useSheetMotion } from "./sheet";
+import { Sheet, SheetFooter, SheetHeader, useSheetMotion } from "./sheet";
 
 type SheetStoryProps = {
   open: boolean;
@@ -224,6 +224,31 @@ export const WithoutCloseButton: Story = {
       onOpenChange={() => {}}
     >
       <ShortContent />
+    </Sheet>
+  ),
+};
+
+/** SheetHeader: 제목·뒤로·닫기가 머리에 고정되고 본문만 스크롤된다 (#88) */
+export const WithHeader: Story = {
+  name: "고정 머리",
+  args: {
+    fitContent: true,
+    title: "",
+  },
+  render: ({ open }, context) => (
+    <Sheet
+      open={open}
+      fitContent
+      maxDynamicContentSize={420}
+      accent={(context.globals.accent ?? "gray") as AccentName}
+      mode={(context.globals.mode ?? "light") as ThemeMode}
+      onOpenChange={() => {}}
+    >
+      <SheetHeader
+        title="새 링크 추가"
+        onBack={() => {}}
+      />
+      <LongContent />
     </Sheet>
   ),
 };

@@ -291,9 +291,10 @@ test.describe("new link form actions and copy (#46)", () => {
     await setUpFormServer(page);
     await openForm(page);
     const scope = form(page);
+    // On mobile the title sits in the sheet's fixed head, outside the body (#88).
+    await expect(page.getByText("새 링크 추가", { exact: true }).first()).toBeVisible();
 
     for (const text of [
-      "새 링크 추가",
       "링크",
       "URL",
       URL_HINT,
@@ -531,7 +532,13 @@ test.describe("new link form actions and copy (#46)", () => {
       .click();
     await form(page).getByRole("textbox", { name: "메모", exact: true }).fill("버릴 메모");
 
+    // A form with input asks first (#88); 저장 안 함 throws it away.
     await closeButton(page).click();
+    await page
+      .getByRole("dialog")
+      .filter({ hasText: "저장하지 않은 변경사항이 있어요" })
+      .getByRole("button", { name: "저장 안 함", exact: true })
+      .click();
     await expectClosed(page);
     await openForm(page);
     await expect(urlInput(page)).toHaveValue("");
@@ -735,20 +742,20 @@ test.describe("mobile new link sheet (#46)", () => {
     await openForm(page);
 
     await folderTrigger(page).click();
-    await expect(form(page).getByText("폴더 선택", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "폴더 선택", exact: true })).toBeVisible();
     await expect(saveButton(page)).toHaveCount(0);
     await expect(aiButton(page)).toHaveCount(0);
     await expect(page.getByRole("button", { name: "닫기", exact: true })).toHaveCount(0);
 
-    await form(page).getByRole("button", { name: "뒤로", exact: true }).click();
+    await page.getByRole("button", { name: "뒤로", exact: true }).click();
     await expect(saveButton(page)).toBeVisible();
     await expect(page.getByRole("button", { name: "닫기", exact: true })).toBeVisible();
 
     await providerTrigger(page).click();
-    await expect(form(page).getByText("AI 제공자 선택", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI 제공자 선택", exact: true })).toBeVisible();
     await expect(saveButton(page)).toHaveCount(0);
     await page.getByRole("button", { name: "OpenAI 선택" }).click();
-    await expect(form(page).getByText("새 링크 추가", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "새 링크 추가", exact: true })).toBeVisible();
     await expect(providerTrigger(page)).toHaveAccessibleName("AI 제공자, OpenAI");
     await expect(saveButton(page)).toBeVisible();
   });

@@ -191,12 +191,9 @@ function TodoDisplayItem({
   onPress: (todo: TodoListItem) => void;
 }) {
   const done = Boolean(todo.completedAt);
-  // The card's 지남 follows the server's status, so it matches the status chip it is under.
-  const schedule = formatTodoSchedule(
-    todo,
-    nowMs,
-    todo.status ? { overdue: todo.status === "OVERDUE" } : undefined,
-  );
+  // The card's 지남 is the same as on the link detail: a past reminder, or a repeat past its
+  // end date. The section and the status chips still follow the server's status.
+  const schedule = formatTodoSchedule(todo, nowMs);
 
   return (
     <TodoItem

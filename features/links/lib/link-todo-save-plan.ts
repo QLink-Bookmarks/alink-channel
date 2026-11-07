@@ -85,6 +85,24 @@ function hasTodoDraftContent(draft: TodoDraftEditorItem): boolean {
   return draft.title.trim().length > 0;
 }
 
+// True when leaving the editor would lose something: a saved action changed, checked or
+// removed, or a new row that has a title or a schedule.
+function hasUnsavedTodoChanges(
+  saved: TodoDraftEditorItem[],
+  drafts: TodoDraftEditorItem[],
+): boolean {
+  const draftIds = new Set(drafts.map((draft) => String(draft.id)));
+  if (saved.some((todo) => !draftIds.has(String(todo.id)))) return true;
+  const savedById = new Map(saved.map((todo) => [String(todo.id), todo]));
+  return drafts.some((draft) => {
+    const savedTodo = savedById.get(String(draft.id));
+    if (!savedTodo) return hasTodoDraftContent(draft) || draft.mode !== "none";
+    return (
+      isTodoDraftChanged(savedTodo, draft) || (savedTodo.done === true) !== (draft.done === true)
+    );
+  });
+}
+
 // The server refuses a past one-time reminder on every create and update, done or not. A
 // done action is never reminded and hides its schedule, so its past reminder is dropped
 // instead of blocking the save; a pending one is checked by the editor before this.
@@ -185,6 +203,7 @@ export {
   buildSavedTodoDrafts,
   createEmptyTodoDraft,
   getLinkTodoTitle,
+  hasUnsavedTodoChanges,
   isLinkTodoDone,
   isTodoDraftChanged,
   planTodoSave,

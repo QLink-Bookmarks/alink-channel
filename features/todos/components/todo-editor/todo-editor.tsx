@@ -175,11 +175,13 @@ function TodoEditorBase({
               className={cn(
                 "-ml-2 border-transparent bg-transparent px-2 font-semibold shadow-none dark:bg-transparent",
                 isMobile ? "h-10 text-base" : "h-[34px] text-[13px]",
-                "web:hover:border-input",
-                isTitleFocused && "bg-card dark:bg-card",
+                // The hover border would cover the focus border, so it shows only unfocused.
+                isTitleFocused ? "bg-card dark:bg-card" : "web:hover:border-input",
                 titleError != null && "border-destructive/70 web:hover:border-destructive/70",
                 showCounter && "pr-14",
-                done && "text-muted-foreground line-through",
+                // iOS reuses native text inputs and keeps a strike in the reused one's
+                // placeholder, so the done title is struck through on web only.
+                done && "text-muted-foreground web:line-through",
               )}
               editable={!disabled}
               maxLength={titleLimit.maxLength}

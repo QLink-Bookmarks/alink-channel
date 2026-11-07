@@ -10,11 +10,13 @@ import { TodoErrorSummary } from "@/features/todos/components/todo-error-summary
 import { TodoItem } from "@/features/todos/components/todo-item/todo-item";
 import { formatTodoSchedule } from "@/features/todos/lib/todo-schedule-label";
 import { cn } from "@/lib/utils";
+import { type LeaveGuard, requestLeave, useLeaveGuard } from "@/stores/leave-guard";
 
 import { useLinkTodoEdit } from "../hooks/use-link-todo-edit";
 import { getLinkTodoTitle, isLinkTodoDone } from "../lib/link-todo-save-plan";
 import type { LinkTodo } from "../types";
 import { DetailRow, DetailRowAddButton } from "./link-detail-parts";
+import { UnsavedChangesDialog } from "./unsaved-changes-dialog";
 
 import { CircleAlert } from "lucide-react-native/icons";
 
@@ -93,6 +95,73 @@ function LinkDetailActionsSection({
 
   React.useEffect(() => () => onEditingChange(false), [onEditingChange]);
 
+  const { cancel, isDirty, isSaving, save } = edit;
+  // The leave waiting on the unsaved changes dialog.
+  const pendingLeaveRef = React.useRef<(() => void) | null>(null);
+  const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = React.useState(false);
+  const leaveGuard = React.useMemo<LeaveGuard | null>(
+    () =>
+      // A save on its way is not held: it finishes even if the detail closes.
+      isEditing && isDirty && !isSaving
+        ? (leave) => {
+            pendingLeaveRef.current = leave;
+            setIsLeaveConfirmOpen(true);
+          }
+        : null,
+    [isDirty, isEditing, isSaving],
+  );
+  useLeaveGuard(leaveGuard);
+
+  // The dialog lives in the editor; a leave asked for it never outlives the editor.
+  React.useEffect(() => {
+    if (isEditing) return;
+    pendingLeaveRef.current = null;
+    setIsLeaveConfirmOpen(false);
+  }, [isEditing]);
+
+  const handleLeaveConfirmOpenChange = React.useCallback((open: boolean) => {
+    setIsLeaveConfirmOpen(open);
+    if (!open) pendingLeaveRef.current = null;
+  }, []);
+  const handleDiscardAndLeave = React.useCallback(() => {
+    const leave = pendingLeaveRef.current;
+    pendingLeaveRef.current = null;
+    setIsLeaveConfirmOpen(false);
+    cancel();
+    leave?.();
+  }, [cancel]);
+  const handleSaveAndLeave = React.useCallback(async () => {
+    const leave = pendingLeaveRef.current;
+    pendingLeaveRef.current = null;
+    setIsLeaveConfirmOpen(false);
+    if (await save()) leave?.();
+  }, [save]);
+
+  // Web: Esc leaves the editor (asking first when something changed) before the panel
+  // sees it; a dialog or popover opened from the editor takes its own Esc.
+  React.useEffect(() => {
+    if (!isEditing || process.env.EXPO_OS !== "web" || typeof document === "undefined") {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      event.preventDefault();
+      requestLeave(cancel);
+    };
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => document.removeEventListener("keydown", handleKeyDown, true);
+  }, [cancel, isEditing]);
+
+  const leaveConfirm = (
+    <UnsavedChangesDialog
+      open={isLeaveConfirmOpen}
+      onDiscard={handleDiscardAndLeave}
+      onOpenChange={handleLeaveConfirmOpenChange}
+      onSave={() => void handleSaveAndLeave()}
+    />
+  );
+
   if (!isEditing && todos.length === 0) {
     return (
       <DetailRow
@@ -148,6 +217,7 @@ function LinkDetailActionsSection({
             onOpenTodoChange={edit.setOpenTodoId}
             onRemoveTodo={edit.handleRemove}
           />
+          {leaveConfirm}
           {edit.saveFailed ? <SaveFailedAlert /> : null}
           {isWide ? null : <TodoErrorSummary count={edit.errorCount} />}
           <View className="flex-row items-center gap-3 pt-1">

@@ -5,6 +5,7 @@ import {
   applySavedStep,
   buildSavedTodoDrafts,
   createEmptyTodoDraft,
+  hasUnsavedTodoChanges,
   isTodoDraftChanged,
   planTodoSave,
 } from "./link-todo-save-plan";
@@ -59,6 +60,31 @@ describe("isTodoDraftChanged", () => {
 
   it("does not look at the weekdays of a one-time reminder", () => {
     expect(isTodoDraftChanged(once, { ...once, selectedWeekdays: ["sun"] })).toBe(false);
+  });
+});
+
+describe("hasUnsavedTodoChanges", () => {
+  const saved = buildSavedTodoDrafts(savedTodos);
+
+  it("is false for the saved rows as they are and for a blank new row", () => {
+    expect(hasUnsavedTodoChanges(saved, saved)).toBe(false);
+    expect(hasUnsavedTodoChanges(saved, [...saved, createEmptyTodoDraft()])).toBe(false);
+  });
+
+  it("sees a changed title, a done change and a removed row", () => {
+    expect(
+      hasUnsavedTodoChanges(saved, [editTitle(saved[0], "렌터카 반납"), ...saved.slice(1)]),
+    ).toBe(true);
+    expect(hasUnsavedTodoChanges(saved, [{ ...saved[0], done: true }, ...saved.slice(1)])).toBe(
+      true,
+    );
+    expect(hasUnsavedTodoChanges(saved, saved.slice(1))).toBe(true);
+  });
+
+  it("sees a new row with a title or with only a schedule", () => {
+    const empty = createEmptyTodoDraft();
+    expect(hasUnsavedTodoChanges(saved, [...saved, { ...empty, title: "새 액션" }])).toBe(true);
+    expect(hasUnsavedTodoChanges(saved, [...saved, { ...empty, mode: "time" }])).toBe(true);
   });
 });
 
