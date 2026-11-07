@@ -10,43 +10,22 @@ import { X } from "lucide-react-native/icons";
 
 const APP_SCHEME = "qlinkchannel";
 
-type MobilePlatform = "ios" | "android" | null;
-
 type OpenInAppBannerProps = {
   token?: string | null;
   folderId?: string | null;
 };
 
-function detectMobilePlatform(): MobilePlatform {
-  if (typeof navigator === "undefined") {
-    return null;
-  }
-  if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    return "ios";
-  }
-  if (/Android/i.test(navigator.userAgent)) {
-    return "android";
-  }
-  return null;
-}
-
-function getStoreUrl(platform: MobilePlatform): string | undefined {
-  if (platform === "ios") {
-    return process.env.EXPO_PUBLIC_IOS_APP_STORE_URL || undefined;
-  }
-  if (platform === "android") {
-    return process.env.EXPO_PUBLIC_ANDROID_PLAY_STORE_URL || undefined;
-  }
-  return undefined;
+function isIosBrowser(): boolean {
+  return typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
 function OpenInAppBanner({ token, folderId }: OpenInAppBannerProps) {
   const [dismissed, setDismissed] = React.useState(false);
-  const [platform] = React.useState(detectMobilePlatform);
-  const storeUrl = getStoreUrl(platform);
+  const [isIos] = React.useState(isIosBrowser);
+  const storeUrl = process.env.EXPO_PUBLIC_IOS_APP_STORE_URL || undefined;
   const isProduction = getAppVariant() === "production";
 
-  if (dismissed || !platform) {
+  if (dismissed || !isIos) {
     return null;
   }
   // Outside production, always surface the banner so testers can hand off to the
@@ -91,7 +70,7 @@ function OpenInAppBanner({ token, folderId }: OpenInAppBannerProps) {
   return (
     <View className="flex-row items-center gap-3 border-b border-border bg-card px-4 py-3">
       <View className="min-w-0 flex-1">
-        <Text className="text-sm font-semibold text-foreground">저희 앱도 있어요..</Text>
+        <Text className="text-sm font-semibold text-foreground">저희 앱도 있어요.</Text>
         <Text className="text-xs text-muted-foreground">앱도 한 번 써보시죠</Text>
       </View>
       <Button
