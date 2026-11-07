@@ -14,13 +14,12 @@ import {
 
 const MINUTE_MS = 60_000;
 
-// Created order (newest first) is B, D, C, A; received order is A, B, C, D.
+// Created order is id order (newest first: D, C, B, A); received order is A, B, C, D.
 const NOTIFICATIONS: MockNotification[] = [
   {
     id: 1,
     title: "알림 A",
     message: "내용 A",
-    createdAt: iso(-360 * MINUTE_MS),
     firedAt: iso(-10 * MINUTE_MS),
     readAt: null,
     context: "TODO",
@@ -30,7 +29,6 @@ const NOTIFICATIONS: MockNotification[] = [
     id: 2,
     title: "알림 B",
     message: "내용 B",
-    createdAt: iso(-60 * MINUTE_MS),
     firedAt: iso(-60 * MINUTE_MS),
     readAt: null,
     context: "ANNOUNCE",
@@ -40,7 +38,6 @@ const NOTIFICATIONS: MockNotification[] = [
     id: 3,
     title: "알림 C",
     message: "내용 C",
-    createdAt: iso(-240 * MINUTE_MS),
     firedAt: iso(-120 * MINUTE_MS),
     readAt: null,
     context: "TODO",
@@ -50,7 +47,6 @@ const NOTIFICATIONS: MockNotification[] = [
     id: 4,
     title: "알림 D",
     message: "내용 D",
-    createdAt: iso(-180 * MINUTE_MS),
     firedAt: iso(-180 * MINUTE_MS),
     readAt: null,
     context: "ANNOUNCE",

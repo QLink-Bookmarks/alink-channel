@@ -66,13 +66,12 @@ type MockTodoStatus = "ACTIVE" | "OVERDUE" | "COMPLETED";
 /** `GET /api/todos/counts` (#197). */
 type TodoStatusCounts = { all: number; active: number; overdue: number; completed: number };
 
-/** A `GET /api/notifications` item. `createdAt` is not in the response; it only drives sorting. */
+/** A `GET /api/notifications` item. */
 type MockNotification = {
   id: number;
   title: string;
   message: string;
   firedAt: string;
-  createdAt?: string;
   readAt: string | null;
   context: "TODO" | "ANNOUNCE";
   contextId: number;
@@ -421,14 +420,13 @@ const NOTIFICATION_SORT_DEFAULTS = {
   legacy: POST_SORT_DEFAULTS.legacy,
 };
 
-/** Sorts notifications as the server; a missing `createdAt` falls back to `firedAt`. */
+/** Sorts notifications as the server: `created_at` is id order, `fired_at` ties go by id. */
 function compareNotifications(sort: { key: string; direction: "asc" | "desc" }) {
   const sign = sort.direction === "asc" ? 1 : -1;
-  const valueOf = (item: MockNotification) =>
-    sort.key === "fired_at" ? item.firedAt : (item.createdAt ?? item.firedAt);
   return (a: MockNotification, b: MockNotification) =>
-    sign * (new Date(valueOf(a)).getTime() - new Date(valueOf(b)).getTime()) ||
-    sign * (a.id - b.id);
+    (sort.key === "fired_at"
+      ? sign * (new Date(a.firedAt).getTime() - new Date(b.firedAt).getTime())
+      : 0) || sign * (a.id - b.id);
 }
 
 const DEFAULT_TODO_CREATED_AT = "2026-10-29T10:00:00.000Z";
@@ -461,15 +459,17 @@ const TODO_SORT_DEFAULTS = {
   >,
 };
 
-/** Sorts todos as the server: a missing reminder / completion goes last either way. */
+/**
+ * Sorts todos as the server: `created_at` is id order, and a missing reminder / completion goes
+ * last either way.
+ */
 function compareTodos(sort: { key: string; direction: "asc" | "desc" }) {
   const sign = sort.direction === "asc" ? 1 : -1;
+  if (sort.key === "created_at") {
+    return (a: MockTodo, b: MockTodo) => sign * (a.id - b.id);
+  }
   const valueOf = (todo: MockTodo) =>
-    sort.key === "reminder_at"
-      ? todo.reminderAt
-      : sort.key === "completed_at"
-        ? todo.completedAt
-        : (todo.createdAt ?? DEFAULT_TODO_CREATED_AT);
+    sort.key === "reminder_at" ? todo.reminderAt : todo.completedAt;
   return (a: MockTodo, b: MockTodo) => {
     const left = valueOf(a);
     const right = valueOf(b);
@@ -789,12 +789,7 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
           ? state.notifications.filter((item) => item.context === type)
           : state.notifications;
         const page = paginate([...items].sort(compareNotifications(sort)), url);
-        return json(
-          scroll(
-            page.contents.map(({ createdAt: _createdAt, ...item }) => item),
-            page.nextCursor,
-          ),
-        );
+        return json(scroll(page.contents, page.nextCursor));
       }
       if (method === "GET" && path === "/api/posts") {
         if (!readListSort(url, POST_SORT_DEFAULTS)) {

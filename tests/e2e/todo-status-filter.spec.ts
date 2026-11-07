@@ -42,13 +42,14 @@ function todo(
   };
 }
 
+// Ids follow the made day: the server sorts 만든 날 by id.
 function buildTodos(): MockTodo[] {
   return [
     todo(1, "지난 알림 A", { reminderAt: iso(-3 * HOUR_MS), createdDay: 1 }),
-    todo(2, "지난 알림 B", { reminderAt: iso(-5 * HOUR_MS), createdDay: 4 }),
-    todo(3, "곧 알림", { reminderAt: iso(2 * HOUR_MS), createdDay: 2 }),
-    todo(4, "나중 알림", { reminderAt: iso(48 * HOUR_MS), createdDay: 5 }),
-    todo(5, "알림 없음", { createdDay: 3 }),
+    todo(4, "지난 알림 B", { reminderAt: iso(-5 * HOUR_MS), createdDay: 4 }),
+    todo(2, "곧 알림", { reminderAt: iso(2 * HOUR_MS), createdDay: 2 }),
+    todo(5, "나중 알림", { reminderAt: iso(48 * HOUR_MS), createdDay: 5 }),
+    todo(3, "알림 없음", { createdDay: 3 }),
     todo(6, "끝낸 일 1", {
       reminderAt: iso(-9 * HOUR_MS),
       completedAt: iso(-1 * HOUR_MS),

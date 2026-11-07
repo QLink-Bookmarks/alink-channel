@@ -50,9 +50,9 @@ async function fetchAllFolders(params: FolderListParams): Promise<FolderScrollRe
 }
 
 function useFoldersQuery(params: GetFoldersParams = {}, options?: { enabled?: boolean }) {
-  const hasSort = params.orderKey != null || params.order != null;
   const listParams: FolderListParams = {
-    ...(hasSort ? { orderKey: params.orderKey, order: params.order } : FOLDER_LIST_SORT),
+    orderKey: params.orderKey ?? FOLDER_LIST_SORT.orderKey,
+    order: params.order ?? FOLDER_LIST_SORT.order,
     query: params.query,
   };
 
