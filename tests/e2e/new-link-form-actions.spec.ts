@@ -607,13 +607,20 @@ test.describe("wide new link dialog (#46)", () => {
   }) => {
     await setUpFormServer(page);
     await openForm(page);
+    // The dialog animates in; read the boxes once they stop moving.
+    await expect
+      .poll(async () => {
+        const save = await boxOf(saveButton(page));
+        const caption = await boxOf(form(page).getByText(CAPTION, { exact: true }));
+        return Math.abs(caption.y + caption.height / 2 - (save.y + save.height / 2)) < 4;
+      })
+      .toBe(true);
     const save = await boxOf(saveButton(page));
     const options = await boxOf(aiOptions(page));
     const caption = await boxOf(form(page).getByText(CAPTION, { exact: true }));
     expect(options.y + options.height).toBeLessThan(save.y);
     expect(options.y + options.height).toBeLessThan(caption.y);
     expect(caption.x + caption.width).toBeLessThanOrEqual(save.x);
-    expect(Math.abs(caption.y + caption.height / 2 - (save.y + save.height / 2))).toBeLessThan(4);
     await expect(form(page).getByRole("button", { name: "취소", exact: true })).toHaveCount(0);
     await expect(form(page).getByRole("button", { name: /기본 제공자 사용/ })).toHaveCount(0);
   });

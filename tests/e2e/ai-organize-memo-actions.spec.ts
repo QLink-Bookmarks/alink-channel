@@ -244,6 +244,8 @@ async function pickDateAndTime(page: Page, container: Locator = form(page)) {
   await container.getByText("날짜 선택", { exact: true }).last().click();
   // The popover's own heading is also 날짜 선택; it renders after the field.
   const datePopover = page.getByText("날짜 선택", { exact: true }).last().locator("..");
+  // The popover may flip above the field; let it settle before pressing the wheels.
+  await page.waitForTimeout(400);
   await datePopover.getByText(`${NEXT_YEAR}년`, { exact: true }).click();
   await datePopover.getByText("03월", { exact: true }).click();
   await datePopover.getByText("15일", { exact: true }).click();

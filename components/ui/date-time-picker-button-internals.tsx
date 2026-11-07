@@ -123,6 +123,8 @@ function useAutoPopoverSide() {
   const [side, setSide] = React.useState<"top" | "bottom">("bottom");
 
   const handlePressIn = React.useCallback(() => {
+    // The web popover already flips itself when there is no room.
+    if (process.env.EXPO_OS === "web") return;
     anchorRef.current?.measureInWindow((_x, y, _width, height) => {
       setSide(pickPopoverSide(y, height, windowHeight));
     });
