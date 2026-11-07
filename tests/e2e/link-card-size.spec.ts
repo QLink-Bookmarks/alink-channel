@@ -514,6 +514,113 @@ test.describe("card content in two small columns", () => {
   });
 });
 
+test.describe("card heights in a row", () => {
+  const WITH_EXCERPT = {
+    ...makeLink({ id: 301, title: "요약이 있는 카드" }),
+    contentExcerpt: "본문 앞부분을 한 줄로 보여 주는 발췌 문장입니다.",
+  } as MockLink;
+  const WITHOUT_EXCERPT = makeLink({ id: 302, title: "요약이 없는 카드" });
+
+  test("a card with an excerpt and one without in the same row share top and bottom, with the tags at the bottom of both", async ({
+    page,
+  }) => {
+    await setup(page, [WITH_EXCERPT, WITHOUT_EXCERPT]);
+    await page.goto("/settings");
+    await pickSize(page, "작게");
+    await page.goto("/home");
+    await expect(cards(page)).toHaveCount(2);
+    await expectColumns(page, 2);
+
+    const withExcerpt = cards(page).filter({ hasText: "요약이 있는 카드" });
+    const withoutExcerpt = cards(page).filter({ hasText: "요약이 없는 카드" });
+    await expect(withExcerpt.getByTestId("link-card-excerpt")).toBeVisible();
+    await expect(withoutExcerpt.getByTestId("link-card-excerpt")).toHaveCount(0);
+
+    const tall = (await withExcerpt.boundingBox())!;
+    const short = (await withoutExcerpt.boundingBox())!;
+    expect(Math.abs(tall.y - short.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(tall.y + tall.height - (short.y + short.height))).toBeLessThanOrEqual(1);
+
+    const tallTags = (await withExcerpt.getByTestId("link-card-tags").boundingBox())!;
+    const shortTags = (await withoutExcerpt.getByTestId("link-card-tags").boundingBox())!;
+    expect(
+      Math.abs(tallTags.y + tallTags.height - (shortTags.y + shortTags.height)),
+    ).toBeLessThanOrEqual(1);
+    const shortTitle = (await withoutExcerpt.getByTestId("link-card-title").boundingBox())!;
+    const tallTitle = (await withExcerpt.getByTestId("link-card-title").boundingBox())!;
+    expect(Math.abs(tallTitle.y - shortTitle.y)).toBeLessThanOrEqual(1);
+  });
+
+  test("phones: in one column each card keeps its own height", async ({ page }) => {
+    test.skip(isWideProject(), "one column on a phone");
+    await setup(page, [WITH_EXCERPT, WITHOUT_EXCERPT]);
+    await page.goto("/home");
+    await expect(cards(page)).toHaveCount(2);
+    await expectColumns(page, 1);
+
+    const tall = (await cards(page).filter({ hasText: "요약이 있는 카드" }).boundingBox())!;
+    const short = (await cards(page).filter({ hasText: "요약이 없는 카드" }).boundingBox())!;
+    expect(tall.height - short.height).toBeGreaterThan(10);
+  });
+});
+
+test.describe("short lists", () => {
+  const SHORT_LINKS = [
+    {
+      ...makeLink({ id: 401, title: "짧은 목록 요약 카드" }),
+      contentExcerpt: "본문 앞부분을 한 줄로 보여 주는 발췌 문장입니다.",
+    } as MockLink,
+    makeLink({ id: 402, title: "짧은 목록 카드" }),
+  ];
+
+  /** Each card's height with its `grow` turned off in place: the card's own content height. */
+  async function naturalHeights(page: Page) {
+    return grid(page).evaluate((node) => {
+      const parts = [
+        ...node.querySelectorAll<HTMLElement>(
+          '[data-testid="link-card"], [data-testid="link-card-body"]',
+        ),
+      ];
+      parts.forEach((part) => (part.style.flexGrow = "0"));
+      const heights = [...node.querySelectorAll('[data-testid="link-card"]')].map(
+        (card) => card.getBoundingClientRect().height,
+      );
+      parts.forEach((part) => (part.style.flexGrow = ""));
+      return heights;
+    });
+  }
+
+  for (const count of [1, 2]) {
+    for (const size of ["크게", "작게"] as const) {
+      test(`${count} link(s), ${size}: cards keep their own height and the grid ends at the last card`, async ({
+        page,
+      }) => {
+        await setup(page, SHORT_LINKS.slice(0, count));
+        await page.goto("/settings");
+        await pickSize(page, size);
+        await page.goto(isWideProject() ? "/links" : "/home");
+        await expect(cards(page)).toHaveCount(count);
+        const columns = !isWideProject() && size === "크게" ? 1 : count;
+        await expectColumns(page, columns);
+
+        const natural = await naturalHeights(page);
+        const boxes = await cards(page).evaluateAll((nodes) =>
+          nodes.map((node) => node.getBoundingClientRect().toJSON() as DOMRect),
+        );
+        const rowHeight = Math.max(...natural);
+        boxes.forEach((box, index) => {
+          const expected = columns === 1 ? natural[index] : rowHeight;
+          expect(Math.abs(box.height - expected)).toBeLessThanOrEqual(1);
+        });
+
+        const gridBox = (await grid(page).boundingBox())!;
+        const lastBottom = Math.max(...boxes.map((box) => box.bottom));
+        expect(Math.abs(gridBox.y + gridBox.height - lastBottom)).toBeLessThanOrEqual(1);
+      });
+    }
+  }
+});
+
 test.describe("keeping the choice", () => {
   test("작게 survives a web refresh and a new tab", async ({ page, context }) => {
     await setup(page);
