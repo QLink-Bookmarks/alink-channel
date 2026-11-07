@@ -365,10 +365,7 @@ test.describe("the todo feature is called 액션", () => {
     await expect(page.getByText("토요일 2시 방문")).toBeVisible();
     expect(await visibleCopy(page)).not.toMatch(OLD_NAMES);
 
-    await page
-      .getByText(/^✓ 완료/)
-      .first()
-      .click();
+    await page.getByRole("radio", { name: /^완료/ }).first().click();
     await expect(page.getByText("해당하는 액션이 없어요")).toBeVisible();
   });
 
@@ -861,10 +858,7 @@ test.describe("Korean line breaking in sheets, failures and empty states", () =>
 
       await page.goto("/todos");
       await expect(page.getByText("토요일 2시 방문")).toBeVisible();
-      await page
-        .getByText(/^✓ 완료/)
-        .first()
-        .click();
+      await page.getByRole("radio", { name: /^완료/ }).first().click();
       for (const text of ["해당하는 액션이 없어요", "다른 필터를 선택해보세요."]) {
         const node = page.getByText(text, { exact: true });
         await expect(node).toBeVisible();

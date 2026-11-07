@@ -183,10 +183,10 @@ describe("useLinksQuery", () => {
     });
   });
 
-  it("never adds orderKey to the old sort value", async () => {
-    const { result } = renderLinksHook({ order: "latest", size: 50 });
+  it("leaves the direction to the server when only a criterion is given", async () => {
+    const { result } = renderLinksHook({ orderKey: "title", size: 50 });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(fetchLinks).toHaveBeenCalledWith({ order: "latest", size: 50 });
+    expect(fetchLinks).toHaveBeenCalledWith({ orderKey: "title", size: 50 });
   });
 });
 

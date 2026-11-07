@@ -178,7 +178,7 @@ function useLinkDetailExcerptRecheck(
 }
 
 function useLinksQuery(params: GetLinksParams = {}) {
-  // The sort defaults only when the caller sends none: `orderKey` with the old `order` is a 400.
+  // A caller that gives only a criterion gets the server's direction for it.
   const hasSort = params.orderKey != null || params.order != null;
   const resolvedParams: GetLinksParams = hasSort
     ? { size: 30, ...params }

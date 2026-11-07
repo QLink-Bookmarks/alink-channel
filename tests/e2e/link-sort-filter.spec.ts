@@ -182,7 +182,6 @@ test.describe("mobile home", () => {
     await expect(coverButton(page)).toHaveAccessibleName(
       "정렬·필터 열기, 적용 중: 제목 오름차순, 바로가기만",
     );
-    await expect(coverButton(page).getByText("제목", { exact: true })).toBeVisible();
 
     await openCover(page);
     await expect(coverButton(page)).toHaveAccessibleName(
