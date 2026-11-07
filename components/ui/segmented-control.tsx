@@ -12,7 +12,7 @@ type SegmentedOption = {
   disabled?: boolean;
 };
 
-type SegmentedVariant = "chips" | "chipsBadge" | "chipsRound" | "pills" | "cells";
+type SegmentedVariant = "chips" | "chipsBadge" | "chipsRound" | "pills" | "cells" | "track";
 type SegmentedSelectionMode = "single" | "multiple";
 
 type SegmentedControlProps = React.ComponentProps<typeof View> & {
@@ -69,6 +69,7 @@ function SegmentedControl({
       className={cn(
         "flex-row gap-1 rounded-2xl border border-border bg-surface-elevated p-1",
         isChipVariant && "border-transparent bg-transparent p-0",
+        variant === "track" && "rounded-xl border-transparent bg-muted p-[3px]",
         block && "w-full",
         className,
       )}
@@ -128,6 +129,9 @@ function buildChipStyle(
 
   if (variant === "cells") {
     base.borderRadius = 8;
+  } else if (variant === "track") {
+    base.minHeight = 32;
+    base.borderRadius = 9;
   } else if (variant === "chips") {
     base.minHeight = size === "sm" ? 28 : 32;
     base.borderRadius = 8;
@@ -151,7 +155,10 @@ function buildChipStyle(
     base.paddingHorizontal = 10;
   }
 
-  if (selected) {
+  if (selected && variant === "track") {
+    base.backgroundColor = tokens.card;
+    base.boxShadow = "0 1px 2px rgba(0, 0, 0, 0.12)";
+  } else if (selected) {
     base.backgroundColor = tokens.primary;
     if (isChipVariant) {
       base.borderColor = tokens.primary;
@@ -198,7 +205,11 @@ function SegmentedItemBase({
       <Text
         className={cn("text-sm font-medium", labelClassName)}
         style={{
-          color: selected ? tokens.primaryForeground : tokens.mutedForeground,
+          color: selected
+            ? variant === "track"
+              ? tokens.foreground
+              : tokens.primaryForeground
+            : tokens.mutedForeground,
         }}
       >
         {option.label}

@@ -7,7 +7,7 @@ import { SegmentedControl } from "./segmented-control";
 
 type SegmentedControlStoryProps = {
   value: "all" | "open" | "done";
-  variant: "pills" | "chips" | "chipsRound" | "chipsBadge" | "cells";
+  variant: "pills" | "chips" | "chipsRound" | "chipsBadge" | "cells" | "track";
   block: boolean;
 };
 
@@ -44,7 +44,7 @@ const meta = {
     value: { control: "select", options: ["all", "open", "done"] },
     variant: {
       control: "select",
-      options: ["pills", "chips", "chipsRound", "chipsBadge", "cells"],
+      options: ["pills", "chips", "chipsRound", "chipsBadge", "cells", "track"],
     },
     block: { control: "boolean" },
   },
@@ -97,6 +97,11 @@ export const Variants: Story = {
       <SegmentedControlStory
         value={value}
         variant="cells"
+        block
+      />
+      <SegmentedControlStory
+        value={value}
+        variant="track"
         block
       />
     </View>

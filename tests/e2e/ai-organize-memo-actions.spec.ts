@@ -215,16 +215,21 @@ async function fillMemo(page: Page, memo: string) {
   await form(page).getByRole("textbox", { name: "메모", exact: true }).fill(memo);
 }
 
+// A new action starts with 알림 없음. "한 번" opens its schedule chip and picks the
+// one-time mode, leaving the date and time empty.
 async function addAction(
   page: Page,
   title: string,
-  mode: "시간 없음" | "시간 선택",
+  mode: "알림 없음" | "한 번",
   container: Locator = form(page),
 ) {
   await container.getByText("액션 추가", { exact: true }).click();
-  const input = container.getByPlaceholder("액션 제목").last();
-  await input.fill(title);
-  await container.getByText(mode, { exact: true }).last().click();
+  const action = container.getByTestId("todo-editor").last();
+  await action.getByPlaceholder("액션 제목").fill(title);
+  if (mode === "한 번") {
+    await action.getByTestId("todo-schedule-chip").click();
+    await action.getByTestId("todo-schedule-panel").getByText("한 번", { exact: true }).click();
+  }
 }
 
 const NEXT_YEAR = new Date().getFullYear() + 1;
@@ -232,15 +237,16 @@ const NEXT_YEAR = new Date().getFullYear() + 1;
 const PICKED_LABEL = "03/15 09:00";
 
 async function pickDateAndTime(page: Page, container: Locator = form(page)) {
-  await container.getByText("년-월-일", { exact: true }).last().click();
-  const datePopover = page.getByText("날짜 선택", { exact: true }).locator("..");
+  await container.getByText("날짜 선택", { exact: true }).last().click();
+  // The popover's own heading is also 날짜 선택; it renders after the field.
+  const datePopover = page.getByText("날짜 선택", { exact: true }).last().locator("..");
   await datePopover.getByText(`${NEXT_YEAR}년`, { exact: true }).click();
   await datePopover.getByText("03월", { exact: true }).click();
   await datePopover.getByText("15일", { exact: true }).click();
   await datePopover.getByRole("button", { name: "확인", exact: true }).click();
   await expect(container.getByText(`${NEXT_YEAR}-03-15`, { exact: true })).toBeVisible();
 
-  await container.getByText("오전 09:00", { exact: true }).last().click();
+  await container.getByText("시간 선택", { exact: true }).last().click();
   const timePopover = page.getByText("시간선택", { exact: true }).locator("..");
   await timePopover.getByRole("button", { name: "확인", exact: true }).click();
   await expect(page.getByText("시간선택", { exact: true })).toHaveCount(0);
@@ -285,9 +291,9 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
     const server = await setUpAiServer(page);
     await openForm(page);
     await fillMemo(page, `  ${MEMO}  `);
-    await addAction(page, "회의 자료 읽기", "시간 선택");
+    await addAction(page, "회의 자료 읽기", "한 번");
     await pickDateAndTime(page);
-    await addAction(page, "링크 공유하기", "시간 없음");
+    await addAction(page, "링크 공유하기", "알림 없음");
     await aiButton(page).click();
 
     await expectOnNewLinkDetail(page);
@@ -337,7 +343,7 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
     await openForm(page);
     await form(page).getByRole("switch").click();
     await fillMemo(page, MEMO);
-    await addAction(page, "직접 쓴 액션", "시간 없음");
+    await addAction(page, "직접 쓴 액션", "알림 없음");
     await aiButton(page).click();
 
     await expectOnNewLinkDetail(page);
@@ -366,17 +372,11 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
     const server = await setUpAiServer(page);
     await openForm(page);
     await fillMemo(page, MEMO);
-    await addAction(page, "시간 없는 액션", "시간 없음");
-    await addAction(page, "날짜 빠진 액션", "시간 선택");
+    await addAction(page, "시간 없는 액션", "알림 없음");
+    await addAction(page, "날짜 빠진 액션", "한 번");
     await aiButton(page).click();
 
-    // Each action is the innermost box holding its title field and its mode chips; in
-    // document order the second action's box comes last.
-    const actionBoxes = form(page)
-      .locator("div")
-      .filter({ has: page.getByPlaceholder("액션 제목") })
-      .filter({ hasText: "시간 선택" });
-    const missingScheduleAction = actionBoxes.last();
+    const missingScheduleAction = form(page).getByTestId("todo-editor").last();
     await expect(missingScheduleAction.getByPlaceholder("액션 제목")).toHaveValue("날짜 빠진 액션");
     await expect(
       missingScheduleAction.getByText("날짜와 시간을 선택해주세요.", { exact: true }),
@@ -396,7 +396,7 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
     server.isAiRequestFailing = true;
     await openForm(page);
     await fillMemo(page, MEMO);
-    await addAction(page, "남아 있을 액션", "시간 없음");
+    await addAction(page, "남아 있을 액션", "알림 없음");
     await aiButton(page).click();
 
     await expect(page.getByText("AI 정리 실패", { exact: true }).first()).toBeVisible();
@@ -416,7 +416,7 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
     const server = await setUpAiServer(page);
     await openForm(page);
     await fillMemo(page, MEMO);
-    await addAction(page, "한 번만", "시간 없음");
+    await addAction(page, "한 번만", "알림 없음");
     // Two presses in the same task, before React can re-render the button as disabled.
     await aiButton(page).evaluate((button: HTMLElement) => {
       button.click();
@@ -453,7 +453,7 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
     await openForm(page);
     await page.getByRole("textbox", { name: "제목", exact: true }).fill("저장 중 AI 정리");
     await fillMemo(page, MEMO);
-    await addAction(page, "한 번만 만들 액션", "시간 없음");
+    await addAction(page, "한 번만 만들 액션", "알림 없음");
     await saveButton(page).click();
 
     await expect(aiButton(page)).toBeDisabled();
@@ -468,7 +468,7 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
   }) => {
     const server = await setUpAiServer(page);
     await openForm(page, "/todos");
-    await addAction(page, "탭에 바로 보일 액션", "시간 없음");
+    await addAction(page, "탭에 바로 보일 액션", "알림 없음");
     await aiButton(page).click();
 
     await expectOnNewLinkDetail(page);
@@ -490,18 +490,15 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
       await openForm(page);
       await page.getByRole("textbox", { name: "제목", exact: true }).fill("지난 시각");
       await fillMemo(page, MEMO);
-      await addAction(page, "앞으로 할 액션", "시간 없음");
-      await addAction(page, "지난 시각 액션", "시간 선택");
+      await addAction(page, "앞으로 할 액션", "알림 없음");
+      await addAction(page, "지난 시각 액션", "한 번");
       await pickDateAndTime(page);
-      await expect(form(page).getByText(PAST_REMINDER_ERROR, { exact: true })).toHaveCount(0);
+      // #74: a past one-time reminder shows its error as soon as it is picked.
+      await expect(form(page).getByText(PAST_REMINDER_ERROR, { exact: true })).toHaveCount(1);
 
       await (press === "AI 정리" ? aiButton(page) : saveButton(page)).click();
 
-      const pastAction = form(page)
-        .locator("div")
-        .filter({ has: page.getByPlaceholder("액션 제목") })
-        .filter({ hasText: "시간 선택" })
-        .last();
+      const pastAction = form(page).getByTestId("todo-editor").last();
       await expect(pastAction.getByPlaceholder("액션 제목")).toHaveValue("지난 시각 액션");
       await expect(pastAction.getByText(PAST_REMINDER_ERROR, { exact: true })).toBeVisible();
       await expect(form(page).getByText(PAST_REMINDER_ERROR, { exact: true })).toHaveCount(1);
@@ -526,7 +523,7 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
       .getByRole("button", { name: "+ 액션 추가 / 수정" })
       .click();
     const editor = page.getByRole("dialog", { name: "액션 추가 / 수정" });
-    await addAction(page, "상세에서 지난 시각", "시간 선택", editor);
+    await addAction(page, "상세에서 지난 시각", "한 번", editor);
     await pickDateAndTime(page, editor);
     await editor.getByRole("button", { name: "저장", exact: true }).click();
 
@@ -561,7 +558,7 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
       .getByRole("button", { name: "+ 액션 추가 / 수정" })
       .click();
     const editor = page.getByRole("dialog", { name: "액션 추가 / 수정" });
-    await addAction(page, "새로 쓴 액션", "시간 없음", editor);
+    await addAction(page, "새로 쓴 액션", "알림 없음", editor);
     await editor.getByRole("button", { name: "저장", exact: true }).click();
 
     await expect(editor.getByText(PAST_REMINDER_ERROR, { exact: true })).toHaveCount(1);
@@ -576,7 +573,7 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
     const server = await setUpAiServer(page);
     await openForm(page, "/todos");
     await page.getByRole("textbox", { name: "제목", exact: true }).fill("직접 저장");
-    await addAction(page, "저장 뒤 탭에 보일 액션", "시간 없음");
+    await addAction(page, "저장 뒤 탭에 보일 액션", "알림 없음");
     await saveButton(page).click();
 
     await expect(page.getByText("새 링크 추가", { exact: true })).toHaveCount(0);
@@ -593,7 +590,7 @@ test.describe("AI 정리 sends the memo and actions typed in the wide form (#67)
     await openForm(page);
     await page.getByRole("textbox", { name: "제목", exact: true }).fill("직접 저장");
     await fillMemo(page, MEMO);
-    await addAction(page, "저장으로 만든 액션", "시간 없음");
+    await addAction(page, "저장으로 만든 액션", "알림 없음");
     await saveButton(page).click();
 
     await expect(page.getByText("새 링크 추가", { exact: true })).toHaveCount(0);

@@ -37,7 +37,8 @@ import {
   type TodoEditorMode,
   type WeekdayValue,
 } from "@/features/todos/components/todo-editor/todo-editor";
-import { validateTodoDrafts } from "@/features/todos/lib/todo-schedule";
+import { TodoErrorSummary } from "@/features/todos/components/todo-error-summary";
+import { countTodoDraftErrors, validateTodoDrafts } from "@/features/todos/lib/todo-schedule";
 import { todoQueryKeys } from "@/features/todos/queries";
 import { useClipboardFailureFeedback } from "@/lib/clipboard-feedback";
 import { reportError } from "@/lib/error-reporting";
@@ -295,7 +296,7 @@ function LinkCreateForm({
       {
         id: `${Date.now()}-${currentTodos.length}`,
         title: "",
-        mode: "recurring",
+        mode: "none",
         selectedWeekdays: defaultWeekdays,
         date: null,
         time: null,
@@ -305,7 +306,9 @@ function LinkCreateForm({
 
   const handleTodoTitleChange = React.useCallback((todoId: string | number, nextTitle: string) => {
     setTodos((currentTodos) =>
-      currentTodos.map((todo) => (todo.id === todoId ? { ...todo, title: nextTitle } : todo)),
+      currentTodos.map((todo) =>
+        todo.id === todoId ? { ...todo, title: nextTitle, titleError: null } : todo,
+      ),
     );
   }, []);
 
@@ -313,7 +316,9 @@ function LinkCreateForm({
     (todoId: string | number, nextMode: TodoEditorMode) => {
       setTodos((currentTodos) =>
         currentTodos.map((todo) =>
-          todo.id === todoId ? { ...todo, mode: nextMode, validationError: null } : todo,
+          todo.id === todoId
+            ? { ...todo, mode: nextMode, validationError: null, titleError: null }
+            : todo,
         ),
       );
     },
@@ -324,7 +329,9 @@ function LinkCreateForm({
     (todoId: string | number, nextWeekdays: WeekdayValue[]) => {
       setTodos((currentTodos) =>
         currentTodos.map((todo) =>
-          todo.id === todoId ? { ...todo, selectedWeekdays: nextWeekdays } : todo,
+          todo.id === todoId
+            ? { ...todo, selectedWeekdays: nextWeekdays, validationError: null }
+            : todo,
         ),
       );
     },
@@ -567,6 +574,7 @@ function LinkCreateForm({
   const actions = (
     <LinkCreateActions
       hasSaveError={Boolean(createLinkMutation.error)}
+      todoErrorCount={countTodoDraftErrors(todos)}
       isAiOrganizeDisabled={isAiOrganizeDisabled}
       isPreviewLoading={isPreviewLoading}
       isSaveDisabled={isSaveDisabled}
@@ -871,10 +879,12 @@ function LinkCreateActions({
   isPreviewLoading,
   isSaveDisabled,
   mode,
+  todoErrorCount,
   onAiOrganize,
   onSave,
 }: {
   hasSaveError: boolean;
+  todoErrorCount: number;
   isAiOrganizeDisabled: boolean;
   isPreviewLoading: boolean;
   isSaveDisabled: boolean;
@@ -905,7 +915,14 @@ function LinkCreateActions({
           </Text>
         </View>
       ) : null}
-      <View className={cn("flex-row gap-2", !isSheet && "justify-end")}>
+      {isSheet ? <TodoErrorSummary count={todoErrorCount} /> : null}
+      <View className={cn("flex-row gap-2", !isSheet && "items-center justify-end")}>
+        {isSheet ? null : (
+          <TodoErrorSummary
+            className="flex-1"
+            count={todoErrorCount}
+          />
+        )}
         <Button
           className={cn(
             "flex-row gap-2 rounded-xl bg-primary/15 shadow-none active:bg-primary/20",

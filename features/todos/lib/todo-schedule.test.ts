@@ -1,5 +1,11 @@
 import type { TodoDraftEditorItem } from "../components/todo-draft-list-editor";
-import { PAST_REMINDER_ERROR, validateTodoDrafts } from "./todo-schedule";
+import {
+  PAST_REMINDER_ERROR,
+  TITLE_REQUIRED_ERROR,
+  countTodoDraftErrors,
+  getDraftScheduleGap,
+  validateTodoDrafts,
+} from "./todo-schedule";
 
 // A fixed "now" so the schedules below stay ahead of it whenever the tests run.
 const NOW = new Date(2026, 10, 1, 12, 0).getTime();
@@ -80,13 +86,12 @@ describe("validateTodoDrafts with a past reminder", () => {
     ]);
   });
 
-  it("leaves recurring actions, actions without a time and untitled drafts alone", () => {
+  it("leaves recurring actions and actions without a time alone", () => {
     const yesterday = { year: 2026, month: 10, day: 31 };
     const result = validateTodoDrafts(
       [
         draft({ id: "a", mode: "recurring", date: yesterday, time: { hour: 9, minute: 0 } }),
         draft({ id: "b", mode: "none", date: yesterday, time: { hour: 9, minute: 0 } }),
-        draft({ id: "c", title: " ", mode: "time", date: yesterday, time: { hour: 9, minute: 0 } }),
       ],
       NOW,
     );
@@ -96,5 +101,137 @@ describe("validateTodoDrafts with a past reminder", () => {
   it("shows a missing date or time before the past check", () => {
     const result = validateTodoDrafts([draft({ mode: "time", date: today, time: null })], NOW);
     expect(result.todos[0]?.validationError).toBe("시간을 선택해주세요.");
+  });
+});
+
+describe("validateTodoDrafts with an untitled action", () => {
+  const ahead = { year: 2026, month: 11, day: 20 };
+
+  it("keeps a scheduled action without a title and marks its title", () => {
+    const result = validateTodoDrafts(
+      [draft({ id: "a", title: "  ", mode: "time", date: ahead, time: { hour: 9, minute: 0 } })],
+      NOW,
+    );
+    expect(result.hasError).toBe(true);
+    expect(result.todos[0]).toMatchObject({
+      id: "a",
+      titleError: TITLE_REQUIRED_ERROR,
+      validationError: null,
+    });
+  });
+
+  it("skips an action with neither a title nor a schedule", () => {
+    const result = validateTodoDrafts(
+      [
+        draft({ id: "empty", title: "", mode: "none" }),
+        draft({ id: "mode-only", title: "", mode: "time" }),
+        draft({ id: "repeat-only", title: "", mode: "recurring" }),
+      ],
+      NOW,
+    );
+    expect(result).toMatchObject({ hasError: false, errorCount: 0, firstErrorId: null });
+    expect(result.todos.map((todo) => [todo.titleError, todo.validationError])).toEqual([
+      [null, null],
+      [null, null],
+      [null, null],
+    ]);
+  });
+
+  it("checks the schedule of an untitled action too, counting the action once", () => {
+    const result = validateTodoDrafts(
+      [draft({ id: "a", title: "", mode: "time", date: ahead, time: null })],
+      NOW,
+    );
+    expect(result.todos[0]).toMatchObject({
+      titleError: TITLE_REQUIRED_ERROR,
+      validationError: "시간을 선택해주세요.",
+    });
+    expect(result.errorCount).toBe(1);
+  });
+
+  it("counts the actions with an error and returns the first one", () => {
+    const result = validateTodoDrafts(
+      [
+        draft({ id: "fine", title: "읽기" }),
+        draft({
+          id: "untitled",
+          title: "",
+          mode: "time",
+          date: ahead,
+          time: { hour: 10, minute: 0 },
+        }),
+        draft({ id: "missing", title: "결제", mode: "time", date: ahead, time: null }),
+      ],
+      NOW,
+    );
+    expect(result).toMatchObject({ hasError: true, errorCount: 2, firstErrorId: "untitled" });
+    expect(countTodoDraftErrors(result.todos)).toBe(2);
+  });
+
+  it("drops the count as errors are fixed", () => {
+    const result = validateTodoDrafts(
+      [
+        draft({ id: "a", title: "", mode: "time", date: ahead, time: { hour: 10, minute: 0 } }),
+        draft({ id: "b", title: "결제", mode: "time", date: ahead, time: null }),
+      ],
+      NOW,
+    );
+    const fixedTitle = result.todos.map((todo) =>
+      todo.id === "a" ? { ...todo, title: "예약", titleError: null } : todo,
+    );
+    expect(countTodoDraftErrors(fixedTitle)).toBe(1);
+    expect(validateTodoDrafts(fixedTitle, NOW).errorCount).toBe(1);
+  });
+});
+
+describe("getDraftScheduleGap", () => {
+  const date = { year: 2026, month: 11, day: 20 };
+  const time = { hour: 9, minute: 0 };
+
+  it("has no gap without a schedule or with a full one", () => {
+    expect(getDraftScheduleGap(draft({ mode: "none" }))).toBeNull();
+    expect(getDraftScheduleGap(draft({ mode: "time", date, time }))).toBeNull();
+    expect(getDraftScheduleGap(draft({ mode: "recurring", date, time }))).toBeNull();
+  });
+
+  it("names the first empty field of a one-time reminder: date, then time", () => {
+    expect(getDraftScheduleGap(draft({ mode: "time" }))).toBe("date");
+    expect(getDraftScheduleGap(draft({ mode: "time", time }))).toBe("date");
+    expect(getDraftScheduleGap(draft({ mode: "time", date }))).toBe("time");
+  });
+
+  it("names the first empty field of a repeat: weekdays, time, then the end date", () => {
+    expect(
+      getDraftScheduleGap(draft({ mode: "recurring", selectedWeekdays: [], date, time })),
+    ).toBe("weekdays");
+    expect(getDraftScheduleGap(draft({ mode: "recurring" }))).toBe("time");
+    expect(getDraftScheduleGap(draft({ mode: "recurring", time }))).toBe("date");
+  });
+});
+
+describe("past reminders that are not refused", () => {
+  const today = { year: 2026, month: 11, day: 1 };
+  const past = { mode: "time" as const, date: today, time: { hour: 9, minute: 0 } };
+
+  it("counts a past time picked since the last save", () => {
+    expect(countTodoDraftErrors([draft({ id: "a", ...past })], NOW)).toBe(1);
+    expect(countTodoDraftErrors([draft({ id: "a", ...past, allowPast: true })], NOW)).toBe(0);
+  });
+
+  it("lets a saved action keep its past reminder", () => {
+    const result = validateTodoDrafts([draft({ id: "a", ...past, allowPast: true })], NOW);
+    expect(result.hasError).toBe(false);
+  });
+
+  it("does not check the schedule of a done action", () => {
+    const result = validateTodoDrafts(
+      [
+        draft({ id: "a", ...past, done: true }),
+        draft({ id: "b", mode: "time", date: null, time: null, done: true }),
+      ],
+      NOW,
+    );
+    expect(result.hasError).toBe(false);
+    expect(countTodoDraftErrors(result.todos, NOW)).toBe(0);
   });
 });
