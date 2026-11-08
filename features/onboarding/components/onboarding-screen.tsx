@@ -26,81 +26,20 @@ import { getNativeThemeVars } from "@/lib/theme-vars";
 import { useDisplaySettings } from "@/stores/display-settings";
 
 import {
-  BookmarkCard,
-  BrowserDot,
+  ASK_QUERY,
+  ASK_RESULTS,
   ChecklistRow,
   FolderChip,
   MemberAvatar,
-  SheetChip,
+  SHARE_SHEET,
+  ShareSheetActions,
+  ShareSheetHeader,
+  ShareSheetRow,
   faviconFor,
 } from "./slide-primitives";
 
 import { Search, Share, Sparkles } from "lucide-react-native/icons";
 import { vars } from "nativewind";
-
-function ScatterSlide() {
-  return (
-    <View className="h-80">
-      <BookmarkCard
-        className="absolute left-0 top-1 w-48"
-        rotate="-7deg"
-        fallback="📁"
-        title="Mobile Bookmarks"
-      />
-      <BookmarkCard
-        className="absolute right-0 top-16 w-48"
-        rotate="6deg"
-        faviconUrl={faviconFor("brunch.co.kr")}
-        fallback="B"
-        title="일잘러 되는 법"
-      />
-      <BookmarkCard
-        className="absolute left-0 top-32 w-48"
-        rotate="3deg"
-        faviconUrl={faviconFor("youtube.com")}
-        fallback="Y"
-        title="공부할 때 듣기 좋은 플리"
-      />
-      <BookmarkCard
-        className="absolute right-0 top-48 w-48"
-        rotate="-5deg"
-        faviconUrl={faviconFor("google.com")}
-        fallback="G"
-        title="제주 3박4일 코스"
-      />
-      <BookmarkCard
-        className="absolute left-3 top-64 w-48"
-        rotate="7deg"
-        fallback="🔥"
-        title="갖고 싶은 신발"
-      />
-      <BrowserDot
-        className="absolute right-8 top-1"
-        rotate="-10deg"
-        fallback="S"
-        tint="bg-[#1E90FF]"
-      />
-      <BrowserDot
-        className="absolute left-36 top-24"
-        rotate="8deg"
-        fallback="C"
-        tint="bg-[#F4B400]"
-      />
-      <BrowserDot
-        className="absolute left-2 top-52"
-        rotate="-6deg"
-        fallback="N"
-        tint="bg-[#03C75A]"
-      />
-      <BrowserDot
-        className="absolute right-10 top-72"
-        rotate="9deg"
-        fallback="W"
-        tint="bg-[#4B5563]"
-      />
-    </View>
-  );
-}
 
 function TaskSlide() {
   return (
@@ -155,13 +94,6 @@ function TaskSlide() {
 function OrganizeSlide() {
   return (
     <View className="gap-3.5">
-      <View className="flex-row items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-qlink-sm">
-        <Icon
-          as={Search}
-          className="size-4 text-muted-foreground"
-        />
-        <Text className="text-sm text-muted-foreground">제주</Text>
-      </View>
       <View className="flex-row flex-wrap gap-2">
         <FolderChip label="전체" />
         <FolderChip label="🍜 맛집" />
@@ -194,7 +126,8 @@ function OrganizeSlide() {
   );
 }
 
-// Recreates the ALink iOS share-extension sheet — the moment a page is shared in.
+// Recreates the ALink iOS share-extension sheet (#72): link header, the 폴더 and AI 옵션
+// rows, then 저장 / AI 정리.
 function ShareSlide() {
   return (
     <View className="gap-3">
@@ -207,63 +140,61 @@ function ShareSlide() {
           className="flex-1 text-center text-sm font-semibold text-white"
           numberOfLines={1}
         >
-          news.hada.io
+          {SHARE_SHEET.domain}
         </Text>
         <Icon
           as={Share}
           className="size-4 text-white"
         />
       </View>
-      <View className="gap-3.5 rounded-[28px] border border-border bg-card p-5 shadow-qlink-md">
+      <View className="gap-4 rounded-[28px] border border-border bg-card p-5 shadow-qlink-md">
         <View className="h-1 w-10 self-center rounded-full bg-muted" />
-        <View className="gap-0.5">
-          <Text
-            className="text-sm font-bold text-foreground"
-            numberOfLines={1}
-          >
-            news.hada.io/topic?id=42
-          </Text>
-          <Text
-            className="text-xs text-muted-foreground"
-            numberOfLines={1}
-          >
-            아이디어부터 앱스토어까지 — 1인 개발 회고
-          </Text>
+        <ShareSheetHeader />
+        <View className="overflow-hidden rounded-[14px] border border-border-soft bg-background">
+          <ShareSheetRow
+            label="폴더"
+            value={`${SHARE_SHEET.folderEmoji} ${SHARE_SHEET.folderName}`}
+          />
+          <ShareSheetRow
+            label="AI 옵션"
+            value={`${SHARE_SHEET.model} · ${SHARE_SHEET.todoSummary}`}
+            hasDivider
+            showsProviderLogo
+          />
         </View>
-        <View className="gap-2">
-          <Text className="text-xs font-medium text-muted-foreground">폴더</Text>
-          <View className="flex-row flex-wrap gap-2">
-            <SheetChip
-              label="✨ AI 자동 분류"
-              active
-            />
-            <SheetChip label="💻 개발" />
-            <SheetChip label="📰 읽을거리" />
-          </View>
-        </View>
-        <View className="gap-2">
-          <Text className="text-xs font-medium text-muted-foreground">AI 모델</Text>
-          <View className="flex-row gap-2">
-            <SheetChip
-              label="Gemini · 기본"
-              active
-            />
-            <SheetChip label="OpenAI" />
-          </View>
-        </View>
-        <View className="flex-row gap-3 pt-1">
-          <View className="h-11 flex-1 items-center justify-center rounded-2xl border border-border bg-background">
-            <Text className="text-sm font-semibold text-foreground">저장</Text>
-          </View>
-          <View className="relative h-11 flex-1 items-center justify-center overflow-hidden rounded-2xl">
-            <LinearGradient
-              accent="pink"
-              style={{ bottom: 0, left: 0, position: "absolute", right: 0, top: 0 }}
-              pointerEvents="none"
-            />
-            <Text className="text-sm font-semibold text-primary-foreground">AI 요약 저장</Text>
-          </View>
-        </View>
+        <ShareSheetActions />
+      </View>
+    </View>
+  );
+}
+
+// The search dialog with a query that appears only inside the saved pages' bodies: the titles
+// stay plain and the matched words are highlighted in the body snippet under each card.
+function AskSlide() {
+  return (
+    <View className="gap-3.5">
+      <View className="flex-row items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-qlink-sm">
+        <Icon
+          as={Search}
+          className="size-4 text-muted-foreground"
+        />
+        <Text className="flex-1 text-sm text-foreground">{ASK_QUERY}</Text>
+        <Text className="text-xs font-medium text-muted-foreground">본문 일치 2</Text>
+      </View>
+      <View className="flex-row gap-3">
+        {ASK_RESULTS.map((result) => (
+          <LinkCard
+            key={result.domain}
+            className="flex-1 shadow-qlink-md"
+            domain={result.domain}
+            faviconUrl={faviconFor(result.domain)}
+            thumbnailAsset={result.thumbnailAsset}
+            title={result.title}
+            tags={[...result.tags]}
+            snippet={result.snippet}
+            highlightQuery={ASK_QUERY}
+          />
+        ))}
       </View>
     </View>
   );
@@ -337,26 +268,28 @@ type Slide = {
 
 const SLIDES: Slide[] = [
   {
-    key: "scatter",
-    subject: "All Around",
-    title: "이게 여기 있었나?",
-    description: "각종 브라우저에, 폰에, 회사 PC에…\n저장만 하고 잊어버리게 되는 북마크.",
-    render: () => <ScatterSlide />,
-  },
-  {
     key: "organize",
     subject: "Archive",
     title: "흩어진 링크,\n에이링크에서 하나로",
-    description: "이제 기억하는 것도, 헤매는 것도 그만.\n폴더로 모으고, 검색으로 찾고.",
+    description:
+      "각종 브라우저에, 폰에, 회사 PC에 두고 잊은 북마크.\n이제 폴더와 태그로 한곳에 모아요.",
     render: () => <OrganizeSlide />,
   },
   {
     key: "share",
     subject: "AI",
-    title: "모바일 브라우저에서\n간편하게, 스마트하게",
-    description: "보던 페이지를 에이링크로 공유하면 바로 저장,\nAI 요약 저장으로 정리까지 한 번에.",
-    footnote: "AI 요약 저장 시 페이지의 서비스 정책에 따라 접근·내용 추출이 제한될 수 있어요.",
+    title: "모바일에서\n간편하게, 스마트하게",
+    description:
+      "보던 페이지를 에이링크로 공유하면 바로 저장,\nAI 정리로 요약·태그·폴더까지 한 번에.",
+    footnote: "AI 정리 시 페이지의 서비스 정책에 따라 접근·내용 추출이 제한될 수 있어요.",
     render: () => <ShareSlide />,
+  },
+  {
+    key: "ask",
+    subject: "Ask & Access",
+    title: "제목이 기억 안 나도\n본문으로 찾아요",
+    description: "저장한 페이지의 본문까지 검색해요.\n한 단어만 떠올라도 바로 꺼내 봐요.",
+    render: () => <AskSlide />,
   },
   {
     key: "task",
@@ -484,7 +417,7 @@ function OnboardingScreen({ onDone }: { onDone: () => void }) {
             style={{ width }}
             className="flex-1 justify-center px-6"
           >
-            <View className="gap-8">
+            <View className="w-full max-w-md gap-8 self-center">
               {slide.render()}
               <View className="gap-3">
                 <View className="items-center gap-1.5">

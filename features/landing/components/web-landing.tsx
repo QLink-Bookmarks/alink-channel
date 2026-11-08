@@ -111,7 +111,7 @@ function WebLanding() {
 
         {SLIDES.map((slide, index) => {
           const reversed = index % 2 === 1;
-          // Slide 3 stages its visual (bar → share icon → sheet), so its copy
+          // The AI (share) section stages its visual (bar → share icon → sheet), so its copy
           // lands last; other slides bring the copy in alongside the visual.
           const textDelay = slide.key === "share" ? 950 : 220;
           return (

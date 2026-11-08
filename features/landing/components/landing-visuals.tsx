@@ -4,16 +4,18 @@ import { View } from "react-native";
 import { Badge } from "@/components/ui/badge";
 import { Favicon } from "@/components/ui/favicon";
 import { Icon } from "@/components/ui/icon";
-import { LinearGradient } from "@/components/ui/linear-gradient";
 import { Text } from "@/components/ui/text";
 import { LinkCard } from "@/features/links/components/link-card/link-card";
 import {
-  BookmarkCard,
-  BrowserDot,
+  ASK_QUERY,
+  ASK_RESULTS,
   ChecklistRow,
   FolderChip,
   MemberAvatar,
-  SheetChip,
+  SHARE_SHEET,
+  ShareSheetActions,
+  ShareSheetHeader,
+  ShareSheetRow,
   faviconFor,
 } from "@/features/onboarding/components/slide-primitives";
 import { cn } from "@/lib/utils";
@@ -26,76 +28,6 @@ import { Search, Share, Sparkles } from "lucide-react-native/icons";
 // SLIDES render statically inside a native pager; here each internal element
 // reveals in sequence as the section scrolls into view (web-only), reusing the
 // same leaf primitives so the two surfaces stay in sync.
-
-const SCATTER_CARDS = [
-  { pos: "left-0 top-1", rotate: "-7deg", fallback: "📁", title: "Mobile Bookmarks" },
-  {
-    pos: "right-0 top-16",
-    rotate: "6deg",
-    faviconUrl: faviconFor("brunch.co.kr"),
-    fallback: "B",
-    title: "일잘러 되는 법",
-  },
-  {
-    pos: "left-0 top-32",
-    rotate: "3deg",
-    faviconUrl: faviconFor("youtube.com"),
-    fallback: "Y",
-    title: "공부할 때 듣기 좋은 플리",
-  },
-  {
-    pos: "right-0 top-48",
-    rotate: "-5deg",
-    faviconUrl: faviconFor("google.com"),
-    fallback: "G",
-    title: "제주 3박4일 코스",
-  },
-  { pos: "left-3 top-64", rotate: "7deg", fallback: "🔥", title: "갖고 싶은 신발" },
-];
-
-const SCATTER_DOTS = [
-  { pos: "right-8 top-1", rotate: "-10deg", fallback: "S", tint: "bg-[#1E90FF]" },
-  { pos: "left-36 top-24", rotate: "8deg", fallback: "C", tint: "bg-[#F4B400]" },
-  { pos: "left-2 top-52", rotate: "-6deg", fallback: "N", tint: "bg-[#03C75A]" },
-  { pos: "right-10 top-72", rotate: "9deg", fallback: "W", tint: "bg-[#4B5563]" },
-];
-
-function ScatterVisual() {
-  return (
-    <View className="h-80">
-      {SCATTER_DOTS.map((dot, index) => (
-        <Reveal
-          key={`dot-${index}`}
-          from="scale"
-          delay={index * 80}
-          className={cn("absolute", dot.pos)}
-        >
-          <BrowserDot
-            rotate={dot.rotate}
-            fallback={dot.fallback}
-            tint={dot.tint}
-          />
-        </Reveal>
-      ))}
-      {SCATTER_CARDS.map((card, index) => (
-        <Reveal
-          key={`card-${index}`}
-          from="scale"
-          delay={140 + index * 120}
-          className={cn("absolute w-48", card.pos)}
-        >
-          <BookmarkCard
-            className="w-full"
-            rotate={card.rotate}
-            faviconUrl={card.faviconUrl}
-            fallback={card.fallback}
-            title={card.title}
-          />
-        </Reveal>
-      ))}
-    </View>
-  );
-}
 
 const ORGANIZE_FOLDERS = [
   {
@@ -162,18 +94,6 @@ function OrganizeVisual() {
   return (
     <View className="gap-3.5">
       <Reveal from="up">
-        <View className="flex-row items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-qlink-sm">
-          <Icon
-            as={Search}
-            className="size-4 text-muted-foreground"
-          />
-          <Text className="text-sm text-muted-foreground">저장한 링크 검색</Text>
-        </View>
-      </Reveal>
-      <Reveal
-        from="up"
-        delay={110}
-      >
         <View className="flex-row flex-wrap gap-2">
           <FolderChip label="전체" />
           {ORGANIZE_FOLDERS.map((item) => (
@@ -293,8 +213,8 @@ function ShareButton() {
   );
 }
 
-// Slide 3 — the browser bar appears, the share icon itself scales up into an
-// active highlight, then the ALink share-extension sheet rises up from below.
+// AI section — the browser bar appears, the share icon itself scales up into an
+// active highlight, then the ALink share-extension sheet (#72) rises up from below.
 function ShareVisual() {
   return (
     <View className="gap-3">
@@ -308,7 +228,7 @@ function ShareVisual() {
             className="flex-1 text-center text-sm font-semibold text-white"
             numberOfLines={1}
           >
-            news.hada.io
+            {SHARE_SHEET.domain}
           </Text>
           <ShareButton />
         </View>
@@ -317,63 +237,69 @@ function ShareVisual() {
         from="up"
         delay={700}
       >
-        <View className="gap-3.5 rounded-[28px] border border-border bg-card p-5 shadow-qlink-md">
+        <View className="gap-4 rounded-[28px] border border-border bg-card p-5 shadow-qlink-md">
           <View className="h-1 w-10 self-center rounded-full bg-muted" />
-          <View className="gap-0.5">
-            <Text
-              className="text-sm font-bold text-foreground"
-              numberOfLines={1}
-            >
-              news.hada.io/topic?id=42
-            </Text>
-            <Text
-              className="text-xs text-muted-foreground"
-              numberOfLines={1}
-            >
-              아이디어부터 앱스토어까지 — 1인 개발 회고
-            </Text>
+          <ShareSheetHeader />
+          <View className="overflow-hidden rounded-[14px] border border-border-soft bg-background">
+            <ShareSheetRow
+              label="폴더"
+              value={`${SHARE_SHEET.folderEmoji} ${SHARE_SHEET.folderName}`}
+            />
+            <ShareSheetRow
+              label="AI 옵션"
+              value={`${SHARE_SHEET.model} · ${SHARE_SHEET.todoSummary}`}
+              hasDivider
+              showsProviderLogo
+            />
           </View>
-          <View className="gap-2">
-            <Text className="text-xs font-medium text-muted-foreground">폴더</Text>
-            <View className="flex-row flex-wrap gap-2">
-              <SheetChip
-                label="✨ AI 자동 분류"
-                active
-              />
-              <SheetChip label="💻 개발" />
-              <SheetChip label="📰 읽을거리" />
-            </View>
-          </View>
-          <View className="gap-2">
-            <Text className="text-xs font-medium text-muted-foreground">AI 모델</Text>
-            <View className="flex-row gap-2">
-              <SheetChip
-                label="Gemini · 기본"
-                active
-              />
-              <SheetChip label="OpenAI" />
-            </View>
-          </View>
-          <View className="flex-row gap-3 pt-1">
-            <View className="h-11 flex-1 items-center justify-center rounded-2xl border border-border bg-background">
-              <Text className="text-sm font-semibold text-foreground">저장</Text>
-            </View>
-            <View className="relative h-11 flex-1 items-center justify-center overflow-hidden rounded-2xl">
-              <LinearGradient
-                accent="pink"
-                style={{ bottom: 0, left: 0, position: "absolute", right: 0, top: 0 }}
-                pointerEvents="none"
-              />
-              <Text className="text-sm font-semibold text-primary-foreground">AI 요약 저장</Text>
-            </View>
-          </View>
+          <ShareSheetActions />
         </View>
       </Reveal>
     </View>
   );
 }
 
-// Slide 4 reveals as one card (no per-element stagger).
+// Ask & Access section — the query lands in the search bar, then the two body-matched
+// cards rise with their highlighted snippets.
+function AskVisual() {
+  return (
+    <View className="gap-3.5">
+      <Reveal from="up">
+        <View className="flex-row items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-qlink-sm">
+          <Icon
+            as={Search}
+            className="size-4 text-muted-foreground"
+          />
+          <Text className="flex-1 text-sm text-foreground">{ASK_QUERY}</Text>
+          <Text className="text-xs font-medium text-muted-foreground">본문 일치 2</Text>
+        </View>
+      </Reveal>
+      <View className="flex-row gap-3.5">
+        {ASK_RESULTS.map((result, index) => (
+          <Reveal
+            key={result.domain}
+            className="flex-1"
+            from="up"
+            delay={220 + index * 110}
+          >
+            <LinkCard
+              className="shadow-qlink-md"
+              domain={result.domain}
+              faviconUrl={faviconFor(result.domain)}
+              thumbnailAsset={result.thumbnailAsset}
+              title={result.title}
+              tags={[...result.tags]}
+              snippet={result.snippet}
+              highlightQuery={ASK_QUERY}
+            />
+          </Reveal>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// Action section reveals as one card (no per-element stagger).
 function TaskVisual() {
   return (
     <Reveal
@@ -521,12 +447,12 @@ function SharedVisual() {
 
 export function LandingVisual({ slideKey }: { slideKey: string }) {
   switch (slideKey) {
-    case "scatter":
-      return <ScatterVisual />;
     case "organize":
       return <OrganizeVisual />;
     case "share":
       return <ShareVisual />;
+    case "ask":
+      return <AskVisual />;
     case "task":
       return <TaskVisual />;
     case "shared":

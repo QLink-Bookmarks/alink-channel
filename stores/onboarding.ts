@@ -3,6 +3,10 @@ import { SessionStorage } from "@/lib/session-storage";
 import { create } from "zustand";
 
 const STORAGE_KEY = "qlink-onboarding";
+// Bumped when the slides change enough that everyone should see them once more
+// (2: the 2.0.0 slides — Ask & Access, the redesigned share sheet). A completion
+// stored by an older version no longer counts, so the next launch shows onboarding again.
+const ONBOARDING_VERSION = 2;
 
 type OnboardingState = {
   completed: boolean;
@@ -11,6 +15,24 @@ type OnboardingState = {
   reset: () => void;
   setHasHydrated: (hasHydrated: boolean) => void;
 };
+
+type PersistedOnboarding = {
+  completed: boolean;
+  version: number;
+};
+
+/** True when a stored completion is for the current slides. */
+function isCompletionCurrent(raw: string | null): boolean {
+  if (!raw) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<PersistedOnboarding>;
+    return parsed.completed === true && (parsed.version ?? 1) >= ONBOARDING_VERSION;
+  } catch {
+    return false;
+  }
+}
 
 const useOnboardingStore = create<OnboardingState>((set) => ({
   completed: false,
@@ -23,11 +45,8 @@ const useOnboardingStore = create<OnboardingState>((set) => ({
 async function hydrateOnboardingStore() {
   try {
     const raw = await SessionStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<OnboardingState>;
-      if (typeof parsed.completed === "boolean") {
-        useOnboardingStore.setState({ completed: parsed.completed });
-      }
+    if (isCompletionCurrent(raw)) {
+      useOnboardingStore.setState({ completed: true });
     }
   } catch {
     // ignore corrupt storage
@@ -44,7 +63,8 @@ function startOnboardingPersistence() {
       return;
     }
     if (state.completed) {
-      void SessionStorage.setItem(STORAGE_KEY, JSON.stringify({ completed: true }));
+      const persisted: PersistedOnboarding = { completed: true, version: ONBOARDING_VERSION };
+      void SessionStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
     } else {
       void SessionStorage.removeItem(STORAGE_KEY);
     }
@@ -55,4 +75,4 @@ void hydrateOnboardingStore().then(() => {
   startOnboardingPersistence();
 });
 
-export { useOnboardingStore };
+export { ONBOARDING_VERSION, isCompletionCurrent, useOnboardingStore };
