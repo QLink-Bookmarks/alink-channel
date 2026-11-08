@@ -1,10 +1,6 @@
 import * as React from "react";
 import { Keyboard, Pressable, type StyleProp, View, type ViewStyle } from "react-native";
-import Animated, {
-  type EasingFunctionFactory,
-  type SharedValue,
-  useDerivedValue,
-} from "react-native-reanimated";
+import Animated, { type EasingFunctionFactory, useDerivedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/icon";
@@ -27,21 +23,16 @@ import {
   useBottomSheetTimingConfigs,
 } from "@gorhom/bottom-sheet";
 
+import {
+  SheetContext,
+  type SheetMotion,
+  SheetMotionContext,
+  useIsInsideSheet,
+  useSheetMotion,
+} from "./sheet-context";
 import { useSheetHostScrollLock } from "./use-sheet-host-scroll-lock";
 
 import { ChevronLeft, X } from "lucide-react-native/icons";
-
-/**
- * Signals to descendants that they're rendered inside a BottomSheetModal so they can
- * swap to BottomSheet-aware primitives (e.g. BottomSheetTextInput) — without this swap,
- * the sheet's gesture handler swallows touch events on Android and the Korean IME
- * breaks composition mid-syllable.
- */
-const SheetContext = React.createContext<boolean>(false);
-
-function useIsInsideSheet() {
-  return React.useContext(SheetContext);
-}
 
 type SheetScroll = {
   /** Scrolls the sheet body so `target`, a view inside it, sits `offset` px below the top. */
@@ -152,13 +143,6 @@ function SheetHeaderBar({
   );
 }
 
-type SheetMotion = {
-  position: SharedValue<number>;
-  target: SharedValue<number | null>;
-};
-
-const SheetMotionContext = React.createContext<SheetMotion | null>(null);
-
 type SheetFooterSnapshot = {
   propNode: React.ReactNode;
   slotNode: React.ReactNode;
@@ -268,10 +252,6 @@ function SheetFooterContent({
       {snapshot.propNode ?? snapshot.slotNode}
     </View>
   );
-}
-
-function useSheetMotion() {
-  return React.use(SheetMotionContext);
 }
 
 function SheetMotionProvider({ children }: { children: React.ReactNode }) {

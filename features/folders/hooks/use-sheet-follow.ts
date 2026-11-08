@@ -6,7 +6,7 @@ import {
   useSharedValue,
 } from "react-native-reanimated";
 
-import type { SheetMotion } from "@/components/layout/sheet";
+import type { SheetMotion } from "@/components/layout/sheet-context";
 
 import { MODE_MOVING } from "../lib/section-accordion";
 

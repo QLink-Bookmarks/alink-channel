@@ -6,6 +6,7 @@ import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
 import { getAiProviderKind } from "../lib/provider-kind";
+import { getProviderLabel } from "../lib/provider-label";
 import { useAiProviderCatalogQuery } from "../queries";
 import type { AiProviderModel, AiProviderWithModels } from "../types";
 import { AiProviderLogo } from "./ai-provider-logo";
@@ -28,19 +29,6 @@ type AiProviderPickerListProps = {
 const PROVIDERS_LOADING_LABEL = "불러오는 중";
 const NO_PROVIDERS_TITLE = "사용할 수 있는 AI 제공자가 없어요";
 const NO_PROVIDERS_DESCRIPTION = "잠시 후 다시 시도해주세요.";
-
-function getProviderLabel(provider: AiProviderWithModels): string {
-  switch (provider.providerType) {
-    case "GEMINI":
-      return "Gemini";
-    case "CLAUDE":
-      return "Claude";
-    case "OPENAI":
-      return "OpenAI";
-    default:
-      return provider.providerType;
-  }
-}
 
 // 사용량 제한에 따라 순차적으로 쓰이는 순서. priority가 앞선 모델이 그 제공자의 기본값이다.
 function sortModelsByPriority(models: AiProviderModel[]): AiProviderModel[] {
