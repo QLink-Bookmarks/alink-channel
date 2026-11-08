@@ -152,40 +152,6 @@ describe("formatTodoSchedule", () => {
     expect(formatTodoSchedule({ repeatDays: [], repeatTime: "08:00" }, NOW)).toEqual(none);
     expect(formatTodoSchedule({ repeatDays: ["MON"], repeatTime: null }, NOW)).toEqual(none);
   });
-
-  it("takes the overdue state from options when given", () => {
-    expect(
-      formatTodoSchedule({ reminderAt: iso(2026, 11, 20, 9, 0) }, NOW, { overdue: true }),
-    ).toEqual({ kind: "once", label: "11/20 09:00 (지남)", overdue: true });
-    expect(
-      formatTodoSchedule({ reminderAt: iso(2026, 11, 5, 9, 0) }, NOW, { overdue: false }),
-    ).toEqual({ kind: "once", label: "11/05 09:00", overdue: false });
-  });
-
-  it("marks a repeat overdue from options, whatever its end date", () => {
-    expect(
-      formatTodoSchedule(
-        { repeatDays: ["MON"], repeatTime: "08:00", repeatUntil: endOfDay(2026, 12, 31) },
-        NOW,
-        { overdue: true },
-      ),
-    ).toEqual({ kind: "repeat", label: "매주 월 오전 8:00 · 12월 31일까지 (지남)", overdue: true });
-    expect(
-      formatTodoSchedule(
-        { repeatDays: ["MON"], repeatTime: "08:00", repeatUntil: endOfDay(2026, 11, 6) },
-        NOW,
-        { overdue: false },
-      ).overdue,
-    ).toBe(false);
-  });
-
-  it("stays without a label when there is no schedule", () => {
-    expect(formatTodoSchedule({}, NOW, { overdue: true })).toEqual({
-      kind: "none",
-      label: null,
-      overdue: false,
-    });
-  });
 });
 
 describe("formatDraftSchedule", () => {

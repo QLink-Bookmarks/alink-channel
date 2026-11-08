@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, View } from "react-native";
 
 import { AppHeader } from "@/components/layout/app-header";
 import { Sheet } from "@/components/layout/sheet";
@@ -48,6 +48,7 @@ import type { LinkDetail, LinkDetailResponse, UpdateLinkRequest } from "@/featur
 import { reportError } from "@/lib/error-reporting";
 import { cn } from "@/lib/utils";
 import type { FolderSection } from "@/stores/folder-navigation";
+import { hasLeaveGuard, requestLeave } from "@/stores/leave-guard";
 import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -56,6 +57,7 @@ import { LinkDetailAiSurface } from "./link-detail-ai-surface";
 import { LinkDetailHead } from "./link-detail-head";
 import { LinkDetailMyNotes, type LinkFieldsUpdate } from "./link-detail-my-notes";
 import { LinkDetailToolbar } from "./link-detail-toolbar";
+import { UnsavedChangesDialog } from "./unsaved-changes-dialog";
 
 import { type Href, useRouter } from "expo-router";
 import { Trash2 } from "lucide-react-native/icons";
@@ -586,12 +588,29 @@ function LinkDetailView({
   }, [deleteLinkMutation, detail.id, onDeleted, queryClient]);
 
   const handleBack = React.useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
+    requestLeave(() => {
+      if (router.canGoBack()) {
+        router.back();
+        return;
+      }
+      router.replace("/home" as Href);
+    });
+  }, [router]);
+
+  // Android back asks first too while the action editor holds unsaved edits.
+  React.useEffect(() => {
+    if (mode !== "screen") {
       return;
     }
-    router.replace("/home" as Href);
-  }, [router]);
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!hasLeaveGuard()) {
+        return false;
+      }
+      handleBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [handleBack, mode]);
 
   const isPanel = mode === "panel";
   const toolbar = (
@@ -789,32 +808,13 @@ function LinkDetailView({
         </Sheet>
       )}
 
-      <AlertDialog
+      <UnsavedChangesDialog
         open={isUnsavedEditOpen}
+        saving={isSavingEdit}
+        onDiscard={handleDiscardEdit}
         onOpenChange={handleUnsavedEditOpenChange}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>저장하지 않은 변경사항이 있어요</AlertDialogTitle>
-            <AlertDialogDescription>변경사항을 저장할까요?</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row justify-end gap-2">
-            <Button
-              variant="outline"
-              disabled={isSavingEdit}
-              onPress={handleDiscardEdit}
-            >
-              <Text>저장 안 함</Text>
-            </Button>
-            <Button
-              disabled={isSavingEdit}
-              onPress={handleSaveEdit}
-            >
-              {isSavingEdit ? <ActivityIndicator /> : <Text>저장</Text>}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onSave={handleSaveEdit}
+      />
     </>
   );
 }

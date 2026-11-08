@@ -23,7 +23,10 @@ import { FOLDER_SECTIONS_SHEET_TIMING } from "@/features/folders/hooks/use-secti
 import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
 import { useFolderQuery } from "@/features/folders/queries";
 import { DetailPanel } from "@/features/links/components/detail-panel/detail-panel";
-import { LinkCreateForm } from "@/features/links/components/link-create-form";
+import {
+  LinkCreateForm,
+  type LinkCreateFormHandle,
+} from "@/features/links/components/link-create-form";
 import { isLinkNotFound } from "@/features/links/lib/is-link-not-found";
 import { useLinkDetailQuery } from "@/features/links/queries";
 import { NotificationBellButton } from "@/features/notifications/components/notification-bell-button";
@@ -36,6 +39,7 @@ import {
   useFolderNavigation,
 } from "@/stores/folder-navigation";
 import { useHomeSearchFocus } from "@/stores/home-search-focus";
+import { requestLeave } from "@/stores/leave-guard";
 import { useSearchDialog } from "@/stores/search-dialog";
 import { useAnySheetOpen } from "@/stores/sheet-tracker";
 
@@ -87,6 +91,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const [pendingMobileLinkId, setPendingMobileLinkId] = React.useState<number | null>(null);
   const [sharedLinkUrl, setSharedLinkUrl] = React.useState<string | null>(null);
   const wasAddLinkOpenRef = React.useRef(false);
+  const addLinkFormRef = React.useRef<LinkCreateFormHandle>(null);
   const { linkUrl: linkUrlParam } = useGlobalSearchParams<{ linkUrl?: string }>();
   const openFolderSection = useFolderNavigation((state) => state.openSectionOn);
   const isAnnouncementsListRoute = routeState.pathname === "/announcements";
@@ -104,6 +109,17 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     overlayBaseHref: routeState.overlayBaseHref,
     overlayLinkId: routeState.overlayLinkId,
   });
+  // Closing the detail asks first while its action editor holds unsaved edits.
+  const handleOverlayOpenChange = React.useCallback(
+    (open: boolean) => {
+      if (open) {
+        handleOpenChange(true);
+        return;
+      }
+      requestLeave(() => handleOpenChange(false));
+    },
+    [handleOpenChange],
+  );
 
   const lastPathnameRef = React.useRef(routeState.pathname);
   React.useEffect(() => {
@@ -170,11 +186,13 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
 
   const handleSearchSelectLink = React.useCallback(
     (id: number) => {
-      if (canOpenWideOverlayInPlace(routeState.pathname)) {
-        router.replace(`${routeState.pathname}?linkId=${id}` as Href);
-        return;
-      }
-      router.replace(`/links?linkId=${id}` as Href);
+      requestLeave(() => {
+        if (canOpenWideOverlayInPlace(routeState.pathname)) {
+          router.replace(`${routeState.pathname}?linkId=${id}` as Href);
+          return;
+        }
+        router.replace(`/links?linkId=${id}` as Href);
+      });
     },
     [routeState.pathname, router],
   );
@@ -183,9 +201,18 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     setIsAddLinkDialogOpen(true);
   }, []);
 
+  // A user close (×, Esc, outside) asks the form first; it confirms when it holds input.
   const handleWideAddLinkDialogOpenChange = React.useCallback((open: boolean) => {
+    if (!open && addLinkFormRef.current?.requestClose() === false) {
+      return;
+    }
     setIsAddLinkDialogOpen(open);
   }, []);
+
+  const handleAddLinkSheetCloseRequest = React.useCallback(
+    () => addLinkFormRef.current?.requestClose() ?? true,
+    [],
+  );
 
   const requestHomeSearchFocus = useHomeSearchFocus((state) => state.requestFocus);
   const handleMobileSearchPress = React.useCallback(() => {
@@ -344,7 +371,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
             onAddFolderPress={handleWideAddFolderPress}
             onAddLinkPress={handleWideAddLinkPress}
             onNavigate={handleWideNavigate}
-            onOverlayDismiss={() => handleOpenChange(false)}
+            onOverlayDismiss={() => handleOverlayOpenChange(false)}
             onProfilePress={handleProfilePress}
           />
 
@@ -401,7 +428,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
               mode="overlay"
               open={isOpen}
               onDeleted={() => handleOpenChange(false)}
-              onOpenChange={handleOpenChange}
+              onOpenChange={handleOverlayOpenChange}
             />
           ) : isOpen ? (
             <DetailPanel
@@ -411,7 +438,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
               mode="overlay"
               open={isOpen}
               onDeleted={() => handleOpenChange(false)}
-              onOpenChange={handleOpenChange}
+              onOpenChange={handleOverlayOpenChange}
             />
           ) : null}
 
@@ -449,6 +476,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
                 onClose={() => setIsAddLinkDialogOpen(false)}
               >
                 <LinkCreateForm
+                  ref={addLinkFormRef}
                   mode="wide"
                   open={isAddLinkDialogOpen}
                   initialUrl={sharedLinkUrl ?? undefined}
@@ -544,8 +572,10 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
           <Sheet
             open={isAddLinkSheetOpen}
             fitContent
+            fixedHeader
             hideCloseButton={isAddLinkSheetSubStep}
             resizeTiming={FOLDER_SECTIONS_SHEET_TIMING}
+            onCloseRequest={handleAddLinkSheetCloseRequest}
             onOpenChange={handleAddLinkSheetOpenChange}
           >
             <RouteErrorBoundary
@@ -555,6 +585,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
               onClose={closeAddLinkSheet}
             >
               <LinkCreateForm
+                ref={addLinkFormRef}
                 mode="mobile"
                 open={isAddLinkSheetOpen}
                 initialUrl={sharedLinkUrl ?? undefined}

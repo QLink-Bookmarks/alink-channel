@@ -121,7 +121,7 @@ function providerTrigger(page: Page) {
 async function openProviderList(page: Page) {
   await providerTrigger(page).click();
   if (!isWide(page)) {
-    await expect(form(page).getByText("AI 제공자 선택", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI 제공자 선택", exact: true })).toBeVisible();
   }
 }
 
@@ -296,7 +296,7 @@ test.describe("AI 정리 옵션 provider (#74)", () => {
     if (isWide(page)) {
       await page.keyboard.press("Escape");
     } else {
-      await form(page).getByRole("button", { name: "뒤로", exact: true }).click();
+      await page.getByRole("button", { name: "뒤로", exact: true }).click();
     }
     await page.getByRole("textbox", { name: "URL", exact: true }).fill(LINK_URL);
     await aiButton(page).click();

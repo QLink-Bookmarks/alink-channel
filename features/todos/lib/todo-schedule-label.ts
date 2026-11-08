@@ -92,13 +92,8 @@ function withOverdue(kind: TodoScheduleKind, label: string, overdue: boolean): T
 
 // One schedule line for an action, shared by the link detail, the editor chip and the
 // actions tab: a one-time reminder reads "11/20 09:00", a repeat reads
-// "매주 월·목 오전 8:00 · 12월 31일까지". A done action is never overdue. `options.overdue` replaces
-// the overdue check with a state known elsewhere (the server's status on the actions tab).
-function formatTodoSchedule(
-  source: TodoScheduleSource,
-  nowMs: number,
-  options?: { overdue?: boolean },
-): TodoSchedule {
+// "매주 월·목 오전 8:00 · 12월 31일까지". A done action is never overdue.
+function formatTodoSchedule(source: TodoScheduleSource, nowMs: number): TodoSchedule {
   const done = isDone(source);
   const repeatDays = source.repeatDays ? sortRepeatDays(source.repeatDays) : [];
   const repeatTime = source.repeatTime ? formatRepeatTime(source.repeatTime) : null;
@@ -106,7 +101,7 @@ function formatTodoSchedule(
   if (repeatDays.length > 0 && repeatTime) {
     const until = parseDate(source.repeatUntil);
     const untilLabel = until ? ` · ${until.getMonth() + 1}월 ${until.getDate()}일까지` : "";
-    const overdue = options?.overdue ?? (!done && until !== null && until.getTime() < nowMs);
+    const overdue = !done && until !== null && until.getTime() < nowMs;
     return withOverdue(
       "repeat",
       `${formatRepeatDays(repeatDays)} ${repeatTime}${untilLabel}`,
@@ -116,7 +111,7 @@ function formatTodoSchedule(
 
   const reminder = parseDate(source.reminderAt ?? source.dueAt);
   if (reminder) {
-    const overdue = options?.overdue ?? (!done && reminder.getTime() <= nowMs);
+    const overdue = !done && reminder.getTime() <= nowMs;
     return withOverdue("once", formatOnceLabel(reminder), overdue);
   }
 

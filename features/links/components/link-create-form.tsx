@@ -1,7 +1,12 @@
 import * as React from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
-import { SheetFooter, type SheetScroll, useSheetScroll } from "@/components/layout/sheet";
+import {
+  SheetFooter,
+  SheetHeader,
+  type SheetScroll,
+  useSheetScroll,
+} from "@/components/layout/sheet";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { type DateValue } from "@/components/ui/date-picker";
 import { Icon } from "@/components/ui/icon";
@@ -49,17 +54,12 @@ import { useLinkPreviewQuery } from "../queries";
 import type { LinkPreview } from "../types";
 import { LinkCreateBottomBar, type LinkCreateProviderState } from "./link-create-bottom-bar";
 import { LinkCreateMemoActions } from "./link-create-memo-actions";
+import { UnsavedChangesDialog } from "./unsaved-changes-dialog";
 
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { type Href, useRouter } from "expo-router";
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  FolderOpen,
-  QrCode,
-} from "lucide-react-native/icons";
+import { ChevronDown, ChevronRight, FolderOpen, QrCode } from "lucide-react-native/icons";
 
 type LinkCreateFormMode = "wide" | "mobile";
 type MobileSheetStep = "form" | "folder-picker" | "ai-model-picker";
@@ -75,7 +75,16 @@ type FolderDraft = {
 
 type FieldErrors = { url?: string; title?: string };
 
+type LinkCreateFormHandle = {
+  /**
+   * Asked before the user closes the form. True when it may close now; false when it
+   * holds input and opens the unsaved changes dialog instead.
+   */
+  requestClose: () => boolean;
+};
+
 type LinkCreateFormProps = {
+  ref?: React.Ref<LinkCreateFormHandle>;
   mode: LinkCreateFormMode;
   open: boolean;
   initialUrl?: string;
@@ -176,6 +185,7 @@ function scrollToActionRow(
 }
 
 function LinkCreateForm({
+  ref,
   mode,
   open,
   initialUrl,
@@ -205,6 +215,9 @@ function LinkCreateForm({
   // Blocks a second 저장 or AI 정리 press before the pending state re-renders the buttons.
   const isSubmittingRef = React.useRef(false);
   const [url, setUrl] = React.useState("");
+  // The URL the form filled in by itself on opening (a shared link or the clipboard). It
+  // is not the user's input, so closing with only it asks nothing.
+  const [autoFilledUrl, setAutoFilledUrl] = React.useState("");
   const [urlFillMode, setUrlFillMode] = React.useState<UrlFillMode>("instant");
   // Latest URL for async callbacks (the clipboard read) that must not clobber it.
   const urlRef = React.useRef(url);
@@ -394,6 +407,7 @@ function LinkCreateForm({
 
   const resetForm = React.useCallback(() => {
     setUrl("");
+    setAutoFilledUrl("");
     setUrlFillMode("instant");
     setTitle("");
     isTitleEditedRef.current = false;
@@ -419,6 +433,7 @@ function LinkCreateForm({
     const sharedUrl = initialUrl?.trim();
     if (sharedUrl) {
       fillUrlInstantly(sharedUrl);
+      setAutoFilledUrl(sharedUrl);
       return;
     }
 
@@ -430,6 +445,7 @@ function LinkCreateForm({
           // clipboard read was in flight behind the iOS paste-permission prompt.
           if (!urlRef.current) {
             fillUrlInstantly(nextUrl);
+            setAutoFilledUrl(nextUrl);
           }
         }
       })
@@ -711,6 +727,44 @@ function LinkCreateForm({
       : null;
   const isBusy = pendingRequest != null;
 
+  // Anything the user put in that closing would throw away. A title that is only the
+  // preview's, a blank action row and the default provider do not count.
+  const trimmedTitle = title.trim();
+  const hasInput =
+    (url.trim() !== "" && url.trim() !== autoFilledUrl.trim()) ||
+    (trimmedTitle !== "" && trimmedTitle !== (linkPreview?.title ?? "").trim()) ||
+    memo.trim() !== "" ||
+    todos.some((todo) => todo.title.trim() !== "" || todo.mode !== "none") ||
+    folder.id != null ||
+    (aiProvider != null && aiProvider.providerId !== defaultProviderId) ||
+    generateTodo;
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = React.useState(false);
+  const requestClose = React.useCallback(() => {
+    if (!hasInput || isBusy) {
+      return true;
+    }
+    setIsCloseConfirmOpen(true);
+    return false;
+  }, [hasInput, isBusy]);
+  React.useImperativeHandle(ref, () => ({ requestClose }), [requestClose]);
+
+  const handleDiscardAndClose = React.useCallback(() => {
+    setIsCloseConfirmOpen(false);
+    onCancel();
+  }, [onCancel]);
+  const handleSaveFromConfirm = React.useCallback(() => {
+    setIsCloseConfirmOpen(false);
+    void handleSave();
+  }, [handleSave]);
+  const closeConfirm = (
+    <UnsavedChangesDialog
+      open={isCloseConfirmOpen}
+      onDiscard={handleDiscardAndClose}
+      onOpenChange={setIsCloseConfirmOpen}
+      onSave={handleSaveFromConfirm}
+    />
+  );
+
   const bottomBar = (
     <LinkCreateBottomBar
       defaultProviderId={defaultProviderId}
@@ -861,67 +915,52 @@ function LinkCreateForm({
           : "새 링크 추가";
 
     return (
-      <View className="gap-5">
-        <View className="flex-row items-center justify-between gap-3">
-          <View className="w-10 items-start">
-            {isMobileSubStep ? (
-              <Pressable
-                accessibilityLabel="뒤로"
-                accessibilityRole="button"
-                className="size-10 items-center justify-center rounded-full active:bg-accent web:hover:bg-accent"
-                onPress={() => setMobileSheetStep("form")}
-              >
-                <Icon
-                  as={ChevronLeft}
-                  size={18}
-                  className="text-foreground"
+      <View className="w-full">
+        <View className="gap-5">
+          <SheetHeader
+            title={stepTitle}
+            onBack={isMobileSubStep ? () => setMobileSheetStep("form") : undefined}
+          />
+
+          {mobileSheetStep === "form" ? (
+            <>
+              <View className="gap-3.5">
+                <GroupTitle>링크</GroupTitle>
+                <LinkPreviewImage
+                  isLoading={isPreviewLoading}
+                  mode={mode}
+                  preview={linkPreview}
                 />
-              </Pressable>
-            ) : null}
-          </View>
-          <Text className="flex-1 text-center text-[17px] font-semibold text-foreground">
-            {stepTitle}
-          </Text>
-          <View className="size-10" />
+                {urlField}
+                {titleField}
+                {folderField}
+              </View>
+              {memoActions}
+
+              <SheetFooter>{bottomBar}</SheetFooter>
+            </>
+          ) : mobileSheetStep === "folder-picker" ? (
+            <FolderPickerList
+              selectedFolderId={folder.id ? Number(folder.id) : null}
+              onSelect={(selection) => {
+                handleFolderSelect(selection);
+                setMobileSheetStep("form");
+              }}
+            />
+          ) : (
+            <AiProviderPickerList
+              defaultProviderId={defaultProviderId}
+              selectedProviderId={
+                providerState.status === "ready" ? providerState.selection.providerId : null
+              }
+              onSelect={(selection) => {
+                handleProviderSelect(selection);
+                setMobileSheetStep("form");
+              }}
+            />
+          )}
         </View>
-
-        {mobileSheetStep === "form" ? (
-          <>
-            <View className="gap-3.5">
-              <GroupTitle>링크</GroupTitle>
-              <LinkPreviewImage
-                isLoading={isPreviewLoading}
-                mode={mode}
-                preview={linkPreview}
-              />
-              {urlField}
-              {titleField}
-              {folderField}
-            </View>
-            {memoActions}
-
-            <SheetFooter>{bottomBar}</SheetFooter>
-          </>
-        ) : mobileSheetStep === "folder-picker" ? (
-          <FolderPickerList
-            selectedFolderId={folder.id ? Number(folder.id) : null}
-            onSelect={(selection) => {
-              handleFolderSelect(selection);
-              setMobileSheetStep("form");
-            }}
-          />
-        ) : (
-          <AiProviderPickerList
-            defaultProviderId={defaultProviderId}
-            selectedProviderId={
-              providerState.status === "ready" ? providerState.selection.providerId : null
-            }
-            onSelect={(selection) => {
-              handleProviderSelect(selection);
-              setMobileSheetStep("form");
-            }}
-          />
-        )}
+        {closeConfirm}
       </View>
     );
   }
@@ -959,6 +998,7 @@ function LinkCreateForm({
       </ScrollView>
 
       <View className="border-t border-border-soft pb-5 pl-8 pr-6 pt-4">{bottomBar}</View>
+      {closeConfirm}
     </View>
   );
 }
@@ -1152,4 +1192,4 @@ function TitleField({ children, isLoading }: { children: React.ReactNode; isLoad
 }
 
 export { LinkCreateForm };
-export type { LinkCreateFormMode };
+export type { LinkCreateFormHandle, LinkCreateFormMode };

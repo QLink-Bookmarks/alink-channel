@@ -29,7 +29,7 @@ import {
 
 import { useSheetHostScrollLock } from "./use-sheet-host-scroll-lock";
 
-import { X } from "lucide-react-native/icons";
+import { ChevronLeft, X } from "lucide-react-native/icons";
 
 /**
  * Signals to descendants that they're rendered inside a BottomSheetModal so they can
@@ -53,6 +53,103 @@ const SheetScrollContext = React.createContext<SheetScroll | null>(null);
 // The scroll handle of the sheet around the caller; null outside a sheet.
 function useSheetScroll() {
   return React.use(SheetScrollContext);
+}
+
+type SheetHeaderState = { title: string; hasBack: boolean };
+
+type SheetHeaderSlot = {
+  setHeader: (header: SheetHeaderState | null) => void;
+  backRef: React.RefObject<(() => void) | null>;
+};
+
+const SheetHeaderSlotContext = React.createContext<SheetHeaderSlot | null>(null);
+
+const EMPTY_HEADER: SheetHeaderState = { title: "", hasBack: false };
+
+/**
+ * Puts a fixed head on the sheet around it: the title in the middle, an optional back
+ * button on the left and the close button on the right, above a divider. The body
+ * scrolls under it. Outside a sheet it renders the title as a plain line.
+ */
+function SheetHeader({ title, onBack }: { title: string; onBack?: () => void }) {
+  const slot = React.use(SheetHeaderSlotContext);
+  const hasBack = onBack != null;
+  React.useLayoutEffect(() => {
+    if (slot) slot.backRef.current = onBack ?? null;
+  });
+  React.useLayoutEffect(() => {
+    slot?.setHeader({ title, hasBack });
+  }, [hasBack, slot, title]);
+  React.useLayoutEffect(() => {
+    if (!slot) return;
+    return () => slot.setHeader(null);
+  }, [slot]);
+  if (slot) {
+    return null;
+  }
+  return <Text className="text-center text-[17px] font-semibold text-foreground">{title}</Text>;
+}
+
+function SheetHeaderBar({
+  header,
+  showCloseButton,
+  onBack,
+  onClose,
+}: {
+  header: SheetHeaderState;
+  showCloseButton: boolean;
+  onBack: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <View className="bg-transparent pt-2">
+      <View className="items-center">
+        <View className="h-1.5 w-10 rounded-full bg-border" />
+      </View>
+      <View className="h-12 flex-row items-center gap-2 border-b border-border px-2">
+        <View className="w-10 items-start">
+          {header.hasBack ? (
+            <Pressable
+              className="size-10 items-center justify-center rounded-full active:bg-accent web:hover:bg-accent"
+              accessibilityLabel="뒤로"
+              accessibilityRole="button"
+              onPress={onBack}
+            >
+              <Icon
+                as={ChevronLeft}
+                size={18}
+                className="text-foreground"
+              />
+            </Pressable>
+          ) : null}
+        </View>
+        <Text
+          accessibilityRole="header"
+          className="flex-1 text-center text-[17px] font-semibold text-foreground"
+          numberOfLines={1}
+        >
+          {header.title}
+        </Text>
+        <View className="w-10 items-end">
+          {showCloseButton ? (
+            <Pressable
+              className="size-9 items-center justify-center rounded-full active:bg-accent web:hover:bg-accent"
+              accessibilityLabel="닫기"
+              accessibilityRole="button"
+              hitSlop={4}
+              onPress={onClose}
+            >
+              <Icon
+                as={X}
+                size={18}
+                className="text-muted-foreground"
+              />
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
 }
 
 type SheetMotion = {
@@ -257,6 +354,17 @@ type SheetProps = {
    * spring, so a sheet whose content animates its height can follow it frame for frame.
    */
   resizeTiming?: SheetResizeTiming;
+  /**
+   * Asked before a close the user starts (×, backdrop, dragging down). Returning false keeps
+   * the sheet open, so the caller can confirm first; a dragged-down sheet comes back up. It
+   * is also asked if another "switch" sheet minimises this one, which cannot be held.
+   */
+  onCloseRequest?: () => boolean;
+  /**
+   * Draws the fixed head from the first frame for a sheet whose content puts a SheetHeader
+   * in it, so the head does not grow in while the sheet slides in.
+   */
+  fixedHeader?: boolean;
 };
 
 function Sheet({
@@ -277,6 +385,8 @@ function Sheet({
   onOpenChange,
   stackBehavior = "switch",
   resizeTiming,
+  onCloseRequest,
+  fixedHeader = false,
 }: SheetProps) {
   const [footerHeight, setFooterHeight] = React.useState(0);
   const [hasSlotFooter, setHasSlotFooter] = React.useState(false);
@@ -335,6 +445,17 @@ function Sheet({
   React.useLayoutEffect(() => {
     onOpenChangeRef.current = onOpenChange;
   }, [onOpenChange]);
+  const onCloseRequestRef = React.useRef(onCloseRequest);
+  React.useLayoutEffect(() => {
+    onCloseRequestRef.current = onCloseRequest;
+  }, [onCloseRequest]);
+  const hasCloseRequest = onCloseRequest != null;
+  const [header, setHeader] = React.useState<SheetHeaderState | null>(null);
+  const headerBackRef = React.useRef<(() => void) | null>(null);
+  const headerSlot = React.useMemo<SheetHeaderSlot>(
+    () => ({ setHeader, backRef: headerBackRef }),
+    [],
+  );
   React.useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -434,6 +555,17 @@ function Sheet({
     },
     [dismissSheet, reportUserClose],
   );
+  // A drag-down starts closing on its own; a close request that says no sends it back up
+  // before the close finishes. Closes this sheet asked for itself are not asked again.
+  const handleAnimate = React.useCallback((_fromIndex: number, toIndex: number) => {
+    const onRequest = onCloseRequestRef.current;
+    if (toIndex !== -1 || !onRequest || isClosingRef.current || !isMountedRef.current) {
+      return;
+    }
+    if (!onRequest()) {
+      sheetRef.current?.snapToIndex(0);
+    }
+  }, []);
   const handleDismiss = React.useCallback(() => {
     const wasClosing = isClosingRef.current;
     isPresentedRef.current = false;
@@ -456,6 +588,9 @@ function Sheet({
     if (!isPresentedRef.current || isClosingRef.current) {
       return;
     }
+    if (onCloseRequestRef.current && !onCloseRequestRef.current()) {
+      return;
+    }
     reportUserClose();
     dismissSheet();
   }, [dismissSheet, reportUserClose]);
@@ -469,10 +604,20 @@ function Sheet({
         disappearsOnIndex={-1}
         opacity={1}
         style={backdropStyle}
-        pressBehavior={dismissible ? "close" : "none"}
-      />
+        pressBehavior={dismissible && !hasCloseRequest ? "close" : "none"}
+      >
+        {/* "none" drops the backdrop's own tap, so a guarded sheet takes the tap here. */}
+        {dismissible && hasCloseRequest ? (
+          <Pressable
+            accessible={false}
+            className="flex-1"
+            testID="sheet-backdrop-press"
+            onPress={handleClosePress}
+          />
+        ) : null}
+      </BottomSheetBackdrop>
     ),
-    [backdropStyle, dismissible, handleClosePress],
+    [backdropStyle, dismissible, handleClosePress, hasCloseRequest],
   );
   const renderBackground = React.useCallback(
     (props: BottomSheetBackgroundProps) => (
@@ -486,8 +631,18 @@ function Sheet({
     [resolvedAccent, backgroundStyle, resolvedMode],
   );
 
-  const renderHandle = React.useCallback(
-    () => (
+  const renderHandle = React.useCallback(() => {
+    if (header || fixedHeader) {
+      return (
+        <SheetHeaderBar
+          header={header ?? EMPTY_HEADER}
+          showCloseButton={dismissible && !hideCloseButton}
+          onBack={() => headerBackRef.current?.()}
+          onClose={handleClosePress}
+        />
+      );
+    }
+    return (
       <View className="bg-transparent pt-3">
         <View className="items-center">
           <View className="h-1.5 w-10 rounded-full bg-border" />
@@ -508,9 +663,8 @@ function Sheet({
           </Pressable>
         ) : null}
       </View>
-    ),
-    [dismissible, handleClosePress, hideCloseButton],
-  );
+    );
+  }, [dismissible, fixedHeader, handleClosePress, header, hideCloseButton]);
 
   const safeBottomInset = Math.max(insets.bottom, 16);
   const hasFooter = footer != null || hasSlotFooter;
@@ -547,7 +701,7 @@ function Sheet({
       }}
     >
       {title ? <Text className="text-lg font-semibold">{title}</Text> : null}
-      {children}
+      <SheetHeaderSlotContext value={headerSlot}>{children}</SheetHeaderSlotContext>
     </View>
   );
   return (
@@ -566,6 +720,7 @@ function Sheet({
       footerComponent={hasFooter ? renderFooter : undefined}
       handleComponent={renderHandle}
       style={sheetStyle}
+      onAnimate={handleAnimate}
       onChange={handleChange}
       onDismiss={handleDismiss}
     >
@@ -588,5 +743,5 @@ function Sheet({
   );
 }
 
-export { Sheet, SheetFooter, useIsInsideSheet, useSheetMotion, useSheetScroll };
+export { Sheet, SheetFooter, SheetHeader, useIsInsideSheet, useSheetMotion, useSheetScroll };
 export type { SheetMotion, SheetProps, SheetScroll };
