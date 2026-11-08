@@ -452,6 +452,27 @@ test.describe("new link sheet", () => {
     expect(Math.round(top)).toBe(8);
   });
 
+  test("typing while it still slides up leaves its header in view once it stops", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "web mobile");
+    await setUpForm(page);
+    await openForm(page);
+    // Focus the field before the sheet has stopped: the browser scrolls the sheet's host to
+    // show it, and that must not stay once the sheet is up.
+    await sheet(page)
+      .getByPlaceholder(/^https:\/\//)
+      .fill(PAGE_WITH_IMAGE);
+    const title = page.getByRole("heading", { name: "새 링크 추가" });
+    await expect
+      .poll(async () => Math.round((await boxOf(title)).y), { intervals: [250] })
+      .toBeGreaterThan(8);
+    await expect(title).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole("button", { name: "닫기", exact: true })).toBeInViewport({
+      ratio: 1,
+    });
+  });
+
   test("at 768 the image is at most 240px high and 저장·AI 정리 are 48px high", async ({
     page,
   }) => {

@@ -189,7 +189,7 @@ describe("TodoItem display card names", () => {
       />,
     );
     expect(
-      screen.getByTestId("todo-item").children.some((child) => typeof child === "string"),
+      screen.getByTestId("todo-item").children.some((child: unknown) => typeof child === "string"),
     ).toBe(false);
   });
 

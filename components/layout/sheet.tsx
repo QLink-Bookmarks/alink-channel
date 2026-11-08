@@ -393,15 +393,15 @@ function Sheet({
 }: SheetProps) {
   const [footerHeight, setFooterHeight] = React.useState(0);
   const [hasSlotFooter, setHasSlotFooter] = React.useState(false);
-  const hostScrollLockRef = useSheetHostScrollLock();
+  const hostScrollLock = useSheetHostScrollLock();
   const scrollViewRef = React.useRef<BottomSheetScrollViewMethods>(null);
   const bodyRef = React.useRef<View | null>(null);
   const contentRef = React.useCallback(
     (node: View | null) => {
       bodyRef.current = node;
-      hostScrollLockRef?.(node);
+      hostScrollLock.ref?.(node);
     },
-    [hostScrollLockRef],
+    [hostScrollLock],
   );
   const sheetScroll = React.useMemo<SheetScroll>(
     () => ({
@@ -547,6 +547,10 @@ function Sheet({
   const handleChange = React.useCallback(
     (index: number) => {
       if (index >= 0) {
+        // Only the stop that ends the opening slide; later resizes keep what the browser scrolled.
+        if (!hasShownRef.current) {
+          hostScrollLock.settle?.();
+        }
         hasShownRef.current = true;
         closeReportedRef.current = false;
         if (isDismissPendingRef.current) {
@@ -557,7 +561,7 @@ function Sheet({
         reportUserClose();
       }
     },
-    [dismissSheet, reportUserClose],
+    [dismissSheet, hostScrollLock, reportUserClose],
   );
   // A drag-down starts closing on its own; a close request that says no sends it back up
   // before the close finishes. Closes this sheet asked for itself are not asked again.
