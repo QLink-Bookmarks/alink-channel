@@ -3,7 +3,7 @@ import { Text } from "react-native";
 
 import { act, fireEvent, render, screen, within } from "@testing-library/react-native";
 
-import { Sheet, SheetFooter } from "./sheet";
+import { Sheet, SheetFooter, SheetHeader } from "./sheet";
 
 type MockModalStatus = "unmounted" | "presented" | "closing" | "minimized" | "stuck";
 
@@ -14,6 +14,8 @@ const mockModal = {
   finishClose: () => {},
   dragDown: () => {},
   minimize: () => {},
+  snapCount: 0,
+  startDragClose: () => {},
 };
 
 /* eslint-disable @typescript-eslint/no-require-imports -- jest.mock factories must require */
@@ -32,15 +34,24 @@ jest.mock("@gorhom/bottom-sheet", () => {
     children?: React.ReactNode;
     onChange?: (index: number) => void;
     onDismiss?: () => void;
+    onAnimate?: (fromIndex: number, toIndex: number) => void;
     handleComponent?: () => React.ReactNode;
     backdropComponent?: (props: object) => React.ReactNode;
     footerComponent?: (props: object) => React.ReactNode;
   };
-  type MockModalHandle = { present: () => void; dismiss: () => void };
+  type MockModalHandle = { present: () => void; dismiss: () => void; snapToIndex: () => void };
 
   const BottomSheetModal = ReactModule.forwardRef<MockModalHandle, MockModalProps>(
     function MockBottomSheetModal(
-      { children, onChange, onDismiss, handleComponent, backdropComponent, footerComponent },
+      {
+        children,
+        onChange,
+        onDismiss,
+        onAnimate,
+        handleComponent,
+        backdropComponent,
+        footerComponent,
+      },
       ref,
     ) {
       const [mounted, setMounted] = ReactModule.useState(false);
@@ -65,6 +76,7 @@ jest.mock("@gorhom/bottom-sheet", () => {
         setStatus("closing");
         finishClose();
       };
+      mockModal.startDragClose = () => onAnimate?.(0, -1);
       mockModal.minimize = () => {
         setStatus("minimized");
         firstCallbacks.current.onChange?.(-1);
@@ -84,6 +96,11 @@ jest.mock("@gorhom/bottom-sheet", () => {
           } else {
             mount();
           }
+        },
+        snapToIndex: () => {
+          mockModal.snapCount += 1;
+          setStatus("presented");
+          firstCallbacks.current.onChange?.(0);
         },
         dismiss: () => {
           if (mockModal.status === "unmounted") {
@@ -118,13 +135,25 @@ jest.mock("@gorhom/bottom-sheet", () => {
   );
 
   return {
-    BottomSheetBackdrop: ({ onPress }: { onPress?: () => void }) => (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="바깥"
-        onPress={onPress}
-      />
-    ),
+    // Like gorhom: with pressBehavior "none" the backdrop takes no tap of its own.
+    BottomSheetBackdrop: ({
+      children,
+      onPress,
+      pressBehavior,
+    }: {
+      children?: React.ReactNode;
+      onPress?: () => void;
+      pressBehavior?: string;
+    }) =>
+      pressBehavior === "none" ? (
+        <View accessibilityLabel="바깥">{children}</View>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="바깥"
+          onPress={onPress}
+        />
+      ),
     BottomSheetFooter: ({ children }: { children?: React.ReactNode }) => children,
     BottomSheetModal,
     BottomSheetScrollView: ({ children }: { children?: React.ReactNode }) => children,
@@ -183,6 +212,7 @@ beforeEach(() => {
   mockModal.status = "unmounted";
   mockModal.deferPresent = false;
   mockModal.pendingPresent = null;
+  mockModal.snapCount = 0;
 });
 
 describe("Sheet", () => {
@@ -294,6 +324,123 @@ describe("Sheet", () => {
 
     expect(isSheetShown()).toBe(true);
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  describe("SheetHeader", () => {
+    function renderWithHeader(onBack?: () => void) {
+      return (
+        <Sheet
+          open
+          onOpenChange={jest.fn()}
+        >
+          <SheetHeader
+            title="새 링크 추가"
+            onBack={onBack}
+          />
+        </Sheet>
+      );
+    }
+
+    it("puts the title in the fixed head with 닫기, and 뒤로 only when it is given", () => {
+      const onBack = jest.fn();
+      const { rerender } = render(renderWithHeader());
+      expect(screen.getByRole("header", { name: "새 링크 추가" })).toBeOnTheScreen();
+      expect(
+        within(screen.getByTestId("mock-sheet-content")).queryByText("새 링크 추가"),
+      ).toBeNull();
+      expect(screen.getByRole("button", { name: "닫기" })).toBeOnTheScreen();
+      expect(screen.queryByRole("button", { name: "뒤로" })).toBeNull();
+
+      rerender(renderWithHeader(onBack));
+      fireEvent.press(screen.getByRole("button", { name: "뒤로" }));
+      expect(onBack).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("draws the fixed head from the first frame with fixedHeader, before a SheetHeader fills it", () => {
+    render(
+      <Sheet
+        open
+        fixedHeader
+        onOpenChange={jest.fn()}
+      >
+        <React.Fragment />
+      </Sheet>,
+    );
+    expect(screen.getByRole("header")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "닫기" })).toBeOnTheScreen();
+  });
+
+  describe("onCloseRequest", () => {
+    function renderGuarded(onCloseRequest: () => boolean, onOpenChange: (open: boolean) => void) {
+      return (
+        <Sheet
+          open
+          onCloseRequest={onCloseRequest}
+          onOpenChange={onOpenChange}
+        >
+          <React.Fragment />
+        </Sheet>
+      );
+    }
+
+    it.each(["닫기", "바깥"])("keeps the sheet open on %s when the request says no", (name) => {
+      const onOpenChange = jest.fn();
+      const onCloseRequest = jest.fn(() => false);
+      render(renderGuarded(onCloseRequest, onOpenChange));
+
+      fireEvent.press(
+        name === "바깥"
+          ? screen.getByTestId("sheet-backdrop-press")
+          : screen.getByRole("button", { name }),
+      );
+
+      expect(onCloseRequest).toHaveBeenCalledTimes(1);
+      expect(onOpenChange).not.toHaveBeenCalled();
+      expect(mockModal.status).toBe("presented");
+    });
+
+    it("closes on the backdrop when the request says yes", () => {
+      const onOpenChange = jest.fn();
+      render(renderGuarded(() => true, onOpenChange));
+
+      fireEvent.press(screen.getByTestId("sheet-backdrop-press"));
+
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+      expect(mockModal.status).toBe("closing");
+    });
+
+    it("closes on 닫기 when the request says yes", () => {
+      const onOpenChange = jest.fn();
+      render(renderGuarded(() => true, onOpenChange));
+
+      fireEvent.press(screen.getByRole("button", { name: "닫기" }));
+
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+      expect(mockModal.status).toBe("closing");
+    });
+
+    it("sends a dragged-down sheet back up when the request says no, and lets it close when yes", () => {
+      const onOpenChange = jest.fn();
+      let allow = false;
+      render(renderGuarded(() => allow, onOpenChange));
+
+      act(() => {
+        mockModal.startDragClose();
+      });
+      expect(mockModal.snapCount).toBe(1);
+      expect(onOpenChange).not.toHaveBeenCalled();
+      expect(isSheetShown()).toBe(true);
+
+      allow = true;
+      act(() => {
+        mockModal.startDragClose();
+      });
+      expect(mockModal.snapCount).toBe(1);
+      dragDown();
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+      expect(isSheetShown()).toBe(false);
+    });
   });
 
   describe("SheetFooter", () => {

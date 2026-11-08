@@ -1,5 +1,5 @@
 import type { AiProviderType } from "@/features/account/types";
-import type { ApiEnvelope } from "@/features/links/types";
+import type { ApiEnvelope, CreateLinkTodoRequest } from "@/features/links/types";
 
 type AiProviderModel = {
   id: number;
@@ -29,6 +29,9 @@ type AiSummaryRequest = {
   thumbnailUrl?: string | null;
   faviconUrl?: string | null;
   isVideo?: boolean;
+  // A new link only: the server refuses them when id is set.
+  memo?: string | null;
+  todos?: CreateLinkTodoRequest[] | null;
 };
 
 type AiSummaryResponseData = {

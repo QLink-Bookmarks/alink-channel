@@ -134,21 +134,23 @@ async function tapAboveSheet(page: Page) {
 }
 
 test.describe("layout", () => {
-  test("top to bottom: address and refresh, image, title, actions, summary, tags, memo, todos; no folder section or open button", async ({
+  test("top to bottom: toolbar, image, title and source, AI surface, 내 정리 rows, delete; no URL line or button row", async ({
     page,
   }) => {
     const { links, details } = buildFixtures();
     await mockApi(page, { links, details });
     await openDetail(page, 1);
     const order = [
-      "link-detail-url",
+      ...(isWideProject() ? ["link-detail-toolbar"] : []),
       "link-detail-image",
       "link-detail-title",
-      "link-detail-actions",
+      "link-detail-meta",
       "link-detail-summary",
+      "link-detail-folder-row",
       "link-detail-tags",
       "link-detail-memo",
       "link-detail-todos",
+      "link-detail-delete",
     ];
     let previous = -Infinity;
     for (const id of order) {
@@ -158,37 +160,39 @@ test.describe("layout", () => {
     }
     await expect(page.getByTestId("link-detail-refresh")).toBeVisible();
     const detail = page.getByTestId("link-detail");
+    await expect(page.getByTestId("link-detail-url")).toHaveCount(0);
+    await expect(page.getByTestId("link-detail-actions")).toHaveCount(0);
+    await expect(detail.getByText(links[0].url, { exact: true })).toHaveCount(0);
     await expect(detail.getByText("원본 열기", { exact: true })).toHaveCount(0);
-    await expect(detail.getByText("폴더", { exact: true })).toHaveCount(0);
     await expect(detail.getByText("#React Native", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("link-detail-meta")).toContainText("youtube.com");
   });
 
-  test("landscape, tall and missing images share one 16:9 cell, and the actions stay in the first screen", async ({
+  test("landscape and tall images share one 16:9 cell, a missing image is a low 120px fallback, and the toolbar is on the first screen", async ({
     page,
   }) => {
     const { links, details } = buildFixtures();
     await mockApi(page, { links, details });
     const sizes: { width: number; height: number }[] = [];
-    for (const id of [1, 2, 3]) {
+    for (const id of [1, 2]) {
       await openDetail(page, id);
       const cell = page.getByTestId("link-detail-image");
-      if (id !== 3) {
-        await expect(cell.getByTestId("link-detail-thumbnail-image")).toBeVisible();
-      }
+      await expect(cell.getByTestId("link-detail-thumbnail-image")).toBeVisible();
       sizes.push(await boxOf(cell));
-      const actions = await boxOf(page.getByTestId("link-detail-actions"));
-      const viewport = page.viewportSize();
-      expect(actions.y + actions.height).toBeLessThanOrEqual(viewport?.height ?? 0);
+      await expect(page.getByTestId("link-detail-toolbar")).toBeInViewport();
     }
-    for (const size of sizes) {
-      expect(Math.abs(size.width - sizes[0].width)).toBeLessThanOrEqual(1);
-      expect(Math.abs(size.height - sizes[0].height)).toBeLessThanOrEqual(1);
-    }
+    expect(Math.abs(sizes[1].width - sizes[0].width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(sizes[1].height - sizes[0].height)).toBeLessThanOrEqual(1);
     if (isWideProject()) {
-      expect(sizes[0].height).toBeLessThanOrEqual(262);
+      expect(sizes[0].height).toBeLessThanOrEqual(242);
     } else {
       expect(sizes[0].width / sizes[0].height).toBeCloseTo(16 / 9, 1);
     }
+    await openDetail(page, 3);
+    const low = await boxOf(page.getByTestId("link-detail-image"));
+    expect(Math.round(low.height)).toBeLessThanOrEqual(122);
+    expect(Math.round(low.height)).toBeGreaterThanOrEqual(118);
+    expect(Math.abs(low.width - sizes[0].width)).toBeLessThanOrEqual(1);
   });
 
   test("a tall image fits inside the cell instead of being stretched or cropped", async ({
@@ -216,7 +220,7 @@ test.describe("layout", () => {
     }
   });
 
-  test("a play icon for video links and a small faint hand on other images and on a missing image (#46)", async ({
+  test("a play icon for video links and a small faint hand on other images; the low fallback of a missing image has none (#46, #74)", async ({
     page,
   }) => {
     const { links, details } = buildFixtures();
@@ -257,36 +261,9 @@ test.describe("layout", () => {
     expect(alphaOf(look.iconColor)).toBeLessThan(1);
     await openDetail(page, 3);
     const fallback = page.getByTestId("link-detail-thumbnail-fallback");
-    await expect(fallback).toBeVisible();
+    await expect(fallback.getByText("notion.so", { exact: true })).toBeVisible();
     await expect(page.getByTestId("link-thumbnail-hint-play")).toHaveCount(0);
-    const fallbackHand = fallback.getByTestId("link-thumbnail-hint-open");
-    await expect(fallbackHand).toBeVisible();
-    await expect(fallbackHand).toHaveText("");
-    const fallbackLook = await fallbackHand.evaluate((node) => {
-      const circle = node.firstElementChild as HTMLElement;
-      const icon = node.querySelector("svg");
-      const frame = node.parentElement?.getBoundingClientRect();
-      const domain = Array.from(node.parentElement?.querySelectorAll<HTMLElement>("*") ?? []).find(
-        (element) => element.textContent === "notion.so" && element.children.length === 0,
-      );
-      const box = circle.getBoundingClientRect();
-      return {
-        size: box.width,
-        circleBackground: getComputedStyle(circle).backgroundColor,
-        iconColor: icon ? getComputedStyle(icon).color : "",
-        centeredX: frame
-          ? Math.abs(box.left + box.width / 2 - (frame.left + frame.width / 2)) <= 1
-          : false,
-        belowDomain: domain ? box.top >= domain.getBoundingClientRect().bottom : false,
-        insideFrame: frame ? box.bottom <= frame.bottom : false,
-      };
-    });
-    expect(fallbackLook.size).toBe(look.size);
-    expect(fallbackLook.circleBackground).toBe(look.circleBackground);
-    expect(fallbackLook.iconColor).toBe(look.iconColor);
-    expect(fallbackLook.centeredX).toBe(true);
-    expect(fallbackLook.belowDomain).toBe(true);
-    expect(fallbackLook.insideFrame).toBe(true);
+    await expect(fallback.getByTestId("link-thumbnail-hint-open")).toHaveCount(0);
   });
 
   test("hovering the image shows 원본 열기 (#46)", async ({ page }) => {
@@ -325,83 +302,96 @@ test("pressing the hand in the middle of the image still opens the original (#46
   expect(await openedUrls(page)).toEqual([links[4].url]);
 });
 
-test("pressing the hand under the domain of a missing image still opens the original (#46)", async ({
-  page,
-}) => {
+test("pressing the low fallback of a missing image opens the original (#46)", async ({ page }) => {
   await stubWindowOpen(page);
   const { links, details } = buildFixtures();
   await mockApi(page, { links, details });
   await openDetail(page, 3);
-  const hand = page
-    .getByTestId("link-detail-thumbnail-fallback")
-    .getByTestId("link-thumbnail-hint-open");
-  await expect(hand).toBeVisible();
-  const box = await boxOf(hand);
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const fallback = page.getByTestId("link-detail-thumbnail-fallback");
+  await expect(fallback).toBeVisible();
+  await fallback.click();
   expect(await openedUrls(page)).toEqual([links[2].url]);
 });
 
 test.describe("actions", () => {
-  test("label-free buttons in order: folder, shortcut, share, edit, delete at the far end in red", async ({
+  test("the toolbar reads ★, 공유, 수정, 새로고침 in one row, with 닫기 at the end in the wide panel; 링크 삭제 sits at the bottom in red", async ({
     page,
   }) => {
     const { links, details } = buildFixtures();
     await mockApi(page, { links, details });
     await openDetail(page, 1);
-    const row = page.getByTestId("link-detail-actions");
-    const names = ["폴더 이동, 현재 📚 공부", "바로가기 추가", "공유", "수정하기", "링크 삭제"];
+    const toolbar = page.getByTestId("link-detail-toolbar");
+    const names = ["바로가기 추가", "공유", "수정", "새로고침"];
     let previousX = -Infinity;
+    const top = (await boxOf(toolbar.getByRole("button", { name: names[0] }))).y;
     for (const name of names) {
-      const button = row.getByRole("button", { name, exact: true });
+      const button = toolbar.getByRole("button", { name, exact: true });
       const box = await boxOf(button);
       expect(box.x, name).toBeGreaterThan(previousX);
+      expect(Math.abs(box.y - top), name).toBeLessThanOrEqual(1);
       previousX = box.x;
     }
-    await expect(row.getByRole("button", { name: "폴더 이동, 현재 📚 공부" })).toHaveText(
-      "📚 공부",
-    );
+    await expect(toolbar.getByRole("button", { name: "바로가기 추가" })).toHaveText("");
     for (const name of names.slice(1)) {
-      await expect(row.getByRole("button", { name, exact: true })).toHaveText("");
+      await expect(toolbar.getByRole("button", { name, exact: true })).toHaveText(name);
     }
-    const rowBox = await boxOf(row);
-    const deleteButton = row.getByRole("button", { name: "링크 삭제" });
-    const deleteBox = await boxOf(deleteButton);
-    expect(rowBox.x + rowBox.width - (deleteBox.x + deleteBox.width)).toBeLessThanOrEqual(1);
+    if (isWideProject()) {
+      const close = await boxOf(toolbar.getByRole("button", { name: "닫기" }));
+      expect(close.x).toBeGreaterThan(previousX);
+    } else {
+      await expect(page.getByRole("button", { name: "뒤로" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "닫기" })).toHaveCount(0);
+    }
+    await expect(page.getByRole("button", { name: "수정하기" })).toHaveCount(0);
+    const deleteButton = page.getByRole("button", { name: "링크 삭제" });
+    await expect(deleteButton).toHaveText("링크 삭제");
+    expect((await boxOf(deleteButton)).y).toBeGreaterThan(
+      (await boxOf(page.getByTestId("link-detail-todos"))).y,
+    );
     const color = await cssOf(deleteButton.locator("svg"), "color");
     const [red, green, blue] = color.match(/\d+/g)!.map(Number);
     expect(red, color).toBeGreaterThanOrEqual(150);
     expect(Math.max(green, blue), color).toBeLessThanOrEqual(red / 3);
   });
 
-  test("a link in a shared folder shows add to personal folder instead of edit, and a long folder name keeps the row on screen", async ({
+  test("a link in a shared folder shows add to personal folder instead of edit, and a long folder name stays inside its row", async ({
     page,
   }) => {
     const { links, details } = buildFixtures();
     await mockApi(page, { links, details });
     await openDetail(page, 5);
-    const row = page.getByTestId("link-detail-actions");
-    await expect(row.getByRole("button", { name: "개인 폴더로 추가" })).toBeVisible();
-    await expect(row.getByRole("button", { name: "수정하기" })).toHaveCount(0);
-    const rowBox = await boxOf(row);
-    for (const button of await row.getByRole("button").all()) {
+    const toolbar = page.getByTestId("link-detail-toolbar");
+    await expect(toolbar.getByRole("button", { name: "개인 폴더로 추가" })).toBeVisible();
+    await expect(toolbar.getByRole("button", { name: "수정", exact: true })).toHaveCount(0);
+    const toolbarBox = await boxOf(toolbar);
+    for (const button of await toolbar.getByRole("button").all()) {
       const box = await boxOf(button);
-      expect(box.y).toBeCloseTo(rowBox.y, 0);
-      expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+      expect(
+        Math.abs(box.y + box.height / 2 - (toolbarBox.y + toolbarBox.height / 2)),
+      ).toBeLessThanOrEqual(1);
+      expect(box.x + box.width).toBeLessThanOrEqual((page.viewportSize()?.width ?? 0) + 1);
     }
+    const row = page.getByTestId("link-detail-folder-row");
+    const rowBox = await boxOf(row);
+    const name = await boxOf(page.getByTestId("link-detail-folder-name"));
+    expect(name.x + name.width).toBeLessThanOrEqual(rowBox.x + rowBox.width);
+    const pencil = await boxOf(row.getByRole("button", { name: "폴더 이동" }));
+    expect(pencil.x).toBeGreaterThanOrEqual(name.x + name.width - 1);
   });
 
-  test("hovering an action shows its name", async ({ page }) => {
+  test("hovering the star shows 바로가기; the other commands carry their names", async ({
+    page,
+  }) => {
     test.skip(!isWideProject(), "hover is wide only");
     const { links, details } = buildFixtures();
     await mockApi(page, { links, details });
     await openDetail(page, 1);
-    await page.getByTestId("link-detail-share").hover();
-    await expect(page.getByText("공유", { exact: true }).first()).toBeVisible();
-    await page.getByTestId("link-detail-delete").hover();
-    await expect(page.getByText("링크 삭제", { exact: true }).first()).toBeVisible();
+    await page.getByTestId("link-detail-favorite").hover();
+    await expect(page.getByRole("tooltip", { name: "바로가기" })).toHaveCount(1);
+    await expect(page.getByTestId("link-detail-share")).toHaveText("공유");
   });
 
-  test("summary shows the model next to its heading, and a missing summary shows the placeholder", async ({
+  test("summary shows the provider and model next to its heading, and a missing summary leaves no placeholder", async ({
     page,
   }) => {
     const { links, details } = buildFixtures();
@@ -409,12 +399,15 @@ test.describe("actions", () => {
     await openDetail(page, 1);
     const summary = page.getByTestId("link-detail-summary");
     const heading = await boxOf(summary.getByText("한 줄 요약", { exact: true }));
-    const model = await boxOf(summary.getByText("요약 모델 - gpt-4o-mini", { exact: true }));
-    expect(Math.abs(model.y - heading.y)).toBeLessThan(8);
+    const model = page.getByTestId("link-detail-summary-model");
+    await expect(model).toContainText("OpenAI");
+    await expect(model).toContainText("gpt-4o-mini");
+    await expect(model.getByTestId("ai-provider-logo-openai")).toBeVisible();
+    const modelBox = await boxOf(model.getByText("gpt-4o-mini", { exact: true }));
+    expect(Math.abs(modelBox.y - heading.y)).toBeLessThan(8);
     await openDetail(page, 3);
-    await expect(
-      page.getByTestId("link-detail-summary").getByText("요약이 아직 없어요"),
-    ).toBeVisible();
+    await expect(page.getByTestId("link-detail-summary")).toHaveCount(0);
+    await expect(page.getByText("요약이 아직 없어요")).toHaveCount(0);
   });
 
   test("toggling the shortcut changes the detail star and the card star together", async ({
@@ -444,9 +437,9 @@ test.describe("actions", () => {
     const state = await mockApi(page, { links, details });
     await openDetail(page, 1);
     const tagsSection = page.getByTestId("link-detail-tags");
-    await tagsSection.getByRole("button", { name: "+ 태그 추가" }).click();
+    await tagsSection.getByRole("button", { name: "태그 편집" }).click();
     await tagsSection.getByPlaceholder("태그").fill("새태그");
-    await tagsSection.getByPlaceholder("태그").blur();
+    await tagsSection.getByPlaceholder("태그").press("Enter");
     await expect(page.getByTestId("link-detail-tags").getByText("#새태그")).toBeVisible();
 
     const put = state.requests.find((r) => r.method === "PUT" && r.path === "/api/links/1");
@@ -483,7 +476,7 @@ test.describe("actions", () => {
 });
 
 test.describe("todos in the detail", () => {
-  test("todos sit at the bottom as todo cards with the link row, two columns in the wide panel", async ({
+  test("todos sit in one full-width column under the 액션 label with + 추가 at its right, without the link row", async ({
     page,
   }) => {
     const { links, details } = buildFixtures();
@@ -492,14 +485,28 @@ test.describe("todos in the detail", () => {
     const section = page.getByTestId("link-detail-todos");
     const cards = section.getByTestId(/^todo-item(-overdue)?$/);
     await expect(cards).toHaveCount(3);
-    await expect(section.getByText("액션 2개")).toBeVisible();
-    await expect(section.getByRole("button", { name: "+ 액션 추가 / 수정" })).toBeVisible();
-    await expect(cards.first().getByTestId("todo-item-link")).toContainText("youtube.com");
-    const tops = await cards.evaluateAll((nodes) =>
-      nodes.map((node) => Math.round(node.getBoundingClientRect().top)),
+    await expect(section.getByText(/액션 \d+개/)).toHaveCount(0);
+    await expect(section.getByText("+ 액션 추가 / 수정")).toHaveCount(0);
+    await expect(page.getByTestId("link-detail-todo-grid")).toHaveCount(0);
+    await expect(section.getByTestId("todo-item-link")).toHaveCount(0);
+    const label = await boxOf(section.getByText("액션", { exact: true }));
+    const add = await boxOf(section.getByRole("button", { name: "액션 추가" }));
+    expect(Math.abs(add.y + add.height / 2 - (label.y + label.height / 2))).toBeLessThanOrEqual(2);
+    const sectionBox = await boxOf(section);
+    expect(Math.abs(add.x + add.width - 8 - (sectionBox.x + sectionBox.width))).toBeLessThanOrEqual(
+      1,
     );
-    const firstRow = tops.filter((top) => Math.abs(top - tops[0]) <= 1).length;
-    expect(firstRow).toBe(isWideProject() ? 2 : 1);
+    const boxes = await cards.evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const box = node.getBoundingClientRect();
+        return { x: box.x, y: box.y, width: box.width, bottom: box.bottom };
+      }),
+    );
+    for (const [index, box] of boxes.entries()) {
+      expect(Math.abs(box.x - sectionBox.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(box.width - sectionBox.width)).toBeLessThanOrEqual(1);
+      if (index > 0) expect(Math.round(box.y - boxes[index - 1].bottom)).toBe(8);
+    }
   });
 
   test("completing a todo in the detail updates the card's todo counts", async ({ page }) => {
@@ -592,6 +599,11 @@ test.describe("refresh", () => {
     await openDetail(page, 1);
     const refresh = page.getByTestId("link-detail-refresh");
     const normalColor = await cssOf(refresh.locator("svg"), "color");
+    // Pointer away from the button, so hover does not tint the icon when it is read.
+    const restColor = async () => {
+      await page.mouse.move(1, 1);
+      return cssOf(refresh.locator("svg"), "color");
+    };
     failing = true;
     await refresh.click();
     // React Query retries three times before giving up.
@@ -599,13 +611,13 @@ test.describe("refresh", () => {
     await expect(refresh).toHaveAttribute("aria-label", "새로고침 실패, 다시 시도");
     await expect(refresh).toBeEnabled();
     await expect(page.getByTestId("link-detail-title")).toContainText("Reanimated 3");
-    const failedColor = await cssOf(refresh.locator("svg"), "color");
+    const failedColor = await restColor();
     expect(failedColor).not.toBe(normalColor);
 
     failing = false;
     await refresh.click();
     await expect(refresh).toHaveAttribute("aria-label", "새로고침");
-    expect(await cssOf(refresh.locator("svg"), "color")).toBe(normalColor);
+    expect(await restColor()).toBe(normalColor);
   });
 });
 
@@ -689,10 +701,7 @@ test.describe("open and close", () => {
 });
 
 test.describe("todo cards and saving edits (#27)", () => {
-  test("todo cards in one row of the wide panel share one height and fill their cell", async ({
-    page,
-  }) => {
-    test.skip(!isWideProject(), "two columns only in the wide panel");
+  test("a long todo title wraps inside its full-width card", async ({ page }) => {
     const { links, details } = buildFixtures();
     const link = links[0];
     const longTodos = [
@@ -709,19 +718,16 @@ test.describe("todo cards and saving edits (#27)", () => {
       details: { ...details, [link.id]: { ...details[link.id], todos: longTodos } },
     });
     await openDetail(page, 1);
-    const grid = page.getByTestId("link-detail-todo-grid");
-    const cards = grid.getByTestId(/^todo-item(-overdue)?$/);
+    const section = page.getByTestId("link-detail-todos");
+    const cards = section.getByTestId(/^todo-item(-overdue)?$/);
     await expect(cards).toHaveCount(2);
+    const sectionBox = await boxOf(section);
     const [first, second] = await cards.evaluateAll((nodes) =>
-      nodes.map((node) => {
-        const card = node.getBoundingClientRect();
-        const cell = (node.parentElement as HTMLElement).getBoundingClientRect();
-        return { top: card.top, height: card.height, cellHeight: cell.height };
-      }),
+      nodes.map((node) => node.getBoundingClientRect().toJSON() as DOMRect),
     );
-    expect(Math.round(first.top)).toBe(Math.round(second.top));
-    expect(Math.round(first.height)).toBe(Math.round(second.height));
-    expect(Math.round(second.height)).toBe(Math.round(second.cellHeight));
+    expect(first.height).toBeGreaterThan(second.height);
+    expect(Math.abs(first.width - sectionBox.width)).toBeLessThanOrEqual(1);
+    expect(first.right).toBeLessThanOrEqual(sectionBox.x + sectionBox.width + 1);
   });
 
   test("after a keyboard press, the hover name comes back when focus returns to the button", async ({
@@ -734,16 +740,16 @@ test.describe("todo cards and saving edits (#27)", () => {
     const favorite = page.getByTestId("link-detail-favorite");
     const share = page.getByTestId("link-detail-share");
     await favorite.focus();
-    await expect(page.getByRole("tooltip", { name: "바로가기 추가" })).toHaveCount(1);
+    await expect(page.getByRole("tooltip", { name: "바로가기" })).toHaveCount(1);
     await page.keyboard.press("Enter");
     await expect(favorite).toHaveAttribute("aria-label", "바로가기 해제");
     await share.focus();
-    await expect(page.getByRole("tooltip", { name: "공유" })).toHaveCount(1);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
     await favorite.focus();
-    await expect(page.getByRole("tooltip", { name: "바로가기 해제" })).toHaveCount(1);
+    await expect(page.getByRole("tooltip", { name: "바로가기" })).toHaveCount(1);
   });
 
-  test("after discarding the unsaved-changes prompt, 수정하기 opens the sheet again with the saved text", async ({
+  test("after discarding the unsaved-changes prompt, 수정 opens the sheet again with the saved text", async ({
     page,
   }) => {
     test.skip(isWideProject(), "the edit sheet on mobile");
@@ -770,7 +776,7 @@ test.describe("todo cards and saving edits (#27)", () => {
     await expect(title).toBeInViewport();
   });
 
-  test("tapping outside the dirty edit sheet asks first, Escape keeps editing on screen, and 수정하기 opens the sheet again after discarding", async ({
+  test("tapping outside the dirty edit sheet asks first, Escape keeps editing on screen, and 수정 opens the sheet again after discarding", async ({
     page,
   }) => {
     test.skip(isWideProject(), "the edit sheet on mobile");
@@ -801,7 +807,7 @@ test.describe("todo cards and saving edits (#27)", () => {
     await expect(title).toBeInViewport();
   });
 
-  test("dragging down the dirty edit sheet asks first, Escape keeps editing on screen, and 수정하기 opens the sheet again after discarding", async ({
+  test("dragging down the dirty edit sheet asks first, Escape keeps editing on screen, and 수정 opens the sheet again after discarding", async ({
     page,
   }) => {
     test.skip(isWideProject(), "the edit sheet on mobile");

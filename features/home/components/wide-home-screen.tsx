@@ -17,7 +17,7 @@ import { ShortcutTile } from "@/features/links/components/shortcut-tile/shortcut
 import { useLinksQuery } from "@/features/links/queries";
 import { useNewLinkShortcutLabel } from "@/features/navigation/hooks/use-new-link-shortcut-label";
 import { TodoItem } from "@/features/todos/components/todo-item/todo-item";
-import { formatReminderLabel, isOverdue } from "@/features/todos/lib/todo-list-helpers";
+import { formatTodoSchedule } from "@/features/todos/lib/todo-schedule-label";
 import { useToggleTodoCompletedMutation } from "@/features/todos/mutations";
 import { useTodosQuery } from "@/features/todos/queries";
 import type { TodoListItem } from "@/features/todos/types";
@@ -145,7 +145,11 @@ function WideHomeScreen() {
 
   const favoritesQuery = useLinksQuery({ isFavorite: true, size: SHORTCUT_PREVIEW_COUNT });
   const todosQuery = useTodosQuery({ isCompleted: false, size: 30 });
-  const recentLinksQuery = useLinksQuery({ order: "latest", size: RECENT_PREVIEW_COUNT });
+  const recentLinksQuery = useLinksQuery({
+    orderKey: "created_at",
+    order: "desc",
+    size: RECENT_PREVIEW_COUNT,
+  });
   const toggleTodo = useToggleTodoCompletedMutation();
   const todoGrid = useGridColumns({ gap: TODO_GRID_GAP, minItemWidth: TODO_MIN_CARD_WIDTH });
 
@@ -292,29 +296,31 @@ function WideHomeScreen() {
               style={{ gap: TODO_GRID_GAP }}
               onLayout={todoGrid.onLayout}
             >
-              {previewTodos.map((todo) => (
-                <View
-                  key={todo.id}
-                  style={todoGrid.itemStyle}
-                >
-                  <TodoItem
-                    className="grow"
-                    variant="display"
-                    text={todo.title}
-                    done={Boolean(todo.completedAt)}
-                    reminderLabel={formatReminderLabel(todo.reminderAt, {
-                      withOverdueSuffix: true,
-                    })}
-                    overdue={isOverdue(todo, nowMs)}
-                    linkUrl={todo.linkUrl}
-                    linkTitle={todo.linkTitle}
-                    linkThumbnailUrl={todo.linkThumbnailUrl}
-                    linkFaviconUrl={todo.linkFaviconUrl}
-                    onToggle={(next) => handleToggleTodo(todo, next)}
-                    onPress={() => router.push(`/links/${todo.linkId}` as Href)}
-                  />
-                </View>
-              ))}
+              {previewTodos.map((todo) => {
+                const schedule = formatTodoSchedule(todo, nowMs);
+                return (
+                  <View
+                    key={todo.id}
+                    style={todoGrid.itemStyle}
+                  >
+                    <TodoItem
+                      className="grow"
+                      variant="display"
+                      text={todo.title}
+                      done={Boolean(todo.completedAt)}
+                      reminderLabel={schedule.label}
+                      scheduleKind={schedule.kind}
+                      overdue={schedule.overdue}
+                      linkUrl={todo.linkUrl}
+                      linkTitle={todo.linkTitle}
+                      linkThumbnailUrl={todo.linkThumbnailUrl}
+                      linkFaviconUrl={todo.linkFaviconUrl}
+                      onToggle={(next) => handleToggleTodo(todo, next)}
+                      onPress={() => router.push(`/links/${todo.linkId}` as Href)}
+                    />
+                  </View>
+                );
+              })}
             </View>
           )}
         </View>

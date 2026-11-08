@@ -18,7 +18,12 @@ function useLinkSearchQuery(query: string, enabled: boolean) {
   return useQuery({
     enabled: enabled && trimmed.length > 0,
     queryFn: async () => {
-      const response = await getLinks({ query: trimmed, order: "latest", size: LINK_SEARCH_SIZE });
+      const response = await getLinks({
+        query: trimmed,
+        orderKey: "created_at",
+        order: "desc",
+        size: LINK_SEARCH_SIZE,
+      });
       return response.data;
     },
     queryKey: getLinkSearchQueryKey(trimmed),

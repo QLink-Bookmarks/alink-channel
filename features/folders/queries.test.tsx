@@ -5,12 +5,14 @@ import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { getFolderMembers, getFolders } from "./api";
 import {
+  FOLDER_LIST_SORT,
   MAX_FOLDER_PAGES,
   fetchAllFolders,
   folderQueryKeys,
   useFolderMembersQuery,
   useFolderPagesQuery,
   useFolderQuery,
+  useFoldersQuery,
 } from "./queries";
 import type { Folder, GetFoldersParams } from "./types";
 
@@ -76,7 +78,7 @@ describe("fetchAllFolders", () => {
   it("follows cursors 20 at a time until the last page", async () => {
     serve(makeFolders(45));
 
-    const result = await fetchAllFolders({ order: "latest" });
+    const result = await fetchAllFolders(FOLDER_LIST_SORT);
 
     expect(result.contents).toHaveLength(45);
     expect(result.contents.at(-1)?.id).toBe(1);
@@ -87,12 +89,15 @@ describe("fetchAllFolders", () => {
       ["20", 20],
       ["40", 20],
     ]);
+    for (const [params] of mockedGetFolders.mock.calls) {
+      expect(params).toMatchObject({ orderKey: "created_at", order: "desc" });
+    }
   });
 
   it("stops after one request when the first page is the last", async () => {
     serve(makeFolders(20));
 
-    const result = await fetchAllFolders({ order: "latest" });
+    const result = await fetchAllFolders(FOLDER_LIST_SORT);
 
     expect(result.contents).toHaveLength(20);
     expect(mockedGetFolders).toHaveBeenCalledTimes(1);
@@ -108,7 +113,7 @@ describe("fetchAllFolders", () => {
       } as Awaited<ReturnType<typeof getFolders>>;
     });
 
-    await fetchAllFolders({ order: "latest" });
+    await fetchAllFolders(FOLDER_LIST_SORT);
 
     expect(mockedGetFolders).toHaveBeenCalledTimes(MAX_FOLDER_PAGES);
   });
@@ -120,7 +125,7 @@ describe("fetchAllFolders", () => {
       data: { isEmpty: false, contents: makeFolders(1), nextCursor: "same", hasNext: true },
     } as Awaited<ReturnType<typeof getFolders>>);
 
-    const result = await fetchAllFolders({ order: "latest" });
+    const result = await fetchAllFolders(FOLDER_LIST_SORT);
 
     expect(result.contents).toHaveLength(1);
     expect(mockedGetFolders).toHaveBeenCalledTimes(2);
@@ -129,10 +134,34 @@ describe("fetchAllFolders", () => {
   it("returns an empty list for an account without folders", async () => {
     serve([]);
 
-    const result = await fetchAllFolders({ order: "latest" });
+    const result = await fetchAllFolders(FOLDER_LIST_SORT);
 
     expect(result.isEmpty).toBe(true);
     expect(result.contents).toEqual([]);
+  });
+});
+
+describe("useFoldersQuery", () => {
+  it("asks for the newest folders first by default, under a key that names the sort", async () => {
+    serve(makeFolders(3));
+    const client = createClient();
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useFoldersQuery({ size: 15 }), { wrapper });
+
+    await waitFor(() => expect(result.current.data?.contents).toHaveLength(3));
+    expect(mockedGetFolders).toHaveBeenCalledWith({
+      orderKey: "created_at",
+      order: "desc",
+      query: undefined,
+      cursor: undefined,
+      size: 20,
+    });
+    expect(
+      client.getQueryData(folderQueryKeys.list({ ...FOLDER_LIST_SORT, query: undefined })),
+    ).toBe(result.current.data);
   });
 });
 
@@ -146,6 +175,11 @@ describe("useFolderQuery", () => {
     await waitFor(() => expect(result.current.folder?.id).toBe(1));
     expect(result.current.isNotFound).toBe(false);
     expect(mockedGetFolders).toHaveBeenCalledTimes(3);
+    expect(mockedGetFolders.mock.calls.map(([params]) => params)).toEqual([
+      { orderKey: "created_at", order: "desc", cursor: undefined, size: 20 },
+      { orderKey: "created_at", order: "desc", cursor: "20", size: 20 },
+      { orderKey: "created_at", order: "desc", cursor: "40", size: 20 },
+    ]);
   });
 
   it("stops at the first page that holds the folder", async () => {

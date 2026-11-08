@@ -29,9 +29,15 @@ function createClient() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData(["folders", "members", FOLDER_ID], { ownerId: 1, members: [] });
   client.setQueryData(["folders", "members", 8], { ownerId: 1, members: [] });
-  client.setQueryData(["links", "list", { folderId: FOLDER_ID, order: "latest" }], {});
-  client.setQueryData(["links", "list", { folderId: 8, order: "latest" }], {});
-  client.setQueryData(["links", "list", { order: "latest" }], {});
+  client.setQueryData(
+    ["links", "list", { folderId: FOLDER_ID, orderKey: "created_at", order: "desc" }],
+    {},
+  );
+  client.setQueryData(
+    ["links", "list", { folderId: 8, orderKey: "created_at", order: "desc" }],
+    {},
+  );
+  client.setQueryData(["links", "list", { orderKey: "created_at", order: "desc" }], {});
   const invalidate = client.invalidateQueries.bind(client);
   jest.spyOn(client, "invalidateQueries").mockImplementation((filters, options) => {
     mockEvents.push(`invalidate:${JSON.stringify(filters?.queryKey)}`);
@@ -93,12 +99,24 @@ describe("useFolderRemovalSuccess finish", () => {
     ]);
     // Only this folder's members and link lists are dropped.
     expect(client.getQueryData(["folders", "members", FOLDER_ID])).toBeUndefined();
-    expect(client.getQueryData(["links", "list", { folderId: FOLDER_ID, order: "latest" }])).toBe(
-      undefined,
-    );
+    expect(
+      client.getQueryData([
+        "links",
+        "list",
+        { folderId: FOLDER_ID, orderKey: "created_at", order: "desc" },
+      ]),
+    ).toBe(undefined);
     expect(client.getQueryData(["folders", "members", 8])).toBeDefined();
-    expect(client.getQueryData(["links", "list", { folderId: 8, order: "latest" }])).toBeDefined();
-    expect(client.getQueryData(["links", "list", { order: "latest" }])).toBeDefined();
+    expect(
+      client.getQueryData([
+        "links",
+        "list",
+        { folderId: 8, orderKey: "created_at", order: "desc" },
+      ]),
+    ).toBeDefined();
+    expect(
+      client.getQueryData(["links", "list", { orderKey: "created_at", order: "desc" }]),
+    ).toBeDefined();
   });
 
   it("goes to the folders tab on mobile", () => {
@@ -137,6 +155,8 @@ describe("useFolderRemovalSuccess resolvePermissionChange", () => {
       resolution = await result.current.resolvePermissionChange();
     });
 
+    expect(mockedFetchAllFolders).toHaveBeenCalledTimes(1);
+    expect(mockedFetchAllFolders).toHaveBeenCalledWith({ orderKey: "created_at", order: "desc" });
     expect(resolution).toBe("ended");
     expect(mockReplace).toHaveBeenCalledWith("/home");
     expect(useToastStore.getState().items).toEqual([]);

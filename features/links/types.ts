@@ -1,3 +1,5 @@
+import type { SortDirection } from "@/lib/list-sort";
+
 type SourceType = "INPUT" | "QR" | "IMPORT" | "COPY";
 
 type LinkStatus = "G" | "A" | "F" | "C";
@@ -194,12 +196,13 @@ type LinkScrollResponse = {
 
 type GetLinksResponse = ApiEnvelope<LinkScrollResponse>;
 
-type LinkOrder = "latest" | "earliest" | "laxico" | "similar";
+type LinkOrderKey = "created_at" | "title";
 
 type GetLinksParams = {
+  orderKey?: LinkOrderKey;
+  order?: SortDirection;
   query?: string;
   folderId?: number;
-  order?: LinkOrder;
   cursor?: string;
   size?: number;
   isFavorite?: boolean;
@@ -247,7 +250,7 @@ export type {
   LinkListItem,
   PatchLinkRequest,
   LinkTodoCounts,
-  LinkOrder,
+  LinkOrderKey,
   LinkScrollResponse,
   LinkStatus,
   LinkTodo,

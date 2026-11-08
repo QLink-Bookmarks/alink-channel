@@ -13,8 +13,9 @@ const link = makeLink({ id: 7, title: "바로 연 링크" });
 /** Visible markers of the screens a direct entry must never flash before its target. */
 const SCREEN_MARKERS = {
   home: { label: "검색", text: "📚 전체 보기" },
-  links: { text: "최신순" },
-  todos: { text: "미완료" },
+  // The 정렬·필터 button sits on every list, so it also catches a flash of another list.
+  links: { text: "1개 링크", label: "정렬·필터 열기" },
+  todos: { text: "진행 중" },
   settings: { text: "로그아웃" },
 } as const;
 

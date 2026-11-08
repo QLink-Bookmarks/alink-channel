@@ -2,7 +2,7 @@ import * as React from "react";
 
 import { getMyProfile } from "@/features/account/api";
 import { accountQueryKeys } from "@/features/account/queries";
-import { fetchAllFolders, folderQueryKeys } from "@/features/folders/queries";
+import { FOLDER_LIST_SORT, fetchAllFolders, folderQueryKeys } from "@/features/folders/queries";
 import type { Folder } from "@/features/folders/types";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -19,7 +19,7 @@ import type { ImportPreview } from "../types";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const HTML_FILE_NAME = /\.html?$/i;
-const FOLDER_LIST_PARAMS = { order: "latest" as const, query: undefined };
+const FOLDER_LIST_PARAMS = { ...FOLDER_LIST_SORT, query: undefined };
 
 type UploadError = "type" | "size" | "format";
 

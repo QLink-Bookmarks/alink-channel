@@ -10,6 +10,7 @@ import {
   makeDetail,
   makeLink,
   mockApi,
+  settingsHandler,
 } from "./support/mock-api";
 
 // #5 todo card: same card on the wide home, the todo screen and the link detail.
@@ -134,8 +135,8 @@ test.describe("todo screen", () => {
     expect(await cssOf(overdue, "background-color")).not.toBe(
       await cssOf(normal, "background-color"),
     );
-    const overdueTime = overdue.getByTestId("todo-item-reminder").locator("div").last();
-    const normalTime = normal.getByTestId("todo-item-reminder").locator("div").last();
+    const overdueTime = overdue.getByTestId("todo-item-reminder-text");
+    const normalTime = normal.getByTestId("todo-item-reminder-text");
     expect(await cssOf(overdueTime, "color")).not.toBe(await cssOf(normalTime, "color"));
     const [r, g, b] = (await cssOf(overdueTime, "color")).match(/\d+/g)!.map(Number);
     expect(r).toBeGreaterThan(g + 60);
@@ -163,12 +164,12 @@ test.describe("todo screen", () => {
 
   test("wide shows several columns, phones one card per row", async ({ page }) => {
     if (isWideProject()) {
-      // The upcoming section holds two cards side by side.
-      const upcoming = page
+      // The 진행 중 section holds its three cards side by side.
+      const active = page
         .getByTestId("todo-grid")
         .nth(1)
         .getByTestId(/^todo-item(-overdue)?$/);
-      expect(await firstRowCount(upcoming)).toBe(2);
+      expect(await firstRowCount(active)).toBe(3);
     } else {
       await expect(page.getByTestId("todo-grid")).toHaveCount(0);
       expect(await firstRowCount(todoCards(page))).toBe(1);
@@ -284,6 +285,8 @@ function buildSectionFixtures() {
   };
 }
 
+const NO_REMINDER_TITLE = "알림 없는 할 일";
+
 function sectionHeader(page: Page, label: string) {
   return page.getByText(label, { exact: true });
 }
@@ -318,20 +321,23 @@ async function expectSameHeights(
   if (!exact) return;
   for (const [title, height] of Object.entries(after)) {
     if (changed.includes(title)) {
-      expect(height, `height of "${title}"`).toBeGreaterThanOrEqual(before[title] - 1);
+      // A completed card hides its schedule, so it may shrink to a card without one.
+      const floor = Math.min(before[title], before[NO_REMINDER_TITLE] ?? before[title]);
+      expect(height, `height of "${title}"`).toBeGreaterThanOrEqual(floor - 1);
     } else {
       expect(height, `height of "${title}"`).toBe(before[title]);
     }
   }
 }
 
-async function expectCardsComplete(cards: Locator, { withReminder = false } = {}) {
+async function expectCardsComplete(cards: Locator, { withReminder = false, withLink = true } = {}) {
   const count = await cards.count();
   for (let index = 0; index < count; index += 1) {
     const card = cards.nth(index);
     await expect(card.getByRole("checkbox")).toBeVisible();
     await expect(card.getByTestId("todo-item-title")).toBeVisible();
-    await expect(card.getByTestId("todo-item-link")).toBeVisible();
+    // The link detail's cards leave out the link row (#74); the actions tab keeps it.
+    await expect(card.getByTestId("todo-item-link")).toHaveCount(withLink ? 1 : 0);
     if (withReminder) {
       await expect(card.getByTestId("todo-item-reminder")).toBeVisible();
     }
@@ -366,7 +372,7 @@ test.describe("completing a todo keeps the other cards intact", () => {
     await expectSameHeights(todoCards(page), before, { changed: ["서류 최종 제출"] });
     await expectCardsComplete(overdue, { withReminder: true });
     await expectCardsComplete(todoCards(page));
-    await expectHeaderRightBelow(page, overdue, "🕊 알림없음");
+    await expectHeaderRightBelow(page, overdue, "⏳ 진행 중");
   });
 
   test("unchecking brings the todo back to the overdue section with every card intact", async ({
@@ -381,7 +387,7 @@ test.describe("completing a todo keeps the other cards intact", () => {
     await expectSameHeights(todoCards(page), before);
     await expectCardsComplete(overdue, { withReminder: true });
     await expectCardsComplete(todoCards(page));
-    await expectHeaderRightBelow(page, overdue, "🕊 알림없음");
+    await expectHeaderRightBelow(page, overdue, "⏳ 진행 중");
   });
 
   test("completing the last overdue todo removes the section and leaves the others intact", async ({
@@ -408,11 +414,11 @@ test.describe("completing a todo keeps the other cards intact", () => {
     const before = await heightsByTitle(todoCards(page));
     const card = todoCard(page, "알림 없는 할 일");
     await card.getByRole("checkbox").click();
-    await expect(sectionHeader(page, "🕊 알림없음")).toHaveCount(0);
+    await expect(sectionHeader(page, "⏳ 진행 중")).toHaveCount(0);
     await expectSameHeights(todoCards(page), before, { changed: ["알림 없는 할 일"] });
     await expectCardsComplete(todoCards(page));
     await card.getByRole("checkbox").click();
-    await expect(sectionHeader(page, "🕊 알림없음")).toHaveCount(1);
+    await expect(sectionHeader(page, "⏳ 진행 중")).toHaveCount(1);
     await expect(async () => {
       await expectSameHeights(todoCards(page), before);
     }).toPass();
@@ -451,10 +457,199 @@ test.describe("completing a todo keeps the other cards intact", () => {
     await checkbox.click();
     await expect(checkbox).toBeChecked();
     await expectSameHeights(cards, before, { changed: ["서류 최종 제출"] });
-    await expectCardsComplete(cards);
+    await expectCardsComplete(cards, { withLink: false });
     await checkbox.click();
     await expect(checkbox).not.toBeChecked();
     await expectSameHeights(cards, before);
-    await expectCardsComplete(cards);
+    await expectCardsComplete(cards, { withLink: false });
+  });
+});
+
+// #74 the shared schedule line: one-time "MM/DD HH:mm", a repeat summary, gray text with an
+// accent icon, and no schedule once the action is done.
+
+function buildScheduleFixtures() {
+  const link = makeLink({
+    id: 4,
+    url: "https://velog.io/@devkim/retro",
+    title: "주간 회고 템플릿",
+    thumbnailUrl: null,
+    faviconUrl: null,
+  });
+  const base = {
+    completedAt: null,
+    reminderAt: null,
+    linkId: 4,
+    linkUrl: link.url,
+    linkTitle: link.title,
+    linkThumbnailUrl: null,
+    linkFaviconUrl: null,
+  };
+  const endOfYear = new Date(new Date().getFullYear() + 1, 11, 31, 23, 59, 59, 999).toISOString();
+  const todos: MockTodo[] = [
+    { ...base, id: 41, title: "한 번 알림 액션", reminderAt: iso(5 * HOUR_MS) },
+    {
+      ...base,
+      id: 42,
+      title: "월목 반복 액션",
+      repeatDays: ["THU", "MON"],
+      repeatTime: "08:00",
+      repeatUntil: endOfYear,
+    },
+    {
+      ...base,
+      id: 43,
+      title: "매일 반복 액션",
+      repeatDays: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"],
+      repeatTime: "19:30",
+    },
+    {
+      ...base,
+      id: 44,
+      title: "끝낸 알림 액션",
+      reminderAt: iso(-5 * HOUR_MS),
+      completedAt: iso(-1 * HOUR_MS),
+    },
+  ];
+  const detailTodos = todos.map(({ id, title, reminderAt, completedAt }) => ({
+    id,
+    title,
+    reminderAt,
+    completedAt,
+  }));
+  link.todoCounts = countTodos(detailTodos);
+  return { links: [link], details: { 4: makeDetail(link, { todos: detailTodos }) }, todos };
+}
+
+/** The rgb() a CSS colour token resolves to on the current theme. */
+async function tokenColor(page: Page, token: string) {
+  return page.evaluate((name) => {
+    const probe = document.createElement("span");
+    probe.style.color = `hsl(var(${name}))`;
+    document.body.appendChild(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  }, token);
+}
+
+test.describe("schedule line on the actions tab", () => {
+  for (const accent of ["gray", "pink", "blue"] as const) {
+    test(`one-time and repeat actions read their schedule — ${accent}`, async ({ page }) => {
+      await mockApi(page, {
+        ...buildScheduleFixtures(),
+        handlers: { "GET /api/users/me/settings": settingsHandler("light", accent) },
+      });
+      await page.goto("/todos");
+      await expect(todoCards(page)).toHaveCount(4);
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.getAttribute("data-accent")))
+        .toBe(accent);
+
+      const once = todoCard(page, "한 번 알림 액션");
+      await expect(once.getByTestId("todo-item-reminder-text")).toHaveText(
+        /^\d{2}\/\d{2} \d{2}:\d{2}$/,
+      );
+      await expect(once.getByTestId("todo-item-reminder-once")).toBeVisible();
+
+      const repeat = todoCard(page, "월목 반복 액션");
+      await expect(repeat.getByTestId("todo-item-reminder-text")).toHaveText(
+        "매주 월·목 오전 8:00 · 12월 31일까지",
+      );
+      await expect(repeat.getByTestId("todo-item-reminder-repeat")).toBeVisible();
+      await expect(
+        todoCard(page, "매일 반복 액션").getByTestId("todo-item-reminder-text"),
+      ).toHaveText("매일 오후 7:30");
+
+      const muted = await tokenColor(page, "--muted-foreground");
+      const primary = await tokenColor(page, "--primary");
+      for (const card of [once, repeat]) {
+        expect(await cssOf(card.getByTestId("todo-item-reminder-text"), "color")).toBe(muted);
+        const icon = card.getByTestId("todo-item-reminder").locator("svg");
+        expect(await cssOf(icon, "color")).toBe(primary);
+      }
+    });
+  }
+
+  test("a done action shows no schedule, and checking one hides its schedule", async ({ page }) => {
+    await mockApi(page, buildScheduleFixtures());
+    await page.goto("/todos");
+    await expect(todoCards(page)).toHaveCount(4);
+    await expect(todoCard(page, "끝낸 알림 액션").getByTestId("todo-item-reminder")).toHaveCount(0);
+
+    const once = todoCard(page, "한 번 알림 액션");
+    await expect(once.getByTestId("todo-item-reminder")).toBeVisible();
+    await once.getByRole("checkbox").click();
+    await expect(once.getByRole("checkbox")).toBeChecked();
+    await expect(once.getByTestId("todo-item-reminder")).toHaveCount(0);
+  });
+
+  test("the unchecked box ring stands out from the card at 3:1", async ({ page }) => {
+    const themes = (["light", "dark"] as const).flatMap((theme) =>
+      (["gray", "pink", "blue"] as const).map((accent) => [theme, accent] as const),
+    );
+    for (const [theme, accent] of themes) {
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+      await mockApi(page, {
+        ...buildScheduleFixtures(),
+        handlers: { "GET /api/users/me/settings": settingsHandler(theme, accent) },
+      });
+      await page.goto("/todos");
+      const box = todoCard(page, "한 번 알림 액션").getByRole("checkbox");
+      await expect(box).toBeVisible();
+      await expect
+        .poll(() =>
+          page.evaluate(() => ({
+            dark: document.documentElement.classList.contains("dark"),
+            accent: document.documentElement.getAttribute("data-accent"),
+          })),
+        )
+        .toEqual({ dark: theme === "dark", accent });
+      const ratio = await box.evaluate((node) => {
+        const parse = (value: string) => value.match(/[\d.]+/g)!.map(Number);
+        const lum = ([r, g, b]: number[]) => {
+          const c = (v: number) => {
+            const x = v / 255;
+            return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+          };
+          return 0.2126 * c(r) + 0.7152 * c(g) + 0.0722 * c(b);
+        };
+        let card: Element | null = node.parentElement;
+        while (card && getComputedStyle(card).backgroundColor === "rgba(0, 0, 0, 0)") {
+          card = card.parentElement;
+        }
+        const back = parse(getComputedStyle(card!).backgroundColor);
+        const ring = parse(getComputedStyle(node).borderTopColor);
+        const alpha = ring.length > 3 ? ring[3] : 1;
+        const mixed = [0, 1, 2].map((i) => ring[i] * alpha + back[i] * (1 - alpha));
+        const [hi, lo] = [lum(mixed), lum(back)].sort((a, b) => b - a);
+        return (hi + 0.05) / (lo + 0.05);
+      });
+      expect(ratio, `${theme} ${accent}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  test("completing an action on the tab shows it completed in its link detail", async ({
+    page,
+  }) => {
+    await mockApi(page, buildScheduleFixtures());
+    await page.goto("/todos");
+    const card = todoCard(page, "한 번 알림 액션");
+    await card.getByRole("checkbox").click();
+    await expect(card.getByRole("checkbox")).toBeChecked();
+    await card.getByTestId("todo-item-title").click();
+    const detailCard = page
+      .getByTestId("link-detail-todos")
+      .getByTestId(/^todo-item(-overdue)?$/)
+      .filter({ hasText: "한 번 알림 액션" });
+    await expect(detailCard.getByRole("checkbox")).toBeChecked();
+    await expect(detailCard.getByTestId("todo-item-reminder")).toHaveCount(0);
+  });
+
+  test("tapping a card still opens its link detail", async ({ page }) => {
+    await mockApi(page, buildScheduleFixtures());
+    await page.goto("/todos");
+    await todoCard(page, "월목 반복 액션").getByTestId("todo-item-title").click();
+    await expect(page).toHaveURL(isWideProject() ? /\/todos\?linkId=4$/ : /\/links\/4$/);
   });
 });

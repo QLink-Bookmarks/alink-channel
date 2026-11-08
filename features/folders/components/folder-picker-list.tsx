@@ -19,7 +19,7 @@ import { NestedListBoundary } from "./nested-list-boundary";
 const ALL_SECTIONS: FolderSection[] = ["mine", "shared"];
 const WIDE_LIST_MAX_HEIGHT = 340;
 const SHEET_LIST_HEIGHT_RATIO = 0.4;
-const DEFAULT_NONE_OPTION = { label: "없음 - ✨ AI 자동 분류" };
+const DEFAULT_NONE_OPTION = { label: "없음" };
 
 type FolderPickerId = number | null;
 

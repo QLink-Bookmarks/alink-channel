@@ -61,7 +61,7 @@ function NotificationInboxScreen({ mode }: { mode: NotificationInboxScreenMode }
       if (notification.context !== "TODO") {
         return;
       }
-      const params = { order: "latest", size: 50 } as const;
+      const params = { orderKey: "created_at", order: "desc", size: 50 } as const;
       const todosData = await queryClient.fetchQuery({
         queryKey: todoQueryKeys.list(params),
         queryFn: async () => (await getTodos(params)).data,

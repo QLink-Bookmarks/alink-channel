@@ -16,6 +16,32 @@ function isLockedHost(target: HTMLElement, content: HTMLElement) {
   return target.contains(content) && getComputedStyle(target).overflowY === "hidden";
 }
 
+function isInView(element: Element) {
+  const rect = element.getBoundingClientRect();
+  const height = window.visualViewport?.height ?? window.innerHeight;
+  return rect.top >= 0 && rect.bottom <= height;
+}
+
+// Once the sheet has stopped moving, a host that the browser scrolled to show a field while
+// the sheet was still sliding in goes back to 0, unless that would hide the focused field.
+function settleHosts(content: HTMLElement) {
+  const focused = document.activeElement;
+  if (!isEditable(focused) || !content.contains(focused)) {
+    return;
+  }
+  let node = content.parentElement;
+  while (node && node !== document.body) {
+    if (node.scrollTop !== 0 && getComputedStyle(node).overflowY === "hidden") {
+      const previous = node.scrollTop;
+      node.scrollTop = 0;
+      if (!isInView(focused)) {
+        node.scrollTop = previous;
+      }
+    }
+    node = node.parentElement;
+  }
+}
+
 function resetHosts(content: HTMLElement) {
   let node = content.parentElement;
   while (node && node !== document.body) {
@@ -26,7 +52,13 @@ function resetHosts(content: HTMLElement) {
   }
 }
 
-function useSheetHostScrollLock(): React.RefCallback<View> {
+type SheetHostScrollLock = {
+  ref?: React.RefCallback<View>;
+  /** Call when the sheet stops moving. */
+  settle?: () => void;
+};
+
+function useSheetHostScrollLock(): SheetHostScrollLock {
   const contentRef = React.useRef<HTMLElement | null>(null);
 
   React.useEffect(() => {
@@ -96,9 +128,17 @@ function useSheetHostScrollLock(): React.RefCallback<View> {
     };
   }, []);
 
-  return React.useCallback((node: View | null) => {
+  const ref = React.useCallback((node: View | null) => {
     contentRef.current = node as unknown as HTMLElement | null;
   }, []);
+  const settle = React.useCallback(() => {
+    const content = contentRef.current;
+    if (content) {
+      settleHosts(content);
+    }
+  }, []);
+  return React.useMemo(() => ({ ref, settle }), [ref, settle]);
 }
 
 export { useSheetHostScrollLock };
+export type { SheetHostScrollLock };

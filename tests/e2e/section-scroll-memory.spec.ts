@@ -126,7 +126,7 @@ test.describe("folder tab scroll memory", () => {
     await expect(page).toHaveURL(/\/folders\/15$/);
     await page.getByText("링크 1", { exact: true }).first().click();
     await expect(page.getByTestId("link-detail-title")).toBeVisible();
-    await page.getByRole("button", { name: /^폴더 이동, 현재/ }).click();
+    await page.getByTestId("link-detail-folder-move").click();
     await page.getByRole("button", { name: "내 폴더에 폴더 추가" }).click();
     await page.getByPlaceholder("예: 디자인 레퍼런스").fill("이동 창에서 만든 폴더");
     await page.getByRole("button", { name: "저장", exact: true }).last().click();

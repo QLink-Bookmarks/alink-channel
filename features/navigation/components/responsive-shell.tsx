@@ -23,7 +23,11 @@ import { FOLDER_SECTIONS_SHEET_TIMING } from "@/features/folders/hooks/use-secti
 import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
 import { useFolderQuery } from "@/features/folders/queries";
 import { DetailPanel } from "@/features/links/components/detail-panel/detail-panel";
-import { LinkCreateForm } from "@/features/links/components/link-create-form";
+import {
+  LinkCreateForm,
+  type LinkCreateFormHandle,
+} from "@/features/links/components/link-create-form";
+import { isLinkNotFound } from "@/features/links/lib/is-link-not-found";
 import { useLinkDetailQuery } from "@/features/links/queries";
 import { NotificationBellButton } from "@/features/notifications/components/notification-bell-button";
 import { SearchDialog } from "@/features/search/components/search-dialog";
@@ -35,6 +39,7 @@ import {
   useFolderNavigation,
 } from "@/stores/folder-navigation";
 import { useHomeSearchFocus } from "@/stores/home-search-focus";
+import { requestLeave } from "@/stores/leave-guard";
 import { useSearchDialog } from "@/stores/search-dialog";
 import { useAnySheetOpen } from "@/stores/sheet-tracker";
 
@@ -86,6 +91,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const [pendingMobileLinkId, setPendingMobileLinkId] = React.useState<number | null>(null);
   const [sharedLinkUrl, setSharedLinkUrl] = React.useState<string | null>(null);
   const wasAddLinkOpenRef = React.useRef(false);
+  const addLinkFormRef = React.useRef<LinkCreateFormHandle>(null);
   const { linkUrl: linkUrlParam } = useGlobalSearchParams<{ linkUrl?: string }>();
   const openFolderSection = useFolderNavigation((state) => state.openSectionOn);
   const isAnnouncementsListRoute = routeState.pathname === "/announcements";
@@ -93,14 +99,27 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const mobileFolderQuery = useFolderQuery(mobileFolderId, {
     enabled: !routeState.isWideView && mobileFolderId !== UNCATEGORIZED_FOLDER_ID,
   });
-  // Link title for the mobile detail header (enabled only on /links/[id]).
+  // The mobile link detail draws its own header (back + toolbar) once the detail is loaded.
   const mobileLinkDetailId = /^\/links\/([^/]+)$/.exec(routeState.pathname)?.[1];
-  const mobileLinkDetailQuery = useLinkDetailQuery(mobileLinkDetailId);
+  const mobileLinkDetailQuery = useLinkDetailQuery(
+    routeState.isWideView ? null : mobileLinkDetailId,
+  );
   const { detail, error, handleOpenChange, isLoading, isOpen, notFound } = useLinkOverlayState({
     isWideView: routeState.isWideView,
     overlayBaseHref: routeState.overlayBaseHref,
     overlayLinkId: routeState.overlayLinkId,
   });
+  // Closing the detail asks first while its action editor holds unsaved edits.
+  const handleOverlayOpenChange = React.useCallback(
+    (open: boolean) => {
+      if (open) {
+        handleOpenChange(true);
+        return;
+      }
+      requestLeave(() => handleOpenChange(false));
+    },
+    [handleOpenChange],
+  );
 
   const lastPathnameRef = React.useRef(routeState.pathname);
   React.useEffect(() => {
@@ -167,11 +186,13 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
 
   const handleSearchSelectLink = React.useCallback(
     (id: number) => {
-      if (canOpenWideOverlayInPlace(routeState.pathname)) {
-        router.replace(`${routeState.pathname}?linkId=${id}` as Href);
-        return;
-      }
-      router.replace(`/links?linkId=${id}` as Href);
+      requestLeave(() => {
+        if (canOpenWideOverlayInPlace(routeState.pathname)) {
+          router.replace(`${routeState.pathname}?linkId=${id}` as Href);
+          return;
+        }
+        router.replace(`/links?linkId=${id}` as Href);
+      });
     },
     [routeState.pathname, router],
   );
@@ -180,9 +201,18 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     setIsAddLinkDialogOpen(true);
   }, []);
 
+  // A user close (×, Esc, outside) asks the form first; it confirms when it holds input.
   const handleWideAddLinkDialogOpenChange = React.useCallback((open: boolean) => {
+    if (!open && addLinkFormRef.current?.requestClose() === false) {
+      return;
+    }
     setIsAddLinkDialogOpen(open);
   }, []);
+
+  const handleAddLinkSheetCloseRequest = React.useCallback(
+    () => addLinkFormRef.current?.requestClose() ?? true,
+    [],
+  );
 
   const requestHomeSearchFocus = useHomeSearchFocus((state) => state.requestFocus);
   const handleMobileSearchPress = React.useCallback(() => {
@@ -341,7 +371,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
             onAddFolderPress={handleWideAddFolderPress}
             onAddLinkPress={handleWideAddLinkPress}
             onNavigate={handleWideNavigate}
-            onOverlayDismiss={() => handleOpenChange(false)}
+            onOverlayDismiss={() => handleOverlayOpenChange(false)}
             onProfilePress={handleProfilePress}
           />
 
@@ -398,7 +428,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
               mode="overlay"
               open={isOpen}
               onDeleted={() => handleOpenChange(false)}
-              onOpenChange={handleOpenChange}
+              onOpenChange={handleOverlayOpenChange}
             />
           ) : isOpen ? (
             <DetailPanel
@@ -408,7 +438,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
               mode="overlay"
               open={isOpen}
               onDeleted={() => handleOpenChange(false)}
-              onOpenChange={handleOpenChange}
+              onOpenChange={handleOverlayOpenChange}
             />
           ) : null}
 
@@ -432,7 +462,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
             open={isAddLinkDialogOpen}
             onOpenChange={handleWideAddLinkDialogOpenChange}
           >
-            <DialogContent className="max-h-[80vh] w-[42rem] max-w-[90vw] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[42rem]">
+            <DialogContent className="max-h-[80vh] w-[720px] max-w-[90vw] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[720px]">
               <DialogHeader className="flex-row items-center gap-3 border-b border-border px-8 py-6">
                 <Text className="text-2xl font-normal text-muted-foreground">+</Text>
                 <DialogTitle className="text-xl">새 링크 추가</DialogTitle>
@@ -446,6 +476,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
                 onClose={() => setIsAddLinkDialogOpen(false)}
               >
                 <LinkCreateForm
+                  ref={addLinkFormRef}
                   mode="wide"
                   open={isAddLinkDialogOpen}
                   initialUrl={sharedLinkUrl ?? undefined}
@@ -466,12 +497,13 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   // the role-dependent actions on the right. Every other mobile header stays centered.
   const isMobileFolderDetail = getFolderIdFromPath(routeState.pathname) !== undefined;
   const mobileFolder = mobileFolderQuery.folder;
-  const mobileLinkTitle = mobileLinkDetailId
-    ? mobileLinkDetailQuery.data?.title?.trim()
-    : undefined;
+  const isMobileLinkDetailShown =
+    mobileLinkDetailId !== undefined &&
+    mobileLinkDetailQuery.data !== undefined &&
+    !(mobileLinkDetailQuery.isError && isLinkNotFound(mobileLinkDetailQuery.error));
   const mobileHeaderTitle = mobileFolder
     ? `${mobileFolder.emoji ? `${mobileFolder.emoji} ` : ""}${mobileFolder.name}`
-    : mobileLinkTitle || routeState.routeTitle;
+    : routeState.routeTitle;
   const showMobileFab =
     routeState.pathname === "/home" ||
     routeState.pathname === "/todos" ||
@@ -481,38 +513,40 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     <>
       {redirectCover}
       <View className={cn("flex-1 bg-background", redirectHref && "hidden")}>
-        <AppHeader
-          back={!isMobileHome && routeState.showBackButton}
-          onBack={handleBack}
-          leftSlot={isMobileHome ? <BrandHeader className="px-0 pt-0" /> : undefined}
-          rightSlot={
-            isMobileHome ? (
-              <View className="flex-row items-center gap-2">
-                <IconButton
-                  accessibilityLabel="검색"
-                  hitSlop={4}
-                  icon={Search}
-                  size="sm"
-                  variant="ghost"
-                  onPress={handleMobileSearchPress}
+        {isMobileLinkDetailShown ? null : (
+          <AppHeader
+            back={!isMobileHome && routeState.showBackButton}
+            onBack={handleBack}
+            leftSlot={isMobileHome ? <BrandHeader className="px-0 pt-0" /> : undefined}
+            rightSlot={
+              isMobileHome ? (
+                <View className="flex-row items-center gap-2">
+                  <IconButton
+                    accessibilityLabel="검색"
+                    hitSlop={4}
+                    icon={Search}
+                    size="sm"
+                    variant="ghost"
+                    onPress={handleMobileSearchPress}
+                  />
+                  <NotificationBellButton
+                    size="sm"
+                    onPress={handleNotificationsPress}
+                  />
+                </View>
+              ) : mobileFolder ? (
+                <FolderHeaderActions
+                  folder={mobileFolder}
+                  mode="mobile"
                 />
-                <NotificationBellButton
-                  size="sm"
-                  onPress={handleNotificationsPress}
-                />
-              </View>
-            ) : mobileFolder ? (
-              <FolderHeaderActions
-                folder={mobileFolder}
-                mode="mobile"
-              />
-            ) : isAnnouncementsListRoute ? (
-              <AnnouncementsHeaderAction mode="mobile" />
-            ) : undefined
-          }
-          title={isMobileHome ? undefined : mobileHeaderTitle}
-          titleAlign={isMobileFolderDetail ? "start" : "center"}
-        />
+              ) : isAnnouncementsListRoute ? (
+                <AnnouncementsHeaderAction mode="mobile" />
+              ) : undefined
+            }
+            title={isMobileHome ? undefined : mobileHeaderTitle}
+            titleAlign={isMobileFolderDetail ? "start" : "center"}
+          />
+        )}
         <View
           className="flex-1"
           role="main"
@@ -537,9 +571,11 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
         {hasOpenedAddLinkSheet && isAddLinkSheetOpen ? (
           <Sheet
             open={isAddLinkSheetOpen}
-            fitContent
+            fullHeight
+            fixedHeader
             hideCloseButton={isAddLinkSheetSubStep}
             resizeTiming={FOLDER_SECTIONS_SHEET_TIMING}
+            onCloseRequest={handleAddLinkSheetCloseRequest}
             onOpenChange={handleAddLinkSheetOpenChange}
           >
             <RouteErrorBoundary
@@ -549,6 +585,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
               onClose={closeAddLinkSheet}
             >
               <LinkCreateForm
+                ref={addLinkFormRef}
                 mode="mobile"
                 open={isAddLinkSheetOpen}
                 initialUrl={sharedLinkUrl ?? undefined}

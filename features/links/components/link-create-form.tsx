@@ -1,9 +1,13 @@
 import * as React from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
-import { SheetFooter } from "@/components/layout/sheet";
+import {
+  SheetFooter,
+  SheetHeader,
+  type SheetScroll,
+  useSheetScroll,
+} from "@/components/layout/sheet";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
-import { Button } from "@/components/ui/button";
 import { type DateValue } from "@/components/ui/date-picker";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -13,9 +17,7 @@ import {
   PopoverTrigger,
   usePopoverContext,
 } from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
-import { Textarea } from "@/components/ui/textarea";
 import { type TimeValue } from "@/components/ui/time-picker";
 import {
   AiProviderPickerList,
@@ -29,19 +31,14 @@ import {
   FolderPickerList,
   type FolderPickerSelection,
 } from "@/features/folders/components/folder-picker-list";
+import { type TodoDraftEditorItem } from "@/features/todos/components/todo-draft-list-editor";
 import {
-  type TodoDraftEditorItem,
-  TodoDraftListEditor,
-} from "@/features/todos/components/todo-draft-list-editor";
-import {
+  type TodoEditorId,
   type TodoEditorMode,
   type WeekdayValue,
 } from "@/features/todos/components/todo-editor/todo-editor";
-import {
-  buildScheduleApiFields,
-  isScheduleInPast,
-  validateDraft,
-} from "@/features/todos/lib/todo-schedule";
+import { countTodoDraftErrors, validateTodoDrafts } from "@/features/todos/lib/todo-schedule";
+import { todoQueryKeys } from "@/features/todos/queries";
 import { useClipboardFailureFeedback } from "@/lib/clipboard-feedback";
 import { reportError } from "@/lib/error-reporting";
 import { cn } from "@/lib/utils";
@@ -50,36 +47,44 @@ import { useQrScanStore } from "@/stores/qr-scan";
 import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { buildAiMemoAndTodoFields, buildLinkTodoRequests } from "../lib/link-create-todos";
 import { getLinkPreviewRequestFields } from "../lib/link-preview/link-preview-result";
-import { getSaveLabelClassName } from "../lib/save-label-class-name";
 import { useCreateLinkMutation } from "../mutations";
 import { useLinkPreviewQuery } from "../queries";
-import type { CreateLinkTodoRequest, LinkPreview } from "../types";
+import type { LinkPreview } from "../types";
+import { LinkCreateBottomBar, type LinkCreateProviderState } from "./link-create-bottom-bar";
+import { LinkCreateMemoActions } from "./link-create-memo-actions";
+import { UnsavedChangesDialog } from "./unsaved-changes-dialog";
 
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { type Href, useRouter } from "expo-router";
-import {
-  ChevronDown,
-  ChevronLeft,
-  CircleAlert,
-  FolderOpen,
-  QrCode,
-  Save,
-} from "lucide-react-native/icons";
+import { ChevronDown, ChevronRight, FolderOpen, QrCode } from "lucide-react-native/icons";
 
 type LinkCreateFormMode = "wide" | "mobile";
 type MobileSheetStep = "form" | "folder-picker" | "ai-model-picker";
 // How the URL field got its current value: typed key by key, or filled at once
 // (paste, QR, share, clipboard). Typed URLs wait for a pause before the preview.
 type UrlFillMode = "typed" | "instant";
+type SubmitKind = "save" | "ai";
 
 type FolderDraft = {
   id: string | null;
   label: string;
 };
 
+type FieldErrors = { url?: string; title?: string };
+
+type LinkCreateFormHandle = {
+  /**
+   * Asked before the user closes the form. True when it may close now; false when it
+   * holds input and opens the unsaved changes dialog instead.
+   */
+  requestClose: () => boolean;
+};
+
 type LinkCreateFormProps = {
+  ref?: React.Ref<LinkCreateFormHandle>;
   mode: LinkCreateFormMode;
   open: boolean;
   initialUrl?: string;
@@ -90,13 +95,20 @@ type LinkCreateFormProps = {
 
 const defaultFolder: FolderDraft = {
   id: null,
-  label: "없음 - ✨ AI 자동 분류",
+  label: "없음",
 };
 
 const defaultWeekdays: WeekdayValue[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 const TITLE_MAX_LENGTH = 300;
 const URL_PLACEHOLDER = "https://www.example.com";
+const URL_REQUIRED_ERROR = "URL을 입력해주세요.";
+const TITLE_REQUIRED_ERROR = "저장하려면 제목이 필요해요";
+const TITLE_TOO_LONG_ERROR = `제목은 ${TITLE_MAX_LENGTH}자 이내로 입력해주세요.`;
+const URL_HELP = "복사해 둔 링크가 있으면 자동으로 채워요";
+const TITLE_LABEL_TAIL = "· AI 정리는 비워도 돼요";
+const TITLE_PLACEHOLDER = "링크 제목";
+const FOLDER_HELP = "비워 두면 AI 정리가 폴더를 골라요";
 const PREVIEW_LOADING_LABEL = "미리보기를 불러오는 중";
 const POPOVER_FOLDER_LIST_MAX_HEIGHT = 200;
 
@@ -120,7 +132,60 @@ function getUrlFillMode(previousUrl: string, nextUrl: string): UrlFillMode {
   return nextUrl.length - previousUrl.length > 1 ? "instant" : "typed";
 }
 
+function getFieldErrors(kind: SubmitKind, url: string, title: string): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!url.trim()) {
+    errors.url = URL_REQUIRED_ERROR;
+  }
+  const trimmedTitle = title.trim();
+  if (kind === "save" && !trimmedTitle) {
+    errors.title = TITLE_REQUIRED_ERROR;
+  } else if (trimmedTitle.length > TITLE_MAX_LENGTH) {
+    // A preview title is not cut to the field's limit.
+    errors.title = TITLE_TOO_LONG_ERROR;
+  }
+  return errors;
+}
+
+type HostNode = { children?: ArrayLike<HostNode> };
+
+// The action row at `index`: the list wraps the editor list, whose children are the rows.
+// Native refs walk the host tree like the DOM does (React Native 0.82+).
+function findActionRow(actionList: View, index: number): View | null {
+  const list = (actionList as unknown as HostNode).children?.[0];
+  return (list?.children?.[index] as View | undefined) ?? null;
+}
+
+// Brings the action row at `index` into view once the folded group has opened: the
+// dialog scrolls its own body, the sheet scrolls through its handle, and web lets the
+// browser bring the row to the middle.
+function scrollToActionRow(
+  index: number,
+  actionList: View | null,
+  scrollTarget: { scrollContent: View | null; scrollView: ScrollView | null } | SheetScroll | null,
+) {
+  if (!actionList) return;
+  const row = findActionRow(actionList, index) ?? actionList;
+  if (process.env.EXPO_OS === "web") {
+    (row as unknown as HTMLElement).scrollIntoView?.({ block: "center" });
+    return;
+  }
+  if (!scrollTarget) return;
+  if ("scrollToView" in scrollTarget) {
+    scrollTarget.scrollToView(row);
+    return;
+  }
+  const { scrollContent, scrollView } = scrollTarget;
+  if (!scrollContent || !scrollView) return;
+  row.measureLayout(
+    scrollContent,
+    (_x, y) => scrollView.scrollTo({ y: Math.max(0, y - 16), animated: true }),
+    () => undefined,
+  );
+}
+
 function LinkCreateForm({
+  ref,
   mode,
   open,
   initialUrl,
@@ -134,6 +199,7 @@ function LinkCreateForm({
   const clearQrResult = useQrScanStore((state) => state.clear);
   const createLinkMutation = useCreateLinkMutation();
   const resetMutation = createLinkMutation.reset;
+  const hasSaveError = Boolean(createLinkMutation.error);
   const invalidateLinkQueries = React.useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
     void queryClient.invalidateQueries({ queryKey: ["folders"] });
@@ -146,7 +212,12 @@ function LinkCreateForm({
   const myProviders = myProvidersQuery.data;
   const defaultProvider = useDisplaySettings((state) => state.ai.defaultProvider);
   const requestAiSummaryMutation = useRequestAiSummaryMutation();
+  // Blocks a second 저장 or AI 정리 press before the pending state re-renders the buttons.
+  const isSubmittingRef = React.useRef(false);
   const [url, setUrl] = React.useState("");
+  // The URL the form filled in by itself on opening (a shared link or the clipboard). It
+  // is not the user's input, so closing with only it asks nothing.
+  const [autoFilledUrl, setAutoFilledUrl] = React.useState("");
   const [urlFillMode, setUrlFillMode] = React.useState<UrlFillMode>("instant");
   // Latest URL for async callbacks (the clipboard read) that must not clobber it.
   const urlRef = React.useRef(url);
@@ -159,15 +230,32 @@ function LinkCreateForm({
   const appliedPreviewUrlRef = React.useRef<string | null>(null);
   const [memo, setMemo] = React.useState("");
   const [folder, setFolder] = React.useState<FolderDraft>(defaultFolder);
-  const handleFolderSelect = React.useCallback((selection: FolderPickerSelection) => {
-    setFolder(getFolderDraft(selection));
-  }, []);
   const [aiProvider, setAiProvider] = React.useState<AiProviderSelection | null>(null);
   const [todos, setTodos] = React.useState<TodoDraftEditorItem[]>(createInitialTodos);
   const [generateTodo, setGenerateTodo] = React.useState(false);
-  const [errors, setErrors] = React.useState<{ url?: string; title?: string }>({});
+  const [errors, setErrors] = React.useState<FieldErrors>({});
+  const [isMemoActionsOpen, setIsMemoActionsOpen] = React.useState(false);
+  // The action row to bring into view after a save stopped on its error.
+  const [errorScrollRequest, setErrorScrollRequest] = React.useState<{
+    index: number;
+  } | null>(null);
   const [mobileSheetStep, setMobileSheetStep] = React.useState<MobileSheetStep>("form");
   const isMobileSubStep = mobileSheetStep !== "form";
+  const scrollViewRef = React.useRef<ScrollView>(null);
+  const scrollContentRef = React.useRef<View>(null);
+  const actionListRef = React.useRef<View>(null);
+  const sheetScroll = useSheetScroll();
+
+  // The save failure notice goes away with the next edit.
+  const hasSaveErrorRef = React.useRef(hasSaveError);
+  React.useLayoutEffect(() => {
+    hasSaveErrorRef.current = hasSaveError;
+  }, [hasSaveError]);
+  const clearSaveError = React.useCallback(() => {
+    if (hasSaveErrorRef.current) {
+      resetMutation();
+    }
+  }, [resetMutation]);
 
   React.useEffect(() => {
     onMobileSubStepChange?.(isMobileSubStep);
@@ -177,17 +265,38 @@ function LinkCreateForm({
     return () => onMobileSubStepChange?.(false);
   }, [onMobileSubStepChange]);
 
+  // The provider used when none is picked: the one chosen in settings, else the first.
+  const defaultCatalogProvider = React.useMemo(
+    () =>
+      aiProviders?.find((provider) => provider.providerId === defaultProvider.id) ??
+      aiProviders?.[0] ??
+      null,
+    [aiProviders, defaultProvider.id],
+  );
+  const defaultProviderId = defaultCatalogProvider?.providerId ?? null;
+
   React.useEffect(() => {
-    if (aiProvider || !aiProviders) {
+    if (aiProvider || !defaultCatalogProvider) {
       return;
     }
-    const matchedProvider =
-      aiProviders.find((provider) => provider.providerId === defaultProvider.id) ?? aiProviders[0];
-    if (!matchedProvider) {
-      return;
+    setAiProvider(getProviderSelection(defaultCatalogProvider));
+  }, [aiProvider, defaultCatalogProvider]);
+
+  const providerState = React.useMemo<LinkCreateProviderState>(() => {
+    if (aiProvidersQuery.isLoading) {
+      return { status: "loading" };
     }
-    setAiProvider(getProviderSelection(matchedProvider));
-  }, [aiProvider, aiProviders, defaultProvider.id]);
+    const selection =
+      aiProvider ?? (defaultCatalogProvider ? getProviderSelection(defaultCatalogProvider) : null);
+    if (!selection) {
+      return { status: "empty" };
+    }
+    return {
+      status: "ready",
+      selection,
+      isDefault: selection.providerId === defaultProviderId,
+    };
+  }, [aiProvider, aiProvidersQuery.isLoading, defaultCatalogProvider, defaultProviderId]);
 
   const handleClipboardReadFailure = React.useCallback(
     (error: unknown) => {
@@ -230,8 +339,10 @@ function LinkCreateForm({
     (nextUrl: string) => {
       setUrlFillMode(getUrlFillMode(url, nextUrl));
       setUrl(nextUrl);
+      setErrors((current) => (current.url ? { ...current, url: undefined } : current));
+      clearSaveError();
     },
-    [url],
+    [clearSaveError, url],
   );
 
   const fillUrlInstantly = React.useCallback((nextUrl: string) => {
@@ -239,14 +350,64 @@ function LinkCreateForm({
     setUrl(nextUrl);
   }, []);
 
-  const handleTitleChange = React.useCallback((nextTitle: string) => {
-    // Clearing the title hands it back to the preview.
-    isTitleEditedRef.current = nextTitle.trim().length > 0;
-    setTitle(nextTitle);
-  }, []);
+  const handleTitleChange = React.useCallback(
+    (nextTitle: string) => {
+      // Clearing the title hands it back to the preview.
+      isTitleEditedRef.current = nextTitle.trim().length > 0;
+      setTitle(nextTitle);
+      setErrors((current) => (current.title ? { ...current, title: undefined } : current));
+      clearSaveError();
+    },
+    [clearSaveError],
+  );
+
+  // A title cleared while the preview is in takes the preview's title back once the
+  // field is left; a later preview fills an empty field by itself.
+  const handleTitleBlur = React.useCallback(() => {
+    const previewTitle = linkPreview?.title?.trim();
+    if (title.trim() || !previewTitle) {
+      return;
+    }
+    isTitleEditedRef.current = false;
+    setTitle(previewTitle);
+    setErrors((current) => (current.title ? { ...current, title: undefined } : current));
+  }, [linkPreview?.title, title]);
+
+  const handleMemoChange = React.useCallback(
+    (nextMemo: string) => {
+      setMemo(nextMemo);
+      clearSaveError();
+    },
+    [clearSaveError],
+  );
+
+  const handleFolderSelect = React.useCallback(
+    (selection: FolderPickerSelection) => {
+      setFolder(getFolderDraft(selection));
+      clearSaveError();
+    },
+    [clearSaveError],
+  );
+
+  const handleProviderSelect = React.useCallback(
+    (selection: AiProviderSelection) => {
+      setAiProvider(selection);
+      clearSaveError();
+    },
+    [clearSaveError],
+  );
+
+  const handleGenerateTodoChange = React.useCallback(
+    (next: boolean) => {
+      setGenerateTodo(next);
+      clearSaveError();
+    },
+    [clearSaveError],
+  );
 
   const resetForm = React.useCallback(() => {
     setUrl("");
+    setAutoFilledUrl("");
     setUrlFillMode("instant");
     setTitle("");
     isTitleEditedRef.current = false;
@@ -257,6 +418,8 @@ function LinkCreateForm({
     setTodos(createInitialTodos());
     setGenerateTodo(false);
     setErrors({});
+    setIsMemoActionsOpen(false);
+    setErrorScrollRequest(null);
     setMobileSheetStep("form");
     resetMutation();
   }, [resetMutation]);
@@ -270,6 +433,7 @@ function LinkCreateForm({
     const sharedUrl = initialUrl?.trim();
     if (sharedUrl) {
       fillUrlInstantly(sharedUrl);
+      setAutoFilledUrl(sharedUrl);
       return;
     }
 
@@ -281,6 +445,7 @@ function LinkCreateForm({
           // clipboard read was in flight behind the iOS paste-permission prompt.
           if (!urlRef.current) {
             fillUrlInstantly(nextUrl);
+            setAutoFilledUrl(nextUrl);
           }
         }
       })
@@ -289,65 +454,85 @@ function LinkCreateForm({
       });
   }, [fillUrlInstantly, handleClipboardReadFailure, initialUrl, open, resetForm]);
 
+  const updateTodo = React.useCallback(
+    (todoId: TodoEditorId, patch: Partial<TodoDraftEditorItem>) => {
+      setTodos((currentTodos) =>
+        currentTodos.map((todo) => (todo.id === todoId ? { ...todo, ...patch } : todo)),
+      );
+      clearSaveError();
+    },
+    [clearSaveError],
+  );
+
   const handleAddTodo = React.useCallback(() => {
     setTodos((currentTodos) => [
       ...currentTodos,
       {
         id: `${Date.now()}-${currentTodos.length}`,
         title: "",
-        mode: "recurring",
+        mode: "none",
         selectedWeekdays: defaultWeekdays,
         date: null,
         time: null,
       },
     ]);
-  }, []);
+    clearSaveError();
+  }, [clearSaveError]);
 
-  const handleTodoTitleChange = React.useCallback((todoId: string | number, nextTitle: string) => {
-    setTodos((currentTodos) =>
-      currentTodos.map((todo) => (todo.id === todoId ? { ...todo, title: nextTitle } : todo)),
-    );
-  }, []);
+  const handleTodoTitleChange = React.useCallback(
+    (todoId: TodoEditorId, nextTitle: string) =>
+      updateTodo(todoId, { title: nextTitle, titleError: null }),
+    [updateTodo],
+  );
 
   const handleTodoModeChange = React.useCallback(
-    (todoId: string | number, nextMode: TodoEditorMode) => {
-      setTodos((currentTodos) =>
-        currentTodos.map((todo) => (todo.id === todoId ? { ...todo, mode: nextMode } : todo)),
-      );
-    },
-    [],
+    (todoId: TodoEditorId, nextMode: TodoEditorMode) =>
+      updateTodo(todoId, { mode: nextMode, validationError: null, titleError: null }),
+    [updateTodo],
   );
 
   const handleTodoWeekdaysChange = React.useCallback(
-    (todoId: string | number, nextWeekdays: WeekdayValue[]) => {
-      setTodos((currentTodos) =>
-        currentTodos.map((todo) =>
-          todo.id === todoId ? { ...todo, selectedWeekdays: nextWeekdays } : todo,
-        ),
-      );
-    },
-    [],
+    (todoId: TodoEditorId, nextWeekdays: WeekdayValue[]) =>
+      updateTodo(todoId, { selectedWeekdays: nextWeekdays, validationError: null }),
+    [updateTodo],
   );
 
-  const handleRemoveTodo = React.useCallback((todoId: string | number) => {
-    setTodos((currentTodos) => currentTodos.filter((todo) => todo.id !== todoId));
-  }, []);
+  const handleTodoDateChange = React.useCallback(
+    (todoId: TodoEditorId, nextDate: DateValue) =>
+      updateTodo(todoId, { date: nextDate, validationError: null }),
+    [updateTodo],
+  );
 
-  const handleTodoDateChange = React.useCallback((todoId: number | string, nextDate: DateValue) => {
-    setTodos((currentTodos) =>
-      currentTodos.map((todo) =>
-        todo.id === todoId ? { ...todo, date: nextDate, validationError: null } : todo,
-      ),
-    );
-  }, []);
+  const handleTodoTimeChange = React.useCallback(
+    (todoId: TodoEditorId, nextTime: TimeValue) =>
+      updateTodo(todoId, { time: nextTime, validationError: null }),
+    [updateTodo],
+  );
 
-  const handleTodoTimeChange = React.useCallback((todoId: number | string, nextTime: TimeValue) => {
-    setTodos((currentTodos) =>
-      currentTodos.map((todo) =>
-        todo.id === todoId ? { ...todo, time: nextTime, validationError: null } : todo,
-      ),
-    );
-  }, []);
+  const handleRemoveTodo = React.useCallback(
+    (todoId: TodoEditorId) => {
+      setTodos((currentTodos) => currentTodos.filter((todo) => todo.id !== todoId));
+      clearSaveError();
+    },
+    [clearSaveError],
+  );
+
+  React.useEffect(() => {
+    if (!errorScrollRequest) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      scrollToActionRow(
+        errorScrollRequest.index,
+        actionListRef.current,
+        sheetScroll ?? {
+          scrollContent: scrollContentRef.current,
+          scrollView: scrollViewRef.current,
+        },
+      );
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [errorScrollRequest, sheetScroll]);
 
   const handleScanQr = React.useCallback(() => {
     router.push("/qr-scan" as Href);
@@ -361,26 +546,32 @@ function LinkCreateForm({
     clearQrResult();
   }, [clearQrResult, fillUrlInstantly, open, pendingQrResult]);
 
+  // Checks the URL, the title and the actions before any request (N1). A stop shows
+  // only the field errors and the action errors; an action error inside the folded
+  // group opens it and brings the first one into view.
+  const checkBeforeSubmit = React.useCallback(
+    (kind: SubmitKind): boolean => {
+      resetMutation();
+      const fieldErrors = getFieldErrors(kind, url, title);
+      const checkedTodos = validateTodoDrafts(todos);
+      setErrors(fieldErrors);
+      setTodos(checkedTodos.todos);
+      if (checkedTodos.firstErrorId != null) {
+        const index = checkedTodos.todos.findIndex((todo) => todo.id === checkedTodos.firstErrorId);
+        setIsMemoActionsOpen(true);
+        setErrorScrollRequest({ index });
+      }
+      return Object.keys(fieldErrors).length === 0 && !checkedTodos.hasError;
+    },
+    [resetMutation, title, todos, url],
+  );
+
   const handleAiOrganize = React.useCallback(async () => {
-    if (isPreviewLoading) {
+    if (isSubmittingRef.current || !checkBeforeSubmit("ai")) {
       return;
     }
     const trimmedUrl = url.trim();
     const trimmedTitle = title.trim();
-    const nextErrors: { url?: string; title?: string } = {};
-
-    if (!trimmedUrl) {
-      nextErrors.url = "URL을 입력해주세요.";
-    }
-
-    if (trimmedTitle && trimmedTitle.length > TITLE_MAX_LENGTH) {
-      nextErrors.title = `제목은 ${TITLE_MAX_LENGTH}자 이내로 입력해주세요.`;
-    }
-
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors);
-      return;
-    }
 
     // userProviderId only exists on the caller's own providers, so the request is
     // built from myProviders — the catalog the picker shows cannot supply it.
@@ -397,7 +588,8 @@ function LinkCreateForm({
       return;
     }
 
-    setErrors({});
+    isSubmittingRef.current = true;
+    const aiMemoAndTodoFields = buildAiMemoAndTodoFields(memo, todos);
 
     try {
       const response = await requestAiSummaryMutation.mutateAsync({
@@ -408,6 +600,7 @@ function LinkCreateForm({
         url: trimmedUrl,
         userProviderId: target.userProviderId,
         ...getLinkPreviewRequestFields(linkPreview),
+        ...aiMemoAndTodoFields,
       });
 
       showToast({
@@ -420,6 +613,10 @@ function LinkCreateForm({
       });
 
       invalidateLinkQueries();
+      // The actions sent with the request now exist, so the 액션 lists are stale.
+      if (aiMemoAndTodoFields.todos) {
+        void queryClient.invalidateQueries({ queryKey: todoQueryKeys.lists() });
+      }
       resetForm();
       onCancel();
       // Surface the newly-queued link so the user can watch it move through G → A.
@@ -446,68 +643,41 @@ function LinkCreateForm({
         title: "AI 정리 실패",
         variant: "warning",
       });
+    } finally {
+      isSubmittingRef.current = false;
     }
   }, [
     aiProvider?.providerId,
+    checkBeforeSubmit,
     folder.id,
     myProviders,
     generateTodo,
     invalidateLinkQueries,
-    isPreviewLoading,
     linkPreview,
+    memo,
     mode,
     onCancel,
     onSaved,
+    queryClient,
     requestAiSummaryMutation,
     resetForm,
     router,
     showToast,
     title,
+    todos,
     url,
   ]);
 
-  const validate = React.useCallback(() => {
-    const nextErrors: { url?: string; title?: string } = {};
-
-    if (!url.trim()) {
-      nextErrors.url = "URL을 입력해주세요.";
-    }
-
-    if (!title.trim()) {
-      nextErrors.title = "제목을 입력해주세요.";
-    }
-
-    setErrors(nextErrors);
-
-    return Object.keys(nextErrors).length === 0;
-  }, [title, url]);
-
+  // Saves even while the preview is still loading: the link then goes without its
+  // images, and the server fills the thumbnail in later (alink-backend#195).
   const handleSave = React.useCallback(async () => {
-    if (isPreviewLoading || !validate()) {
+    if (isSubmittingRef.current || !checkBeforeSubmit("save")) {
       return;
     }
 
-    // Validate todo schedules. Non-empty todos whose mode is "time" or
-    // "recurring" must have both date and time. Show inline errors and abort.
-    const todosWithTitles = todos.filter((todo) => todo.title.trim().length > 0);
-    let hasScheduleError = false;
-    const nextTodos = todos.map((todo) => {
-      const hasTitle = todo.title.trim().length > 0;
-      const scheduleError = hasTitle ? validateDraft(todo) : null;
-      if (scheduleError) hasScheduleError = true;
-      return { ...todo, validationError: scheduleError };
-    });
-    if (hasScheduleError) {
-      setTodos(nextTodos);
-      return;
-    }
-
+    isSubmittingRef.current = true;
     try {
-      const todoPayload: CreateLinkTodoRequest[] = todosWithTitles.map((todo) => {
-        const trimmedTitle = todo.title.trim();
-        const schedule = buildScheduleApiFields(todo);
-        return { title: trimmedTitle, ...schedule };
-      });
+      const todoPayload = buildLinkTodoRequests(todos);
 
       const response = await createLinkMutation.mutateAsync({
         url: url.trim(),
@@ -521,6 +691,9 @@ function LinkCreateForm({
       });
 
       invalidateLinkQueries();
+      if (todoPayload.length > 0) {
+        void queryClient.invalidateQueries({ queryKey: todoQueryKeys.lists() });
+      }
       resetForm();
       onSaved?.(response.data.id);
     } catch (error: unknown) {
@@ -528,45 +701,212 @@ function LinkCreateForm({
         area: "link-create-form:save",
         extra: { mode },
       });
+    } finally {
+      isSubmittingRef.current = false;
     }
   }, [
+    checkBeforeSubmit,
     createLinkMutation,
     folder.id,
     invalidateLinkQueries,
-    isPreviewLoading,
     linkPreview,
     memo,
     mode,
     onSaved,
+    queryClient,
     resetForm,
     title,
     todos,
     url,
-    validate,
   ]);
 
-  const aiProviderLabel = aiProvider?.providerLabel ?? "기본 제공자 사용";
-  const isSaveDisabled = isPreviewLoading || createLinkMutation.isPending;
-  const isAiOrganizeDisabled = isPreviewLoading || requestAiSummaryMutation.isPending;
+  const pendingRequest = createLinkMutation.isPending
+    ? "save"
+    : requestAiSummaryMutation.isPending
+      ? "ai"
+      : null;
+  const isBusy = pendingRequest != null;
 
-  const decoratedTodos = React.useMemo(
-    () => todos.map((todo) => ({ ...todo, isPast: isScheduleInPast(todo) })),
-    [todos],
+  // Anything the user put in that closing would throw away. A title that is only the
+  // preview's, a blank action row and the default provider do not count.
+  const trimmedTitle = title.trim();
+  const hasInput =
+    (url.trim() !== "" && url.trim() !== autoFilledUrl.trim()) ||
+    (trimmedTitle !== "" && trimmedTitle !== (linkPreview?.title ?? "").trim()) ||
+    memo.trim() !== "" ||
+    todos.some((todo) => todo.title.trim() !== "" || todo.mode !== "none") ||
+    folder.id != null ||
+    (aiProvider != null && aiProvider.providerId !== defaultProviderId) ||
+    generateTodo;
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = React.useState(false);
+  const requestClose = React.useCallback(() => {
+    if (!hasInput || isBusy) {
+      return true;
+    }
+    setIsCloseConfirmOpen(true);
+    return false;
+  }, [hasInput, isBusy]);
+  React.useImperativeHandle(ref, () => ({ requestClose }), [requestClose]);
+
+  const handleDiscardAndClose = React.useCallback(() => {
+    setIsCloseConfirmOpen(false);
+    onCancel();
+  }, [onCancel]);
+  const handleSaveFromConfirm = React.useCallback(() => {
+    setIsCloseConfirmOpen(false);
+    void handleSave();
+  }, [handleSave]);
+  const closeConfirm = (
+    <UnsavedChangesDialog
+      open={isCloseConfirmOpen}
+      onDiscard={handleDiscardAndClose}
+      onOpenChange={setIsCloseConfirmOpen}
+      onSave={handleSaveFromConfirm}
+    />
   );
 
-  const actions = (
-    <LinkCreateActions
-      hasSaveError={Boolean(createLinkMutation.error)}
-      isAiOrganizeDisabled={isAiOrganizeDisabled}
-      isPreviewLoading={isPreviewLoading}
-      isSaveDisabled={isSaveDisabled}
+  const bottomBar = (
+    <LinkCreateBottomBar
+      defaultProviderId={defaultProviderId}
+      generateTodo={generateTodo}
+      hasSaveError={hasSaveError}
       mode={mode}
+      pendingRequest={pendingRequest}
+      provider={providerState}
+      todoErrorCount={countTodoDraftErrors(todos)}
       onAiOrganize={handleAiOrganize}
+      onGenerateTodoChange={handleGenerateTodoChange}
+      onOpenProviderStep={() => setMobileSheetStep("ai-model-picker")}
+      onProviderSelect={handleProviderSelect}
       onSave={handleSave}
     />
   );
 
-  if (mode === "mobile") {
+  const memoActions = (
+    <View className="border-t border-border-soft pt-5">
+      <LinkCreateMemoActions
+        actionListRef={actionListRef}
+        disabled={isBusy}
+        memo={memo}
+        mode={mode}
+        open={isMemoActionsOpen}
+        todos={todos}
+        onAddTodo={handleAddTodo}
+        onChangeTodoDate={handleTodoDateChange}
+        onChangeTodoMode={handleTodoModeChange}
+        onChangeTodoTime={handleTodoTimeChange}
+        onChangeTodoTitle={handleTodoTitleChange}
+        onChangeTodoWeekdays={handleTodoWeekdaysChange}
+        onMemoChange={handleMemoChange}
+        onOpenChange={setIsMemoActionsOpen}
+        onRemoveTodo={handleRemoveTodo}
+      />
+    </View>
+  );
+
+  const isMobile = mode === "mobile";
+  const urlInput = (
+    <Input
+      accessibilityLabel="URL"
+      aria-invalid={Boolean(errors.url)}
+      className={cn(
+        "min-w-0 rounded-xl px-3.5",
+        isMobile ? "h-11 text-base" : "h-10 text-sm",
+        errors.url && "border-destructive/70",
+      )}
+      value={url}
+      editable={!isBusy}
+      autoCapitalize="none"
+      keyboardType="url"
+      placeholder={URL_PLACEHOLDER}
+      onChangeText={handleUrlChange}
+    />
+  );
+  const urlField = (
+    <FormField
+      error={errors.url}
+      help={url.trim() ? null : URL_HELP}
+      label="URL"
+    >
+      {isMobile ? (
+        <View className="flex-row gap-2">
+          <View className="min-w-0 flex-1">{urlInput}</View>
+          <Pressable
+            accessibilityLabel="QR 스캔"
+            accessibilityRole="button"
+            className="size-11 shrink-0 items-center justify-center rounded-xl border border-input bg-card active:bg-accent"
+            disabled={isBusy}
+            onPress={handleScanQr}
+          >
+            <Icon
+              as={QrCode}
+              size={18}
+              className="text-foreground"
+            />
+          </Pressable>
+        </View>
+      ) : (
+        urlInput
+      )}
+    </FormField>
+  );
+  const titleField = (
+    <FormField
+      error={errors.title}
+      label="제목"
+      labelTail={TITLE_LABEL_TAIL}
+    >
+      <TitleField isLoading={isPreviewLoading}>
+        <Input
+          accessibilityLabel="제목"
+          aria-invalid={Boolean(errors.title)}
+          className={cn(
+            "rounded-xl px-3.5",
+            isMobile ? "h-11 text-base" : "h-10 text-sm",
+            isPreviewLoading && "pr-10",
+            errors.title && "border-destructive/70",
+          )}
+          value={title}
+          editable={!isBusy}
+          maxLength={TITLE_MAX_LENGTH}
+          placeholder={TITLE_PLACEHOLDER}
+          onBlur={handleTitleBlur}
+          onChangeText={handleTitleChange}
+        />
+      </TitleField>
+    </FormField>
+  );
+  const folderField = (
+    <FormField
+      help={folder.id == null ? FOLDER_HELP : null}
+      label="폴더"
+    >
+      {isMobile ? (
+        <FolderTrigger
+          disabled={isBusy}
+          isMobile
+          label={folder.label}
+          onPress={() => setMobileSheetStep("folder-picker")}
+        />
+      ) : (
+        <Popover>
+          <PopoverTrigger asChild>
+            <FolderTrigger
+              disabled={isBusy}
+              isMobile={false}
+              label={folder.label}
+            />
+          </PopoverTrigger>
+          <FolderPickerPopoverContent
+            selectedFolderId={folder.id ? Number(folder.id) : null}
+            onSelect={handleFolderSelect}
+          />
+        </Popover>
+      )}
+    </FormField>
+  );
+
+  if (isMobile) {
     const stepTitle =
       mobileSheetStep === "folder-picker"
         ? "폴더 선택"
@@ -575,118 +915,52 @@ function LinkCreateForm({
           : "새 링크 추가";
 
     return (
-      <View className="gap-5">
-        <View className="flex-row items-center justify-between gap-3">
-          <View className="w-10 items-start">
-            {isMobileSubStep ? (
-              <Pressable
-                accessibilityLabel="뒤로"
-                accessibilityRole="button"
-                className="size-10 items-center justify-center rounded-full active:bg-accent web:hover:bg-accent"
-                onPress={() => setMobileSheetStep("form")}
-              >
-                <Icon
-                  as={ChevronLeft}
-                  size={18}
-                  className="text-foreground"
+      <View className="w-full">
+        <View className="gap-5">
+          <SheetHeader
+            title={stepTitle}
+            onBack={isMobileSubStep ? () => setMobileSheetStep("form") : undefined}
+          />
+
+          {mobileSheetStep === "form" ? (
+            <>
+              <View className="gap-3.5">
+                <GroupTitle>링크</GroupTitle>
+                <LinkPreviewImage
+                  isLoading={isPreviewLoading}
+                  mode={mode}
+                  preview={linkPreview}
                 />
-              </Pressable>
-            ) : null}
-          </View>
-          <Text className="flex-1 text-center text-xl font-bold text-primary">{stepTitle}</Text>
-          <View className="size-10" />
-        </View>
-
-        {mobileSheetStep === "form" ? (
-          <>
-            <LinkPreviewImage
-              isLoading={isPreviewLoading}
-              mode={mode}
-              preview={linkPreview}
-            />
-            <View className="gap-2">
-              <UrlFieldLabel className="px-1" />
-              <View className="flex-row items-start gap-2">
-                <View className="min-w-0 flex-1">
-                  <FieldError error={errors.url}>
-                    <Input
-                      accessibilityLabel="URL"
-                      className="h-10 rounded-2xl border-primary/30 bg-background px-5 text-lg"
-                      value={url}
-                      autoCapitalize="none"
-                      keyboardType="url"
-                      placeholder={URL_PLACEHOLDER}
-                      onChangeText={handleUrlChange}
-                    />
-                  </FieldError>
-                </View>
-                <Button
-                  className="h-10 shrink-0 flex-row items-center gap-1 rounded-2xl bg-primary px-2.5"
-                  onPress={handleScanQr}
-                >
-                  <Icon
-                    as={QrCode}
-                    size={14}
-                    className="text-primary-foreground"
-                  />
-                  <Text className="text-xs font-semibold text-primary-foreground">QR</Text>
-                </Button>
+                {urlField}
+                {titleField}
+                {folderField}
               </View>
-            </View>
+              {memoActions}
 
-            <View className="gap-2">
-              <Text className="px-1 text-sm font-semibold text-muted-foreground">제목</Text>
-              <FieldError error={errors.title}>
-                <TitleField isLoading={isPreviewLoading}>
-                  <Input
-                    accessibilityLabel="제목"
-                    className="h-10 rounded-xl border-primary/30 bg-background pr-10"
-                    value={title}
-                    maxLength={TITLE_MAX_LENGTH}
-                    placeholder={
-                      isPreviewLoading ? "제목을 불러오는 중…" : "AI 생성으로 자동 정리해보세요"
-                    }
-                    onChangeText={handleTitleChange}
-                  />
-                </TitleField>
-              </FieldError>
-            </View>
-
-            <MobileOptionCard
-              eyebrow="폴더"
-              label={folder.label}
-              onPress={() => setMobileSheetStep("folder-picker")}
+              <SheetFooter>{bottomBar}</SheetFooter>
+            </>
+          ) : mobileSheetStep === "folder-picker" ? (
+            <FolderPickerList
+              selectedFolderId={folder.id ? Number(folder.id) : null}
+              onSelect={(selection) => {
+                handleFolderSelect(selection);
+                setMobileSheetStep("form");
+              }}
             />
-            <GenerateTodoRow
-              value={generateTodo}
-              onValueChange={setGenerateTodo}
+          ) : (
+            <AiProviderPickerList
+              defaultProviderId={defaultProviderId}
+              selectedProviderId={
+                providerState.status === "ready" ? providerState.selection.providerId : null
+              }
+              onSelect={(selection) => {
+                handleProviderSelect(selection);
+                setMobileSheetStep("form");
+              }}
             />
-            <MobileOptionCard
-              eyebrow="AI 제공자"
-              icon="🤖"
-              label={aiProviderLabel}
-              onPress={() => setMobileSheetStep("ai-model-picker")}
-            />
-
-            <SheetFooter>{actions}</SheetFooter>
-          </>
-        ) : mobileSheetStep === "folder-picker" ? (
-          <FolderPickerList
-            selectedFolderId={folder.id ? Number(folder.id) : null}
-            onSelect={(selection) => {
-              handleFolderSelect(selection);
-              setMobileSheetStep("form");
-            }}
-          />
-        ) : (
-          <AiProviderPickerList
-            selectedProviderId={aiProvider?.providerId ?? defaultProvider.id ?? null}
-            onSelect={(selection) => {
-              setAiProvider(selection);
-              setMobileSheetStep("form");
-            }}
-          />
-        )}
+          )}
+        </View>
+        {closeConfirm}
       </View>
     );
   }
@@ -694,259 +968,117 @@ function LinkCreateForm({
   return (
     <View className="min-h-0 shrink">
       <ScrollView
+        ref={scrollViewRef}
         className="min-h-0 shrink"
-        contentContainerClassName="gap-5 px-8 py-6"
+        contentContainerClassName="px-8 pb-6 pt-5"
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
-        <LinkPreviewImage
-          isLoading={isPreviewLoading}
-          mode={mode}
-          preview={linkPreview}
-        />
-        <View className="gap-2">
-          <UrlFieldLabel />
-          <FieldError error={errors.url}>
-            <Input
-              accessibilityLabel="URL"
-              className="h-10 rounded-xl px-4 text-lg"
-              value={url}
-              autoCapitalize="none"
-              keyboardType="url"
-              placeholder={URL_PLACEHOLDER}
-              onChangeText={handleUrlChange}
-            />
-          </FieldError>
-        </View>
-
-        <View className="gap-2">
-          <Text className="text-sm font-semibold text-muted-foreground">제목</Text>
-          <FieldError error={errors.title}>
-            <TitleField isLoading={isPreviewLoading}>
-              <Input
-                accessibilityLabel="제목"
-                className="h-10 rounded-xl px-4 pr-10 text-lg"
-                value={title}
-                maxLength={TITLE_MAX_LENGTH}
-                placeholder={
-                  isPreviewLoading ? "제목을 불러오는 중…" : "AI 생성으로 자동 정리해보세요"
-                }
-                onChangeText={handleTitleChange}
+        <View
+          ref={scrollContentRef}
+          className="gap-6"
+        >
+          <View className="gap-3.5">
+            <GroupTitle>링크</GroupTitle>
+            <View className="flex-row items-start gap-4">
+              <LinkPreviewImage
+                isLoading={isPreviewLoading}
+                mode={mode}
+                preview={linkPreview}
               />
-            </TitleField>
-          </FieldError>
-        </View>
-
-        <View className="flex-row gap-4">
-          <View className="min-w-0 flex-1 gap-2">
-            <Text className="text-sm font-semibold leading-5 text-muted-foreground">폴더</Text>
-            <Popover>
-              <PopoverTrigger asChild>
-                <WideSelectTrigger
-                  accessibilityLabel={`폴더, ${folder.label}`}
-                  icon={
-                    <Icon
-                      as={FolderOpen}
-                      size={18}
-                      className="text-primary"
-                    />
-                  }
-                  label={folder.label}
-                />
-              </PopoverTrigger>
-              <FolderPickerPopoverContent
-                selectedFolderId={folder.id ? Number(folder.id) : null}
-                onSelect={handleFolderSelect}
-              />
-            </Popover>
+              <View className="min-w-0 flex-1 gap-3.5">
+                {urlField}
+                {titleField}
+                {folderField}
+              </View>
+            </View>
           </View>
-          <View className="min-w-0 flex-1 gap-2">
-            <Text className="text-sm font-semibold leading-5 text-muted-foreground">AI 제공자</Text>
-            <Popover>
-              <PopoverTrigger asChild>
-                <WideSelectTrigger
-                  accessibilityLabel={`AI 제공자, ${aiProviderLabel}`}
-                  icon={<Text className="text-base leading-5">🤖</Text>}
-                  label={aiProviderLabel}
-                />
-              </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                side="bottom"
-                className="max-h-[60vh] w-80 overflow-y-auto p-3"
-              >
-                <AiProviderPickerListWithClose
-                  selectedProviderId={aiProvider?.providerId ?? defaultProvider.id ?? null}
-                  onSelect={setAiProvider}
-                />
-              </PopoverContent>
-            </Popover>
-          </View>
-        </View>
-
-        <GenerateTodoRow
-          value={generateTodo}
-          onValueChange={setGenerateTodo}
-        />
-
-        <View className="gap-2">
-          <Text className="text-sm font-semibold text-muted-foreground">메모 (선택)</Text>
-          <Textarea
-            accessibilityLabel="메모"
-            className="scrollbar-none h-10 min-h-10 rounded-xl py-2.5 text-base web:resize-none"
-            value={memo}
-            numberOfLines={1}
-            placeholder="간단한 메모"
-            scrollEnabled={false}
-            onChangeText={setMemo}
-          />
-        </View>
-
-        <View className="gap-3">
-          <Text className="text-sm font-semibold text-muted-foreground">
-            ✅ 액션 (선택, 여러 개 가능)
-          </Text>
-          <TodoDraftListEditor
-            addLabel="액션 추가"
-            pickerMode={mode}
-            todos={decoratedTodos}
-            onAddTodo={handleAddTodo}
-            onChangeTodoTitle={handleTodoTitleChange}
-            onChangeTodoMode={handleTodoModeChange}
-            onChangeTodoWeekdays={handleTodoWeekdaysChange}
-            onChangeTodoDate={handleTodoDateChange}
-            onChangeTodoTime={handleTodoTimeChange}
-            onRemoveTodo={handleRemoveTodo}
-          />
+          {memoActions}
         </View>
       </ScrollView>
 
-      <View className="border-t border-border px-8 py-5">{actions}</View>
+      <View className="border-t border-border-soft pb-5 pl-8 pr-6 pt-4">{bottomBar}</View>
+      {closeConfirm}
     </View>
   );
 }
 
-function WideSelectTrigger({
-  icon,
-  label,
-  ...props
-}: React.ComponentProps<typeof Button> & { icon: React.ReactNode; label: string }) {
+function GroupTitle({ children }: { children: React.ReactNode }) {
   return (
-    <Button
-      className="h-10 w-full flex-row justify-start rounded-xl px-4"
-      variant="outline"
+    <Text
+      accessibilityRole="header"
+      className="text-sm font-bold text-foreground"
+    >
+      {children}
+    </Text>
+  );
+}
+
+function FormField({
+  children,
+  error,
+  help,
+  label,
+  labelTail,
+}: {
+  children: React.ReactNode;
+  error?: string;
+  help?: string | null;
+  label: string;
+  labelTail?: string;
+}) {
+  return (
+    <View className="min-w-0 gap-1.5">
+      <View className="flex-row items-center gap-1.5">
+        <Text className="text-xs font-semibold text-muted-foreground">{label}</Text>
+        {labelTail ? (
+          <Text className="text-xs font-medium text-muted-foreground">{labelTail}</Text>
+        ) : null}
+      </View>
+      {children}
+      {error ? (
+        <Text className="text-xs font-medium leading-[17px] text-destructive">{error}</Text>
+      ) : help ? (
+        <Text className="text-xs leading-[17px] text-muted-foreground">{help}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+const FolderTrigger = React.forwardRef<
+  View,
+  { isMobile: boolean; label: string } & Omit<React.ComponentProps<typeof Pressable>, "children">
+>(function FolderTrigger({ isMobile, label, ...props }, ref) {
+  return (
+    <Pressable
+      ref={ref}
+      accessibilityLabel={`폴더, ${label}`}
+      accessibilityRole="button"
+      className={cn(
+        "flex-row items-center gap-2 rounded-xl border border-input bg-background px-3.5 active:bg-accent web:hover:border-primary",
+        isMobile ? "h-11" : "h-10",
+      )}
       {...props}
     >
-      <View className="min-w-0 flex-1 flex-row items-center gap-2">
-        {icon}
-        <Text
-          className="min-w-0 flex-1 text-sm font-medium leading-5 text-foreground"
-          numberOfLines={1}
-        >
-          {label}
-        </Text>
-        <Icon
-          as={ChevronDown}
-          size={14}
-          className="text-muted-foreground"
-        />
-      </View>
-    </Button>
+      <Icon
+        as={FolderOpen}
+        size={isMobile ? 18 : 16}
+        className="shrink-0 text-foreground"
+      />
+      <Text
+        className={cn("min-w-0 flex-1 text-foreground", isMobile ? "text-base" : "text-sm")}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+      <Icon
+        as={isMobile ? ChevronRight : ChevronDown}
+        size={14}
+        className="shrink-0 text-muted-foreground"
+      />
+    </Pressable>
   );
-}
-
-function LinkCreateActions({
-  hasSaveError,
-  isAiOrganizeDisabled,
-  isPreviewLoading,
-  isSaveDisabled,
-  mode,
-  onAiOrganize,
-  onSave,
-}: {
-  hasSaveError: boolean;
-  isAiOrganizeDisabled: boolean;
-  isPreviewLoading: boolean;
-  isSaveDisabled: boolean;
-  mode: LinkCreateFormMode;
-  onAiOrganize: () => void;
-  onSave: () => void;
-}) {
-  const isSheet = mode === "mobile";
-  const labelClassName = isSheet ? "text-base font-semibold" : "text-sm font-semibold";
-  const accent = useDisplaySettings((state) => state.display.accent);
-  const theme = useDisplaySettings((state) => state.display.theme);
-  const saveTextClassName = getSaveLabelClassName(accent, theme);
-
-  return (
-    <View className="gap-2.5">
-      {hasSaveError ? (
-        <View
-          accessibilityLiveRegion="polite"
-          accessibilityRole="alert"
-          className="flex-row items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2.5"
-        >
-          <Icon
-            as={CircleAlert}
-            className="size-4 shrink-0 text-destructive"
-          />
-          <Text className="min-w-0 flex-1 text-[13px] font-medium text-foreground">
-            링크 저장에 실패했습니다. 잠시 후 다시 시도해주세요.
-          </Text>
-        </View>
-      ) : null}
-      <View className={cn("flex-row gap-2", !isSheet && "justify-end")}>
-        <Button
-          className={cn(
-            "flex-row gap-2 rounded-xl bg-primary/15 shadow-none active:bg-primary/20",
-            process.env.EXPO_OS === "web" && "hover:bg-primary/20",
-            isSheet ? "h-12 flex-1" : "h-10 px-[18px] sm:h-10",
-          )}
-          disabled={isSaveDisabled}
-          variant="secondary"
-          onPress={onSave}
-        >
-          {isPreviewLoading ? (
-            <ActivityIndicator accessibilityLabel={PREVIEW_LOADING_LABEL} />
-          ) : (
-            <Icon
-              as={Save}
-              className={saveTextClassName}
-              size={isSheet ? 18 : 16}
-            />
-          )}
-          <Text className={cn(labelClassName, saveTextClassName)}>저장</Text>
-        </Button>
-        <Button
-          className={cn(
-            "flex-row gap-2 rounded-xl",
-            isSheet ? "h-12 flex-[2]" : "h-10 w-44 px-[18px] sm:h-10",
-          )}
-          disabled={isAiOrganizeDisabled}
-          variant="gradient"
-          onPress={onAiOrganize}
-        >
-          {isPreviewLoading ? (
-            <ActivityIndicator
-              accessibilityLabel={PREVIEW_LOADING_LABEL}
-              tone="onPrimary"
-            />
-          ) : null}
-          <Text className={labelClassName}>AI 정리</Text>
-        </Button>
-      </View>
-    </View>
-  );
-}
-
-function UrlFieldLabel({ className }: { className?: string }) {
-  return (
-    <View className={cn("flex-row items-center gap-2", className)}>
-      <Text className="text-sm font-semibold text-muted-foreground">URL</Text>
-      <Text className="text-sm font-semibold text-muted-foreground">📋 클립보드 자동 감지</Text>
-    </View>
-  );
-}
+});
 
 function FolderPickerPopoverContent({
   selectedFolderId,
@@ -989,28 +1121,8 @@ function FolderPickerPopoverContent({
   );
 }
 
-function AiProviderPickerListWithClose({
-  selectedProviderId,
-  onSelect,
-}: {
-  selectedProviderId: number | null;
-  onSelect: (selection: AiProviderSelection) => void;
-}) {
-  const popoverContext = usePopoverContext();
-
-  return (
-    <AiProviderPickerList
-      selectedProviderId={selectedProviderId}
-      onSelect={(selection) => {
-        onSelect(selection);
-        popoverContext.onOpenChange(false);
-      }}
-    />
-  );
-}
-
-// Main image of the fetched preview, shown at the top of the form only when the page
-// has one. While the preview loads, the slot shows a loading state.
+// Main image of the fetched preview, beside the fields (wide) or above them (mobile),
+// only when the page has one. While the preview loads, the slot shows a spinner.
 function LinkPreviewImage({
   isLoading,
   mode,
@@ -1023,8 +1135,10 @@ function LinkPreviewImage({
   const thumbnailUrl = preview?.thumbnailUrl ?? null;
   const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
   const frameClassName = cn(
-    "w-full overflow-hidden rounded-xl border border-border bg-muted",
-    mode === "wide" ? "h-48" : "aspect-video",
+    "shrink-0 overflow-hidden border border-border bg-muted",
+    mode === "wide"
+      ? "h-[110px] w-[176px] rounded-xl"
+      : "aspect-video max-h-[240px] w-full rounded-[14px]",
   );
 
   if (isLoading) {
@@ -1059,13 +1173,15 @@ function LinkPreviewImage({
   );
 }
 
+// The title stays typeable while the preview loads; the spinner only says that a
+// title may still arrive.
 function TitleField({ children, isLoading }: { children: React.ReactNode; isLoading: boolean }) {
   return (
     <View className="relative justify-center">
       {children}
       {isLoading ? (
         <View
-          accessibilityLabel="제목을 불러오는 중"
+          accessibilityLabel={PREVIEW_LOADING_LABEL}
           className="absolute right-3"
           pointerEvents="none"
           testID="link-create-title-loading"
@@ -1077,73 +1193,5 @@ function TitleField({ children, isLoading }: { children: React.ReactNode; isLoad
   );
 }
 
-function FieldError({ children, error }: { children: React.ReactNode; error?: string }) {
-  return (
-    <View className="gap-1">
-      {children}
-      {error ? <Text className="text-sm font-medium text-destructive">{error}</Text> : null}
-    </View>
-  );
-}
-
-function GenerateTodoRow({
-  value,
-  onValueChange,
-}: {
-  value: boolean;
-  onValueChange: (next: boolean) => void;
-}) {
-  return (
-    <View className="flex-row items-center gap-3 rounded-2xl border border-primary/30 bg-background px-4 py-3">
-      <View className="min-w-0 flex-1 gap-1">
-        <Text className="text-sm font-semibold text-foreground">액션 생성</Text>
-        <Text className="text-xs leading-4 text-muted-foreground">
-          AI 정리 때 링크에 마감일이 있으면 액션을 자동으로 만들어줘요
-        </Text>
-      </View>
-      <Switch
-        checked={value}
-        onCheckedChange={onValueChange}
-      />
-    </View>
-  );
-}
-
-function MobileOptionCard({
-  eyebrow,
-  icon,
-  label,
-  onPress,
-}: {
-  eyebrow: string;
-  icon?: string;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <View className="flex-row items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-background px-4 py-3">
-      <View className="min-w-0 flex-1 gap-1.5">
-        <Text className="text-sm font-semibold text-muted-foreground">{eyebrow}</Text>
-        <View className="min-w-0 flex-row items-center gap-1.5">
-          {icon ? <Text>{icon}</Text> : null}
-          <Text
-            className="min-w-0 flex-1 text-base font-bold text-foreground"
-            numberOfLines={1}
-          >
-            {label}
-          </Text>
-        </View>
-      </View>
-      <Button
-        className="h-10 rounded-2xl border-primary px-4"
-        variant="outline"
-        onPress={onPress}
-      >
-        <Text className="text-sm font-bold text-primary">변경</Text>
-      </Button>
-    </View>
-  );
-}
-
 export { LinkCreateForm };
-export type { LinkCreateFormMode };
+export type { LinkCreateFormHandle, LinkCreateFormMode };

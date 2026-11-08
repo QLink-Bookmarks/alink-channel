@@ -1,4 +1,4 @@
-import { Platform, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,19 +8,20 @@ import { getDomainFromUrl } from "@/features/home/lib/link-card-mapper";
 import { LinkThumbnail } from "@/features/links/components/link-thumbnail/link-thumbnail";
 import { cn } from "@/lib/utils";
 
-import { AlarmClock, Users } from "lucide-react-native/icons";
+import { getTodoCardLabel, getTodoDoneToggleLabel } from "../../lib/todo-accessibility-label";
+import type { TodoScheduleKind } from "../../lib/todo-schedule-label";
 
-/**
- * On web we need to stop click bubbling so the checkbox tap doesn't also fire the outer
- * card press. Native already stops at the inner Pressable thanks to the responder system.
- */
-const stopPropagationProps =
-  Platform.OS === "web"
-    ? ({
-        onClick: (event: { stopPropagation?: () => void }) => {
-          event.stopPropagation?.();
-        },
-      } as Record<string, unknown>)
+import { AlarmClock, Repeat, Users } from "lucide-react-native/icons";
+
+const SHARED_LABEL = "공유 액션";
+
+// 16px checkbox → 40×40 press area on web (native keeps the checkbox's own hitSlop).
+const CHECKBOX_WEB_HIT_SLOP = 12;
+
+// Marks the card's press target so the card can draw the focus ring when it is focused (web).
+const cardPressDataProps =
+  process.env.EXPO_OS === "web"
+    ? ({ dataSet: { cardPress: "true" } } as Record<string, unknown>)
     : null;
 
 type TodoItemVariant = "inline" | "row" | "display";
@@ -30,8 +31,10 @@ type TodoItemProps = {
   variant?: TodoItemVariant;
   text: string;
   done?: boolean;
-  /** Pre-formatted reminder string (e.g. "06/04 09:36" or "06/04 09:36 (지남)"). */
+  /** Pre-formatted schedule line (e.g. "06/04 09:36 (지남)" or "매주 월·목 오전 8:00"). */
   reminderLabel?: string | null;
+  /** Picks the schedule icon on the display variant: an alarm clock or a repeat arrow. */
+  scheduleKind?: TodoScheduleKind;
   overdue?: boolean;
   /** Source-link URL — when set on the display variant, renders the linked-link row. */
   linkUrl?: string | null;
@@ -46,23 +49,42 @@ type TodoItemProps = {
   /** Legacy free-form badge slot (used by the existing inline/row callers). */
   badge?: string;
   visibility?: "public" | "private";
+  /** Display variant: what pressing the card does, read last in its name (e.g. `고치기`). */
+  pressHint?: string;
   onToggle?: (done: boolean) => void;
   onPress?: () => void;
 };
 
-function ReminderLabel({ label, overdue }: { label: string; overdue?: boolean }) {
+function ReminderLabel({
+  label,
+  kind,
+  overdue,
+}: {
+  label: string;
+  kind: TodoScheduleKind;
+  overdue?: boolean;
+}) {
   return (
     <View
       className="flex-row items-center gap-1"
       testID="todo-item-reminder"
     >
-      <Icon
-        as={AlarmClock}
-        size={12}
-        className={overdue ? "text-destructive" : "text-primary"}
-      />
+      <View
+        className="size-3"
+        testID={kind === "repeat" ? "todo-item-reminder-repeat" : "todo-item-reminder-once"}
+      >
+        <Icon
+          as={kind === "repeat" ? Repeat : AlarmClock}
+          size={12}
+          className={overdue ? "text-destructive" : "text-primary"}
+        />
+      </View>
       <Text
-        className={cn("text-[11px] font-semibold", overdue ? "text-destructive" : "text-primary")}
+        className={cn(
+          "min-w-0 shrink text-[11px] font-semibold",
+          overdue ? "text-destructive" : "text-muted-foreground",
+        )}
+        testID="todo-item-reminder-text"
       >
         {label}
       </Text>
@@ -76,6 +98,7 @@ function TodoItem({
   text,
   done,
   reminderLabel,
+  scheduleKind = "once",
   overdue,
   linkUrl,
   linkTitle,
@@ -84,6 +107,7 @@ function TodoItem({
   isShared,
   badge,
   visibility,
+  pressHint,
   onToggle,
   onPress,
 }: TodoItemProps) {
@@ -91,90 +115,111 @@ function TodoItem({
     const domain = linkUrl ? getDomainFromUrl(linkUrl) : null;
     const hasLinkRow = Boolean(linkUrl || linkTitle);
     const isOverdue = Boolean(overdue && !done);
+    const scheduleLabel = done ? null : reminderLabel;
+    const linkLabel = [domain, linkTitle].filter(Boolean).join(" · ");
+    const cardLabel = getTodoCardLabel(text, [
+      scheduleLabel,
+      isShared && SHARED_LABEL,
+      linkLabel,
+      pressHint,
+    ]);
 
+    // The checkbox sits over the card instead of inside its press target, so it stays its
+    // own control for screen readers (a native Pressable groups its children into one
+    // element) and its press never reaches the card. A spacer keeps its place.
     return (
-      <Pressable
+      <View
         className={cn(
-          "overflow-hidden rounded-[14px] border border-border bg-card",
+          "relative overflow-hidden rounded-[14px] border border-border bg-card",
           "web:transition-colors web:hover:border-primary",
+          "web:has-[>[data-card-press]:focus-visible]:ring-[3px] web:has-[>[data-card-press]:focus-visible]:ring-ring",
           isOverdue && "border-destructive/40 bg-destructive/5",
           className,
         )}
         testID={isOverdue ? "todo-item-overdue" : "todo-item"}
-        onPress={onPress}
       >
-        {/* grow, not flex-1: native flex:1 uses basis 0, which collapses this content-sized card on relayout (#15). */}
-        <View className="grow flex-row items-start gap-3 px-4 py-3.5">
-          <View
-            className="pt-px"
-            {...(stopPropagationProps ?? null)}
-          >
-            <Checkbox
-              accessibilityLabel={done ? "완료 취소" : "완료 표시"}
-              checked={done ?? false}
-              shape="round"
-              onCheckedChange={(value) => onToggle?.(value === true)}
-            />
-          </View>
-          <View className="min-w-0 flex-1 gap-1.5">
-            <Text
-              className={cn(
-                "text-[13px] font-semibold leading-[18px] text-foreground",
-                done && "text-muted-foreground line-through",
-              )}
-              testID="todo-item-title"
-            >
-              {text}
-            </Text>
-            {reminderLabel || isShared ? (
-              <View className="flex-row flex-wrap gap-x-3 gap-y-1">
-                {reminderLabel ? (
-                  <ReminderLabel
-                    label={reminderLabel}
-                    overdue={isOverdue}
-                  />
-                ) : null}
-                {isShared ? (
-                  <View className="flex-row items-center gap-1">
-                    <Icon
-                      as={Users}
-                      size={12}
-                      className="text-muted-foreground"
-                    />
-                    <Text className="text-[11px] font-semibold text-muted-foreground">
-                      공유 액션
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-          </View>
+        {/* Over the spacer (the card's 14px padding and the spacer's 1px), first so it is read and
+            focused before the card, and above the card's press target. */}
+        <View className="absolute left-4 top-[15px] z-10">
+          <Checkbox
+            accessibilityLabel={getTodoDoneToggleLabel(text, done ?? false)}
+            checked={done ?? false}
+            shape="round"
+            webHitSlop={CHECKBOX_WEB_HIT_SLOP}
+            onCheckedChange={(value) => onToggle?.(value === true)}
+          />
         </View>
-        {hasLinkRow ? (
-          <View
-            className="flex-row items-center gap-2 border-t border-border-soft px-4 py-2"
-            testID="todo-item-link"
-          >
-            <LinkThumbnail
-              domain={domain ?? linkTitle ?? "?"}
-              faviconUrl={linkFaviconUrl}
-              size="small"
-              testID="todo-item-link-thumbnail"
-              thumbnailUrl={linkThumbnailUrl}
-            />
-            <Text
-              className="min-w-0 flex-1 text-[11px] text-muted-foreground"
-              numberOfLines={1}
-            >
-              {domain ? (
-                <Text className="text-[11px] font-semibold text-foreground">{domain}</Text>
+        <Pressable
+          accessibilityLabel={cardLabel}
+          accessibilityRole="button"
+          className="grow web:outline-none"
+          onPress={onPress}
+          {...cardPressDataProps}
+        >
+          {/* grow, not flex-1: native flex:1 uses basis 0, which collapses this content-sized card on relayout (#15). */}
+          <View className="grow flex-row items-start gap-3 px-4 py-3.5">
+            <View className="mt-px size-4" />
+            <View className="min-w-0 flex-1 gap-1.5">
+              <Text
+                className={cn(
+                  "text-[13px] font-semibold leading-[18px] text-foreground",
+                  done && "text-muted-foreground line-through",
+                )}
+                testID="todo-item-title"
+              >
+                {text}
+              </Text>
+              {scheduleLabel || isShared ? (
+                <View className="flex-row flex-wrap gap-x-3 gap-y-1">
+                  {scheduleLabel ? (
+                    <ReminderLabel
+                      kind={scheduleKind}
+                      label={scheduleLabel}
+                      overdue={isOverdue}
+                    />
+                  ) : null}
+                  {isShared ? (
+                    <View className="flex-row items-center gap-1">
+                      <Icon
+                        as={Users}
+                        size={12}
+                        className="text-muted-foreground"
+                      />
+                      <Text className="text-[11px] font-semibold text-muted-foreground">
+                        {SHARED_LABEL}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
               ) : null}
-              {domain && linkTitle ? " · " : null}
-              {linkTitle}
-            </Text>
+            </View>
           </View>
-        ) : null}
-      </Pressable>
+          {hasLinkRow ? (
+            <View
+              className="flex-row items-center gap-2 border-t border-border-soft px-4 py-2"
+              testID="todo-item-link"
+            >
+              <LinkThumbnail
+                domain={domain ?? linkTitle ?? "?"}
+                faviconUrl={linkFaviconUrl}
+                size="small"
+                testID="todo-item-link-thumbnail"
+                thumbnailUrl={linkThumbnailUrl}
+              />
+              <Text
+                className="min-w-0 flex-1 text-[11px] text-muted-foreground"
+                numberOfLines={1}
+              >
+                {domain ? (
+                  <Text className="text-[11px] font-semibold text-foreground">{domain}</Text>
+                ) : null}
+                {domain && linkTitle ? " · " : null}
+                {linkTitle}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
+      </View>
     );
   }
 

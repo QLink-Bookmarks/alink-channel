@@ -12,7 +12,8 @@ const notificationQueryKeys = {
 
 function useNotificationsQuery(params: GetNotificationsParams = {}) {
   const resolvedParams: GetNotificationsParams = {
-    order: "latest",
+    orderKey: "fired_at",
+    order: "desc",
     size: 30,
     ...params,
   };

@@ -4,6 +4,7 @@ import { cssOf, isWideProject } from "./support/helpers";
 import {
   GOOD_IMAGE,
   type MockLink,
+  type MockNotification,
   type MockTodo,
   envelope,
   iso,
@@ -14,16 +15,6 @@ import {
 } from "./support/mock-api";
 
 // #11: lists keep their scroll position and filters when you leave and come back.
-
-type MockNotification = {
-  id: number;
-  title: string;
-  message: string;
-  firedAt: string;
-  readAt: string | null;
-  context: "TODO" | "ANNOUNCE";
-  contextId: number;
-};
 
 function buildFixtures() {
   const links: MockLink[] = [];
@@ -210,6 +201,10 @@ function chip(page: Page, label: string | RegExp) {
     .locator("..");
 }
 
+function statusChip(page: Page, name: RegExp) {
+  return page.getByRole("radiogroup", { name: "액션 상태" }).getByRole("radio", { name });
+}
+
 async function isChipSelected(page: Page, label: string | RegExp, unselectedLabel: string) {
   return (
     (await cssOf(chip(page, label), "background-color")) !==
@@ -300,7 +295,7 @@ test.describe("mobile tabs", () => {
     await mockScreens(page);
     await page.goto("/todos");
     await expect(todoCards(page)).toHaveCount(60);
-    await chip(page, /^미완료 \d+$/).click();
+    await statusChip(page, /^진행 중 \d+$/).click();
     await expect(todoCards(page)).toHaveCount(45);
     await scrollListTo(page, todoCards(page), 700);
 
@@ -309,7 +304,7 @@ test.describe("mobile tabs", () => {
     await pressBottomTab(page, "액션");
 
     await expect(todoCards(page)).toHaveCount(45);
-    expect(await isChipSelected(page, /^미완료 \d+$/, "전체 60")).toBe(true);
+    await expect(statusChip(page, /^진행 중 \d+$/)).toBeChecked();
     await expectScrollTop(todoCards(page), 700);
   });
 
@@ -503,8 +498,10 @@ test.describe("wide sidebar", () => {
     await page.goto("/folders/1");
     await expect(linkCards(page)).toHaveCount(30);
 
-    await chip(page, "오래된순").click();
-    await chip(page, "바로가기").click();
+    await page.getByTestId("link-filter-row-button").click();
+    await page.getByRole("radio", { name: "저장일, 내림차순" }).click();
+    await page.getByRole("switch", { name: "바로가기만 보기" }).click();
+    await page.getByTestId("link-filter-row-button").click();
     await expect(linkCards(page)).toHaveCount(10);
     await scrollListTo(page, linkCards(page), 200);
 
@@ -513,7 +510,9 @@ test.describe("wide sidebar", () => {
     await pressSidebar(page, "공부");
 
     await expect(linkCards(page)).toHaveCount(10);
-    expect(await isChipSelected(page, "오래된순", "최신순")).toBe(true);
+    await expect(page.getByTestId("link-filter-row-button")).toHaveAccessibleName(
+      "정렬·필터 열기, 적용 중: 저장일 오름차순, 바로가기만",
+    );
     await expectScrollTop(linkCards(page), 200);
   });
 
@@ -523,15 +522,17 @@ test.describe("wide sidebar", () => {
     await mockScreens(page);
     await page.goto("/folders/2");
     await expect(linkCards(page)).toHaveCount(30);
-    await chip(page, "바로가기").click();
-    await expect(page.getByText("아직 링크가 없어요")).toBeVisible();
+    await page.getByTestId("link-filter-row-button").click();
+    await page.getByRole("switch", { name: "바로가기만 보기" }).click();
+    await page.getByTestId("link-filter-row-button").click();
+    await expect(page.getByText("조건에 맞는 링크가 없어요")).toBeVisible();
     await expect(linkCards(page)).toHaveCount(0);
 
     await pressSidebar(page, "홈");
     await expect(page).toHaveURL(/\/home$/);
     await pressSidebar(page, "가볼 곳");
 
-    await expect(page.getByText("아직 링크가 없어요")).toBeInViewport();
+    await expect(page.getByText("조건에 맞는 링크가 없어요")).toBeInViewport();
     await expect(linkCards(page)).toHaveCount(0);
   });
 });
@@ -540,14 +541,14 @@ test("reloading the page starts lists at the top with default filters", async ({
   await mockScreens(page);
   await page.goto("/todos");
   await expect(todoCards(page)).toHaveCount(60);
-  await chip(page, /^미완료 \d+$/).click();
+  await statusChip(page, /^진행 중 \d+$/).click();
   await expect(todoCards(page)).toHaveCount(45);
   await scrollListTo(page, todoCards(page), 500);
 
   await page.reload();
 
   await expect(todoCards(page)).toHaveCount(60);
-  expect(await isChipSelected(page, "전체 60", "미완료 45")).toBe(true);
+  await expect(statusChip(page, /^전체 \d+$/)).toBeChecked();
   await expectScrollTop(todoCards(page), 0);
 });
 
