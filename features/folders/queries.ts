@@ -14,14 +14,15 @@ import {
   getNextFolderCursor,
   isFolderId,
 } from "./lib/folder-pages";
-import type { FolderOrder, FolderScrollResponse, GetFoldersParams } from "./types";
+import type { FolderScrollResponse, GetFoldersParams } from "./types";
 
 const FOLDER_PAGE_SIZE = 20;
 const MAX_FOLDER_PAGES = 500;
 const COMMON_CURSOR_MALFORMED_CODE = "COM_400_0004";
+const FOLDER_LIST_SORT = { orderKey: "created_at", order: "desc" } as const;
 
-type FolderListParams = Pick<GetFoldersParams, "order" | "query">;
-type FolderPagesParams = { order: FolderOrder; size: number };
+type FolderListParams = Pick<GetFoldersParams, "orderKey" | "order" | "query">;
+type FolderPagesParams = typeof FOLDER_LIST_SORT & { size: number };
 
 const folderQueryKeys = {
   all: ["folders"] as const,
@@ -49,7 +50,11 @@ async function fetchAllFolders(params: FolderListParams): Promise<FolderScrollRe
 }
 
 function useFoldersQuery(params: GetFoldersParams = {}, options?: { enabled?: boolean }) {
-  const listParams: FolderListParams = { order: params.order ?? "latest", query: params.query };
+  const listParams: FolderListParams = {
+    orderKey: params.orderKey ?? FOLDER_LIST_SORT.orderKey,
+    order: params.order ?? FOLDER_LIST_SORT.order,
+    query: params.query,
+  };
 
   return useQuery({
     enabled: options?.enabled ?? true,
@@ -57,8 +62,6 @@ function useFoldersQuery(params: GetFoldersParams = {}, options?: { enabled?: bo
     queryKey: folderQueryKeys.list(listParams),
   });
 }
-
-const FOLDER_PAGES_ORDER: FolderOrder = "latest";
 
 const cursorRestartMarks = new WeakMap<QueryClient, number | "pending">();
 
@@ -79,13 +82,13 @@ function useRestartingFolderPagesQuery(options?: { enabled?: boolean }) {
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const response = await getFolders({
-        order: FOLDER_PAGES_ORDER,
+        ...FOLDER_LIST_SORT,
         cursor: pageParam,
         size: FOLDER_PAGE_SIZE,
       });
       return response.data;
     },
-    queryKey: folderQueryKeys.infinite({ order: FOLDER_PAGES_ORDER, size: FOLDER_PAGE_SIZE }),
+    queryKey: folderQueryKeys.infinite({ ...FOLDER_LIST_SORT, size: FOLDER_PAGE_SIZE }),
   });
   const { refetch, dataUpdatedAt } = pagesQuery;
   const isCursorMalformed =
@@ -184,6 +187,7 @@ function useFolderMembersQuery(
 
 export type { FolderMembersQueryOptions };
 export {
+  FOLDER_LIST_SORT,
   FOLDER_PAGE_SIZE,
   MAX_FOLDER_PAGES,
   fetchAllFolders,

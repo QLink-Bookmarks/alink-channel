@@ -34,11 +34,7 @@ type TodoStatus = "ACTIVE" | "OVERDUE" | "COMPLETED";
 
 type TodoOrderKey = "reminder_at" | "created_at" | "completed_at";
 
-type TodoListSortParams =
-  | { orderKey?: TodoOrderKey; order?: SortDirection }
-  // The old single sort value, still sent by the notification inbox. The server reads it as
-  // `created_at desc`, and only without `orderKey`.
-  | { orderKey?: never; order: "latest" };
+type TodoListSortParams = { orderKey?: TodoOrderKey; order?: SortDirection };
 
 type GetTodosParams = TodoListSortParams & {
   // Never sent with `isCompleted` / `reminderAt`.

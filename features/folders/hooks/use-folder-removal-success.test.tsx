@@ -155,6 +155,8 @@ describe("useFolderRemovalSuccess resolvePermissionChange", () => {
       resolution = await result.current.resolvePermissionChange();
     });
 
+    expect(mockedFetchAllFolders).toHaveBeenCalledTimes(1);
+    expect(mockedFetchAllFolders).toHaveBeenCalledWith({ orderKey: "created_at", order: "desc" });
     expect(resolution).toBe("ended");
     expect(mockReplace).toHaveBeenCalledWith("/home");
     expect(useToastStore.getState().items).toEqual([]);

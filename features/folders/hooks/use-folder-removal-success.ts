@@ -8,7 +8,7 @@ import { todoQueryKeys } from "@/features/todos/queries";
 import { useToastStore } from "@/stores/toast-store";
 import { type Query, useQueryClient } from "@tanstack/react-query";
 
-import { fetchAllFolders, folderQueryKeys } from "../queries";
+import { FOLDER_LIST_SORT, fetchAllFolders, folderQueryKeys } from "../queries";
 
 import { type Href, useRouter } from "expo-router";
 
@@ -87,7 +87,7 @@ function useFolderRemovalSuccess({
     React.useCallback(async (): Promise<FolderPermissionResolution> => {
       let isStillListed = true;
       try {
-        const folders = await fetchAllFolders({ order: "latest" });
+        const folders = await fetchAllFolders(FOLDER_LIST_SORT);
         isStillListed = folders.contents.some((folder) => folder.id === folderId);
       } catch {
         isStillListed = true;

@@ -66,6 +66,17 @@ type MockTodoStatus = "ACTIVE" | "OVERDUE" | "COMPLETED";
 /** `GET /api/todos/counts` (#197). */
 type TodoStatusCounts = { all: number; active: number; overdue: number; completed: number };
 
+/** A `GET /api/notifications` item. */
+type MockNotification = {
+  id: number;
+  title: string;
+  message: string;
+  firedAt: string;
+  readAt: string | null;
+  context: "TODO" | "ANNOUNCE";
+  contextId: number;
+};
+
 type Handler = (route: Route, request: ReturnType<Route["request"]>) => Promise<unknown> | unknown;
 
 type MockFolder = {
@@ -140,6 +151,7 @@ type MockApiOptions = {
   folderPages?: Partial<FolderPageControl>;
   details?: Record<number, MockDetail>;
   todos?: MockTodo[];
+  notifications?: MockNotification[];
   folderMembers?: Record<number, MockFolderMembers>;
   /** Custom handlers checked first, keyed by `METHOD /api/path` (path without query). */
   handlers?: Record<string, Handler>;
@@ -339,7 +351,12 @@ const LEGACY_ORDERS: Record<string, { key: string; direction: "asc" | "desc" }> 
  */
 function readListSort(
   url: URL,
-  defaults: { key: string; directions: Record<string, "asc" | "desc"> },
+  defaults: {
+    key: string;
+    directions: Record<string, "asc" | "desc">;
+    /** The old single values this list still takes; the link ones when omitted. */
+    legacy?: Record<string, { key: string; direction: "asc" | "desc" }>;
+  },
 ): { key: string; direction: "asc" | "desc" } | null {
   const orderKey = url.searchParams.get("orderKey")?.toLowerCase() ?? null;
   const order = url.searchParams.get("order")?.toLowerCase() ?? null;
@@ -348,7 +365,7 @@ function readListSort(
   if (orderKey == null) {
     if (order == null) return { key: defaults.key, direction: defaults.directions[defaults.key] };
     if (isDirection(order)) return { key: defaults.key, direction: order };
-    return LEGACY_ORDERS[order] ?? null;
+    return (defaults.legacy ?? LEGACY_ORDERS)[order] ?? null;
   }
   if (!(orderKey in defaults.directions)) return null;
   if (order == null) return { key: orderKey, direction: defaults.directions[orderKey] };
@@ -371,6 +388,45 @@ function compareLinks(sort: { key: string; direction: "asc" | "desc" }) {
     if (sort.key === "created_at") return sign * a.createdAt.localeCompare(b.createdAt);
     return 0;
   };
+}
+
+/** #201: folders keep fixture order (newest first), so only the request is checked. */
+const FOLDER_SORT_DEFAULTS = {
+  key: "created_at",
+  directions: { created_at: "desc", name: "asc", similarity: "desc" } as Record<
+    string,
+    "asc" | "desc"
+  >,
+  legacy: {
+    latest: { key: "created_at", direction: "desc" },
+    earliest: { key: "created_at", direction: "asc" },
+    laxico: { key: "name", direction: "asc" },
+    similar: { key: "similarity", direction: "desc" },
+  } as Record<string, { key: string; direction: "asc" | "desc" }>,
+};
+
+const POST_SORT_DEFAULTS = {
+  key: "created_at",
+  directions: { created_at: "desc" } as Record<string, "asc" | "desc">,
+  legacy: { latest: { key: "created_at", direction: "desc" } } as Record<
+    string,
+    { key: string; direction: "asc" | "desc" }
+  >,
+};
+
+const NOTIFICATION_SORT_DEFAULTS = {
+  key: "created_at",
+  directions: { created_at: "desc", fired_at: "desc" } as Record<string, "asc" | "desc">,
+  legacy: POST_SORT_DEFAULTS.legacy,
+};
+
+/** Sorts notifications as the server: `created_at` is id order, `fired_at` ties go by id. */
+function compareNotifications(sort: { key: string; direction: "asc" | "desc" }) {
+  const sign = sort.direction === "asc" ? 1 : -1;
+  return (a: MockNotification, b: MockNotification) =>
+    (sort.key === "fired_at"
+      ? sign * (new Date(a.firedAt).getTime() - new Date(b.firedAt).getTime())
+      : 0) || sign * (a.id - b.id);
 }
 
 const DEFAULT_TODO_CREATED_AT = "2026-10-29T10:00:00.000Z";
@@ -403,15 +459,17 @@ const TODO_SORT_DEFAULTS = {
   >,
 };
 
-/** Sorts todos as the server: a missing reminder / completion goes last either way. */
+/**
+ * Sorts todos as the server: `created_at` is id order, and a missing reminder / completion goes
+ * last either way.
+ */
 function compareTodos(sort: { key: string; direction: "asc" | "desc" }) {
   const sign = sort.direction === "asc" ? 1 : -1;
+  if (sort.key === "created_at") {
+    return (a: MockTodo, b: MockTodo) => sign * (a.id - b.id);
+  }
   const valueOf = (todo: MockTodo) =>
-    sort.key === "reminder_at"
-      ? todo.reminderAt
-      : sort.key === "completed_at"
-        ? todo.completedAt
-        : (todo.createdAt ?? DEFAULT_TODO_CREATED_AT);
+    sort.key === "reminder_at" ? todo.reminderAt : todo.completedAt;
   return (a: MockTodo, b: MockTodo) => {
     const left = valueOf(a);
     const right = valueOf(b);
@@ -429,6 +487,7 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
     links: options.links ?? [],
     details: options.details ?? {},
     todos: options.todos ?? [],
+    notifications: options.notifications ?? [],
     folders: options.folders ?? DEFAULT_FOLDERS,
     folderMembers: options.folderMembers ?? {},
     folderPages: {
@@ -578,6 +637,10 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
         );
       }
       if (method === "GET" && path === "/api/folders") {
+        if (!readListSort(url, FOLDER_SORT_DEFAULTS)) {
+          const error = errorJson("COMMON_INVALID_SORT_ORDER", 400);
+          return json(error.body, error.status);
+        }
         const page = paginate(state.folders, url);
         const delay = state.folderPages.delayMs[page.pageIndex];
         if (delay) {
@@ -715,7 +778,24 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
       if (method === "GET" && path === "/api/notifications/unread") {
         return json(envelope({ unreadCount: 0 }));
       }
-      if (method === "GET" && (path === "/api/notifications" || path === "/api/posts")) {
+      if (method === "GET" && path === "/api/notifications") {
+        const sort = readListSort(url, NOTIFICATION_SORT_DEFAULTS);
+        if (!sort) {
+          const error = errorJson("COMMON_INVALID_SORT_ORDER", 400);
+          return json(error.body, error.status);
+        }
+        const type = url.searchParams.get("type");
+        const items = type
+          ? state.notifications.filter((item) => item.context === type)
+          : state.notifications;
+        const page = paginate([...items].sort(compareNotifications(sort)), url);
+        return json(scroll(page.contents, page.nextCursor));
+      }
+      if (method === "GET" && path === "/api/posts") {
+        if (!readListSort(url, POST_SORT_DEFAULTS)) {
+          const error = errorJson("COMMON_INVALID_SORT_ORDER", 400);
+          return json(error.body, error.status);
+        }
         return json(scroll([]));
       }
       if (method === "GET" && path === "/api/links") {
@@ -946,6 +1026,7 @@ export type {
   MockFolderMember,
   MockFolderMembers,
   MockLink,
+  MockNotification,
   MockTodo,
   MockTodoStatus,
   TodoCounts,
