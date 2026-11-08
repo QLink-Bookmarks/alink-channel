@@ -336,6 +336,32 @@ test.describe("closing the new link form with input (#88)", () => {
     }
   });
 
+  test("on a 320px wide screen the dialog's three buttons sit inside its card", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "narrow web mobile");
+    await page.setViewportSize({ width: 320, height: 760 });
+    await setUpForm(page);
+    await openForm(page);
+    await form(page).getByRole("textbox", { name: "URL", exact: true }).fill(LINK_URL);
+    await closeButton(page).click();
+    await expect(confirmDialog(page)).toBeVisible();
+
+    // The card is the role="dialog" element's first child.
+    const card = await boxOf(confirmDialog(page).locator(":scope > *").first());
+    expect(card.x).toBeGreaterThanOrEqual(0);
+    expect(card.x + card.width).toBeLessThanOrEqual(320);
+    const rowY: number[] = [];
+    for (const name of ["취소", "저장 안 함", "저장"]) {
+      const button = await boxOf(confirmDialog(page).getByRole("button", { name, exact: true }));
+      expect(button.x).toBeGreaterThanOrEqual(card.x);
+      expect(button.x + button.width).toBeLessThanOrEqual(card.x + card.width);
+      rowY.push(Math.round(button.y));
+    }
+    // One row, not stacked.
+    expect(new Set(rowY).size).toBe(1);
+  });
+
   test("a saved or AI-organized link closes the form without asking", async ({ page }) => {
     const server = await setUpForm(page);
     await openForm(page);
