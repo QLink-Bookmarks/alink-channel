@@ -101,9 +101,10 @@ test.describe("new link sheet folder step (#27)", () => {
   test("the folder step still closes when the outside is pressed", async ({ page }) => {
     await openFolderStep(page);
     await settledSheetTop(page);
+    // The sheet opens up to 8px under the top (#89); the outside is the strip above it.
     await page
       .getByRole("button", { name: "Bottom sheet backdrop" })
-      .click({ position: { x: 195, y: 40 } });
+      .click({ position: { x: 195, y: 4 } });
     await expectSheetClosed(page);
   });
 

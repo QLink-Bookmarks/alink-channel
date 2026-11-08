@@ -1,12 +1,15 @@
 import { Platform } from "react-native";
 
 import { Icon } from "@/components/ui/icon";
+import { PressableHitSlopArea } from "@/components/ui/icon-button";
 import { cn } from "@/lib/utils";
 import * as CheckboxPrimitive from "@rn-primitives/checkbox";
 
 import { Check } from "lucide-react-native/icons";
 
 const DEFAULT_HIT_SLOP = 24;
+// The web press area is placed from inside the 1.5px border, so it reaches past it by this much more.
+const BORDER_WIDTH = 1.5;
 
 function Checkbox({
   className,
@@ -15,6 +18,7 @@ function Checkbox({
   iconClassName,
   size = "md",
   shape = "square",
+  webHitSlop,
   ...props
 }: React.ComponentProps<typeof CheckboxPrimitive.Root> & {
   checkedClassName?: string;
@@ -22,6 +26,11 @@ function Checkbox({
   iconClassName?: string;
   size?: "sm" | "md";
   shape?: "square" | "round";
+  /**
+   * Widens the press area on web by this many px on every side, keeping the visible size
+   * (react-native-web ignores `hitSlop`). Native keeps its own `hitSlop`.
+   */
+  webHitSlop?: number;
 }) {
   return (
     <CheckboxPrimitive.Root
@@ -40,6 +49,7 @@ function Checkbox({
       hitSlop={DEFAULT_HIT_SLOP}
       {...props}
     >
+      <PressableHitSlopArea hitSlop={webHitSlop == null ? undefined : webHitSlop + BORDER_WIDTH} />
       <CheckboxPrimitive.Indicator
         className={cn(
           "h-full w-full items-center justify-center bg-primary",

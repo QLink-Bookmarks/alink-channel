@@ -1136,7 +1136,9 @@ function LinkPreviewImage({
   const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
   const frameClassName = cn(
     "shrink-0 overflow-hidden border border-border bg-muted",
-    mode === "wide" ? "h-[110px] w-[176px] rounded-xl" : "aspect-video w-full rounded-[14px]",
+    mode === "wide"
+      ? "h-[110px] w-[176px] rounded-xl"
+      : "aspect-video max-h-[240px] w-full rounded-[14px]",
   );
 
   if (isLoading) {

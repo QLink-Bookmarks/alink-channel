@@ -450,3 +450,24 @@ export const ResizeTiming: Story = {
     />
   ),
 };
+
+/** fullHeight: 열 때부터 가장 높은 위치(위 safe area + 8)까지 연다 */
+export const FullHeight: Story = {
+  name: "전체 높이",
+  args: {
+    title: "전체 높이 시트",
+  },
+  render: ({ open, title, dismissible }, context) => (
+    <Sheet
+      open={open}
+      title={title}
+      dismissible={dismissible}
+      fullHeight
+      accent={(context.globals.accent ?? "gray") as AccentName}
+      mode={(context.globals.mode ?? "light") as ThemeMode}
+      onOpenChange={() => {}}
+    >
+      <ShortContent />
+    </Sheet>
+  ),
+};

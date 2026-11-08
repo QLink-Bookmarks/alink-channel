@@ -90,6 +90,7 @@ function TodoSchedulePanel({
         <DateTimePickerButton
           mode={pickerMode}
           kind="time"
+          disabled={disabled}
           placeholder={TIME_PLACEHOLDER}
           className={cn(invalidTime && invalidFieldClassName)}
           value={time}
@@ -101,7 +102,11 @@ function TodoSchedulePanel({
 
   return (
     <View
-      className={cn("-mt-1 gap-3 rounded-[10px] p-3", hostClassName[host])}
+      className={cn(
+        "-mt-1 gap-3 rounded-[10px] p-3",
+        hostClassName[host],
+        disabled && "opacity-50",
+      )}
       pointerEvents={disabled ? "none" : "auto"}
       testID="todo-schedule-panel"
     >
@@ -109,6 +114,7 @@ function TodoSchedulePanel({
         accessibilityLabel="알림"
         value={mode}
         block
+        disabled={disabled}
         variant="track"
         labelClassName="text-[13px] font-semibold"
         options={modeOptions}
@@ -123,6 +129,7 @@ function TodoSchedulePanel({
               <DateTimePickerButton
                 mode={pickerMode}
                 kind="date"
+                disabled={disabled}
                 placeholder={DATE_PLACEHOLDER}
                 className={cn(invalidDate && invalidFieldClassName)}
                 value={date}
@@ -142,6 +149,7 @@ function TodoSchedulePanel({
               accessibilityLabel="요일"
               value={selectedWeekdays}
               block
+              disabled={disabled}
               selectionMode="multiple"
               variant="chips"
               labelClassName="text-[13px] font-semibold"
@@ -160,6 +168,7 @@ function TodoSchedulePanel({
                 <DateTimePickerButton
                   mode={pickerMode}
                   kind="date"
+                  disabled={disabled}
                   placeholder={DATE_PLACEHOLDER}
                   className={cn(invalidDate && invalidFieldClassName)}
                   value={date}

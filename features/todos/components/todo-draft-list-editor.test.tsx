@@ -231,7 +231,7 @@ describe("TodoDraftListEditor title", () => {
     renderList([draft({ id: "a" })]);
     fireEvent.changeText(screen.getByLabelText("액션 제목"), "예약");
     expect(handlers.onChangeTodoTitle).toHaveBeenCalledWith("a", "예약");
-    fireEvent.press(screen.getByLabelText("액션 삭제"));
+    fireEvent.press(screen.getByLabelText("액션 삭제, 렌터카 예약 확인"));
     expect(handlers.onRemoveTodo).toHaveBeenCalledWith("a");
   });
 });
@@ -254,7 +254,7 @@ describe("TodoDraftListEditor add button and done checkbox", () => {
 
   it("has no checkbox in the create form", () => {
     renderList([draft({ id: "a", done: true })]);
-    expect(screen.queryByLabelText("완료 취소")).toBeNull();
+    expect(screen.queryByLabelText(/^완료 (표시|취소)/)).toBeNull();
     expect(screen.getByTestId("todo-schedule-chip")).toBeOnTheScreen();
   });
 
@@ -267,13 +267,13 @@ describe("TodoDraftListEditor add button and done checkbox", () => {
       { check: true, openTodoId: "done" },
     );
 
-    expect(screen.getByLabelText("완료 표시")).toBeOnTheScreen();
-    expect(screen.getByLabelText("완료 취소")).toBeOnTheScreen();
+    expect(screen.getByLabelText(`완료 표시, ${"가".repeat(45)}`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`완료 취소, ${"가".repeat(45)}`)).toBeOnTheScreen();
     expect(screen.getAllByTestId("todo-schedule-chip")).toHaveLength(1);
     expect(screen.queryByTestId("todo-schedule-panel")).toBeNull();
     expect(screen.getAllByTestId("todo-editor-title-counter")).toHaveLength(1);
 
-    fireEvent.press(screen.getByLabelText("완료 취소"));
+    fireEvent.press(screen.getByLabelText(`완료 취소, ${"가".repeat(45)}`));
     expect(handlers.onChangeTodoDone).toHaveBeenCalledWith("done", false);
   });
 });

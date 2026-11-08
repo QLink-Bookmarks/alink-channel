@@ -275,8 +275,9 @@ test.describe("closing the new link form with input (#88)", () => {
       await expect(form(page)).toBeVisible();
       await page.mouse.click(10, 10);
     } else {
+      // The sheet opens up to 8px under the top (#89); the outside is the strip above it.
       await page.getByRole("button", { name: "Bottom sheet backdrop" }).click({
-        position: { x: 20, y: 20 },
+        position: { x: 20, y: 4 },
       });
     }
     await expect(confirmDialog(page)).toBeVisible();

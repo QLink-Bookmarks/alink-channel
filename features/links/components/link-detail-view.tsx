@@ -56,6 +56,7 @@ import { LinkDetailActionsSection } from "./link-detail-actions-section";
 import { LinkDetailAiSurface } from "./link-detail-ai-surface";
 import { LinkDetailHead } from "./link-detail-head";
 import { LinkDetailMyNotes, type LinkFieldsUpdate } from "./link-detail-my-notes";
+import { FOCUS_RING_CLASS_NAME } from "./link-detail-parts";
 import { LinkDetailToolbar } from "./link-detail-toolbar";
 import { UnsavedChangesDialog } from "./unsaved-changes-dialog";
 
@@ -177,7 +178,10 @@ function DeleteLinkButton({ onPress }: { onPress: () => void }) {
     <Pressable
       accessibilityLabel="링크 삭제"
       accessibilityRole="button"
-      className="h-9 flex-row items-center gap-1.5 self-start rounded-[10px] px-2 active:bg-destructive/10 web:transition-colors web:hover:bg-destructive/10"
+      className={cn(
+        "-ml-2 h-9 flex-row items-center gap-1.5 self-start rounded-[10px] px-2 active:bg-destructive/10 web:transition-colors web:hover:bg-destructive/10",
+        FOCUS_RING_CLASS_NAME,
+      )}
       hitSlop={DELETE_HIT_SLOP}
       testID="link-detail-delete"
       onPress={onPress}

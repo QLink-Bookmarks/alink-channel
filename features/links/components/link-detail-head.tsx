@@ -9,7 +9,7 @@ import { openLinkUrl } from "@/features/links/lib/open-link-url";
 import type { LinkDetail } from "@/features/links/types";
 import { cn } from "@/lib/utils";
 
-import { HoverLabel } from "./link-detail-parts";
+import { FOCUS_RING_CLASS_NAME, HoverLabel } from "./link-detail-parts";
 import { LinkThumbnail } from "./link-thumbnail/link-thumbnail";
 
 import { ExternalLink } from "lucide-react-native/icons";
@@ -53,6 +53,7 @@ function LinkDetailHeadBase({
           className={cn(
             "overflow-hidden rounded-[14px] border border-border-soft",
             "web:transition-colors web:hover:border-primary",
+            FOCUS_RING_CLASS_NAME,
           )}
           testID="link-detail-image"
           onPress={handleOpenOriginal}
@@ -73,10 +74,12 @@ function LinkDetailHeadBase({
 
       <View className="gap-1.5">
         <Text
+          aria-level={1}
           className={cn(
-            "font-bold leading-snug text-foreground",
-            mode === "panel" ? "text-xl" : "text-lg",
+            "font-bold text-foreground",
+            mode === "panel" ? "text-2xl leading-[27px]" : "text-xl leading-[24.3px]",
           )}
+          role="heading"
           testID="link-detail-title"
         >
           {title}
@@ -88,7 +91,10 @@ function LinkDetailHeadBase({
           <Pressable
             accessibilityLabel={`원본 열기, ${domain}`}
             accessibilityRole="link"
-            className="group min-w-0 shrink flex-row items-center gap-1.5"
+            className={cn(
+              "group min-w-0 shrink flex-row items-center gap-1.5 rounded-sm",
+              FOCUS_RING_CLASS_NAME,
+            )}
             hitSlop={SOURCE_HIT_SLOP}
             testID="link-detail-source"
             onPress={handleOpenOriginal}

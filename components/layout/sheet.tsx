@@ -336,6 +336,8 @@ type SheetProps = {
   fitContent?: boolean;
   /** fitContent=true일 때 시트가 커질 수 있는 최대 높이(px). 콘텐츠가 더 길면 내부에서 스크롤된다. */
   maxDynamicContentSize?: number;
+  /** true면 열 때부터 가장 높은 위치(위 safe area + 8)까지 연다. fitContent·defaultSize·maxSize는 무시된다. */
+  fullHeight?: boolean;
   accent?: AccentName;
   mode?: ThemeMode;
   backgroundStyle?: StyleProp<ViewStyle>;
@@ -377,6 +379,7 @@ function Sheet({
   maxSize = "80%",
   fitContent = false,
   maxDynamicContentSize = 700,
+  fullHeight = false,
   accent,
   mode,
   backgroundStyle,
@@ -390,15 +393,15 @@ function Sheet({
 }: SheetProps) {
   const [footerHeight, setFooterHeight] = React.useState(0);
   const [hasSlotFooter, setHasSlotFooter] = React.useState(false);
-  const hostScrollLockRef = useSheetHostScrollLock();
+  const hostScrollLock = useSheetHostScrollLock();
   const scrollViewRef = React.useRef<BottomSheetScrollViewMethods>(null);
   const bodyRef = React.useRef<View | null>(null);
   const contentRef = React.useCallback(
     (node: View | null) => {
       bodyRef.current = node;
-      hostScrollLockRef?.(node);
+      hostScrollLock.ref?.(node);
     },
-    [hostScrollLockRef],
+    [hostScrollLock],
   );
   const sheetScroll = React.useMemo<SheetScroll>(
     () => ({
@@ -427,10 +430,11 @@ function Sheet({
   const storeAccent = useDisplaySettings((state) => state.display.accent);
   const resolvedMode = mode ?? storeTheme;
   const resolvedAccent = accent ?? storeAccent;
-  const safeTopInset = Math.max(insets.top, 12);
+  const isContentSized = fitContent && !fullHeight;
+  const safeTopInset = fullHeight ? insets.top + 8 : Math.max(insets.top, 12);
   const snapPoints = React.useMemo(
-    () => (fitContent ? undefined : [defaultSize, maxSize]),
-    [fitContent, defaultSize, maxSize],
+    () => (fullHeight ? ["100%"] : fitContent ? undefined : [defaultSize, maxSize]),
+    [fullHeight, fitContent, defaultSize, maxSize],
   );
 
   const wasOpenRef = React.useRef(false);
@@ -543,6 +547,10 @@ function Sheet({
   const handleChange = React.useCallback(
     (index: number) => {
       if (index >= 0) {
+        // Only the stop that ends the opening slide; later resizes keep what the browser scrolled.
+        if (!hasShownRef.current) {
+          hostScrollLock.settle?.();
+        }
         hasShownRef.current = true;
         closeReportedRef.current = false;
         if (isDismissPendingRef.current) {
@@ -553,7 +561,7 @@ function Sheet({
         reportUserClose();
       }
     },
-    [dismissSheet, reportUserClose],
+    [dismissSheet, hostScrollLock, reportUserClose],
   );
   // A drag-down starts closing on its own; a close request that says no sends it back up
   // before the close finishes. Closes this sheet asked for itself are not asked again.
@@ -709,8 +717,8 @@ function Sheet({
       ref={sheetRef}
       snapPoints={snapPoints}
       topInset={safeTopInset}
-      enableDynamicSizing={fitContent}
-      maxDynamicContentSize={fitContent ? maxDynamicContentSize : undefined}
+      enableDynamicSizing={isContentSized}
+      maxDynamicContentSize={isContentSized ? maxDynamicContentSize : undefined}
       enableContentPanningGesture={false}
       enablePanDownToClose={dismissible}
       stackBehavior={stackBehavior}

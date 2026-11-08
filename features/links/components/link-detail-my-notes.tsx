@@ -10,8 +10,14 @@ import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
 import { formatTagLabel } from "@/features/links/lib/format-tag-label";
 import { reportError } from "@/lib/error-reporting";
+import { cn } from "@/lib/utils";
 
-import { DetailRow, DetailRowAddButton, DetailRowEditButton } from "./link-detail-parts";
+import {
+  DetailRow,
+  DetailRowAddButton,
+  DetailRowEditButton,
+  FOCUS_RING_CLASS_NAME,
+} from "./link-detail-parts";
 
 import { Check, X } from "lucide-react-native/icons";
 
@@ -55,7 +61,10 @@ function TagBadge({
         <Pressable
           accessibilityLabel={`${formatTagLabel(tag)} 태그 삭제`}
           accessibilityRole="button"
-          className="absolute -right-2 -top-2 size-5 items-center justify-center rounded-full bg-foreground"
+          className={cn(
+            "absolute -right-2 -top-2 size-5 items-center justify-center rounded-full bg-foreground",
+            FOCUS_RING_CLASS_NAME,
+          )}
           hitSlop={6}
           onPress={() => onRemove(tag)}
         >
@@ -350,8 +359,9 @@ function LinkDetailMyNotes({
       testID="link-detail-my-notes"
     >
       <Text
-        accessibilityRole="header"
+        aria-level={2}
         className="mb-1 text-sm font-bold text-foreground"
+        role="heading"
       >
         내 정리
       </Text>

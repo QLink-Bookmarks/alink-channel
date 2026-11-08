@@ -139,3 +139,21 @@ export const States: Story = {
     </View>
   ),
 };
+
+export const WebHitSlop: Story = {
+  name: "웹 누르는 영역 넓힘",
+  render: () => (
+    <View className="flex-row items-center gap-3 p-4">
+      <Checkbox
+        accessibilityLabel="완료 표시, 렌터카 예약 확인"
+        checked={false}
+        shape="round"
+        webHitSlop={12}
+        onCheckedChange={() => {}}
+      />
+      <Text className="text-sm text-muted-foreground">
+        웹에서 보이는 16px 둘레 12px까지(40×40) 눌러도 바뀐다.
+      </Text>
+    </View>
+  ),
+};

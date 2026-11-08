@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Platform, type StyleProp, TouchableOpacity, View, type ViewStyle } from "react-native";
+import { Platform, Pressable, type StyleProp, View, type ViewStyle } from "react-native";
 
 import { Text } from "@/components/ui/text";
 import { type ThemeTokens, getThemeTokens } from "@/lib/theme";
@@ -23,6 +23,8 @@ type SegmentedControlProps = React.ComponentProps<typeof View> & {
   block?: boolean;
   size?: "md" | "sm";
   labelClassName?: string;
+  /** Locks every option (e.g. while saving) without dimming them; the caller dims the area. */
+  disabled?: boolean;
   onValueChange?: (value: string | string[]) => void;
 };
 
@@ -74,6 +76,7 @@ function SegmentedControl({
   size = "md",
   className,
   labelClassName,
+  disabled = false,
   onValueChange,
   ...props
 }: SegmentedControlProps) {
@@ -102,6 +105,7 @@ function SegmentedControl({
 
   return (
     <View
+      role={selectionMode === "single" ? "radiogroup" : "group"}
       className={cn(
         "flex-row gap-1 rounded-2xl border border-border bg-surface-elevated p-1",
         isChipVariant && "border-transparent bg-transparent p-0",
@@ -117,9 +121,11 @@ function SegmentedControl({
           key={option.value}
           block={block}
           hitSlop={touchSlop.item}
+          locked={disabled}
           isChipVariant={isChipVariant}
           option={option}
           selected={selectedValues.includes(option.value)}
+          selectionMode={selectionMode}
           labelClassName={labelClassName}
           size={size}
           tokens={tokens}
@@ -134,27 +140,19 @@ function SegmentedControl({
 type SegmentedItemProps = {
   option: SegmentedOption;
   selected: boolean;
+  selectionMode: SegmentedSelectionMode;
   variant: SegmentedVariant;
   isChipVariant: boolean;
   block?: boolean;
   hitSlop?: { top: number; bottom: number };
+  locked: boolean;
   size: "md" | "sm";
   labelClassName?: string;
   tokens: ThemeTokens;
   onSelect: (value: string) => void;
 };
 
-/**
- * Each item is a button that screen readers announce with its selected state: `aria-pressed`
- * on web (react-native-web renders a `<button>`), the selected trait on iOS. Native
- * `TouchableOpacity` forwards only `accessibilityRole`, not `role`.
- */
-function getItemAccessibility(selected: boolean) {
-  if (process.env.EXPO_OS === "web") {
-    return { role: "button" as const, "aria-pressed": selected };
-  }
-  return { accessibilityRole: "button" as const, "aria-selected": selected };
-}
+const TRACK_SELECTED_SHADOW = "0 1px 2px rgba(0, 0, 0, 0.12)";
 
 function buildChipStyle(
   variant: SegmentedVariant,
@@ -204,7 +202,8 @@ function buildChipStyle(
 
   if (selected && variant === "track") {
     base.backgroundColor = tokens.card;
-    base.boxShadow = "0 1px 2px rgba(0, 0, 0, 0.12)";
+    // Web draws this shadow from a class instead, so the focus ring can stack on it.
+    if (process.env.EXPO_OS !== "web") base.boxShadow = TRACK_SELECTED_SHADOW;
   } else if (selected) {
     base.backgroundColor = tokens.primary;
     if (isChipVariant) {
@@ -222,18 +221,38 @@ function buildChipStyle(
 function SegmentedItemBase({
   option,
   selected,
+  selectionMode,
   variant,
   isChipVariant,
   block,
   hitSlop,
+  locked,
   size,
   labelClassName,
   tokens,
   onSelect,
 }: SegmentedItemProps) {
+  const isDisabled = locked || option.disabled === true;
   const handlePress = React.useCallback(() => {
     onSelect(option.value);
   }, [onSelect, option.value]);
+
+  // react-native-web presses on Space only for role button; a radio or checkbox needs it too.
+  const spaceKeyProps = React.useMemo(
+    () =>
+      process.env.EXPO_OS === "web" && !isDisabled
+        ? ({
+            onKeyDown: (event: { key: string; repeat?: boolean; preventDefault: () => void }) => {
+              if (event.key === " " || event.key === "Spacebar") {
+                event.preventDefault();
+                if (event.repeat) return;
+                handlePress();
+              }
+            },
+          } as Record<string, unknown>)
+        : {},
+    [handlePress, isDisabled],
+  );
 
   const chipStyle = React.useMemo(
     () => buildChipStyle(variant, selected, isChipVariant, block, size, option.disabled, tokens),
@@ -241,16 +260,19 @@ function SegmentedItemBase({
   );
 
   return (
-    <TouchableOpacity
-      {...getItemAccessibility(selected)}
-      activeOpacity={0.7}
-      className={Platform.select({
-        web: "outline-none focus-visible:ring-[3px] focus-visible:ring-ring",
-      })}
-      disabled={option.disabled}
+    <Pressable
+      accessibilityRole={selectionMode === "single" ? "radio" : "checkbox"}
+      aria-checked={selected}
+      className={cn(
+        !isDisabled && "active:opacity-70",
+        selected && variant === "track" && "web:shadow-[0_1px_2px_rgba(0,0,0,0.12)]",
+        Platform.select({ web: "outline-none focus-visible:ring-[3px] focus-visible:ring-ring" }),
+      )}
+      disabled={isDisabled}
       hitSlop={hitSlop}
       style={chipStyle}
       onPress={handlePress}
+      {...spaceKeyProps}
     >
       <Text
         className={cn("text-sm font-medium", labelClassName)}
@@ -264,7 +286,7 @@ function SegmentedItemBase({
       >
         {option.label}
       </Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 

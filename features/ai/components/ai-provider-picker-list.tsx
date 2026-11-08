@@ -1,7 +1,6 @@
 import { Pressable, View } from "react-native";
 
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
@@ -76,12 +75,17 @@ function AiProviderPickerList({
 
   if (providers.length === 0) {
     return (
-      <EmptyState
-        className={cn("py-7", className)}
-        description={NO_PROVIDERS_DESCRIPTION}
+      <View
+        className={cn("items-center gap-1 px-4 py-6", className)}
         testID="ai-provider-picker-empty"
-        title={NO_PROVIDERS_TITLE}
-      />
+      >
+        <Text className="text-center text-[13px] font-semibold text-foreground">
+          {NO_PROVIDERS_TITLE}
+        </Text>
+        <Text className="text-center text-sm font-normal text-muted-foreground">
+          {NO_PROVIDERS_DESCRIPTION}
+        </Text>
+      </View>
     );
   }
 
