@@ -163,8 +163,7 @@ const config: ExpoConfig = {
     [
       "expo-share-extension",
       {
-        height: 392,
-        backgroundColor: { red: 0, green: 0, blue: 0, alpha: 0 },
+        height: 380,
         excludedPackages: [
           "expo-dev-client",
           "expo-splash-screen",
