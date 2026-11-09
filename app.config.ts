@@ -60,7 +60,7 @@ const config: ExpoConfig = {
   slug: "qlink-channel",
   owner: "qlink1004",
   scheme: "qlinkchannel",
-  version: "1.0.0",
+  version: "2.0.0",
   description: "AI가 도와주는 북마크 아카이브",
   orientation: "portrait",
   icon: "./assets/app_icon.png",
