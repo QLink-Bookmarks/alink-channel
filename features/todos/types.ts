@@ -1,3 +1,5 @@
+import type { SortDirection } from "@/lib/list-sort";
+
 type RepeatDay = "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT" | "SUN";
 
 type TodoRequest = {
@@ -14,18 +16,51 @@ type TodoListItem = {
   id: number;
   title: string;
   reminderAt?: string | null;
+  repeatUntil?: string | null;
+  repeatDays?: RepeatDay[] | null;
+  repeatTime?: string | null;
   completedAt?: string | null;
+  // The server's state of the action; a repeat uses its next reminder.
+  status: TodoStatus;
+  createdAt: string;
   linkId: number;
   linkUrl: string;
   linkTitle: string;
+  linkThumbnailUrl: string | null;
+  linkFaviconUrl: string | null;
 };
 
-type GetTodosParams = {
-  order?: string;
+type TodoStatus = "ACTIVE" | "OVERDUE" | "COMPLETED";
+
+type TodoOrderKey = "reminder_at" | "created_at" | "completed_at";
+
+type TodoListSortParams = { orderKey?: TodoOrderKey; order?: SortDirection };
+
+type GetTodosParams = TodoListSortParams & {
+  // Never sent with `isCompleted` / `reminderAt`.
+  status?: "active" | "overdue" | "completed";
   cursor?: string;
   size?: number;
   isCompleted?: boolean;
   reminderAt?: "overdue" | "upcoming";
+};
+
+type TodoCounts = {
+  all: number;
+  active: number;
+  overdue: number;
+  completed: number;
+};
+
+type GetTodoCountsResponse = {
+  success: boolean;
+  data: TodoCounts;
+  error: {
+    code: string;
+    message: string;
+    cause?: string | null;
+    causeMessage?: string | null;
+  } | null;
 };
 
 type GetTodosResponse = {
@@ -110,10 +145,14 @@ export type {
   CreateTodoRequest,
   CreateTodoResponse,
   DeleteTodoResponse,
+  GetTodoCountsResponse,
   GetTodosParams,
   GetTodosResponse,
+  TodoCounts,
   TodoListItem,
+  TodoOrderKey,
   TodoRequest,
+  TodoStatus,
   UpdateTodoRequest,
   UpdateTodoResponse,
 };

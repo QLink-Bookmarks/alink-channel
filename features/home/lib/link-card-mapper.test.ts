@@ -1,0 +1,196 @@
+import type { LinkListItem } from "@/features/links/types";
+
+import {
+  formatLinkStatus,
+  formatSummaryModelLabel,
+  getDomainFromUrl,
+  mapLinkListItem,
+  mapTodoCounts,
+} from "./link-card-mapper";
+
+describe("mapTodoCounts", () => {
+  it("returns null for a link without any todo, so the card shows nothing", () => {
+    expect(mapTodoCounts({ open: 0, dueSoon: 0, overdue: 0, completed: 0 })).toBeNull();
+  });
+
+  it("returns null when the counts are missing", () => {
+    expect(mapTodoCounts(undefined)).toBeNull();
+    expect(mapTodoCounts(null)).toBeNull();
+  });
+
+  it("splits open todos into default (open − dueSoon − overdue), due soon and overdue", () => {
+    expect(mapTodoCounts({ open: 5, dueSoon: 1, overdue: 2, completed: 3 })).toEqual({
+      normal: 2,
+      dueSoon: 1,
+      overdue: 2,
+      allDone: false,
+      label: "액션 2개, 임박 1개, 기한 지남 2개",
+    });
+  });
+
+  it("leaves zero kinds out of the sentence", () => {
+    expect(mapTodoCounts({ open: 1, dueSoon: 1, overdue: 0, completed: 0 })?.label).toBe(
+      "임박 1개",
+    );
+    expect(mapTodoCounts({ open: 2, dueSoon: 0, overdue: 1, completed: 4 })?.label).toBe(
+      "액션 1개, 기한 지남 1개",
+    );
+    expect(mapTodoCounts({ open: 3, dueSoon: 0, overdue: 0, completed: 0 })?.label).toBe(
+      "액션 3개",
+    );
+  });
+
+  it("marks a link whose todos are all completed", () => {
+    expect(mapTodoCounts({ open: 0, dueSoon: 0, overdue: 0, completed: 2 })).toEqual({
+      normal: 0,
+      dueSoon: 0,
+      overdue: 0,
+      allDone: true,
+      label: "액션 모두 완료",
+    });
+  });
+
+  it("never shows a negative default count when the server counts disagree", () => {
+    const summary = mapTodoCounts({ open: 2, dueSoon: 2, overdue: 2, completed: 0 });
+    expect(summary).toMatchObject({ normal: 0, dueSoon: 2, overdue: 0 });
+    expect(summary?.label).toBe("임박 2개");
+  });
+});
+
+describe("getDomainFromUrl", () => {
+  it("drops www. and keeps the host", () => {
+    expect(getDomainFromUrl("https://www.youtube.com/watch?v=1")).toBe("youtube.com");
+    expect(getDomainFromUrl("https://m.blog.naver.com/a")).toBe("m.blog.naver.com");
+  });
+
+  it("returns the input when it is not a URL", () => {
+    expect(getDomainFromUrl("not a url")).toBe("not a url");
+  });
+});
+
+describe("formatLinkStatus", () => {
+  it("shows generating and failed states only", () => {
+    expect(formatLinkStatus("G", null)).toEqual({ label: "AI 생성 중...", variant: "progress" });
+    expect(formatLinkStatus("F", "gpt-4o-mini")).toEqual({
+      label: "gpt-4o-mini 생성 실패",
+      variant: "error",
+    });
+    expect(formatLinkStatus("F", null)).toEqual({ label: "AI 생성 실패", variant: "error" });
+    expect(formatLinkStatus("A", "gpt-4o-mini")).toEqual({ label: null, variant: null });
+    expect(formatLinkStatus(undefined, undefined)).toEqual({ label: null, variant: null });
+  });
+});
+
+describe("formatSummaryModelLabel", () => {
+  it("names the model of a completed summary", () => {
+    expect(formatSummaryModelLabel("A", "gpt-4o-mini")).toBe("요약 모델 - gpt-4o-mini");
+    expect(formatSummaryModelLabel("G", "gpt-4o-mini")).toBeNull();
+    expect(formatSummaryModelLabel("A", null)).toBeNull();
+  });
+});
+
+describe("mapLinkListItem", () => {
+  const item: LinkListItem = {
+    id: 7,
+    url: "https://www.notion.so/team/onboarding",
+    title: "온보딩 문서",
+    thumbnailUrl: null,
+    faviconUrl: "https://cdn.example/dev-favicon-notion.png",
+    isVideo: false,
+    tags: ["업무"],
+    createdAt: "2026-10-29T10:00:00.000Z",
+    todoCounts: { open: 1, dueSoon: 0, overdue: 1, completed: 0 },
+    status: "G",
+    workModel: null,
+    isFavorite: true,
+  };
+
+  it("maps the card fields from the list item", () => {
+    expect(mapLinkListItem(item)).toEqual({
+      id: 7,
+      url: item.url,
+      domain: "notion.so",
+      title: "온보딩 문서",
+      tags: ["업무"],
+      thumbnailUrl: null,
+      faviconUrl: "https://cdn.example/dev-favicon-notion.png",
+      isVideo: false,
+      todoCounts: { normal: 0, dueSoon: 0, overdue: 1, allDone: false, label: "기한 지남 1개" },
+      statusLabel: "AI 생성 중...",
+      statusVariant: "progress",
+      excerpt: null,
+      snippet: null,
+    });
+  });
+
+  it("treats missing preview fields as no image and not a video", () => {
+    const legacy = {
+      ...item,
+      thumbnailUrl: undefined,
+      faviconUrl: undefined,
+      isVideo: undefined,
+    } as unknown as LinkListItem;
+    expect(mapLinkListItem(legacy)).toMatchObject({
+      thumbnailUrl: null,
+      faviconUrl: null,
+      isVideo: false,
+    });
+  });
+
+  const snippet = {
+    text: "…공항에서 성산일출봉으로 이동할 때…",
+    highlights: [{ start: 6, end: 11 }],
+  };
+
+  it("passes the excerpt for the card's one line", () => {
+    expect(mapLinkListItem({ ...item, contentExcerpt: "본문 앞부분…" }).excerpt).toBe(
+      "본문 앞부분…",
+    );
+    expect(mapLinkListItem({ ...item, contentExcerpt: null }).excerpt).toBeNull();
+  });
+
+  it("hides the excerpt and the context when the server has not shipped the fields", () => {
+    expect(mapLinkListItem(item)).toMatchObject({ excerpt: null, snippet: null });
+  });
+
+  it("shows the context for a body-only match", () => {
+    const mapped = mapLinkListItem({
+      ...item,
+      contentExcerpt: "본문 앞부분…",
+      matchedFields: ["CONTENT"],
+      contentSnippet: snippet,
+    });
+    expect(mapped.snippet).toEqual(snippet);
+    expect(mapped.excerpt).toBe("본문 앞부분…");
+  });
+
+  it("keeps the context of a memo and body match (it sits in the metadata group)", () => {
+    expect(
+      mapLinkListItem({ ...item, matchedFields: ["MEMO", "CONTENT"], contentSnippet: snippet })
+        .snippet,
+    ).toEqual(snippet);
+  });
+
+  it("drops the context when the title matched too", () => {
+    expect(
+      mapLinkListItem({ ...item, matchedFields: ["TITLE", "CONTENT"], contentSnippet: snippet })
+        .snippet,
+    ).toBeNull();
+  });
+
+  it("has no context without a body match or without a snippet", () => {
+    expect(
+      mapLinkListItem({ ...item, matchedFields: ["TITLE"], contentSnippet: snippet }).snippet,
+    ).toBeNull();
+    expect(
+      mapLinkListItem({ ...item, matchedFields: ["CONTENT"], contentSnippet: null }).snippet,
+    ).toBeNull();
+    expect(
+      mapLinkListItem({
+        ...item,
+        matchedFields: ["CONTENT"],
+        contentSnippet: { text: "", highlights: [] },
+      }).snippet,
+    ).toBeNull();
+  });
+});

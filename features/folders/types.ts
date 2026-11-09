@@ -1,4 +1,5 @@
 import type { ApiEnvelope } from "@/features/links/types";
+import type { SortDirection } from "@/lib/list-sort";
 
 type Folder = {
   id: number;
@@ -9,6 +10,16 @@ type Folder = {
   isShared: boolean;
   shareCounts: number;
   linkCounts: number;
+  /** Links in this folder that the caller put in. */
+  myLinkCounts: number;
+};
+
+type FolderListStatus = {
+  isInitialLoading: boolean;
+  isInitialError: boolean;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  isFetchNextPageError: boolean;
 };
 
 type FolderScrollResponse = {
@@ -38,11 +49,29 @@ type GetFolderMembersResponse = ApiEnvelope<GetFolderMembersResponseData>;
 
 type DeleteFolderMemberResponse = ApiEnvelope<null>;
 
-type FolderOrder = "latest" | "earliest" | "laxico";
+/**
+ * `DELETE /api/folders/{id}` query. Omitted `onDelete` detaches the links; `cascade` deletes
+ * them; `move` needs `targetFolderId`.
+ */
+type DeleteFolderParams =
+  | { onDelete?: undefined; targetFolderId?: undefined }
+  | { onDelete: "cascade"; targetFolderId?: undefined }
+  | { onDelete: "move"; targetFolderId: number };
+
+type DeleteFolderResponse = ApiEnvelope<null>;
+
+type TransferFolderOwnershipRequest = {
+  ownerId: number;
+};
+
+type TransferFolderOwnershipResponse = ApiEnvelope<null>;
+
+type FolderOrderKey = "created_at";
 
 type GetFoldersParams = {
   query?: string;
-  order?: FolderOrder;
+  orderKey?: FolderOrderKey;
+  order?: SortDirection;
   cursor?: string;
   size?: number;
 };
@@ -83,14 +112,19 @@ export type {
   CreateFolderRequest,
   CreateFolderResponse,
   DeleteFolderMemberResponse,
+  DeleteFolderParams,
+  DeleteFolderResponse,
   Folder,
+  FolderListStatus,
   FolderMember,
-  FolderOrder,
+  FolderOrderKey,
   FolderScrollResponse,
   GetFolderMembersResponse,
   GetFolderMembersResponseData,
   GetFoldersParams,
   GetFoldersResponse,
+  TransferFolderOwnershipRequest,
+  TransferFolderOwnershipResponse,
   UpdateFolderRequest,
   UpdateFolderResponse,
 };

@@ -110,7 +110,7 @@ function AgreementsScreen() {
               <View className="gap-3">
                 <Text className="text-2xl font-bold text-foreground">알림 설정</Text>
                 <Text className="text-[15px] leading-7 text-muted-foreground">
-                  할 일 알림을 받으시려면 기기 알림을 활성화해주세요. 지금 활성화하지 않더라도 설정
+                  액션 알림을 받으시려면 기기 알림을 활성화해주세요. 지금 활성화하지 않더라도 설정
                   페이지에서 활성화할 수 있어요.
                 </Text>
               </View>

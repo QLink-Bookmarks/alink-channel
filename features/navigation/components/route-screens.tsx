@@ -1,16 +1,20 @@
 import { ScrollView, View } from "react-native";
 
-import { PageHeader } from "@/components/layout/page-header";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Text } from "@/components/ui/text";
 import { isAdminRole } from "@/features/account/lib/roles";
 import { useMyProfileQuery } from "@/features/account/queries";
 import { FolderHeaderActions } from "@/features/folders/components/folder-header-actions";
 import { MobileFoldersScreen } from "@/features/folders/components/mobile-folders-screen";
-import { useFoldersQuery } from "@/features/folders/queries";
+import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
+import { useFolderQuery } from "@/features/folders/queries";
 import { LinkListView } from "@/features/home/components/link-list-view";
 import { MobileHomeScreen } from "@/features/home/components/mobile-home-screen";
 import { WideHomeScreen } from "@/features/home/components/wide-home-screen";
+import { ImportDetailScreen } from "@/features/imports/components/history/import-detail-screen";
+import { ImportHistoryScreen } from "@/features/imports/components/history/import-history-screen";
 import { LinkDetailScreen } from "@/features/links/components/link-detail-screen";
 import { NotificationInboxScreen } from "@/features/notifications/components/notification-inbox-screen";
 import { PostDetailScreen } from "@/features/posts/components/post-detail-screen";
@@ -23,39 +27,6 @@ import { readParamValue } from "../routes";
 
 import { type Href, Redirect, useLocalSearchParams } from "expo-router";
 import { BookCopyIcon } from "lucide-react-native";
-
-function WidePlaceholderScreen({
-  title,
-  emoji,
-  meta,
-  description,
-}: {
-  title: string;
-  emoji: string;
-  meta: string;
-  description: string;
-}) {
-  return (
-    <ScrollView
-      className="flex-1"
-      contentInsetAdjustmentBehavior="automatic"
-      showsVerticalScrollIndicator={false}
-    >
-      <PageHeader
-        title={title}
-        emoji={emoji}
-        meta={meta}
-      />
-      <View className="px-6 pb-6">
-        <EmptyState
-          emoji="🛠"
-          title="준비 중"
-          description={description}
-        />
-      </View>
-    </ScrollView>
-  );
-}
 
 function HomeRouteScreen() {
   const { isWideView } = useShellRouteState();
@@ -82,61 +53,106 @@ function FolderDetailRouteScreen() {
   const params = useLocalSearchParams<{ id?: string | string[]; linkId?: string | string[] }>();
   const folderId = readParamValue(params.id);
   const linkIdParam = readParamValue(params.linkId);
-  const foldersQuery = useFoldersQuery({ size: 15 });
   const folderIdNumber = folderId ? Number(folderId) : Number.NaN;
-  const isUncategorizedFolder = folderIdNumber === 0;
+  const isUncategorizedFolder = folderIdNumber === UNCATEGORIZED_FOLDER_ID;
+  const folderQuery = useFolderQuery(folderIdNumber, { enabled: !isUncategorizedFolder });
 
   if (isUncategorizedFolder) {
     return (
       <LinkListView
-        folderId={0}
+        folderId={UNCATEGORIZED_FOLDER_ID}
         title="미분류"
         emoji="🗂️"
-        basePath="/folders/0"
+        basePath={`/folders/${UNCATEGORIZED_FOLDER_ID}`}
         activeLinkId={linkIdParam ? Number(linkIdParam) : undefined}
       />
     );
   }
 
-  if (foldersQuery.isLoading) {
+  const folder = folderQuery.folder;
+
+  if (folder) {
     return (
-      <ActivityIndicator
-        size="large"
-        className="flex-1 py-16"
+      <LinkListView
+        folderId={folder.id}
+        title={folder.name}
+        emoji={folder.emoji ?? undefined}
+        meta={`${folder.linkCounts}개 링크`}
+        basePath={`/folders/${folder.id}`}
+        headerActions={
+          <FolderHeaderActions
+            folder={folder}
+            mode="wide"
+          />
+        }
+        activeLinkId={linkIdParam ? Number(linkIdParam) : undefined}
       />
     );
   }
 
-  const folders = foldersQuery.data?.contents ?? [];
-  // TODO: Replace this list lookup with useFolderQuery(folderId) when the server exposes GET /api/folders/{id}.
-  const folder = folders.find((entry) => entry.id === folderIdNumber);
-
-  if (!folder) {
+  if (folderQuery.isError) {
     return (
-      <WidePlaceholderScreen
-        title="폴더를 찾을 수 없어요"
+      <FolderNoticeScreen
+        emoji="⚠️"
+        title="폴더를 불러오지 못했어요"
+        description="네트워크 연결을 확인한 뒤 다시 시도해주세요."
+        onRetry={folderQuery.retry}
+      />
+    );
+  }
+
+  if (folderQuery.isNotFound) {
+    return (
+      <FolderNoticeScreen
         emoji="📁"
-        meta={folderId ?? ""}
+        title="폴더를 찾을 수 없어요"
         description="삭제된 폴더이거나 접근 권한이 없는 폴더예요."
       />
     );
   }
 
   return (
-    <LinkListView
-      folderId={folder.id}
-      title={folder.name}
-      emoji={folder.emoji ?? undefined}
-      meta={`${folder.linkCounts}개 링크`}
-      basePath={`/folders/${folder.id}`}
-      headerActions={
-        <FolderHeaderActions
-          folder={folder}
-          mode="wide"
-        />
-      }
-      activeLinkId={linkIdParam ? Number(linkIdParam) : undefined}
+    <ActivityIndicator
+      size="large"
+      className="flex-1 py-16"
     />
+  );
+}
+
+function FolderNoticeScreen({
+  emoji,
+  title,
+  description,
+  onRetry,
+}: {
+  emoji: string;
+  title: string;
+  description: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <ScrollView
+      className="flex-1"
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerClassName="flex-grow justify-center"
+      showsVerticalScrollIndicator={false}
+    >
+      <EmptyState
+        emoji={emoji}
+        title={title}
+        description={description}
+        actions={
+          onRetry ? (
+            <Button
+              variant="outline"
+              onPress={onRetry}
+            >
+              <Text>다시 시도</Text>
+            </Button>
+          ) : undefined
+        }
+      />
+    </ScrollView>
   );
 }
 
@@ -188,6 +204,26 @@ function LinkDetailRouteScreen() {
 function SettingsRouteScreen() {
   const { isWideView } = useShellRouteState();
   return <SettingsScreen mode={isWideView ? "wide" : "mobile"} />;
+}
+
+function readImportId(value: string | undefined) {
+  return value && /^\d+$/.test(value) ? Number(value) : Number.NaN;
+}
+
+function ImportsRouteScreen() {
+  return <ImportHistoryScreen />;
+}
+
+function ImportDetailRouteScreen() {
+  const { isWideView } = useShellRouteState();
+  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const importId = readImportId(readParamValue(params.id));
+
+  if (isWideView) {
+    return <ImportHistoryScreen detailId={importId} />;
+  }
+
+  return <ImportDetailScreen importId={importId} />;
 }
 
 function AnnouncementsRouteScreen() {
@@ -293,6 +329,8 @@ export {
   FolderDetailRouteScreen,
   FoldersRouteScreen,
   HomeRouteScreen,
+  ImportDetailRouteScreen,
+  ImportsRouteScreen,
   LinkDetailRouteScreen,
   LinksRouteScreen,
   NotificationsRouteScreen,

@@ -5,7 +5,9 @@ import type {
   GetAiProviderModelsResponse,
 } from "@/features/ai/types";
 import type { Folder, GetFoldersResponse } from "@/features/folders/types";
+import type { NativeImageFile, UploadImageResponse } from "@/features/images/types";
 import type { CreateLinkRequest, CreateLinkResponse } from "@/features/links/types";
+import { REQUESTER_HEADERS } from "@/lib/requester-header";
 import { KEYCHAIN_OPTIONS } from "@/lib/session-storage";
 
 import { type AxiosRequestConfig, create, isAxiosError } from "axios";
@@ -37,7 +39,7 @@ async function saveTokens(tokens: Tokens): Promise<void> {
 
 const client = create({
   baseURL: process.env.EXPO_PUBLIC_API_BASE_URL,
-  headers: { Accept: "application/json" },
+  headers: { Accept: "application/json", ...REQUESTER_HEADERS },
 });
 
 function randomUuid(): string {
@@ -53,14 +55,6 @@ function isAuth401(error: unknown): boolean {
   if (!isAxiosError(error) || error.response?.status !== 401) return false;
   const data = error.response.data as { error?: { code?: string } } | undefined;
   return typeof data?.error?.code === "string" && data.error.code.startsWith("AUTH_401");
-}
-
-function extractErrorMessage(error: unknown): string {
-  if (isAxiosError(error)) {
-    const data = error.response?.data as { error?: { message?: string } } | undefined;
-    if (data?.error?.message) return data.error.message;
-  }
-  return "요청에 실패했어요. 잠시 후 다시 시도해주세요.";
 }
 
 async function refreshTokens(refreshToken: string | null): Promise<Tokens | null> {
@@ -130,14 +124,31 @@ async function fetchProviderModels(): Promise<AiProviderWithModels[]> {
   return res.data ?? [];
 }
 
+// Uploads a downloaded main image to the link preview storage and returns its URL.
+// RN's FormData takes the `{ uri, name, type }` descriptor; Content-Type is left to
+// the networking layer so it adds the multipart boundary.
+async function uploadSharedPreviewImage(file: NativeImageFile): Promise<string> {
+  const form = new FormData();
+  form.append("image", file as unknown as Blob);
+  const res = await authed<UploadImageResponse>({
+    method: "post",
+    url: "/api/images",
+    params: { purpose: "LINK_PREVIEW" },
+    data: form,
+  });
+  return res.data.url;
+}
+
 async function createSharedLink(input: {
   url: string;
   title: string;
   folderId: number | null;
+  thumbnailUrl: string | null;
 }): Promise<CreateLinkResponse> {
   const body: CreateLinkRequest = {
     url: input.url,
     title: input.title,
+    thumbnailUrl: input.thumbnailUrl,
     tags: [],
     sourceType: "INPUT",
     folderId: input.folderId,
@@ -153,9 +164,11 @@ async function requestSharedAiSummary(input: {
   userProviderId: number;
   modelId: number;
   generateTodo: boolean;
+  thumbnailUrl: string | null;
 }): Promise<AiSummaryResponse> {
   const body: AiSummaryRequest = {
     url: input.url,
+    thumbnailUrl: input.thumbnailUrl,
     title: input.title || null,
     folderId: input.folderId,
     userProviderId: input.userProviderId,
@@ -167,9 +180,9 @@ async function requestSharedAiSummary(input: {
 
 export {
   createSharedLink,
-  extractErrorMessage,
   fetchFolders,
   fetchProviderModels,
   hasAuth,
   requestSharedAiSummary,
+  uploadSharedPreviewImage,
 };

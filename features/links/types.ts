@@ -1,4 +1,6 @@
-type SourceType = "INPUT" | "QR";
+import type { SortDirection } from "@/lib/list-sort";
+
+type SourceType = "INPUT" | "QR" | "IMPORT" | "COPY";
 
 type LinkStatus = "G" | "A" | "F" | "C";
 
@@ -19,8 +21,11 @@ type CreateLinkRequest = {
   summary?: string;
   tags: string[];
   memo?: string;
-  thumbnailUrl?: string;
-  sourceType: SourceType;
+  // Only one of the two image fields carries a value (see `LinkPreview`).
+  thumbnailUrl?: string | null;
+  faviconUrl?: string | null;
+  isVideo?: boolean;
+  sourceType: Extract<SourceType, "INPUT" | "QR">;
   folderId?: number | null;
   todos: CreateLinkTodoRequest[];
 };
@@ -34,6 +39,11 @@ type UpdateLinkRequest = {
   // PUT is a full replace — omitting folderId makes the server reset the link to
   // uncategorized, so always send the link's current folder.
   folderId?: number | null;
+  // Same for the preview fields: omitting them clears the image (null) and the
+  // video flag (false), so always resend the values from the detail.
+  thumbnailUrl?: string | null;
+  faviconUrl?: string | null;
+  isVideo?: boolean;
   sourceType: SourceType;
 };
 
@@ -81,10 +91,38 @@ type LinkTodo = {
   repeatTime?: string | null;
 };
 
+/** Fields the server matched a search query on; for app-side decisions only, never shown. */
+type MatchedField = "TITLE" | "URL" | "TAGS" | "SUMMARY" | "MEMO" | "CONTENT";
+
+/** A highlighted range of `ContentSnippet.text`: UTF-16 indexes, `end` exclusive. */
+type HighlightRange = {
+  start: number;
+  end: number;
+};
+
+/** Short context around a body match (≤100 UTF-16 units, ellipses included). */
+type ContentSnippet = {
+  text: string;
+  highlights: HighlightRange[];
+};
+
+/**
+ * The page-body part of a link detail. `excerpt` is the server-cut excerpt (≤101 units,
+ * ending in "…") or null while collecting, after a failure or for a body too short.
+ * `isPending` only drives the silent re-check; it is never shown.
+ */
+type LinkDetailContent = {
+  excerpt: string | null;
+  isPending: boolean;
+};
+
 type LinkDetail = {
   id: number;
   url: string;
   title: string;
+  thumbnailUrl: string | null;
+  faviconUrl: string | null;
+  isVideo: boolean;
   summary?: string | null;
   tags: string[];
   memo?: string | null;
@@ -97,6 +135,8 @@ type LinkDetail = {
   workModel?: string | null;
   status?: LinkStatus | null;
   isFavorite: boolean;
+  /** null = no record (links saved before the feature); missing before the server ships it. */
+  content?: LinkDetailContent | null;
 };
 
 type ApiEnvelope<TData> = {
@@ -113,11 +153,14 @@ type ApiEnvelope<TData> = {
 type LinkDetailResponse = ApiEnvelope<LinkDetail>;
 type DeleteLinkResponse = ApiEnvelope<null>;
 
-type LinkListTodo = {
-  id: number;
-  title: string;
-  completedAt?: string | null;
-  reminderAt?: string | null;
+/**
+ * Todo counts of a link in the list response. `open` includes `dueSoon` and `overdue`.
+ */
+type LinkTodoCounts = {
+  open: number;
+  dueSoon: number;
+  overdue: number;
+  completed: number;
 };
 
 type LinkListItem = {
@@ -127,13 +170,21 @@ type LinkListItem = {
   folderEmoji?: string | null;
   url: string;
   title: string;
+  thumbnailUrl: string | null;
+  faviconUrl: string | null;
+  isVideo: boolean;
   tags: string[];
   createdAt: string;
-  todos: LinkListTodo[];
-  countMoreTodos: number;
+  todoCounts: LinkTodoCounts;
   workModel?: string | null;
   status?: LinkStatus | null;
   isFavorite: boolean;
+  /** Same excerpt as the detail; null when there is none. */
+  contentExcerpt?: string | null;
+  /** Empty without a search query. */
+  matchedFields?: MatchedField[];
+  /** Context around a body match; null without a query or a body match. */
+  contentSnippet?: ContentSnippet | null;
 };
 
 type LinkScrollResponse = {
@@ -145,16 +196,37 @@ type LinkScrollResponse = {
 
 type GetLinksResponse = ApiEnvelope<LinkScrollResponse>;
 
-type LinkOrder = "latest" | "earliest" | "laxico" | "similar";
+type LinkOrderKey = "created_at" | "title";
 
 type GetLinksParams = {
+  orderKey?: LinkOrderKey;
+  order?: SortDirection;
   query?: string;
   folderId?: number;
-  order?: LinkOrder;
   cursor?: string;
   size?: number;
   isFavorite?: boolean;
 };
+
+// A link preview holds at most one image: the stored main image (`thumbnailUrl`),
+// or, only when there is none, the stored favicon (`faviconUrl`). Both null means
+// the card falls back to the domain.
+type LinkPreviewImages =
+  | { thumbnailUrl: string; faviconUrl: null }
+  | { thumbnailUrl: null; faviconUrl: string | null };
+
+type LinkPreview = LinkPreviewImages & {
+  title: string | null;
+  isVideo: boolean;
+};
+
+type LinkPreviewResponse = ApiEnvelope<{
+  url: string;
+  title: string | null;
+  thumbnailUrl: string | null;
+  faviconUrl: string | null;
+  isVideo: boolean;
+}>;
 
 export type {
   ApiEnvelope,
@@ -162,20 +234,27 @@ export type {
   CopyLinkResponse,
   CreateLinkRequest,
   CreateLinkResponse,
+  ContentSnippet,
   CreateLinkTodoRequest,
   DeleteLinkResponse,
+  HighlightRange,
+  LinkPreview,
+  LinkPreviewImages,
+  LinkPreviewResponse,
   RepeatDay,
   GetLinksParams,
   GetLinksResponse,
   LinkDetail,
+  LinkDetailContent,
   LinkDetailResponse,
   LinkListItem,
   PatchLinkRequest,
-  LinkListTodo,
-  LinkOrder,
+  LinkTodoCounts,
+  LinkOrderKey,
   LinkScrollResponse,
   LinkStatus,
   LinkTodo,
+  MatchedField,
   SetLinkFavoriteRequest,
   SetLinkFavoriteResponse,
   SourceType,

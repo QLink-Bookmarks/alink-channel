@@ -1,3 +1,4 @@
+import * as React from "react";
 import { View } from "react-native";
 
 import { Text } from "@/components/ui/text";
@@ -26,6 +27,8 @@ function Favicon({
   className,
   ...props
 }: FaviconProps) {
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
+  const showImage = Boolean(url) && failedUrl !== url;
   const sizeClass = size === "sm" ? "size-6" : size === "lg" ? "size-10" : "size-8";
 
   return (
@@ -38,11 +41,12 @@ function Favicon({
       )}
       {...props}
     >
-      {url ? (
+      {showImage ? (
         <Image
           source={{ uri: url }}
           className="size-full"
           contentFit="cover"
+          onError={() => setFailedUrl(url ?? null)}
         />
       ) : (
         <Text className="text-xs font-semibold text-muted-foreground">{fallback ?? "?"}</Text>

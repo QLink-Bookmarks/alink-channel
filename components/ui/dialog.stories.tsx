@@ -58,3 +58,61 @@ export const Basic: Story = {
     </Dialog>
   ),
 };
+
+export const WithoutCloseButton: Story = {
+  name: "닫기 버튼 없이",
+  render: () => (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <Text>폴더 이동</Text>
+        </Button>
+      </DialogTrigger>
+      <DialogContent hideCloseButton>
+        <DialogHeader>
+          <DialogTitle>폴더 이동</DialogTitle>
+          <DialogDescription>아래 취소·확인으로만 닫는다.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">
+              <Text>취소</Text>
+            </Button>
+          </DialogClose>
+          <DialogClose asChild>
+            <Button>
+              <Text>확인</Text>
+            </Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  ),
+};
+
+export const CloseDisabled: Story = {
+  name: "닫기 버튼 비활성(실행 중)",
+  render: () => (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <Text>폴더 삭제</Text>
+        </Button>
+      </DialogTrigger>
+      <DialogContent closeDisabled>
+        <DialogHeader>
+          <DialogTitle>폴더를 삭제할까요?</DialogTitle>
+          <DialogDescription>실행 중에는 X가 흐려지고 눌리지 않는다.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            disabled
+            variant="outline"
+          >
+            <Text>취소</Text>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  ),
+};

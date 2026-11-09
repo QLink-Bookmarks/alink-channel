@@ -7,7 +7,7 @@ import { TodoItem } from "./todo-item";
 import { useArgs } from "storybook/preview-api";
 
 const meta = {
-  title: "기능/할 일/할 일 항목",
+  title: "기능/액션/액션 항목",
   component: TodoItem,
   args: {
     text: "ALINK 테마 토큰 검토",
@@ -42,6 +42,57 @@ export const Basic: Story = {
   name: "기본",
 };
 
+export const Display: Story = {
+  name: "액션 카드",
+  render: (args) => (
+    <>
+      <TodoItem
+        {...args}
+        variant="display"
+        text="useInfiniteQuery 적용 범위 정리"
+        reminderLabel="10/29 23:00"
+        linkUrl="https://velog.io/@devkim/tanstack-query-v5"
+        linkTitle="TanStack Query v5 마이그레이션 정리"
+        linkThumbnailUrl="https://picsum.photos/seed/alink-todo/64/64"
+      />
+      <TodoItem
+        {...args}
+        variant="display"
+        text="매주 회고 정리"
+        reminderLabel="매주 월·목 오전 8:00 · 12월 31일까지"
+        scheduleKind="repeat"
+        linkUrl="https://velog.io/@devkim/tanstack-query-v5"
+        linkTitle="TanStack Query v5 마이그레이션 정리"
+      />
+      <TodoItem
+        {...args}
+        variant="display"
+        text="아침 스트레칭"
+        reminderLabel="매일 오전 7:30"
+        scheduleKind="repeat"
+      />
+      <TodoItem
+        {...args}
+        variant="display"
+        overdue
+        text="토요일 2시 방문"
+        reminderLabel="10/25 14:00 (지남)"
+        linkUrl="https://www.instagram.com/reel/C9seongsu"
+        linkTitle="성수동 카페 투어 5곳"
+      />
+      <TodoItem
+        {...args}
+        variant="display"
+        done
+        text="queryKey 규칙 팀에 공유"
+        reminderLabel="10/24 10:00"
+        linkUrl="https://velog.io/@devkim/tanstack-query-v5"
+        linkTitle="TanStack Query v5 마이그레이션 정리"
+      />
+    </>
+  ),
+};
+
 export const States: Story = {
   name: "상태",
   render: (args) => (
@@ -50,13 +101,13 @@ export const States: Story = {
       <TodoItem
         {...args}
         done
-        text="완료된 할 일"
+        text="완료된 액션"
       />
       <TodoItem
         {...args}
         overdue
         badge="기한 초과"
-        text="기한이 지난 할 일"
+        text="기한이 지난 액션"
       />
     </>
   ),

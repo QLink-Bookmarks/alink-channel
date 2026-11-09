@@ -19,7 +19,6 @@ type PostScrollResponse = {
 type GetPostsParams = {
   type?: PostType;
   query?: string;
-  order?: string;
   cursor?: string;
   size?: number;
 };

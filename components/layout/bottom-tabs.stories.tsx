@@ -21,7 +21,7 @@ const meta = {
     items: [
       { key: "home", label: "홈", icon: House },
       { key: "links", label: "링크", icon: Link },
-      { key: "todos", label: "할 일", icon: ListTodo },
+      { key: "todos", label: "액션", icon: ListTodo },
     ],
   },
   decorators: [

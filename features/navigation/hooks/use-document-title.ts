@@ -1,6 +1,7 @@
 import * as React from "react";
 
-import { useFoldersQuery } from "@/features/folders/queries";
+import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
+import { useFolderQuery } from "@/features/folders/queries";
 import { useLinkDetailQuery } from "@/features/links/queries";
 import { useWideView } from "@/lib/hooks/use-wide-view";
 
@@ -28,12 +29,12 @@ function useDocumentTitle() {
   const folderDetailId = /^\/folders\/([^/]+)$/.exec(pathname)?.[1];
 
   const linkDetailQuery = useLinkDetailQuery(linkId);
-  const foldersQuery = useFoldersQuery({ size: 15 }, { enabled: Boolean(folderDetailId) });
+  const folderQuery = useFolderQuery(Number(folderDetailId), {
+    enabled: Boolean(folderDetailId) && Number(folderDetailId) !== UNCATEGORIZED_FOLDER_ID,
+  });
 
   const linkTitle = linkId ? linkDetailQuery.data?.title?.trim() : undefined;
-  const folderName = folderDetailId
-    ? foldersQuery.data?.contents?.find((folder) => String(folder.id) === folderDetailId)?.name
-    : undefined;
+  const folderName = folderDetailId ? folderQuery.folder?.name : undefined;
   const resourceTitle = linkTitle || folderName || undefined;
 
   const routeTitle = getRouteTitle(pathname, { id: folderId }, isWideView);

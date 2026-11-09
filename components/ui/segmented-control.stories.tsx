@@ -7,7 +7,7 @@ import { SegmentedControl } from "./segmented-control";
 
 type SegmentedControlStoryProps = {
   value: "all" | "open" | "done";
-  variant: "pills" | "chips" | "chipsRound" | "chipsBadge" | "cells";
+  variant: "pills" | "chips" | "chipsRound" | "chipsBadge" | "cells" | "track";
   block: boolean;
 };
 
@@ -44,7 +44,7 @@ const meta = {
     value: { control: "select", options: ["all", "open", "done"] },
     variant: {
       control: "select",
-      options: ["pills", "chips", "chipsRound", "chipsBadge", "cells"],
+      options: ["pills", "chips", "chipsRound", "chipsBadge", "cells", "track"],
     },
     block: { control: "boolean" },
   },
@@ -68,6 +68,65 @@ type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {
   name: "기본",
+};
+
+const sizeOptions = [
+  { label: "작게", value: "small" },
+  { label: "크게", value: "large" },
+];
+
+const weekdayOptions = [
+  { label: "월", value: "mon" },
+  { label: "화", value: "tue" },
+  { label: "수", value: "wed" },
+  { label: "목", value: "thu" },
+  { label: "금", value: "fri" },
+];
+
+function TwoOptionTrackStory() {
+  const [size, setSize] = React.useState("large");
+  return (
+    <View className="min-h-11 flex-row items-center">
+      <SegmentedControl
+        accessibilityLabel="링크 카드 크기"
+        value={size}
+        variant="track"
+        options={sizeOptions}
+        onValueChange={(next) => setSize(next as string)}
+      />
+    </View>
+  );
+}
+
+function MultipleSelectionStory() {
+  const [days, setDays] = React.useState<string[]>(["mon", "wed"]);
+  return (
+    <SegmentedControl
+      accessibilityLabel="요일"
+      value={days}
+      block
+      selectionMode="multiple"
+      variant="chips"
+      options={weekdayOptions}
+      onValueChange={(next) => setDays(next as string[])}
+    />
+  );
+}
+
+/**
+ * Two options in the track style, as the link card size row in settings. Each item is a radio
+ * announced with its checked state and is at least 44pt tall to touch on iOS without changing
+ * the layout, inside a 44pt-tall row.
+ */
+export const TwoOptionTrack: Story = {
+  name: "두 칸 트랙 (링크 카드 크기)",
+  render: () => <TwoOptionTrackStory />,
+};
+
+/** Several selected at once: each item is a checkbox announced with its checked state. */
+export const MultipleSelection: Story = {
+  name: "여러 개 선택",
+  render: () => <MultipleSelectionStory />,
 };
 
 export const Variants: Story = {
@@ -98,6 +157,26 @@ export const Variants: Story = {
         value={value}
         variant="cells"
         block
+      />
+      <SegmentedControlStory
+        value={value}
+        variant="track"
+        block
+      />
+    </View>
+  ),
+};
+
+export const Disabled: Story = {
+  name: "잠금",
+  render: ({ value }) => (
+    <View className="opacity-50">
+      <SegmentedControl
+        disabled
+        value={value}
+        variant="track"
+        block
+        options={options}
       />
     </View>
   ),

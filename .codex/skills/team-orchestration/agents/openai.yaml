@@ -1,4 +1,0 @@
-interface:
-  display_name: "Team Orchestration"
-  short_description: "Lead coordinated team delegation with organizing-instructor and synthesize one final answer."
-  default_prompt: "Use this skill when users request team handling (team, 팀, Captain, 대장), route bounded subtasks to the right subagents, review outputs, and return one coherent merged result."

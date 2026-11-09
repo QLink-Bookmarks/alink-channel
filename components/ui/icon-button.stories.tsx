@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from "@storybook/react-native";
 
 import { IconButton } from "./icon-button";
 
-import { ChevronLeft, Plus, Search, Settings, X } from "lucide-react-native/icons";
+import { Bell, ChevronLeft, Plus, Search, Settings, X } from "lucide-react-native/icons";
 
 const iconOptions = {
   search: Search,
@@ -99,6 +99,48 @@ export const Sizes: Story = {
         size="lg"
         variant="ghost"
         disabled={disabled}
+        onPress={() => {}}
+      />
+    </View>
+  ),
+};
+
+export const HeaderGhost: Story = {
+  name: "헤더 (ghost)",
+  render: () => (
+    <View className="flex-row items-center gap-2 border-b border-border pb-3">
+      <IconButton
+        accessibilityLabel="뒤로"
+        hitSlop={4}
+        icon={ChevronLeft}
+        size="sm"
+        variant="ghost"
+        onPress={() => {}}
+      />
+      <View className="flex-1" />
+      <IconButton
+        accessibilityLabel="검색"
+        hitSlop={4}
+        icon={Search}
+        size="sm"
+        variant="ghost"
+        onPress={() => {}}
+      />
+      <IconButton
+        accessibilityLabel="알림"
+        hitSlop={4}
+        icon={Bell}
+        size="sm"
+        variant="ghost"
+        onPress={() => {}}
+      />
+      <IconButton
+        accessibilityLabel="설정"
+        hitSlop={4}
+        active
+        icon={Settings}
+        size="sm"
+        variant="ghost"
         onPress={() => {}}
       />
     </View>

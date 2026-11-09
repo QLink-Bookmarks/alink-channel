@@ -33,11 +33,7 @@ function Kbd({
       : "border-border-soft bg-surface-elevated";
 
   const labelElement = label ? (
-    <Text
-      className={cn(labelTextClassName, size === "xs" ? "text-2xs" : "text-xs", labelClassName)}
-    >
-      {label}
-    </Text>
+    <Text className={cn(labelTextClassName, "text-xs", labelClassName)}>{label}</Text>
   ) : null;
 
   return (
@@ -55,12 +51,7 @@ function Kbd({
         )}
       >
         <Text
-          className={cn(
-            "font-mono font-medium",
-            labelTextClassName,
-            size === "xs" ? "text-2xs" : "text-xs",
-            keyTextClassName,
-          )}
+          className={cn("font-mono font-medium", labelTextClassName, "text-xs", keyTextClassName)}
         >
           {children}
         </Text>

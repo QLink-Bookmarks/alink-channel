@@ -1,8 +1,10 @@
+import type { LinkCardStatusVariant } from "@/features/links/components/link-card/link-card";
 import type {
-  LinkCardStatusVariant,
-  LinkCardTodo,
-} from "@/features/links/components/link-card/link-card";
-import type { LinkListItem, LinkListTodo, LinkStatus } from "@/features/links/types";
+  ContentSnippet,
+  LinkListItem,
+  LinkStatus,
+  LinkTodoCounts,
+} from "@/features/links/types";
 
 function getDomainFromUrl(url: string): string {
   try {
@@ -12,60 +14,67 @@ function getDomainFromUrl(url: string): string {
   }
 }
 
-function getFaviconUrl(url: string): string | undefined {
-  const domain = getDomainFromUrl(url);
-  if (!domain || domain === url) {
-    return undefined;
+/**
+ * Card-ready todo counts. `normal` excludes the due-soon and overdue todos, so the three
+ * kinds never overlap. `allDone` is true when every linked todo is completed.
+ * `label` is the tooltip text and the accessible name, e.g. "액션 1개, 임박 1개, 기한 지남 1개".
+ */
+type TodoCountSummary = {
+  normal: number;
+  dueSoon: number;
+  overdue: number;
+  allDone: boolean;
+  label: string;
+};
+
+/** Returns null when the link has no todo at all, so the card shows nothing. */
+function mapTodoCounts(counts: LinkTodoCounts | null | undefined): TodoCountSummary | null {
+  if (!counts) {
+    return null;
   }
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-}
-
-function formatDueLabel(reminderAt?: string | null): string | undefined {
-  if (!reminderAt) return undefined;
-  try {
-    const date = new Date(reminderAt);
-    if (Number.isNaN(date.getTime())) return undefined;
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
-    return `${month}/${day} ${hours}:${minutes}`;
-  } catch {
-    return undefined;
+  const open = Math.max(counts.open, 0);
+  const completed = Math.max(counts.completed, 0);
+  if (open + completed === 0) {
+    return null;
   }
-}
-
-function mapTodo(todo: LinkListTodo): LinkCardTodo {
-  const overdue =
-    Boolean(todo.reminderAt) &&
-    !todo.completedAt &&
-    new Date(todo.reminderAt as string).getTime() < Date.now();
-
-  return {
-    id: String(todo.id),
-    text: todo.title,
-    done: Boolean(todo.completedAt),
-    dueLabel: formatDueLabel(todo.reminderAt),
-    overdue,
-  };
+  if (open === 0) {
+    return { normal: 0, dueSoon: 0, overdue: 0, allDone: true, label: "액션 모두 완료" };
+  }
+  const dueSoon = Math.min(Math.max(counts.dueSoon, 0), open);
+  const overdue = Math.min(Math.max(counts.overdue, 0), open - dueSoon);
+  const normal = open - dueSoon - overdue;
+  const label = [
+    [normal, "액션"],
+    [dueSoon, "임박"],
+    [overdue, "기한 지남"],
+  ]
+    .filter(([count]) => (count as number) > 0)
+    .map(([count, name]) => `${name} ${count}개`)
+    .join(", ");
+  return { normal, dueSoon, overdue, allDone: false, label };
 }
 
 type MappedLink = {
   id: number;
+  url: string;
   domain: string;
-  faviconUrl?: string;
   title: string;
   tags: string[];
-  todos: LinkCardTodo[];
-  remainingTodoCount: number;
+  thumbnailUrl: string | null;
+  faviconUrl: string | null;
+  isVideo: boolean;
+  todoCounts: TodoCountSummary | null;
   statusLabel: string | null;
   statusVariant: LinkCardStatusVariant;
-  summaryModelLabel: string | null;
+  /** The card's one-line excerpt; null hides the line. */
+  excerpt: string | null;
+  /** Search context shown instead of the excerpt; only for a body match without a title match. */
+  snippet: ContentSnippet | null;
 };
 
 /**
  * Returns the in-progress / failed status meta. A (success) is intentionally not surfaced here —
- * successful AI runs are shown via summaryModelLabel ("요약 모델 - {workModel}") next to the title.
+ * successful AI runs are shown via summaryModelLabel ("요약 모델 - {workModel}") on the detail.
  */
 function formatLinkStatus(
   status: LinkStatus | null | undefined,
@@ -94,30 +103,45 @@ function formatSummaryModelLabel(
   return `요약 모델 - ${workModel}`;
 }
 
+/**
+ * The search context a card shows in place of its excerpt: only when the body matched and
+ * the title did not (a title match keeps the excerpt and highlights the title instead).
+ * A link that matched the memo and the body still gets it, inside the metadata group.
+ */
+function getCardSnippet(item: LinkListItem): ContentSnippet | null {
+  const matchedFields = item.matchedFields ?? [];
+  if (!matchedFields.includes("CONTENT") || matchedFields.includes("TITLE")) {
+    return null;
+  }
+  const snippet = item.contentSnippet;
+  return snippet?.text ? snippet : null;
+}
+
 function mapLinkListItem(item: LinkListItem): MappedLink {
-  const domain = getDomainFromUrl(item.url);
   const { label, variant } = formatLinkStatus(item.status, item.workModel);
   return {
     id: item.id,
-    domain,
-    faviconUrl: getFaviconUrl(item.url),
+    url: item.url,
+    domain: getDomainFromUrl(item.url),
     title: item.title,
     tags: item.tags,
-    todos: item.todos.slice(0, 2).map(mapTodo),
-    remainingTodoCount: item.countMoreTodos,
+    thumbnailUrl: item.thumbnailUrl ?? null,
+    faviconUrl: item.faviconUrl ?? null,
+    isVideo: Boolean(item.isVideo),
+    todoCounts: mapTodoCounts(item.todoCounts),
     statusLabel: label,
     statusVariant: variant,
-    summaryModelLabel: formatSummaryModelLabel(item.status, item.workModel),
+    excerpt: item.contentExcerpt || null,
+    snippet: getCardSnippet(item),
   };
 }
 
 export {
-  formatDueLabel,
   formatLinkStatus,
   formatSummaryModelLabel,
+  getCardSnippet,
   getDomainFromUrl,
-  getFaviconUrl,
   mapLinkListItem,
-  mapTodo,
+  mapTodoCounts,
 };
-export type { MappedLink };
+export type { MappedLink, TodoCountSummary };

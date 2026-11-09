@@ -9,6 +9,8 @@ module.exports = {
     "./features/**/*.{js,jsx,ts,tsx}",
     "./providers/**/*.{js,jsx,ts,tsx}",
     "./lib/**/*.{js,jsx,ts,tsx}",
+    "./share/**/*.{ts,tsx}",
+    "./index.share.tsx",
     "./.rnstorybook/**/*.{js,jsx,ts,tsx}",
     "./.storybook/**/*.{js,jsx,ts,tsx}",
   ],
@@ -16,7 +18,7 @@ module.exports = {
   theme: {
     screens: {
       sm: "480px",
-      md: "768px",
+      md: "769px",
       lg: "960px",
       xl: "1180px",
       "2xl": "1440px",
@@ -95,6 +97,21 @@ module.exports = {
         "border-soft-inverse": "hsl(var(--border-soft-inverse))",
         overlay: "hsl(var(--overlay))",
       },
+      textColor: {
+        success: {
+          DEFAULT: "hsl(var(--success-text))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning-text))",
+          foreground: "hsl(var(--warning-foreground))",
+          icon: "hsl(var(--warning))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive-text))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+      },
       // Hardcoded in px so NativeWind on iOS/Android doesn't have to resolve
       // `calc(var(--radius) - 8px)` — calc with a rem-valued CSS var collapses to
       // 0 on native and every rounded-* token loses its radius. --radius was
@@ -109,6 +126,9 @@ module.exports = {
         "3xl": "20px",
         "4xl": "28px",
       },
+      transitionDuration: {
+        220: "220ms",
+      },
       boxShadow: {
         "qlink-sm": "0 1px 3px rgba(var(--glow-rgb), 0.08)",
         "qlink-md": "0 4px 16px rgba(var(--glow-rgb), 0.15)",
@@ -116,7 +136,20 @@ module.exports = {
         "qlink-card": "0 2px 8px rgba(var(--glow-rgb), 0.08)",
         "qlink-glow": "0 0 20px rgba(var(--glow-rgb), 0.35)",
         "qlink-fab": "0 8px 24px rgba(var(--glow-rgb), 0.35), 0 0 0 4px rgba(255, 255, 255, 0.4)",
+        "qlink-fab-dark": "0 8px 24px rgba(var(--glow-rgb), 0.35)",
         "qlink-modal": "0 24px 60px rgba(0, 0, 0, 0.30)",
+        // NativeWind가 transform/shadow 클래스가 처음 붙을 때 컴포넌트를 바꿔 끼워 iOS에서 Couldn't find a navigation context 오류가 난다. 기본값을 늘 붙여 둔다. 지우지 말 것.
+        "section-rest": "0 0 0 0 rgba(var(--glow-rgb), 0)",
+        "section-divider": "0 -1px 0 hsl(var(--sidebar-border))",
+        "section-pin-top":
+          "0 1px 0 hsl(var(--sidebar-border)), 0 6px 10px -8px rgba(var(--glow-rgb), 0.45)",
+        "section-pin-bottom":
+          "0 -1px 0 hsl(var(--sidebar-border)), 0 -6px 10px -8px rgba(var(--glow-rgb), 0.45)",
+        "section-divider-strong": "0 -1px 0 hsl(var(--border))",
+        "section-pin-top-strong":
+          "0 1px 0 hsl(var(--border)), 0 6px 10px -8px rgba(var(--glow-rgb), 0.45)",
+        "section-pin-bottom-strong":
+          "0 -1px 0 hsl(var(--border)), 0 -6px 10px -8px rgba(var(--glow-rgb), 0.45)",
       },
       fontFamily: {
         sans: ["Pretendard", "SF Pro KR", "Apple SD Gothic Neo", "Noto Sans KR", "sans-serif"],

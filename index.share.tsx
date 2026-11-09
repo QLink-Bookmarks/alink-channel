@@ -1,23 +1,43 @@
 import "./global.css";
 
-import { AppRegistry, View } from "react-native";
+import * as React from "react";
+import { AppRegistry } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-context";
 
-import { DEFAULT_ACCENT } from "@/lib/theme";
 import { getNativeThemeVars } from "@/lib/theme-vars";
 
 import { ShareSheet } from "./share/share-sheet";
+import { ShareThemeContext, useSystemShareTheme } from "./share/share-theme";
 
-import { vars } from "nativewind";
+import { useColorScheme as useNativeWindColorScheme, vars } from "nativewind";
 
 function ShareExtension(props: { url?: string; text?: string; preprocessingResults?: unknown }) {
-  const themeVars = vars(getNativeThemeVars("light", DEFAULT_ACCENT));
+  const theme = useSystemShareTheme();
+  const { setColorScheme } = useNativeWindColorScheme();
+  const themeVars = React.useMemo(
+    () => vars(getNativeThemeVars(theme.mode, theme.accent)),
+    [theme.accent, theme.mode],
+  );
+
+  React.useEffect(() => {
+    setColorScheme(theme.mode);
+  }, [setColorScheme, theme.mode]);
+
   return (
-    <View
-      style={[{ flex: 1 }, themeVars]}
-      className="flex-1 bg-background"
-    >
-      <ShareSheet {...props} />
-    </View>
+    <ShareThemeContext value={theme}>
+      <GestureHandlerRootView
+        className="flex-1 bg-transparent"
+        style={[{ flex: 1, backgroundColor: "transparent" }, themeVars]}
+      >
+        <SafeAreaProvider
+          initialMetrics={initialWindowMetrics}
+          style={{ backgroundColor: "transparent" }}
+        >
+          <ShareSheet {...props} />
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ShareThemeContext>
   );
 }
 

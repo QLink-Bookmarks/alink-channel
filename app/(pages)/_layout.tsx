@@ -1,5 +1,9 @@
+import { View } from "react-native";
+
 import { useAgreementStatus } from "@/features/agreements/hooks/use-agreement-status";
+import { ImportFlowHost } from "@/features/imports/components/flow/import-flow-host";
 import { ResponsiveShell } from "@/features/navigation/components/responsive-shell";
+import { useWideViewState } from "@/lib/hooks/use-wide-view";
 import { useAuthStore } from "@/stores/auth";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 
@@ -9,6 +13,7 @@ export default function PagesLayout() {
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const accessToken = useAuthStore((state) => state.accessToken);
   const { needsAgreement, hasResolved } = useAgreementStatus();
+  const { isResolved: isWideViewResolved } = useWideViewState();
 
   // Logged-out visitors who deep-link into an app page (anything but root) land
   // on /login — the marketing landing only lives at "/".
@@ -20,11 +25,16 @@ export default function PagesLayout() {
     return <Redirect href={"/agreements" as Href} />;
   }
 
+  if (!isWideViewResolved) {
+    return <View className="flex-1 bg-background" />;
+  }
+
   return (
     <BottomSheetModalProvider>
       <ResponsiveShell>
         <Slot />
       </ResponsiveShell>
+      <ImportFlowHost />
     </BottomSheetModalProvider>
   );
 }

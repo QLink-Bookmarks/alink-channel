@@ -79,6 +79,19 @@ const isStorybookVite = typeof process !== "undefined" && process.env.STORYBOOK_
 - `bun storybook:web` runs Vite-based Storybook.
 - Vite-only errors should be handled with a targeted `isStorybookVite` branch.
 
+## Testing and Captures
+
+- Use Playwright as the primary automated test tool for web user flows. Derive durable behavior tests for new or changed flows from the confirmed Test Criteria and keep them in `tests/e2e/` with `playwright.config.ts` tracked in Git. Do not backfill unrelated existing features solely to add coverage.
+- Use Jest for unit tests of pure logic, hooks, and shared components. Keep tests colocated as `*.test.ts` or `*.test.tsx` next to the code, and add or update them for new or changed pure logic. Playwright stays the tool for user flows.
+- Run unit tests with `bun run test:unit`. Do not use `bun test`; it runs Bun's own test runner instead of Jest.
+- NativeWind classes are not compiled to styles under Jest. Assert text, roles, and behavior in component tests, not styles.
+- Run durable web tests with `bun test:e2e`; Playwright starts the Expo web server through `bun web` with `EXPO_WEB_DEV_HYDRATE=1`, so pages hydrate like the static export, and reuses any server already on port 8081 (`reuseExistingServer`), so stop a plain `bun web` there first. Assert observable behavior after user actions; a screenshot alone does not establish that a Test Criterion passed.
+- Make loading, empty, error, and retry cases repeatable with controlled API responses. Also exercise the real server for server-dependent success paths when relevant.
+- Test web wide and web mobile for affected flows. When a responsive breakpoint changes, check both `768px` and `769px` viewport widths.
+- For each UI change, inspect and capture the affected screens on web wide, web mobile, and iOS when those platforms are in scope. Verify relevant iOS interactions in a simulator; Playwright browser tests do not verify native iOS behavior.
+- Keep one-off Playwright scripts for detailed UI inspection or screenshots, and their captures, under ignored `e2e/`, `.playwright-cli/`, or `output/`. Do not commit screenshot-only scripts or visual snapshot baselines as durable tests.
+- Report test results and capture filenames in the PR, following the issue workflow's image handling rules. Mark only Test Criteria that were actually verified as passed.
+
 ## Hooks and API
 
 - Use custom hooks for reusable stateful logic.
@@ -116,6 +129,11 @@ const isStorybookVite = typeof process !== "undefined" && process.env.STORYBOOK_
 - Keep animations under 300ms for responsive feel
 - Use spring animations for natural movement
 - Avoid animating layout properties (width, height) when possible — prefer transforms
+
+## API Server Connection
+
+- Regardless of the BASE_URL in the env var, check `http://localhost:8080/openapi` for API info.
+- If local server is not alive, check `https://dev.api.archivelink.app/openapi`.
 
 ## References
 

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 import { Plus, X } from "lucide-react-native/icons";
 
-// View scope: 와이드뷰 전용. md >= 768px에서 사용한다.
+// View scope: 와이드뷰 전용. md >= 769px에서 사용한다.
 
 function ShortcutTile({
   className,

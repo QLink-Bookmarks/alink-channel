@@ -13,7 +13,7 @@ import { useLinksQuery } from "@/features/links/queries";
 import type { LinkListItem } from "@/features/links/types";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { getDomainFromUrl, getFaviconUrl } from "../lib/link-card-mapper";
+import { getDomainFromUrl } from "../lib/link-card-mapper";
 
 import { Star } from "lucide-react-native";
 
@@ -25,7 +25,12 @@ function AddShortcutDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const linksQuery = useLinksQuery({ isFavorite: false, order: "latest", size: 50 });
+  const linksQuery = useLinksQuery({
+    isFavorite: false,
+    orderKey: "created_at",
+    order: "desc",
+    size: 50,
+  });
   const setFavorite = useSetLinkFavoriteMutation();
 
   const links = React.useMemo<LinkListItem[]>(
@@ -86,7 +91,7 @@ function AddShortcutDialog({
                   >
                     <Favicon
                       size="lg"
-                      url={getFaviconUrl(link.url)}
+                      url={link.faviconUrl ?? undefined}
                       fallback={domain.slice(0, 1).toUpperCase()}
                     />
                     <View className="min-w-0 flex-1">

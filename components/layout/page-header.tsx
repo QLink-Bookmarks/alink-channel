@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 import type { LucideIcon } from "lucide-react-native";
 
-// View scope: 와이드뷰 전용. md >= 768px에서 사용한다.
+// View scope: 와이드뷰 전용. md >= 769px에서 사용한다.
 
 type PageHeaderPrimaryAction = {
   label: string;

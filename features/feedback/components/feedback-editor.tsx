@@ -86,7 +86,7 @@ function FeedbackEditor({
   const uploadPickedImage = React.useCallback(
     async (id: string, file: ImageUploadInput) => {
       try {
-        const response = await uploadImage(file);
+        const response = await uploadImage(file, "POST");
         const url = response.data.url;
         // Map (not append) so a tile the user already removed stays removed even
         // if its upload finishes afterwards.
@@ -302,7 +302,7 @@ function FeedbackEditor({
                 size={22}
                 className="text-muted-foreground"
               />
-              <Text className="text-[10px] text-muted-foreground">이미지 첨부</Text>
+              <Text className="text-xs text-muted-foreground">이미지 첨부</Text>
             </Pressable>
           ) : null}
         </View>

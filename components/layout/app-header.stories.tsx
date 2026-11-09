@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import type { Meta, StoryObj } from "@storybook/react-native";
 
-import { AppHeader } from "./app-header";
+import { AppHeader, type AppHeaderTitleAlign } from "./app-header";
 
 type AppHeaderStoryProps = {
   title: string;
@@ -12,6 +12,7 @@ type AppHeaderStoryProps = {
   transparent: boolean;
   showLeftSlot: boolean;
   showRightSlot: boolean;
+  titleAlign: AppHeaderTitleAlign;
 };
 
 function AppHeaderStory({
@@ -20,12 +21,14 @@ function AppHeaderStory({
   transparent,
   showLeftSlot,
   showRightSlot,
+  titleAlign,
 }: AppHeaderStoryProps) {
   return (
     <AppHeader
       title={title}
       back={back}
       transparent={transparent}
+      titleAlign={titleAlign}
       leftSlot={showLeftSlot ? <Text className="font-semibold">ALINK</Text> : undefined}
       rightSlot={
         showRightSlot ? (
@@ -55,6 +58,7 @@ const meta = {
     transparent: false,
     showLeftSlot: false,
     showRightSlot: true,
+    titleAlign: "center",
   },
   argTypes: {
     title: { control: "text" },
@@ -62,6 +66,7 @@ const meta = {
     transparent: { control: "boolean" },
     showLeftSlot: { control: "boolean" },
     showRightSlot: { control: "boolean" },
+    titleAlign: { control: "inline-radio", options: ["center", "start"] },
   },
   decorators: [
     (Story) => (
@@ -87,5 +92,13 @@ export const Slots: Story = {
     back: false,
     showLeftSlot: true,
     showRightSlot: true,
+  },
+};
+
+export const TitleStart: Story = {
+  name: "제목 왼쪽 정렬",
+  args: {
+    title: "아주 긴 폴더 이름이 오른쪽 아이콘 앞에서 말줄임되는지 확인하는 예시",
+    titleAlign: "start",
   },
 };

@@ -6,6 +6,7 @@ import type {
   CreateTodoRequest,
   CreateTodoResponse,
   DeleteTodoResponse,
+  GetTodoCountsResponse,
   GetTodosParams,
   GetTodosResponse,
   UpdateTodoRequest,
@@ -14,6 +15,10 @@ import type {
 
 async function getTodos(params: GetTodosParams = {}) {
   return api.get<GetTodosResponse>("/api/todos", { params });
+}
+
+async function getTodoCounts() {
+  return api.get<GetTodoCountsResponse>("/api/todos/counts");
 }
 
 async function createTodo(payload: CreateTodoRequest) {
@@ -35,4 +40,4 @@ async function toggleTodoCompleted(todoId: number | string, payload: CompleteTod
   );
 }
 
-export { createTodo, deleteTodo, getTodos, toggleTodoCompleted, updateTodo };
+export { createTodo, deleteTodo, getTodoCounts, getTodos, toggleTodoCompleted, updateTodo };

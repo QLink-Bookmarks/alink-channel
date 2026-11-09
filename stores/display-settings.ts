@@ -6,10 +6,10 @@ import type {
 } from "@/features/account/types";
 import { SessionStorage } from "@/lib/session-storage";
 import { type AccentName, DEFAULT_ACCENT, type ThemeMode } from "@/lib/theme";
+import { ACCENT_VALUES, SETTINGS_STORAGE_KEY } from "@/lib/theme-storage";
 
 import { create } from "zustand";
 
-const ACCENT_VALUES: AccentName[] = ["gray", "pink", "blue"];
 const THEME_VALUES: ThemeMode[] = ["light", "dark"];
 
 function normalizeAccent(value: unknown): AccentName {
@@ -38,8 +38,6 @@ type SettingsState = PersistedSettings & {
   setAvatarEmoji: (emoji: string | null) => void;
   hydrateFromServer: (payload: GetMySettingsResponseData) => void;
 };
-
-const STORAGE_KEY = "qlink-settings";
 
 const DEFAULT_SETTINGS: PersistedSettings = {
   display: { theme: "light", accent: DEFAULT_ACCENT },
@@ -121,7 +119,7 @@ function extractPersisted(state: SettingsState): Omit<PersistedSettings, "profil
 
 async function hydratePersistedSettings() {
   try {
-    const raw = await SessionStorage.getItem(STORAGE_KEY);
+    const raw = await SessionStorage.getItem(SETTINGS_STORAGE_KEY);
     if (!raw) {
       return;
     }
@@ -160,7 +158,7 @@ useDisplaySettings.subscribe((state) => {
     return;
   }
   previousPersisted = next;
-  SessionStorage.setItem(STORAGE_KEY, next);
+  SessionStorage.setItem(SETTINGS_STORAGE_KEY, next);
 });
 
 void hydratePersistedSettings();

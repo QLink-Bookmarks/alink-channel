@@ -30,6 +30,7 @@ import { EmojiPickerGrid } from "@/components/ui/emoji-picker-grid";
 import { Icon } from "@/components/ui/icon";
 import { ImageUploader } from "@/components/ui/image-uploader";
 import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
@@ -57,6 +58,9 @@ import { logoutNaver } from "@/features/auth/lib/native-naver-logout";
 import { FeedbackEditor } from "@/features/feedback/components/feedback-editor";
 import { useUploadImageMutation } from "@/features/images/mutations";
 import type { ImageUploadInput } from "@/features/images/types";
+import { IMPORTS_PATH } from "@/features/imports/lib/import-paths";
+import { useLinkCardSize } from "@/features/links/hooks/use-link-card-size";
+import { type LinkCardSize, normalizeLinkCardSize } from "@/features/links/lib/link-card-size";
 import { DeviceNotificationNotice } from "@/features/notifications/components/device-notification-notice";
 import { unregisterDevice } from "@/features/notifications/lib/unregister-device";
 import { reportError } from "@/lib/error-reporting";
@@ -79,6 +83,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Upload,
   UserRoundX,
   X,
 } from "lucide-react-native/icons";
@@ -129,11 +134,13 @@ function SettingsScreen({ mode }: { mode: SettingsScreenMode }) {
             connectedProviders={settings?.providers ?? []}
           />
 
-          {mode === "mobile" ? <DisplaySection /> : null}
+          {mode === "mobile" ? <DisplaySection /> : <WideDisplaySection />}
 
           <AiProviderSection mode={mode} />
 
           <BehaviorSection />
+
+          <DataSection />
 
           <AppInfoSection mode={mode} />
         </View>
@@ -391,7 +398,7 @@ function ProfileEditOverlay({
   const handleAvatarPicked = React.useCallback(
     async (file: ImageUploadInput) => {
       try {
-        const response = await uploadImageMutation.mutateAsync(file);
+        const response = await uploadImageMutation.mutateAsync({ file, purpose: "PROFILE" });
         const uploadedUrl = response.data?.url;
         if (uploadedUrl) {
           setDraftAvatarUploadedUrl(uploadedUrl);
@@ -653,7 +660,52 @@ function DisplaySection() {
         onAccentChange={setAccent}
         onModeChange={setTheme}
       />
+      <LinkCardSizeRow />
     </SettingsSectionCard>
+  );
+}
+
+const LINK_CARD_SIZE_OPTIONS: { label: string; value: LinkCardSize }[] = [
+  { label: "작게", value: "small" },
+  { label: "크게", value: "large" },
+];
+
+// Wide keeps mode and accent in the sidebar palette, so its 화면 표시 holds the card size only.
+function WideDisplaySection() {
+  return (
+    <SettingsSectionCard title="화면 표시">
+      <LinkCardSizeRow />
+    </SettingsSectionCard>
+  );
+}
+
+function LinkCardSizeRow() {
+  const { linkCardSize, setLinkCardSize } = useLinkCardSize();
+
+  const handleValueChange = React.useCallback(
+    (next: string | string[]) => {
+      const size = normalizeLinkCardSize(next);
+      if (size) {
+        setLinkCardSize(size);
+      }
+    },
+    [setLinkCardSize],
+  );
+
+  return (
+    <View
+      className="min-h-11 flex-row items-center justify-between gap-3"
+      testID="settings-link-card-size"
+    >
+      <Text className="min-w-0 flex-1 text-sm font-semibold text-foreground">링크 카드 크기</Text>
+      <SegmentedControl
+        accessibilityLabel="링크 카드 크기"
+        options={LINK_CARD_SIZE_OPTIONS}
+        value={linkCardSize}
+        variant="track"
+        onValueChange={handleValueChange}
+      />
+    </View>
   );
 }
 
@@ -667,13 +719,41 @@ function BehaviorSection() {
       <View className="flex-row items-center justify-between gap-3">
         <View className="min-w-0 flex-1 gap-1">
           <Text className="text-sm font-semibold text-foreground">리마인더 알림</Text>
-          <Text className="text-xs text-muted-foreground">할 일이 다가오면 알림을 보내요.</Text>
+          <Text className="text-xs text-muted-foreground">액션 기한이 다가오면 알림을 보내요.</Text>
         </View>
         <Switch
           checked={allowsReminder}
           onCheckedChange={setAllowsReminder}
         />
       </View>
+    </SettingsSectionCard>
+  );
+}
+
+function DataSection() {
+  const router = useRouter();
+
+  return (
+    <SettingsSectionCard title="데이터">
+      <Pressable
+        accessibilityRole="button"
+        className="-mx-2 flex-row items-center justify-between gap-3 rounded-xl px-2 py-1.5 active:bg-accent web:hover:bg-accent"
+        onPress={() => router.push(IMPORTS_PATH as Href)}
+      >
+        <View className="flex-row items-center gap-2">
+          <Icon
+            as={Upload}
+            size={16}
+            className="text-muted-foreground"
+          />
+          <Text className="text-sm font-semibold text-foreground">북마크 가져오기</Text>
+        </View>
+        <Icon
+          as={ChevronRight}
+          size={18}
+          className="text-muted-foreground"
+        />
+      </Pressable>
     </SettingsSectionCard>
   );
 }
@@ -842,7 +922,7 @@ function AppInfoSection({ mode }: { mode: SettingsScreenMode }) {
           <AlertDialogHeader>
             <AlertDialogTitle>회원 탈퇴할까요?</AlertDialogTitle>
             <AlertDialogDescription>
-              탈퇴하면 저장한 링크와 폴더, 할 일이 모두 삭제되며 되돌릴 수 없어요.
+              탈퇴하면 저장한 링크와 폴더, 액션이 모두 삭제되며 되돌릴 수 없어요.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row justify-end">

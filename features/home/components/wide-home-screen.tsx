@@ -11,20 +11,23 @@ import { Kbd } from "@/components/ui/kbd";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { useMyProfileQuery } from "@/features/account/queries";
+import { HomeEmptyState } from "@/features/imports/components/flow/home-empty-state";
 import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
 import { ShortcutTile } from "@/features/links/components/shortcut-tile/shortcut-tile";
 import { useLinksQuery } from "@/features/links/queries";
+import { useNewLinkShortcutLabel } from "@/features/navigation/hooks/use-new-link-shortcut-label";
 import { TodoItem } from "@/features/todos/components/todo-item/todo-item";
-import { formatReminderLabel, isOverdue } from "@/features/todos/lib/todo-list-helpers";
+import { formatTodoSchedule } from "@/features/todos/lib/todo-schedule-label";
 import { useToggleTodoCompletedMutation } from "@/features/todos/mutations";
 import { useTodosQuery } from "@/features/todos/queries";
 import type { TodoListItem } from "@/features/todos/types";
+import { useGridColumns } from "@/lib/hooks/use-grid-columns";
 import { useDisplaySettings } from "@/stores/display-settings";
 import { useSearchDialog } from "@/stores/search-dialog";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { formatFullDateLabel, getGreetingMessage } from "../lib/greeting";
-import { getDomainFromUrl, getFaviconUrl } from "../lib/link-card-mapper";
+import { getDomainFromUrl } from "../lib/link-card-mapper";
 import { AddShortcutDialog } from "./add-shortcut-dialog";
 
 import { type Href, useRouter } from "expo-router";
@@ -39,7 +42,8 @@ const SEARCH_SCOPES = [
 const TODO_PREVIEW_COUNT = 6;
 const RECENT_PREVIEW_COUNT = 6;
 const SHORTCUT_PREVIEW_COUNT = 9;
-const GRID_ITEM_CLASS = "w-[calc(33.333%-0.5rem)] min-w-[260px]";
+const TODO_GRID_GAP = 12;
+const TODO_MIN_CARD_WIDTH = 240;
 
 function dispatchWideShortcut(key: "search" | "new-link") {
   if (Platform.OS !== "web" || typeof window === "undefined") {
@@ -48,7 +52,7 @@ function dispatchWideShortcut(key: "search" | "new-link") {
   const event =
     key === "search"
       ? new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true })
-      : new KeyboardEvent("keydown", { key: "n", bubbles: true });
+      : new KeyboardEvent("keydown", { code: "KeyN", key: "n", altKey: true, bubbles: true });
   window.dispatchEvent(event);
 }
 
@@ -106,6 +110,7 @@ function openExternalUrl(url: string) {
 
 function WideHomeScreen() {
   const router = useRouter();
+  const shortcutLabel = useNewLinkShortcutLabel();
   const queryClient = useQueryClient();
   const accent = useDisplaySettings((state) => state.display.accent);
   const theme = useDisplaySettings((state) => state.display.theme);
@@ -140,8 +145,13 @@ function WideHomeScreen() {
 
   const favoritesQuery = useLinksQuery({ isFavorite: true, size: SHORTCUT_PREVIEW_COUNT });
   const todosQuery = useTodosQuery({ isCompleted: false, size: 30 });
-  const recentLinksQuery = useLinksQuery({ order: "latest", size: RECENT_PREVIEW_COUNT });
+  const recentLinksQuery = useLinksQuery({
+    orderKey: "created_at",
+    order: "desc",
+    size: RECENT_PREVIEW_COUNT,
+  });
   const toggleTodo = useToggleTodoCompletedMutation();
+  const todoGrid = useGridColumns({ gap: TODO_GRID_GAP, minItemWidth: TODO_MIN_CARD_WIDTH });
 
   const shortcuts = favoritesQuery.data?.contents ?? [];
   const todos = React.useMemo(() => todosQuery.data?.contents ?? [], [todosQuery.data?.contents]);
@@ -163,12 +173,29 @@ function WideHomeScreen() {
         {
           onSettled: () => {
             void queryClient.invalidateQueries({ queryKey: ["todos"] });
+            // Link cards show todo counts, so the link lists change with the todo.
+            void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
           },
         },
       );
     },
     [queryClient, toggleTodo],
   );
+
+  if (!recentLinksQuery.isLoading && !recentLinksQuery.isError && recentLinks.length === 0) {
+    return (
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="grow"
+        contentInsetAdjustmentBehavior="automatic"
+      >
+        <HomeEmptyState
+          className="flex-1"
+          onAddLink={() => dispatchWideShortcut("new-link")}
+        />
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
@@ -225,7 +252,7 @@ function WideHomeScreen() {
             <ShortcutTile
               key={link.id}
               label={link.title || getDomainFromUrl(link.url)}
-              faviconUrl={getFaviconUrl(link.url)}
+              faviconUrl={link.faviconUrl ?? undefined}
               onPress={() => openExternalUrl(link.url)}
             />
           ))}
@@ -239,10 +266,10 @@ function WideHomeScreen() {
         <View className="flex-row flex-wrap items-center justify-center gap-4">
           <ActionPill onPress={() => dispatchWideShortcut("new-link")}>
             <Text className="text-sm font-medium text-foreground">새 링크</Text>
-            <Kbd size="sm">N</Kbd>
+            {shortcutLabel ? <Kbd size="sm">{shortcutLabel}</Kbd> : null}
           </ActionPill>
           <ActionPill onPress={() => router.push("/todos" as Href)}>
-            <Text className="text-sm font-medium text-foreground">✅ 할일 {todos.length}</Text>
+            <Text className="text-sm font-medium text-foreground">✅ 액션 {todos.length}</Text>
           </ActionPill>
           <ActionPill onPress={() => router.push("/links" as Href)}>
             <Text className="text-sm font-medium text-foreground">📚 전체 보기</Text>
@@ -252,7 +279,7 @@ function WideHomeScreen() {
         <View className="gap-3">
           <SectionHeader
             emoji="📌"
-            title="오늘 할 일"
+            title="오늘의 액션"
             count={todos.length}
             onSeeAll={() => router.push("/todos" as Href)}
           />
@@ -261,30 +288,39 @@ function WideHomeScreen() {
           ) : previewTodos.length === 0 ? (
             <EmptyState
               emoji="🎶"
-              title="오늘 할 일이 없어요"
+              title="오늘의 액션이 없어요"
             />
           ) : (
-            <View className="flex-row flex-wrap gap-3">
-              {previewTodos.map((todo) => (
-                <View
-                  key={todo.id}
-                  className={GRID_ITEM_CLASS}
-                >
-                  <TodoItem
-                    variant="display"
-                    text={todo.title}
-                    done={Boolean(todo.completedAt)}
-                    reminderLabel={formatReminderLabel(todo.reminderAt, {
-                      withOverdueSuffix: true,
-                    })}
-                    overdue={isOverdue(todo, nowMs)}
-                    linkUrl={todo.linkUrl}
-                    linkTitle={todo.linkTitle}
-                    onToggle={(next) => handleToggleTodo(todo, next)}
-                    onPress={() => router.push(`/links/${todo.linkId}` as Href)}
-                  />
-                </View>
-              ))}
+            <View
+              className="w-full flex-row flex-wrap"
+              style={{ gap: TODO_GRID_GAP }}
+              onLayout={todoGrid.onLayout}
+            >
+              {previewTodos.map((todo) => {
+                const schedule = formatTodoSchedule(todo, nowMs);
+                return (
+                  <View
+                    key={todo.id}
+                    style={todoGrid.itemStyle}
+                  >
+                    <TodoItem
+                      className="grow"
+                      variant="display"
+                      text={todo.title}
+                      done={Boolean(todo.completedAt)}
+                      reminderLabel={schedule.label}
+                      scheduleKind={schedule.kind}
+                      overdue={schedule.overdue}
+                      linkUrl={todo.linkUrl}
+                      linkTitle={todo.linkTitle}
+                      linkThumbnailUrl={todo.linkThumbnailUrl}
+                      linkFaviconUrl={todo.linkFaviconUrl}
+                      onToggle={(next) => handleToggleTodo(todo, next)}
+                      onPress={() => router.push(`/links/${todo.linkId}` as Href)}
+                    />
+                  </View>
+                );
+              })}
             </View>
           )}
         </View>
@@ -296,37 +332,19 @@ function WideHomeScreen() {
             count={recentLinks.length}
             onSeeAll={() => router.push("/links" as Href)}
           />
-          {recentLinksQuery.isLoading ? (
-            <ActivityIndicator className="py-8" />
-          ) : recentLinks.length === 0 ? (
+          {!recentLinksQuery.isLoading && recentLinks.length === 0 ? (
             <EmptyState
               emoji="⛓️‍💥"
               title="최근 저장 링크가 없어요"
             />
           ) : (
             <LinkCardGrid
+              isLoading={recentLinksQuery.isLoading}
               links={recentLinks}
-              containerClassName="gap-3"
-              itemClassName={GRID_ITEM_CLASS}
-              todoLayout="stack"
+              skeletonCount={RECENT_PREVIEW_COUNT}
               onCardPress={(item) => router.push(`/links/${item.id}` as Href)}
             />
           )}
-        </View>
-
-        <View className="flex-row flex-wrap items-center justify-center gap-5 pt-2">
-          <Kbd
-            label="새 링크"
-            labelPosition="right"
-          >
-            N
-          </Kbd>
-          <Kbd
-            label="검색"
-            labelPosition="right"
-          >
-            ⌘/Ctrl + K
-          </Kbd>
         </View>
       </View>
 

@@ -1,221 +1,277 @@
 import * as React from "react";
-import { View } from "react-native";
+import { type TextInput, View } from "react-native";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { type DateValue } from "@/components/ui/date-picker";
-import { DateTimePickerButton } from "@/components/ui/date-time-picker-button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
-import { type TimeValue, formatTimeLabel } from "@/components/ui/time-picker";
+import { type TimeValue } from "@/components/ui/time-picker";
+import {
+  getTodoDoneToggleLabel,
+  getTodoRemoveLabel,
+} from "@/features/todos/lib/todo-accessibility-label";
+import {
+  DATE_AND_TIME_REQUIRED_ERROR,
+  DATE_REQUIRED_ERROR,
+  PAST_REMINDER_ERROR,
+  TIME_REQUIRED_ERROR,
+  getDraftScheduleGap,
+  getLivePastError,
+} from "@/features/todos/lib/todo-schedule";
+import { formatDraftSchedule } from "@/features/todos/lib/todo-schedule-label";
+import { getThemeTokens } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { useDisplaySettings } from "@/stores/display-settings";
+
+import { TodoScheduleChip } from "./todo-schedule-chip";
+import {
+  DATE_PLACEHOLDER,
+  TIME_PLACEHOLDER,
+  type TodoEditorMode,
+  type TodoScheduleHost,
+  TodoSchedulePanel,
+  type WeekdayValue,
+} from "./todo-schedule-panel";
+import { TODO_TITLE_MAX_LENGTH, useTodoTitleLimit } from "./use-todo-title-limit";
 
 import { X } from "lucide-react-native/icons";
 
-type TodoEditorMode = "none" | "time" | "recurring";
-type TodoEditorVisibility = "public" | "private";
-type WeekdayValue = (typeof weekdayOptions)[number]["value"];
+type TodoEditorId = number | string;
 
-const weekdayOptions = [
-  { label: "월", value: "mon" },
-  { label: "화", value: "tue" },
-  { label: "수", value: "wed" },
-  { label: "목", value: "thu" },
-  { label: "금", value: "fri" },
-  { label: "토", value: "sat" },
-  { label: "일", value: "sun" },
-] as const;
+const TODO_TITLE_COUNTER_FROM = 40;
 
-const allWeekdayValues = weekdayOptions.map((weekday) => weekday.value);
-const weekdayLabelByValue = Object.fromEntries(
-  weekdayOptions.map((weekday) => [weekday.value, weekday.label]),
-) as Record<WeekdayValue, string>;
-const weekdaySortOrder: Record<WeekdayValue, number> = {
-  mon: 0,
-  tue: 1,
-  wed: 2,
-  thu: 3,
-  fri: 4,
-  sat: 5,
-  sun: 6,
+// Press areas past the visible size: the 16px checkbox reaches 40×40 on web, the 32px × 44×44.
+const CHECKBOX_WEB_HIT_SLOP = 12;
+const REMOVE_HIT_SLOP = 6;
+
+const MISSING_SCHEDULE_ERRORS = new Set([
+  DATE_AND_TIME_REQUIRED_ERROR,
+  DATE_REQUIRED_ERROR,
+  TIME_REQUIRED_ERROR,
+]);
+
+type TodoEditorProps = {
+  id: TodoEditorId;
+  className?: string;
+  value: string;
+  mode: TodoEditorMode;
+  selectedWeekdays: WeekdayValue[];
+  date: DateValue | null;
+  time: TimeValue | null;
+  /** Schedule error from the last save attempt (missing date/time, no weekday, past time). */
+  validationError?: string | null;
+  /** Title error from the last save attempt (a schedule without a title). */
+  titleError?: string | null;
+  /** A saved action may keep a past reminder; only new or changed ones are refused. */
+  allowPast?: boolean;
+  /** Shows the done checkbox in front of the row (link detail only). */
+  check?: boolean;
+  done?: boolean;
+  open: boolean;
+  /** Moves the focus to the title when it turns true. */
+  focusRequested?: boolean;
+  /** Locks the whole row while it is being saved. */
+  disabled?: boolean;
+  /** Layout mode for the date/time pickers — wide opens a Popover, mobile opens a Sheet. */
+  pickerMode?: "wide" | "mobile";
+  /** The colour right behind the action list, used by the open schedule panel. */
+  host?: TodoScheduleHost;
+  onChangeTitle: (id: TodoEditorId, value: string) => void;
+  onChangeMode: (id: TodoEditorId, value: TodoEditorMode) => void;
+  onChangeWeekdays: (id: TodoEditorId, value: WeekdayValue[]) => void;
+  onChangeDate: (id: TodoEditorId, value: DateValue) => void;
+  onChangeTime: (id: TodoEditorId, value: TimeValue) => void;
+  onChangeDone?: (id: TodoEditorId, value: boolean) => void;
+  onToggleOpen: (id: TodoEditorId) => void;
+  onRemove: (id: TodoEditorId) => void;
 };
-
-const DATE_PLACEHOLDER = "년-월-일";
-const TIME_PLACEHOLDER = "오전 09:00";
-
-function formatRecurringPattern(selectedWeekdays: WeekdayValue[], timeLabel: string) {
-  const normalizedWeekdays = Array.from(new Set(selectedWeekdays)).sort(
-    (left, right) => weekdaySortOrder[left] - weekdaySortOrder[right],
-  );
-
-  if (normalizedWeekdays.length === allWeekdayValues.length) {
-    return `매일 ${timeLabel}`;
-  }
-
-  const isWeekdayOnly =
-    normalizedWeekdays.length === 5 &&
-    normalizedWeekdays.every((weekday) => ["mon", "tue", "wed", "thu", "fri"].includes(weekday));
-
-  if (isWeekdayOnly) {
-    return `평일 ${timeLabel}`;
-  }
-
-  const isWeekendOnly =
-    normalizedWeekdays.length === 2 &&
-    normalizedWeekdays.includes("sat") &&
-    normalizedWeekdays.includes("sun");
-
-  if (isWeekendOnly) {
-    return `주말 ${timeLabel}`;
-  }
-
-  const weekdayLabel = normalizedWeekdays.map((weekday) => weekdayLabelByValue[weekday]).join(", ");
-
-  return `${weekdayLabel} ${timeLabel}`;
-}
 
 const TodoEditor = React.memo(TodoEditorBase);
 
+// One action in the editor: a soft face with a ghost title, ×, and the schedule chip
+// that opens the schedule panel right below it. Holds no state of its own besides
+// the title focus.
 function TodoEditorBase({
+  id,
   className,
   value,
-  index = 1,
   mode,
-  selectedWeekdays = allWeekdayValues,
-  date = null,
-  time = null,
-  validationError,
-  showPastWarning,
-  onChangeText,
-  onModeChange,
-  onSelectedWeekdaysChange,
-  onRemove,
+  selectedWeekdays,
+  date,
+  time,
+  validationError = null,
+  titleError = null,
+  allowPast = false,
+  check = false,
+  done = false,
+  open,
+  focusRequested = false,
+  disabled = false,
   pickerMode = "wide",
-  onDateChange,
-  onTimeChange,
-}: {
-  className?: string;
-  index?: number;
-  value: string;
-  mode: TodoEditorMode;
-  selectedWeekdays?: WeekdayValue[];
-  date?: DateValue | null;
-  time?: TimeValue | null;
-  /** Inline error rendered under the date/time row when the user attempts save. */
-  validationError?: string | null;
-  /** Non-blocking hint when the chosen date+time is already in the past. */
-  showPastWarning?: boolean;
-  visibility?: TodoEditorVisibility;
-  onChangeText?: (value: string) => void;
-  onModeChange?: (value: TodoEditorMode) => void;
-  onSelectedWeekdaysChange?: (value: WeekdayValue[]) => void;
-  onVisibilityChange?: (value: TodoEditorVisibility) => void;
-  onRemove?: () => void;
-  /** Layout mode for the picker — wide opens a Popover, mobile opens a Sheet. */
-  pickerMode?: "wide" | "mobile";
-  onDateChange?: (next: DateValue) => void;
-  onTimeChange?: (next: TimeValue) => void;
-}) {
-  const timeLabel = time ? formatTimeLabel(time) : TIME_PLACEHOLDER;
-  const recurringPattern = formatRecurringPattern(selectedWeekdays, timeLabel);
+  host = "background",
+  onChangeTitle,
+  onChangeMode,
+  onChangeWeekdays,
+  onChangeDate,
+  onChangeTime,
+  onChangeDone,
+  onToggleOpen,
+  onRemove,
+}: TodoEditorProps) {
+  const inputRef = React.useRef<TextInput>(null);
+  const [isTitleFocused, setIsTitleFocused] = React.useState(false);
+  const accent = useDisplaySettings((state) => state.display.accent);
+  const theme = useDisplaySettings((state) => state.display.theme);
+  const tokens = React.useMemo(() => getThemeTokens(theme, accent), [accent, theme]);
+  const isMobile = pickerMode === "mobile";
+
+  React.useEffect(() => {
+    if (focusRequested) {
+      inputRef.current?.focus();
+    }
+  }, [focusRequested]);
+
+  const nowMs = Date.now();
+  const draft = { id, title: value, mode, selectedWeekdays, date, time, done, allowPast };
+  const schedule = formatDraftSchedule(draft, nowMs);
+  const gap = getDraftScheduleGap(draft);
+  const scheduleError = validationError ?? getLivePastError(draft, nowMs);
+  const isPastError = scheduleError === PAST_REMINDER_ERROR;
+  const isMissingError = scheduleError != null && MISSING_SCHEDULE_ERRORS.has(scheduleError);
+  const showCounter = !done && value.length >= TODO_TITLE_COUNTER_FROM;
+  const isCounterFull = value.length >= TODO_TITLE_MAX_LENGTH;
+
+  const handleChangeTitle = React.useCallback(
+    (next: string) => onChangeTitle(id, next),
+    [id, onChangeTitle],
+  );
+  const titleLimit = useTodoTitleLimit(handleChangeTitle, value);
+
+  // A field mounted again to show a cut title keeps the focus.
+  React.useEffect(() => {
+    if (titleLimit.inputKey > 0) inputRef.current?.focus();
+  }, [titleLimit.inputKey]);
 
   return (
     <View
       className={cn(
-        "gap-3 rounded-2xl border border-border bg-surface p-3 shadow-qlink-sm",
+        "flex-row gap-3 rounded-[14px] bg-muted/40 px-3.5 py-3",
+        check && "pl-[17px]",
         className,
       )}
+      testID="todo-editor"
     >
-      <View className="flex-row items-start gap-3">
-        <View className="size-8 items-center justify-center rounded-lg bg-muted-foreground">
-          <Text className="text-sm font-semibold text-background">{index}</Text>
-        </View>
-        <View className="flex-1">
-          <Input
-            className="h-10 text-base"
-            value={value}
-            onChangeText={onChangeText}
-            placeholder="할 일 제목"
-          />
-        </View>
-        {onRemove ? (
+      {check ? (
+        <Checkbox
+          accessibilityLabel={getTodoDoneToggleLabel(value, done)}
+          checked={done}
+          className={isMobile ? "mt-[11px]" : "mt-2"}
+          shape="round"
+          disabled={disabled}
+          webHitSlop={CHECKBOX_WEB_HIT_SLOP}
+          onCheckedChange={(next) => onChangeDone?.(id, next)}
+        />
+      ) : null}
+      <View className="min-w-0 flex-1 gap-2">
+        <View className="flex-row items-center gap-1.5">
+          <View className="relative min-w-0 flex-1 justify-center">
+            <Input
+              key={titleLimit.inputKey}
+              ref={inputRef}
+              accessibilityLabel="액션 제목"
+              aria-invalid={titleError != null}
+              className={cn(
+                "-ml-2 border-transparent bg-transparent px-2 font-semibold shadow-none dark:bg-transparent",
+                isMobile ? "h-10 text-base" : "h-[34px] text-[13px]",
+                // The hover border would cover the focus border, so it shows only unfocused.
+                isTitleFocused ? "bg-card dark:bg-card" : "web:hover:border-input",
+                titleError != null && "border-destructive/70 web:hover:border-destructive/70",
+                showCounter && "pr-14",
+                // iOS reuses native text inputs and keeps a strike in the reused one's
+                // placeholder, so the done title is struck through on web only.
+                done && "text-muted-foreground web:line-through",
+              )}
+              editable={!disabled}
+              maxLength={titleLimit.maxLength}
+              placeholder="액션 제목"
+              style={titleError != null ? { borderColor: tokens.destructive } : undefined}
+              value={value}
+              onBlur={() => setIsTitleFocused(false)}
+              onChangeText={titleLimit.handleChangeText}
+              onFocus={() => setIsTitleFocused(true)}
+            />
+            {showCounter ? (
+              <Text
+                className={cn(
+                  "pointer-events-none absolute right-2 text-xs tabular-nums text-muted-foreground",
+                  isCounterFull && "font-bold text-primary",
+                )}
+                testID="todo-editor-title-counter"
+              >
+                {`${value.length}/${TODO_TITLE_MAX_LENGTH}`}
+              </Text>
+            ) : null}
+          </View>
           <IconButton
-            className="mt-0.5"
+            accessibilityLabel={getTodoRemoveLabel(value)}
+            disabled={disabled}
+            hitSlop={REMOVE_HIT_SLOP}
             icon={X}
             size="sm"
-            onPress={onRemove}
+            variant="ghost"
+            className="size-8"
+            onPress={() => onRemove(id)}
           />
+        </View>
+        {titleError ? (
+          <Text className="-mt-1 text-xs font-medium text-destructive">{titleError}</Text>
         ) : null}
+
+        {done ? null : (
+          <>
+            <TodoScheduleChip
+              repeat={mode === "recurring"}
+              schedule={schedule}
+              gap={gap}
+              open={open}
+              invalid={scheduleError != null}
+              disabled={disabled}
+              testID="todo-schedule-chip"
+              onPress={() => onToggleOpen(id)}
+            />
+            {open ? (
+              <TodoSchedulePanel
+                mode={mode}
+                selectedWeekdays={selectedWeekdays}
+                date={date}
+                time={time}
+                error={scheduleError}
+                invalidDate={isMissingError && date == null}
+                invalidTime={(isMissingError && time == null) || isPastError}
+                host={host}
+                pickerMode={pickerMode}
+                disabled={disabled}
+                onModeChange={(next) => onChangeMode(id, next)}
+                onSelectedWeekdaysChange={(next) => onChangeWeekdays(id, next)}
+                onDateChange={(next) => onChangeDate(id, next)}
+                onTimeChange={(next) => onChangeTime(id, next)}
+              />
+            ) : scheduleError ? (
+              <Text className="text-xs font-medium text-destructive">{scheduleError}</Text>
+            ) : null}
+          </>
+        )}
       </View>
-      <SegmentedControl
-        value={mode}
-        block
-        className="border-transparent bg-transparent p-0"
-        variant="chips"
-        options={[
-          { label: "시간 없음", value: "none" },
-          { label: "시간 선택", value: "time" },
-          { label: "반복 알림", value: "recurring" },
-        ]}
-        onValueChange={(next) => onModeChange?.(next as TodoEditorMode)}
-      />
-
-      {mode === "recurring" ? (
-        <View className="gap-3">
-          <View className="gap-2">
-            <Text className="text-sm font-semibold text-muted-foreground">반복 요일</Text>
-            <Text className="text-sm font-medium text-foreground">{recurringPattern}</Text>
-          </View>
-          <SegmentedControl
-            value={selectedWeekdays}
-            block
-            className="flex-wrap"
-            selectionMode="multiple"
-            variant="chips"
-            options={weekdayOptions.map((weekday) => ({
-              label: weekday.label,
-              value: weekday.value,
-            }))}
-            onValueChange={(nextValue) => onSelectedWeekdaysChange?.(nextValue as WeekdayValue[])}
-          />
-        </View>
-      ) : null}
-
-      {mode !== "none" ? (
-        <View className="gap-2">
-          <View className="flex-row gap-3">
-            <DateTimePickerButton
-              mode={pickerMode}
-              kind="time"
-              value={time}
-              onChange={(next) => onTimeChange?.(next)}
-            />
-            <DateTimePickerButton
-              mode={pickerMode}
-              kind="date"
-              value={date}
-              onChange={(next) => onDateChange?.(next)}
-            />
-          </View>
-          {validationError ? (
-            <Text className="text-xs font-medium text-destructive">{validationError}</Text>
-          ) : null}
-          {showPastWarning ? (
-            <Text className="text-xs font-medium text-muted-foreground">
-              과거 일자는 알림 발송은 되지 않아요
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
-
-      {mode === "recurring" ? (
-        <View className="rounded-md bg-muted px-4 py-2.5">
-          <Text className="text-sm font-semibold text-muted-foreground">📌 {recurringPattern}</Text>
-        </View>
-      ) : null}
     </View>
   );
 }
 
-export { DATE_PLACEHOLDER, TIME_PLACEHOLDER, TodoEditor };
-export type { TodoEditorMode, TodoEditorVisibility, WeekdayValue };
+export {
+  DATE_PLACEHOLDER,
+  TIME_PLACEHOLDER,
+  TODO_TITLE_COUNTER_FROM,
+  TODO_TITLE_MAX_LENGTH,
+  TodoEditor,
+};
+export type { TodoEditorId, TodoEditorMode, TodoEditorProps, WeekdayValue };

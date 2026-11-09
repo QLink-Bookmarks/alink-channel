@@ -8,3 +8,5 @@ node_modules
 web-build
 docs
 .playwright-cli
+.agents/skills/impeccable
+.claude/skills/impeccable

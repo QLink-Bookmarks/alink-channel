@@ -1,5 +1,4 @@
 import { Pressable, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -8,35 +7,25 @@ import { cn } from "@/lib/utils";
 
 import type { LucideIcon } from "lucide-react-native";
 
-// View scope: 모바일 전용. md >= 768px에서는 사용하지 않는다.
+// View scope: 모바일 전용. md >= 769px에서는 사용하지 않는다.
 
 function Fab({
   className,
   icon,
   label,
   onPress,
-  bottomOffset = 24,
-  rightOffset = 24,
 }: {
   className?: string;
   icon: LucideIcon;
   label?: string;
   onPress?: () => void;
-  bottomOffset?: number;
-  rightOffset?: number;
 }) {
-  const insets = useSafeAreaInsets();
-
   return (
     <Button
       accessibilityLabel={label}
-      className={cn("absolute z-fixed size-14 rounded-full shadow-qlink-fab", className)}
+      className={cn("size-14 rounded-full shadow-qlink-fab dark:shadow-qlink-fab-dark", className)}
       onPress={onPress}
       size="icon"
-      style={{
-        bottom: insets.bottom + bottomOffset,
-        right: rightOffset,
-      }}
       variant="gradient"
     >
       <Icon

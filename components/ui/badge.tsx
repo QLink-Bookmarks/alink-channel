@@ -10,7 +10,7 @@ const badgeVariants = cva(
   cn(
     "border-border group shrink-0 flex-row items-center justify-center gap-1 overflow-hidden rounded-[10px] border px-2 py-0.5",
     Platform.select({
-      web: "focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive w-fit whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] [&>svg]:pointer-events-none [&>svg]:size-3",
+      web: "focus-visible:border-ring focus-visible:ring-ring aria-invalid:ring-destructive aria-invalid:border-destructive w-fit whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] [&>svg]:pointer-events-none [&>svg]:size-3",
     }),
   ),
   {
@@ -65,7 +65,7 @@ const badgeTextVariants = cva("text-xs font-medium", {
       success: "text-success",
       warning: "text-warning",
       secondary: "text-secondary-foreground",
-      destructive: "text-white",
+      destructive: "text-destructive-foreground",
       outline: "text-foreground",
     },
   },

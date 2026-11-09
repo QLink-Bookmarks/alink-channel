@@ -20,20 +20,25 @@ import { AccountRow } from "@/features/account/components/account-row/account-ro
 import { useMyProfileQuery } from "@/features/account/queries";
 import { getWebAppOrigin } from "@/lib/app-variant";
 import { getThemeTokens } from "@/lib/theme";
+import { useDisplaySettings } from "@/stores/display-settings";
 import { useToastStore } from "@/stores/toast-store";
 
 import { buildInviteShareText } from "../lib/build-invite-share-text";
+import { getApiErrorMessage } from "../lib/folder-api-errors";
 import { shareInvitation } from "../lib/share-invitation";
 import { useCreateFolderInvitationMutation, useDeleteFolderMemberMutation } from "../mutations";
 import { useFolderMembersQuery } from "../queries";
 import type { Folder, FolderMember } from "../types";
 import type { CreateFolderDialogMode } from "./create-folder-dialog";
 import { EditFolderDialog } from "./create-folder-dialog";
+import { FolderRemovalFlow, type FolderRemovalKind } from "./folder-removal-flow";
 
-import { isAxiosError } from "axios";
 import * as Clipboard from "expo-clipboard";
 import { type Href, useRouter } from "expo-router";
-import { ChevronLeft, Copy, Pencil, Send, Trash2 } from "lucide-react-native/icons";
+import { ChevronLeft, Copy, LogOut, Pencil, Send, Trash2 } from "lucide-react-native/icons";
+
+// 36px buttons with a 44×44 touch area.
+const HEADER_HIT_SLOP = 4;
 
 type FolderHeaderActionsProps = {
   mode: CreateFolderDialogMode;
@@ -43,33 +48,84 @@ type FolderHeaderActionsProps = {
 function FolderHeaderActions({ mode, folder }: FolderHeaderActionsProps) {
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [isShareOpen, setIsShareOpen] = React.useState(false);
+  const [removalKind, setRemovalKind] = React.useState<FolderRemovalKind | null>(null);
+  const theme = useDisplaySettings((state) => state.display.theme);
+  const accent = useDisplaySettings((state) => state.display.accent);
+  const tokens = React.useMemo(() => getThemeTokens(theme, accent), [accent, theme]);
   const myProfileQuery = useMyProfileQuery();
-  const isOwner = folder.ownerId != null && myProfileQuery.data?.id === folder.ownerId;
-  // Personal folders are always editable by their owner; for shared folders only
-  // the owner may edit or manage sharing — members get neither button.
-  const canEdit = !folder.isShared || isOwner;
-  const canShare = folder.isShared && isOwner;
+  const myUserId = myProfileQuery.data?.id;
+  // A shared folder's actions depend on my role, so they wait until my profile is known
+  // (none while it loads or after it fails). Personal folders are always mine.
+  const isRoleKnown = !folder.isShared || (myUserId != null && folder.ownerId != null);
+  const isOwner = !folder.isShared || (myUserId != null && myUserId === folder.ownerId);
+  const canEdit = isRoleKnown && isOwner;
+  const canShare = isRoleKnown && folder.isShared && isOwner;
+  const destructiveAction = !isRoleKnown
+    ? null
+    : isOwner
+      ? {
+          kind: "delete" as const,
+          label: folder.isShared ? "공유 폴더 삭제" : "폴더 삭제",
+          icon: Trash2,
+        }
+      : { kind: "leave" as const, label: "공유 폴더 나가기", icon: LogOut };
+
+  const removalFlow = removalKind ? (
+    <FolderRemovalFlow
+      folder={folder}
+      kind={removalKind}
+      mode={mode}
+      onClose={() => setRemovalKind(null)}
+    />
+  ) : null;
 
   return (
     <>
-      <View className="flex-row items-center gap-1">
-        {canEdit ? (
-          <IconButton
-            accessibilityLabel="폴더 수정"
-            icon={Pencil}
-            size="sm"
-            onPress={() => setIsEditOpen(true)}
-          />
-        ) : null}
-        {canShare ? (
-          <IconButton
-            accessibilityLabel="폴더 공유"
-            icon={Send}
-            size="sm"
-            onPress={() => setIsShareOpen(true)}
-          />
-        ) : null}
-      </View>
+      {isRoleKnown ? (
+        <View className="flex-row items-center gap-2">
+          {canEdit ? (
+            <IconButton
+              accessibilityLabel="폴더 수정"
+              hitSlop={HEADER_HIT_SLOP}
+              icon={Pencil}
+              size="sm"
+              variant="ghost"
+              onPress={() => setIsEditOpen(true)}
+            />
+          ) : null}
+          {canShare ? (
+            <IconButton
+              accessibilityLabel="폴더 공유"
+              hitSlop={HEADER_HIT_SLOP}
+              icon={Send}
+              size="sm"
+              variant="ghost"
+              onPress={() => setIsShareOpen(true)}
+            />
+          ) : null}
+          {destructiveAction ? (
+            <>
+              {canEdit ? (
+                <View
+                  aria-hidden
+                  className="mx-1.5 h-5 w-px bg-border"
+                  testID="folder-header-divider"
+                />
+              ) : null}
+              <IconButton
+                accessibilityLabel={destructiveAction.label}
+                className="active:bg-destructive/10 web:hover:bg-destructive/10"
+                color={tokens.destructiveText}
+                hitSlop={HEADER_HIT_SLOP}
+                icon={destructiveAction.icon}
+                size="sm"
+                variant="ghost"
+                onPress={() => setRemovalKind(destructiveAction.kind)}
+              />
+            </>
+          ) : null}
+        </View>
+      ) : null}
 
       <EditFolderDialog
         folder={folder}
@@ -84,6 +140,19 @@ function FolderHeaderActions({ mode, folder }: FolderHeaderActionsProps) {
         open={isShareOpen}
         onOpenChange={setIsShareOpen}
       />
+
+      {removalFlow && mode === "wide" ? (
+        // The wide page header lays its actions out with a gap; the flow's (portaled) roots sit in
+        // a zero-size layer so opening it adds no gaps and does not shift the actions.
+        <View
+          className="absolute"
+          pointerEvents="box-none"
+        >
+          {removalFlow}
+        </View>
+      ) : (
+        removalFlow
+      )}
     </>
   );
 }
@@ -100,7 +169,9 @@ function ShareFolderPlaceholder({
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
-  const tokens = React.useMemo(() => getThemeTokens("light"), []);
+  const theme = useDisplaySettings((state) => state.display.theme);
+  const accent = useDisplaySettings((state) => state.display.accent);
+  const tokens = React.useMemo(() => getThemeTokens(theme, accent), [accent, theme]);
   const myProfileQuery = useMyProfileQuery();
   const myUserId = myProfileQuery.data?.id;
   const isOwner = folder.ownerId != null && myUserId === folder.ownerId;
@@ -260,7 +331,7 @@ function ShareFolderPlaceholder({
                 <IconButton
                   accessibilityLabel={`${member.userNickname} 멤버 제외`}
                   className="active:bg-destructive/10 web:hover:bg-destructive/10"
-                  color={tokens.destructive}
+                  color={tokens.destructiveText}
                   icon={Trash2}
                   size="sm"
                   variant="ghost"
@@ -580,25 +651,6 @@ function FolderMemberDeleteDialog({
       {body}
     </Sheet>
   );
-}
-
-function getApiErrorMessage(error: unknown) {
-  if (!isAxiosError(error)) {
-    return undefined;
-  }
-
-  const data = error.response?.data;
-  if (!data || typeof data !== "object" || !("error" in data)) {
-    return undefined;
-  }
-
-  const errorDetail = (data as { error?: unknown }).error;
-  if (!errorDetail || typeof errorDetail !== "object" || !("message" in errorDetail)) {
-    return undefined;
-  }
-
-  const message = (errorDetail as { message?: unknown }).message;
-  return typeof message === "string" && message.trim() ? message : undefined;
 }
 
 function resolveInvitationUrl(invitation: string, folderId: number) {
