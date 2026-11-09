@@ -36,17 +36,31 @@ expo-env.d.ts
 # Firebase native config (client keys — kept out of git like .env; supply via EAS file secrets for cloud builds)
 /ga/GoogleService-Info.plist
 /ga/google-services.json
+/ga/GoogleService-Info.dev.plist
+/ga/google-services.dev.json
 output/
 storybook-static/
-docs/reference
+docs/
 .eslintcache
 
 # Local tooling / E2E artifacts
-.claude/
+.claude/*
+!.claude/skills/
+!.claude/agents/
+.claude/agents/*
+!.claude/agents/impeccable-*.md
 test-results/
-playwright.config.ts
-playwright.config.js
-e2e/
+playwright-report/
+# Keep one-off Playwright scripts and captures local. Durable tests live in tests/e2e/.
+/e2e/
+# Impeccable downloads platform-specific engines locally when needed.
+.agents/skills/impeccable/scripts/bin/
+.claude/skills/impeccable/scripts/bin/
 # local web export artifacts
 alink-web-prod-dist.zip
 dist.zip
+
+# App Store review captures
+appreview/
+# Design mock workspace (local only)
+.impeccable/
