@@ -58,7 +58,7 @@ test.describe("2.0.0 landing slides", () => {
     await openLanding(page);
     await scrollThrough(page);
 
-    const askTitle = page.getByText(/본문으로 찾아요/);
+    const askTitle = page.getByText(/쉽게 찾고/);
     await askTitle.scrollIntoViewIfNeeded();
     await expect(askTitle).toBeVisible();
 

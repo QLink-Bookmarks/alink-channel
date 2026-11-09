@@ -78,6 +78,7 @@ import {
   Camera,
   ChevronRight,
   Info,
+  Lightbulb,
   Megaphone,
   MessageSquareText,
   Settings,
@@ -89,6 +90,18 @@ import {
 } from "lucide-react-native/icons";
 
 type SettingsScreenMode = "wide" | "mobile";
+
+const ALINK_TIPS_URL =
+  "https://warp-raft-63c.notion.site/ALink-Tips-412d602d12548000ab51c9da56783374";
+
+// Web opens a new tab; native hands the URL to the system browser.
+function openExternalUrl(url: string) {
+  if (process.env.EXPO_OS === "web" && typeof window !== "undefined") {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  void Linking.openURL(url);
+}
 
 function SettingsScreen({ mode }: { mode: SettingsScreenMode }) {
   const profileQuery = useMyProfileQuery();
@@ -858,6 +871,25 @@ function AppInfoSection({ mode }: { mode: SettingsScreenMode }) {
               className="text-muted-foreground"
             />
             <Text className="text-sm font-semibold text-foreground">피드백</Text>
+          </View>
+          <Icon
+            as={ChevronRight}
+            size={18}
+            className="text-muted-foreground"
+          />
+        </Pressable>
+
+        <Pressable
+          className="-mx-2 flex-row items-center justify-between gap-3 rounded-xl px-2 py-1.5 active:bg-accent web:hover:bg-accent"
+          onPress={() => openExternalUrl(ALINK_TIPS_URL)}
+        >
+          <View className="flex-row items-center gap-2">
+            <Icon
+              as={Lightbulb}
+              size={16}
+              className="text-muted-foreground"
+            />
+            <Text className="text-sm font-semibold text-foreground">에이링크 사용팁</Text>
           </View>
           <Icon
             as={ChevronRight}

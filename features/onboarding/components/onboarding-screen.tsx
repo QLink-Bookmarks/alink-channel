@@ -287,8 +287,8 @@ const SLIDES: Slide[] = [
   {
     key: "ask",
     subject: "Ask & Access",
-    title: "제목이 기억 안 나도\n본문으로 찾아요",
-    description: "저장한 페이지의 본문까지 검색해요.\n한 단어만 떠올라도 바로 꺼내 봐요.",
+    title: "물어보고,\n쉽게 찾고.",
+    description: "제목이 기억 안 나도 쉽게 찾을 수 있어요.",
     render: () => <AskSlide />,
   },
   {
