@@ -9,6 +9,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "serve": "expo export --platform web && expo serve",
+    "test:e2e": "playwright test",
+    "test:unit": "jest",
     "lint": "expo lint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
