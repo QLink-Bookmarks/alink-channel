@@ -3,8 +3,10 @@ name: Release (TestFlight build or OTA)
 # release 브랜치 배포용 (flight 워크플로를 대체). fingerprint로 네이티브 변경 여부를 판단:
 #  - 지문 변경: EAS production 프로필로 build -> submit (App Store Connect / TestFlight)
 #  - 지문 동일: production 브랜치로 OTA update (새 바이너리 없음)
-# submit(TestFlight) 성공엔 eas.json submit.production에 Apple 값
-# (ASC API Key 또는 appleId/ascAppId/appleTeamId)이 채워져야 한다.
+# 비교 대상은 "가장 최근에 끝난 production 빌드의 지문"이다. get-build는 아티팩트가
+# 만료된(30일) 빌드를 돌려주지 않아 같은 지문인데도 빌드로 빠졌으므로 쓰지 않는다.
+# submit(TestFlight) 성공엔 eas.json submit.production에 ascAppId가 있고
+# App Store Connect API Key가 앱에 할당돼 있어야 한다.
 # share extension은 expo-updates를 제외하므로 OTA로는 갱신되지 않는다 (네이티브 재빌드 필요).
 
 on:
@@ -17,16 +19,23 @@ jobs:
     type: fingerprint
     environment: production
 
-  get_ios_build:
+  store_build:
     needs: [fingerprint]
-    type: get-build
-    params:
-      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
-      profile: production
+    outputs:
+      hash: ${{ steps.latest.outputs.hash }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: latest
+        run: |
+          HASH=$(npx -y eas-cli@27.5.0 build:list --platform ios --profile production --status finished --limit 1 --json --non-interactive \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const b=JSON.parse(s)[0];process.stdout.write(b?.fingerprint?.hash ?? "")})')
+          echo "latest production build fingerprint: ${HASH:-<none>}"
+          set-output hash "$HASH"
 
   build_ios:
-    needs: [get_ios_build]
-    if: ${{ !needs.get_ios_build.outputs.build_id }}
+    needs: [fingerprint, store_build]
+    if: ${{ needs.fingerprint.outputs.ios_fingerprint_hash != needs.store_build.outputs.hash }}
     type: build
     params:
       platform: ios
@@ -35,13 +44,15 @@ jobs:
   submit_ios:
     needs: [build_ios]
     type: submit
+    env:
+      EXPO_DEBUG: "1"
     params:
       build_id: ${{ needs.build_ios.outputs.build_id }}
       profile: production
 
   update_ios:
-    needs: [get_ios_build]
-    if: ${{ needs.get_ios_build.outputs.build_id }}
+    needs: [fingerprint, store_build]
+    if: ${{ needs.fingerprint.outputs.ios_fingerprint_hash == needs.store_build.outputs.hash }}
     type: update
     environment: production
     params:
