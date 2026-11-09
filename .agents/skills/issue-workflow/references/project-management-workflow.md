@@ -96,7 +96,7 @@ Implement in a git worktree of its own, never in the main checkout, so several s
 
 ### 6. PR
 
-The PR body carries the same checklist from section 4, with only the items actually verified checked off. When the work spans several PRs, every PR but the last links the Issue with `- Refs #n`, and the last one with `- Resolves #n`, so the Issue closes only when all of them land. Section 6 of the Issue records every PR link.
+The PR body carries the same checklist from section 4, with only the items actually verified checked off, and the critique score table from `references/design-candidates.md` `Critique scores` when the UI changed. When the work spans several PRs, every PR but the last links the Issue with `- Refs #n`, and the last one with `- Resolves #n`, so the Issue closes only when all of them land. Section 6 of the Issue records every PR link.
 
 ## Skipping sections
 

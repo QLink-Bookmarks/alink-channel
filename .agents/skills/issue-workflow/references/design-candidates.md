@@ -38,6 +38,22 @@ Any candidate that changes UI carries a mode and accent toggle in one artifact, 
 - Give each candidate a one-line intent and name what it gives up.
 - Keep candidates and their links in chat. Nothing goes in the Issue until one is picked.
 
+## Critique scores
+
+Run the `impeccable` critique and record its Design Health Score (Nielsen heuristics, `/40` or the renormalized maximum) at four points, so the pick and the implementation can be compared on one scale:
+
+| Point | Target | When |
+|---|---|---|
+| `baseline` | the current screen on `main` | before candidates exist |
+| `candidate-<X>` | each candidate artifact | before presenting them |
+| `revised` | the picked candidate after the requested changes | each revision round |
+| `final` | the implemented screen, captured from the app | before the PR |
+
+- Same viewports every time: web wide `1280px` and web mobile `390px`, light and dark. Native captures (iPhone, iPad) are added at `final` when the Issue has iOS criteria.
+- Present candidates with their scores and P1 lists next to the recommendation.
+- A `final` more than 2 points below `revised` (or `baseline` when there were no candidates), or carrying any P0/P1, is reworked once and critiqued again before the PR opens.
+- The PR body carries the score table.
+
 ## After the pick
 
 Write into Issue section 3 and nothing more:
