@@ -6,12 +6,14 @@ import type {
   ConnectAuthProviderResponse,
   NativeRefreshTokenRequest,
   SignInRequest,
+  SignInResponse,
   SignOutRequest,
   SignOutResponse,
+  WebAuthTokenResponse,
 } from "./types";
 
 async function signIn(payload: SignInRequest) {
-  return api.post<AuthTokenResponse, SignInRequest>("/api/auth/sign", payload);
+  return api.post<SignInResponse, SignInRequest>("/api/auth/sign", payload);
 }
 
 async function connectAuthProvider(payload: ConnectAuthProviderRequest) {
@@ -22,7 +24,7 @@ async function connectAuthProvider(payload: ConnectAuthProviderRequest) {
 }
 
 async function refreshTokenWeb() {
-  return api.post<AuthTokenResponse>("/api/auth/token/refresh/web");
+  return api.post<WebAuthTokenResponse>("/api/auth/token/refresh/web");
 }
 
 async function refreshTokenNative(payload: NativeRefreshTokenRequest) {
@@ -32,8 +34,10 @@ async function refreshTokenNative(payload: NativeRefreshTokenRequest) {
   );
 }
 
-async function signOut(payload: SignOutRequest = {}) {
-  return api.delete<SignOutResponse>("/api/auth/signout", { data: payload });
+async function signOut({ refreshToken }: SignOutRequest = {}) {
+  return api.delete<SignOutResponse>("/api/auth/signout", {
+    data: refreshToken ? { refreshToken } : {},
+  });
 }
 
 export { connectAuthProvider, refreshTokenNative, refreshTokenWeb, signIn, signOut };

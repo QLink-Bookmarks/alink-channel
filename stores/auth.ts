@@ -2,14 +2,18 @@ import { AppState } from "react-native";
 
 import { SessionStorage } from "@/lib/session-storage";
 
+import {
+  type AuthTokens,
+  type StartupRefresh,
+  keptRefreshToken,
+  resolveStartupTokens,
+  shouldRewriteStartupRecord,
+  toStoredRecord,
+} from "./auth-startup";
+
 import { create } from "zustand";
 
 const STORAGE_KEY = "qlink-auth";
-
-type AuthTokens = {
-  accessToken: string | null;
-  refreshToken: string | null;
-};
 
 type AuthState = AuthTokens & {
   hasHydrated: boolean;
@@ -25,7 +29,7 @@ const useAuthStore = create<AuthState>((set) => ({
   refreshToken: null,
   hasHydrated: false,
   authenticate: ({ accessToken, refreshToken }) =>
-    set({ accessToken, refreshToken: refreshToken ?? null }),
+    set({ accessToken, refreshToken: keptRefreshToken(refreshToken ?? null) }),
   setAccessToken: (accessToken) => set({ accessToken }),
   setRefreshToken: (refreshToken) => set({ refreshToken }),
   signOut: () => set({ accessToken: null, refreshToken: null }),
@@ -47,13 +51,34 @@ async function readStoredTokens(): Promise<AuthTokens | null> {
   }
 }
 
+function writeStoredTokens(tokens: AuthTokens) {
+  if (tokens.accessToken || tokens.refreshToken) {
+    void SessionStorage.setItem(STORAGE_KEY, JSON.stringify(toStoredRecord(tokens)));
+  } else {
+    void SessionStorage.removeItem(STORAGE_KEY);
+  }
+}
+
+let resolveStartupRefresh: (refresh: StartupRefresh) => void = () => {};
+const startupRefresh = new Promise<StartupRefresh>((resolve) => {
+  resolveStartupRefresh = resolve;
+});
+
+function registerStartupRefresh(refresh: StartupRefresh) {
+  resolveStartupRefresh(refresh);
+}
+
 async function hydrateAuthStore() {
   const stored = await readStoredTokens();
-  if (stored) {
+  const tokens = await resolveStartupTokens(stored, startupRefresh);
+  if (tokens) {
     useAuthStore.setState({
-      accessToken: stored.accessToken,
-      refreshToken: stored.refreshToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     });
+  }
+  if (shouldRewriteStartupRecord(stored, tokens)) {
+    writeStoredTokens(tokens ?? { accessToken: null, refreshToken: null });
   }
   useAuthStore.setState({ hasHydrated: true });
 }
@@ -93,14 +118,7 @@ function startAuthPersistence() {
     }
     // On sign-out both tokens are null — delete the keychain entry outright
     // instead of leaving a null-filled record (matches invite/share stores).
-    if (state.accessToken || state.refreshToken) {
-      void SessionStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ accessToken: state.accessToken, refreshToken: state.refreshToken }),
-      );
-    } else {
-      void SessionStorage.removeItem(STORAGE_KEY);
-    }
+    writeStoredTokens(state);
   });
 }
 
@@ -131,5 +149,11 @@ function getRefreshTokenFromStore() {
   return useAuthStore.getState().refreshToken;
 }
 
-export { getAccessTokenFromStore, getRefreshTokenFromStore, syncAuthFromStorage, useAuthStore };
+export {
+  getAccessTokenFromStore,
+  getRefreshTokenFromStore,
+  registerStartupRefresh,
+  syncAuthFromStorage,
+  useAuthStore,
+};
 export type { AuthState };

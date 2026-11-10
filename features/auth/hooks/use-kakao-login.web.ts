@@ -41,10 +41,7 @@ async function exchangeKakaoCode(code: string): Promise<ConnectOutcome | null> {
     platform: "WEB",
   });
   if (result?.success && result.data) {
-    useAuthStore.getState().authenticate({
-      accessToken: result.data.accessToken,
-      refreshToken: result.data.refreshToken,
-    });
+    useAuthStore.getState().authenticate({ accessToken: result.data.accessToken });
   }
   return null;
 }

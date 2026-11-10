@@ -72,10 +72,7 @@ function useAppleLogin() {
       }
       const result = await signIn({ provider: "APPLE", token: idToken, platform: "WEB" });
       if (result?.success && result.data) {
-        authenticate({
-          accessToken: result.data.accessToken,
-          refreshToken: result.data.refreshToken,
-        });
+        authenticate({ accessToken: result.data.accessToken });
       }
     } catch (error) {
       const code = (error as { error?: string })?.error;
