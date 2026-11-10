@@ -266,6 +266,20 @@ test.describe("new tab in a signed-in browser", () => {
     expect(refreshCalls()).toBe(1);
     await context.close();
   });
+
+  test("after a browser restart a link detail address opens that link", async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await openNewTab(page, "success");
+    await recordTexts(page, [LANDING, LOGIN]);
+
+    await page.goto("/links/7");
+
+    await expect(page.getByText(link.title).first()).toBeVisible();
+    expect(page.url()).not.toContain("/login");
+    expect(await seenTexts(page)).toEqual([]);
+    await context.close();
+  });
 });
 
 test.describe("new tab when the refresh does not succeed", () => {
