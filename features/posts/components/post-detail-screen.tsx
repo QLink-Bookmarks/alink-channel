@@ -9,6 +9,8 @@ import { formatPostDate, isPostForbidden, isPostNotFound } from "@/features/post
 import { type PostBlock, parsePostContent } from "@/features/posts/lib/parse-post-content";
 import { usePostQuery } from "@/features/posts/queries";
 
+import { SelectablePostText } from "./selectable-post-text";
+
 import { Image } from "expo-image";
 import { type Href, useRouter } from "expo-router";
 
@@ -21,12 +23,9 @@ function PostContentBlock({
 }) {
   if (block.kind === "text") {
     return (
-      <Text
-        selectable
-        className="text-base leading-7 text-foreground"
-      >
+      <SelectablePostText className="text-base leading-7 text-foreground">
         {block.value}
-      </Text>
+      </SelectablePostText>
     );
   }
 
@@ -197,12 +196,9 @@ function PostDetailScreen({ postId, backPath, imagesClickable = false }: PostDet
         contentContainerClassName="mx-auto w-full gap-4 px-4 pb-16 pt-4 md:max-w-3xl md:px-6"
       >
         <View className="gap-2">
-          <Text
-            selectable
-            className="text-2xl font-semibold text-foreground"
-          >
+          <SelectablePostText className="text-2xl font-semibold text-foreground">
             {post.title}
-          </Text>
+          </SelectablePostText>
           <Text className="text-sm text-muted-foreground">
             {post.author} · {formatPostDate(post.createdAt)}
           </Text>
