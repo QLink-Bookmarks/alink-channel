@@ -120,4 +120,4 @@ function CheckingScreen() {
   );
 }
 
-export { AuthSplashScreen };
+export { AuthSplashScreen, CheckingScreen };

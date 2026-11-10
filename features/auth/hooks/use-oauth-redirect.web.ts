@@ -2,8 +2,14 @@ import * as React from "react";
 
 import { reportError } from "@/lib/error-reporting";
 
-import type { ConnectOutcome } from "../lib/connect-with-token";
-import { clearOauthMode, clearOauthState, resolveOauthState } from "../lib/oauth-state";
+import { type ConnectOutcome, connectFailed } from "../lib/connect-with-token";
+import {
+  clearOauthMode,
+  clearOauthState,
+  getOauthMode,
+  resolveOauthState,
+} from "../lib/oauth-state";
+import type { SocialProvider } from "../lib/provider-brand";
 import { useConnectFeedback } from "./use-connect-feedback";
 import { exchangeKakaoCode } from "./use-kakao-login.web";
 import { processNaverRedirect } from "./use-naver-login.web";
@@ -49,9 +55,12 @@ function useOauthRedirect() {
     handledRef.current = true;
 
     void (async () => {
+      const isConnect = getOauthMode() === "connect";
+      let attempted: SocialProvider | null = null;
       let outcome: ConnectOutcome | null = null;
       try {
         if (hasNaverHash()) {
+          attempted = "NAVER";
           setIsProcessing(true);
           outcome = await processNaverRedirect();
           return;
@@ -62,6 +71,7 @@ function useOauthRedirect() {
           return;
         }
 
+        attempted = "KAKAO";
         const provider = resolveOauthState(redirect.state);
         if (provider === "kakao") {
           setIsProcessing(true);
@@ -74,10 +84,13 @@ function useOauthRedirect() {
       } finally {
         clearOauthMode();
         setIsProcessing(false);
-        // A non-null outcome means this round-trip was a provider "connect"
-        // (not a login), so surface the result instead of authenticating.
+        // A connect round-trip always ends in a toast: its outcome, or a
+        // failure when the token exchange threw or returned nothing.
+        if (!outcome && isConnect && attempted) {
+          outcome = connectFailed(attempted);
+        }
         if (outcome) {
-          await applyConnectOutcome(outcome);
+          applyConnectOutcome(outcome);
         }
       }
     })();

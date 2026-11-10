@@ -122,10 +122,7 @@ async function processNaverRedirect(): Promise<ConnectOutcome | null> {
 
   const result = await signIn({ provider: "NAVER", token: accessToken, platform: "WEB" });
   if (result?.success && result.data) {
-    useAuthStore.getState().authenticate({
-      accessToken: result.data.accessToken,
-      refreshToken: result.data.refreshToken,
-    });
+    useAuthStore.getState().authenticate({ accessToken: result.data.accessToken });
   }
   return null;
 }

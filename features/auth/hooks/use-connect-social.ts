@@ -1,13 +1,22 @@
 import * as React from "react";
 
 import { reportError } from "@/lib/error-reporting";
-import { GoogleSignin, isSuccessResponse } from "@react-native-google-signin/google-signin";
+import {
+  GoogleSignin,
+  isCancelledResponse,
+  isErrorWithCode,
+  statusCodes,
+} from "@react-native-google-signin/google-signin";
 import { login as kakaoLogin } from "@react-native-kakao/user";
 import NaverLogin from "@react-native-seoul/naver-login";
 
-import { type ConnectOutcome, connectWithToken } from "../lib/connect-with-token";
+import {
+  type ConnectOutcome,
+  type ConnectToken,
+  connectFailed,
+  connectWithToken,
+} from "../lib/connect-with-token";
 import type { SocialProvider } from "../lib/provider-brand";
-import { useConnectFeedback } from "./use-connect-feedback";
 
 import * as AppleAuthentication from "expo-apple-authentication";
 
@@ -52,14 +61,35 @@ function withNaverTimeout(promise: Promise<unknown>, ms = 4000): Promise<void> {
   });
 }
 
-async function acquireNativeToken(provider: SocialProvider): Promise<string | null> {
+// Error codes the SDKs reject with when the user backs out of their sign-in UI:
+// Apple (expo-apple-authentication), Google, and Kakao (`Cancelled` from the
+// client, `AccessDenied` from the consent screen).
+const CANCEL_ERROR_CODES = new Set<string>([
+  "ERR_REQUEST_CANCELED",
+  statusCodes.SIGN_IN_CANCELLED,
+  "Cancelled",
+  "AccessDenied",
+]);
+
+function isCancelError(error: unknown): boolean {
+  return isErrorWithCode(error) && CANCEL_ERROR_CODES.has(String(error.code));
+}
+
+function tokenOrThrow(provider: SocialProvider, token: string | null | undefined): ConnectToken {
+  if (!token) {
+    throw new Error(`${provider} sign-in returned no token`);
+  }
+  return { kind: "token", token };
+}
+
+async function acquireNativeToken(provider: SocialProvider): Promise<ConnectToken> {
   switch (provider) {
     case "GOOGLE": {
       ensureGoogleConfigured();
       await GoogleSignin.hasPlayServices();
       const response = await GoogleSignin.signIn();
-      if (!isSuccessResponse(response)) return null;
-      return response.data.idToken ?? null;
+      if (isCancelledResponse(response)) return { kind: "cancelled" };
+      return tokenOrThrow(provider, response.data?.idToken);
     }
     case "APPLE": {
       const credential = await AppleAuthentication.signInAsync({
@@ -68,11 +98,11 @@ async function acquireNativeToken(provider: SocialProvider): Promise<string | nu
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
-      return credential.identityToken ?? null;
+      return tokenOrThrow(provider, credential.identityToken);
     }
     case "KAKAO": {
       const token = await kakaoLogin();
-      return token?.accessToken ?? null;
+      return tokenOrThrow(provider, token?.accessToken);
     }
     case "NAVER": {
       ensureNaverInitialized();
@@ -83,37 +113,39 @@ async function acquireNativeToken(provider: SocialProvider): Promise<string | nu
       // re-prompt).
       await withNaverTimeout(NaverLogin.logout());
       const response = await NaverLogin.login();
-      return response.isSuccess ? (response.successResponse?.accessToken ?? null) : null;
+      if (!response.isSuccess && response.failureResponse?.isCancel) {
+        return { kind: "cancelled" };
+      }
+      if (!response.isSuccess) {
+        throw new Error(`NAVER sign-in failed: ${response.failureResponse?.message ?? "unknown"}`);
+      }
+      return tokenOrThrow(provider, response.successResponse?.accessToken);
     }
   }
 }
 
 // Connect an additional social provider to the signed-in account using the
-// native SDKs (no browser redirect — tokens resolve inline).
+// native SDKs (no browser redirect — tokens resolve inline). Resolves to the
+// outcome to show, or null when the user cancelled the provider's sign-in.
 function useConnectSocial() {
-  const applyOutcome = useConnectFeedback();
   const [pendingProvider, setPendingProvider] = React.useState<SocialProvider | null>(null);
 
   const connect = React.useCallback(
-    async (provider: SocialProvider): Promise<ConnectOutcome | undefined> => {
+    async (provider: SocialProvider): Promise<ConnectOutcome | null> => {
       setPendingProvider(provider);
       try {
-        const token = await acquireNativeToken(provider);
-        if (!token) return undefined;
-        const outcome = await connectWithToken(provider, token, "NATIVE");
-        await applyOutcome(outcome);
-        return outcome;
+        const result = await acquireNativeToken(provider);
+        if (result.kind === "cancelled") return null;
+        return await connectWithToken(provider, result.token, "NATIVE");
       } catch (error) {
-        if ((error as { code?: string })?.code === "ERR_REQUEST_CANCELED") {
-          return undefined;
-        }
+        if (isCancelError(error)) return null;
         reportError(error, { area: "auth:connect-native", extra: { provider } });
-        return undefined;
+        return connectFailed(provider);
       } finally {
         setPendingProvider(null);
       }
     },
-    [applyOutcome],
+    [],
   );
 
   return { connect, pendingProvider };

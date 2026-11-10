@@ -6,17 +6,17 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import type { ConnectOutcome } from "../lib/connect-with-token";
 
-// Shared post-connect side effects: refresh the connected-provider list and
-// surface a toast. Used by both the inline (native / web popup) connect hooks
+// Shared post-connect side effects: surface a toast at once, then refresh the
+// connected-provider list in the background. Used by the connect sheet/dialog
 // and the web redirect dispatcher.
 function useConnectFeedback() {
   const queryClient = useQueryClient();
   const showToast = useToastStore((state) => state.showToast);
 
   return React.useCallback(
-    async (outcome: ConnectOutcome) => {
+    (outcome: ConnectOutcome) => {
       if (outcome.kind === "connected") {
-        await queryClient.invalidateQueries({ queryKey: accountQueryKeys.mySettings() });
+        void queryClient.invalidateQueries({ queryKey: accountQueryKeys.mySettings() });
         showToast({
           title: "계정을 연결했어요.",
           variant: "success",

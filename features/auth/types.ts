@@ -8,12 +8,25 @@ type SignInRequest = {
   platform: AuthPlatform;
 };
 
+type SignInResponseData = {
+  accessToken: string;
+  refreshToken: string | null;
+};
+
+type SignInResponse = ApiEnvelope<SignInResponseData>;
+
 type AuthTokenResponseData = {
   accessToken: string;
   refreshToken: string;
 };
 
 type AuthTokenResponse = ApiEnvelope<AuthTokenResponseData>;
+
+type WebAuthTokenResponseData = {
+  accessToken: string;
+};
+
+type WebAuthTokenResponse = ApiEnvelope<WebAuthTokenResponseData>;
 
 type ConnectAuthProviderRequest = {
   provider: string;
@@ -41,6 +54,10 @@ export type {
   ConnectAuthProviderResponse,
   NativeRefreshTokenRequest,
   SignInRequest,
+  SignInResponse,
+  SignInResponseData,
   SignOutRequest,
   SignOutResponse,
+  WebAuthTokenResponse,
+  WebAuthTokenResponseData,
 };

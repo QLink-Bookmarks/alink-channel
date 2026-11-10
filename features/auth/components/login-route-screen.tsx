@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { OpenInAppBanner } from "@/components/layout/open-in-app-banner";
 import { useAuthStore } from "@/stores/auth";
 
+import { CheckingScreen } from "./auth-splash-screen";
 import { LoginPrompt } from "./login-prompt";
 
 import { type Href, Redirect } from "expo-router";
@@ -14,6 +15,9 @@ function LoginRouteScreen() {
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const accessToken = useAuthStore((state) => state.accessToken);
 
+  if (process.env.EXPO_OS === "web" && !hasHydrated) {
+    return <CheckingScreen />;
+  }
   if (hasHydrated && accessToken) {
     return <Redirect href={"/" as Href} />;
   }

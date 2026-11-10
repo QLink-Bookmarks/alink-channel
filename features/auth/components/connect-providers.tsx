@@ -15,6 +15,7 @@ import { Text } from "@/components/ui/text";
 import type { ConnectedAuthProvider } from "@/features/account/types";
 import { cn } from "@/lib/utils";
 
+import { useConnectFeedback } from "../hooks/use-connect-feedback";
 import { useConnectSocial } from "../hooks/use-connect-social";
 import {
   PROVIDER_BRANDS,
@@ -76,22 +77,18 @@ function ConnectProviderOverlay({
   onOpenChange: (open: boolean) => void;
 }) {
   const { connect, pendingProvider } = useConnectSocial();
+  const applyOutcome = useConnectFeedback();
 
   const handleConnect = React.useCallback(
     async (provider: SocialProvider) => {
       const outcome = await connect(provider);
-      // Close on success, or on a definitive conflict (retrying won't help) — so
-      // the result toast isn't left hidden behind this sheet. Keep it open for
-      // unknown/transient errors so the user can retry.
-      const isDefinitive =
-        outcome?.kind === "connected" ||
-        outcome?.reason === "already-connected" ||
-        outcome?.reason === "linked-to-other-user";
-      if (isDefinitive) {
-        onOpenChange(false);
-      }
+      if (!outcome) return;
+      // Close before the toast on every result, failures included, so the
+      // toast is never left behind this sheet. A cancel keeps the sheet open.
+      onOpenChange(false);
+      applyOutcome(outcome);
     },
-    [connect, onOpenChange],
+    [applyOutcome, connect, onOpenChange],
   );
 
   const body = (
