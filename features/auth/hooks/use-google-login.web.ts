@@ -52,10 +52,7 @@ function useGoogleLogin() {
               platform: "WEB",
             });
             if (result?.success && result.data) {
-              authenticate({
-                accessToken: result.data.accessToken,
-                refreshToken: result.data.refreshToken,
-              });
+              authenticate({ accessToken: result.data.accessToken });
             }
           } catch (error) {
             reportError(error, { area: "auth:google-login-exchange" });

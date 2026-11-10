@@ -155,6 +155,8 @@ type MockApiOptions = {
   folderMembers?: Record<number, MockFolderMembers>;
   /** Custom handlers checked first, keyed by `METHOD /api/path` (path without query). */
   handlers?: Record<string, Handler>;
+  /** Seed the tab's `qlink-auth` record before every load (default true). */
+  seedSession?: boolean;
 };
 
 /** The signed-in user (`GET /api/users/me`). */
@@ -581,12 +583,14 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
     body: { success: false, data: null, error: { code, message: code } },
   });
 
-  await page.addInitScript(() => {
-    window.sessionStorage.setItem(
-      "qlink-auth",
-      JSON.stringify({ accessToken: "e2e-access-token", refreshToken: "e2e-refresh-token" }),
-    );
-  });
+  if (options.seedSession !== false) {
+    await page.addInitScript(() => {
+      window.sessionStorage.setItem(
+        "qlink-auth",
+        JSON.stringify({ accessToken: "e2e-access-token", refreshToken: "e2e-refresh-token" }),
+      );
+    });
+  }
   await routeImages(page);
 
   await page.route(

@@ -1,9 +1,8 @@
-import { Platform } from "react-native";
-
 import { REQUESTER_HEADERS } from "@/lib/requester-header";
 import {
   getAccessTokenFromStore,
   getRefreshTokenFromStore,
+  registerStartupRefresh,
   syncAuthFromStorage,
   useAuthStore,
 } from "@/stores/auth";
@@ -11,10 +10,15 @@ import { useToastStore } from "@/stores/toast-store";
 
 import { type AxiosError, type AxiosRequestConfig, create, isAxiosError } from "axios";
 
-type RefreshResponse = {
+type RefreshResponse<T> = {
   success: boolean;
-  data: { accessToken: string; refreshToken: string } | null;
+  data: T | null;
   error: { code: string; message: string } | null;
+};
+
+type RefreshedTokens = {
+  accessToken: string;
+  refreshToken: string | null;
 };
 
 export type ApiRequestConfig<D = unknown> = AxiosRequestConfig<D> & {
@@ -59,37 +63,40 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-let refreshPromise: Promise<string | null> | null = null;
+let refreshPromise: Promise<RefreshedTokens | null> | null = null;
 
-async function performRefresh(): Promise<string | null> {
-  try {
-    if (Platform.OS !== "web") {
-      // The iOS share extension may have already refreshed (and rotated) the
-      // shared-keychain tokens. Adopt those before refreshing so we don't send a
-      // stale, already-consumed refresh token.
-      await syncAuthFromStorage();
-    }
-    const response =
-      Platform.OS === "web"
-        ? await apiClient.post<RefreshResponse>("/api/auth/token/refresh/web")
-        : await apiClient.post<RefreshResponse>("/api/auth/token/refresh/native", {
-            refreshToken: getRefreshTokenFromStore(),
-          });
+async function requestRefresh(): Promise<RefreshedTokens | null> {
+  if (process.env.EXPO_OS === "web") {
+    const response = await apiClient.post<RefreshResponse<{ accessToken: string }>>(
+      "/api/auth/token/refresh/web",
+    );
     const tokens = response.data.data;
-    if (!tokens?.accessToken) {
-      return null;
-    }
-    useAuthStore.getState().authenticate({
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken ?? null,
-    });
-    return tokens.accessToken;
+    return tokens?.accessToken ? { accessToken: tokens.accessToken, refreshToken: null } : null;
+  }
+  // The iOS share extension may have already refreshed (and rotated) the
+  // shared-keychain tokens. Adopt those before refreshing so we don't send a
+  // stale, already-consumed refresh token.
+  await syncAuthFromStorage();
+  const response = await apiClient.post<
+    RefreshResponse<{ accessToken: string; refreshToken: string }>
+  >("/api/auth/token/refresh/native", {
+    refreshToken: getRefreshTokenFromStore(),
+  });
+  const tokens = response.data.data;
+  return tokens?.accessToken
+    ? { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken ?? null }
+    : null;
+}
+
+async function performRefresh(): Promise<RefreshedTokens | null> {
+  try {
+    return await requestRefresh();
   } catch {
     return null;
   }
 }
 
-function ensureRefresh(): Promise<string | null> {
+function ensureRefresh(): Promise<RefreshedTokens | null> {
   if (!refreshPromise) {
     refreshPromise = performRefresh().finally(() => {
       refreshPromise = null;
@@ -97,6 +104,8 @@ function ensureRefresh(): Promise<string | null> {
   }
   return refreshPromise;
 }
+
+registerStartupRefresh(async () => (await ensureRefresh())?.accessToken ?? null);
 
 function isAuth401(error: AxiosError): boolean {
   if (error.response?.status !== 401) {
@@ -123,8 +132,8 @@ apiClient.interceptors.response.use(
     if (!isAuth401(error)) {
       throw error;
     }
-    const nextToken = await ensureRefresh();
-    if (!nextToken) {
+    const refreshed = await ensureRefresh();
+    if (!refreshed) {
       useAuthStore.getState().signOut();
       useToastStore.getState().showToast({
         title: "다시 로그인해주세요",
@@ -135,9 +144,10 @@ apiClient.interceptors.response.use(
       });
       throw error;
     }
+    useAuthStore.getState().authenticate(refreshed);
     retryable.__retriedAuth = true;
     if (retryable.authToken !== undefined) {
-      retryable.authToken = nextToken;
+      retryable.authToken = refreshed.accessToken;
     }
     return apiClient.request(retryable);
   },
