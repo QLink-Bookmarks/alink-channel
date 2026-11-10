@@ -3,13 +3,12 @@ import { AppState } from "react-native";
 import { SessionStorage } from "@/lib/session-storage";
 
 import {
-  type AuthTokens,
-  type StartupRefresh,
   keptRefreshToken,
   resolveStartupTokens,
   shouldRewriteStartupRecord,
   toStoredRecord,
 } from "./auth-startup";
+import type { AuthTokens, StartupRefresh } from "./auth-tokens";
 
 import { create } from "zustand";
 

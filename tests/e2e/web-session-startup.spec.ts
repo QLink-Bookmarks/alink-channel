@@ -107,8 +107,18 @@ function landingScreen(page: Page) {
   return page.getByText(LANDING).filter({ visible: true }).first();
 }
 
+/** Lets the app render twice more, so whatever a just-finished response triggers is on screen. */
+async function settleFrames(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+}
+
 async function expectNoReloginToast(page: Page) {
-  await page.waitForTimeout(500);
+  await settleFrames(page);
   await expect(page.getByText(RELOGIN_TOAST, { exact: true })).toHaveCount(0);
 }
 
@@ -315,7 +325,7 @@ test.describe("new tab when the refresh does not succeed", () => {
     answer();
 
     await expect.poll(() => finished.some((url) => url.endsWith(REFRESH_PATH))).toBe(true);
-    await page.waitForTimeout(1_000);
+    await settleFrames(page);
     expect(failed.filter((url) => url.endsWith(REFRESH_PATH))).toEqual([]);
     expect(page.url()).not.toContain("/home");
     await expect(landingScreen(page)).toBeVisible();

@@ -1,9 +1,4 @@
-type AuthTokens = {
-  accessToken: string | null;
-  refreshToken: string | null;
-};
-
-type StartupRefresh = () => Promise<string | null>;
+import type { AuthTokens, StartupRefresh } from "./auth-tokens";
 
 async function resolveStartupTokens(
   stored: AuthTokens | null,
@@ -25,4 +20,3 @@ function toStoredRecord(tokens: AuthTokens): Partial<AuthTokens> {
 }
 
 export { keptRefreshToken, resolveStartupTokens, shouldRewriteStartupRecord, toStoredRecord };
-export type { AuthTokens, StartupRefresh };

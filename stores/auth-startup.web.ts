@@ -1,9 +1,4 @@
-type AuthTokens = {
-  accessToken: string | null;
-  refreshToken: string | null;
-};
-
-type StartupRefresh = () => Promise<string | null>;
+import type { AuthTokens, StartupRefresh } from "./auth-tokens";
 
 const STARTUP_REFRESH_WAIT_MS = 4000;
 
@@ -68,4 +63,3 @@ export {
   shouldRewriteStartupRecord,
   toStoredRecord,
 };
-export type { AuthTokens, StartupRefresh };
