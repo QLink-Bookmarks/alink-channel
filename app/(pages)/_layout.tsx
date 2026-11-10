@@ -1,6 +1,7 @@
 import { View } from "react-native";
 
 import { useAgreementStatus } from "@/features/agreements/hooks/use-agreement-status";
+import { CheckingScreen } from "@/features/auth/components/auth-splash-screen";
 import { ImportFlowHost } from "@/features/imports/components/flow/import-flow-host";
 import { ResponsiveShell } from "@/features/navigation/components/responsive-shell";
 import { useWideViewState } from "@/lib/hooks/use-wide-view";
@@ -27,6 +28,9 @@ export default function PagesLayout() {
 
   if (!isWideViewResolved) {
     return <View className="flex-1 bg-background" />;
+  }
+  if (process.env.EXPO_OS === "web" && !hasHydrated) {
+    return <CheckingScreen />;
   }
 
   return (
