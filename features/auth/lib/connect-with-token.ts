@@ -10,6 +10,14 @@ type ConnectOutcome =
   | { kind: "connected"; provider: SocialProvider }
   | { kind: "error"; provider: SocialProvider; reason: ConnectErrorReason };
 
+// What a provider SDK handed back for a connect attempt: a token to send, or
+// the user backing out of the provider's own sign-in UI.
+type ConnectToken = { kind: "token"; token: string } | { kind: "cancelled" };
+
+function connectFailed(provider: SocialProvider): ConnectOutcome {
+  return { kind: "error", provider, reason: "unknown" };
+}
+
 // AUTH_409_0001: this provider is already linked to the current account.
 // AUTH_409_0002: this social account is already linked to a different user.
 const ALREADY_CONNECTED_CODE = "AUTH_409_0001";
@@ -42,5 +50,5 @@ async function connectWithToken(
   }
 }
 
-export { connectWithToken };
-export type { ConnectErrorReason, ConnectOutcome };
+export { connectFailed, connectWithToken };
+export type { ConnectErrorReason, ConnectOutcome, ConnectToken };
