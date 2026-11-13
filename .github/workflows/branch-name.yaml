@@ -1,0 +1,30 @@
+name: Branch name
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Head branch is feat/**, refactor/** or fix/**
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check the head branch name
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            main|release|preview) echo "release branch: $HEAD_REF" ;;
+            feat/?*|refactor/?*|fix/?*) echo "ok: $HEAD_REF" ;;
+            *)
+              echo "::error::Branch '$HEAD_REF' must start with feat/, refactor/ or fix/. CI runs only on PRs whose base matches those patterns, so a stacked PR on any other branch name gets no checks."
+              exit 1
+              ;;
+          esac
