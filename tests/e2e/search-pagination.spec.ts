@@ -30,6 +30,7 @@ async function openSearch(page: Page, mode: "link" | "both" = "link") {
     rows: dialog.getByTestId("search-link-result"),
     loading: dialog.getByLabel("불러오는 중", { exact: true }),
     retry: dialog.getByRole("button", { name: "다시 시도" }),
+    announcement: dialog.getByRole("status"),
   };
 }
 
@@ -41,6 +42,13 @@ async function openIntegratedSearch(page: Page) {
 
 function searchCursors(requests: URLSearchParams[], query = MANY_LINKS_QUERY) {
   return requests.filter((params) => params.get("query") === query).map((p) => p.get("cursor"));
+}
+
+async function tabThrough(page: Page, rows: Locator) {
+  for (const row of await rows.all()) {
+    await page.keyboard.press("Tab");
+    await expect(row).toBeFocused();
+  }
 }
 
 function scrollView(rows: Locator) {
@@ -123,6 +131,92 @@ test("loads a short first page without scrolling and keeps a late response under
   await expect(rows.first()).toContainText("독서 기록 01");
 });
 
+test("blocks the old selection and cursor as soon as a new term is entered", async ({ page }) => {
+  let releaseNew: () => void = () => {};
+  const pendingNew = new Promise<void>((resolve) => {
+    releaseNew = resolve;
+  });
+  const requests = await mockLinkPagination(page, {
+    links: makePaginationLinks(20),
+    respond: async (params) => {
+      if (params.get("query") === OTHER_LINKS_QUERY) await pendingNew;
+      return {};
+    },
+  });
+  await page.setViewportSize({ width: 1280, height: 700 });
+  const { dialog, input, rows, loading, announcement } = await openSearch(page, "both");
+  await expect(rows).toHaveCount(8);
+  await expect(dialog.getByRole("button", { name: /Google에서/ })).toBeVisible();
+  for (let i = 0; i < 8; i += 1) await input.press("ArrowDown");
+  await expect(announcement).toHaveText("여행 기록 09");
+  expect(searchCursors(requests)).toEqual([null]);
+
+  await input.evaluate((element: HTMLInputElement, term) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    setter?.call(element, term);
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    for (const key of ["ArrowDown", "Enter"]) {
+      element.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    }
+  }, OTHER_LINKS_QUERY);
+  await expect(input).toHaveValue(OTHER_LINKS_QUERY);
+  await expect(dialog).toBeVisible();
+  await expect(page.getByTestId("link-detail")).toHaveCount(0);
+  await expect(rows).toHaveCount(0);
+  await expect(announcement).toBeEmpty();
+  await expect(loading).toBeVisible();
+  expect(searchCursors(requests)).toEqual([null]);
+  await expect.poll(() => searchCursors(requests, OTHER_LINKS_QUERY)).toEqual([null]);
+
+  releaseNew();
+  await expect(rows).toHaveCount(1);
+  await input.press("ArrowDown");
+  await expect(announcement).toHaveText("독서 기록 01");
+  await input.press("Enter");
+  await expect(page.getByTestId("link-detail-title")).toHaveText("독서 기록 01");
+});
+
+test("the web result can be focused and opened by keyboard with link pages remaining", async ({
+  page,
+}) => {
+  let releaseNext: () => void = () => {};
+  const pendingNext = new Promise<void>((resolve) => {
+    releaseNext = resolve;
+  });
+  await mockLinkPagination(page, {
+    links: makePaginationLinks(20),
+    respond: async (params) => {
+      if (params.get("query") === MANY_LINKS_QUERY && params.has("cursor")) await pendingNext;
+      return {};
+    },
+  });
+  await page.addInitScript(() => {
+    window.open = (url) => {
+      sessionStorage.setItem("opened-web-result", String(url));
+      return null;
+    };
+  });
+  await page.setViewportSize({ width: 1280, height: 700 });
+  const { dialog, input, rows, announcement } = await openSearch(page, "both");
+  const webTitle = `Google에서 "${MANY_LINKS_QUERY}" 검색`;
+  const webResult = dialog.getByRole("button", { name: /Google에서/ });
+  await expect(rows).toHaveCount(8);
+  await expect(webResult).toBeVisible();
+
+  await input.press("ArrowUp");
+  await expect(announcement).toHaveText(webTitle);
+  await tabThrough(page, rows);
+  await page.keyboard.press("Tab");
+  await expect(webResult).toBeFocused();
+  await expect(dialog.getByText(/^📌 링크 \(/)).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect(dialog).toHaveCount(0);
+  expect(await page.evaluate(() => sessionStorage.getItem("opened-web-result"))).toBe(
+    `https://www.google.com/search?q=${encodeURIComponent(MANY_LINKS_QUERY)}`,
+  );
+  releaseNext();
+});
+
 test("preserves selection on a slow and repeatedly failing next page, then opens an appended link by keyboard", async ({
   page,
 }) => {
@@ -150,7 +244,7 @@ test("preserves selection on a slow and repeatedly failing next page, then opens
     },
   });
   await page.setViewportSize({ width: 1280, height: 700 });
-  const { dialog, input, rows, loading, retry } = await openSearch(page, "both");
+  const { dialog, input, rows, loading, retry, announcement } = await openSearch(page, "both");
   await expect(rows).toHaveCount(8);
   await expect(dialog.getByText(`Google에서 "${MANY_LINKS_QUERY}" 검색`)).toBeVisible();
   await expect
@@ -159,12 +253,11 @@ test("preserves selection on a slow and repeatedly failing next page, then opens
   for (let i = 0; i < 8; i += 1) {
     await page.keyboard.press("ArrowDown");
   }
-  const lastFirstPageRow = rows.nth(7);
-  await expect(lastFirstPageRow).toHaveAttribute("aria-selected", "true");
+  await expect(announcement).toHaveText("여행 기록 09");
   expect(searchCursors(requests)).toEqual([null]);
   await page.keyboard.press("ArrowDown");
   await expect(loading).toBeVisible();
-  await expect(lastFirstPageRow).toHaveAttribute("aria-selected", "true");
+  await expect(announcement).toHaveText("여행 기록 09");
 
   const view = await scrollView(rows);
   await view.evaluate(async (node) => {
@@ -179,10 +272,11 @@ test("preserves selection on a slow and repeatedly failing next page, then opens
   releasePage();
   await expect(dialog.getByText(ERROR_TITLE)).toBeVisible();
   await expect(rows).toHaveCount(8);
-  await expect(lastFirstPageRow).toHaveAttribute("aria-selected", "true");
+  await expect(announcement).toHaveText("여행 기록 09");
   expect(await view.evaluate((node) => node.scrollTop)).toBeCloseTo(before, 0);
   expect(searchCursors(requests)).toEqual([null, "page:8"]);
 
+  await tabThrough(page, rows);
   await page.keyboard.press("Tab");
   await expect(retry).toBeFocused();
   await page.keyboard.press("Enter");
@@ -193,15 +287,16 @@ test("preserves selection on a slow and repeatedly failing next page, then opens
   await expect(retry).toBeVisible();
   await expect(input).toBeFocused();
   fail = false;
+  await tabThrough(page, rows);
   await page.keyboard.press("Tab");
   await expect(retry).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(rows).toHaveCount(16);
   expect(searchCursors(requests)).toEqual([null, "page:8", "page:8", "page:8"]);
-  await expect(lastFirstPageRow).toHaveAttribute("aria-selected", "true");
+  await expect(announcement).toHaveText("여행 기록 09");
   await expect(input).toBeFocused();
   await page.keyboard.press("ArrowDown");
-  await expect(rows.nth(8)).toHaveAttribute("aria-selected", "true");
+  await expect(announcement).toHaveText("여행 기록 10");
   await expect(rows.nth(8)).toBeInViewport({ ratio: 1 });
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("link-detail-title")).toHaveText("여행 기록 10");

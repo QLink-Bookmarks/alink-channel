@@ -68,10 +68,9 @@ function ResultRow({
   return (
     <Pressable
       ref={rowRef}
-      tabIndex={-1}
-      aria-selected={active}
+      role="button"
       className={cn(
-        "flex-row items-center gap-3 rounded-xl px-3 py-2.5 web:transition-colors web:hover:bg-accent",
+        "flex-row items-center gap-3 rounded-xl px-3 py-2.5 web:transition-colors web:hover:bg-accent web:focus-visible:ring-2 web:focus-visible:ring-inset web:focus-visible:ring-ring",
         active && "bg-accent",
       )}
       onPress={onPress}
@@ -120,12 +119,17 @@ function SearchDialog({
     return () => clearTimeout(timeout);
   }, [query]);
 
-  const hasQuery = debouncedQuery.length > 0;
+  const trimmedQuery = query.trim();
+  const hasQuery = trimmedQuery.length > 0;
+  const isCurrentQuery = trimmedQuery === debouncedQuery;
 
-  const linkSearchQuery = useLinkSearchQuery(debouncedQuery, open && includesLink);
-  const webSearchQuery = useWebSearchQuery(debouncedQuery, open && includesWeb);
+  const linkSearchQuery = useLinkSearchQuery(
+    debouncedQuery,
+    open && includesLink && isCurrentQuery,
+  );
+  const webSearchQuery = useWebSearchQuery(debouncedQuery, open && includesWeb && isCurrentQuery);
   const { loadNextPage, retryNextPage, scrollViewProps } = useCursorPagination(linkSearchQuery, {
-    enabled: open && includesLink && hasQuery,
+    enabled: open && includesLink && hasQuery && isCurrentQuery,
   });
   const handleResultsLayout = React.useCallback(() => {
     if (process.env.EXPO_OS !== "web") {
@@ -142,12 +146,12 @@ function SearchDialog({
   }, [handleResultsLayout, linkSearchQuery.data]);
 
   const linkResults = React.useMemo(
-    () => (includesLink && hasQuery ? linkSearchQuery.links : []),
-    [hasQuery, includesLink, linkSearchQuery.links],
+    () => (includesLink && hasQuery && isCurrentQuery ? linkSearchQuery.links : []),
+    [hasQuery, includesLink, isCurrentQuery, linkSearchQuery.links],
   );
   const webResults = React.useMemo<WebSearchResult[]>(
-    () => (includesWeb && hasQuery ? (webSearchQuery.data ?? []) : []),
-    [hasQuery, includesWeb, webSearchQuery.data],
+    () => (includesWeb && hasQuery && isCurrentQuery ? (webSearchQuery.data ?? []) : []),
+    [hasQuery, includesWeb, isCurrentQuery, webSearchQuery.data],
   );
 
   // The server puts metadata matches first; a thin line goes before the first body-only match.
@@ -156,9 +160,9 @@ function SearchDialog({
     [linkResults],
   );
 
-  const linkLoading = linkSearchQuery.isPending;
+  const linkLoading = !isCurrentQuery || linkSearchQuery.isPending;
   const linkError = linkSearchQuery.isError && !linkSearchQuery.data;
-  const webLoading = includesWeb && hasQuery && webSearchQuery.isLoading;
+  const webLoading = !isCurrentQuery || webSearchQuery.isLoading;
 
   const handleRetryFirstPage = () => {
     inputRef.current?.focus();
@@ -196,15 +200,21 @@ function SearchDialog({
 
   const activations = React.useMemo(() => {
     if (!hasQuery) {
-      return recents.map((term) => ({ key: term, activate: () => handleSelectRecent(term) }));
+      return recents.map((term) => ({
+        key: term,
+        label: term,
+        activate: () => handleSelectRecent(term),
+      }));
     }
     return [
       ...linkResults.map((link) => ({
         key: `link-${link.id}`,
+        label: link.title,
         activate: () => handleSelectLink(link),
       })),
       ...webResults.map((result) => ({
         key: result.id,
+        label: result.title,
         activate: () => handleSelectWeb(result),
       })),
     ];
@@ -218,19 +228,27 @@ function SearchDialog({
     webResults,
   ]);
 
+  const activeIndex = activations.findIndex(({ key }) => key === activeKey);
+
   React.useLayoutEffect(() => {
     setActiveKey(null);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-  }, [debouncedQuery, mode]);
+  }, [trimmedQuery, mode]);
 
   React.useEffect(() => {
     if (!open || process.env.EXPO_OS !== "web" || typeof window === "undefined") {
       return;
     }
-    const activeIndex = activations.findIndex(({ key }) => key === activeKey);
     const handleKeyDown = (event: KeyboardEvent) => {
+      const input = inputRef.current;
       // Safari can report keyCode 229 when a Hangul composition ends before keydown.
-      if (event.target !== inputRef.current || event.isComposing || event.keyCode === 229) {
+      if (
+        !(input instanceof HTMLInputElement) ||
+        event.target !== input ||
+        input.value.trim() !== trimmedQuery ||
+        event.isComposing ||
+        event.keyCode === 229
+      ) {
         return;
       }
       if (event.key === "ArrowDown") {
@@ -243,7 +261,9 @@ function SearchDialog({
         setActiveKey(activations[Math.min(activations.length - 1, activeIndex + 1)]?.key ?? null);
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
-        setActiveKey(activations[Math.max(0, activeIndex - 1)]?.key ?? null);
+        const previous =
+          activeIndex < 0 ? activations.at(-1) : activations[Math.max(0, activeIndex - 1)];
+        setActiveKey(previous?.key ?? null);
       } else if (event.key === "Enter" && activeIndex >= 0) {
         event.preventDefault();
         activations[activeIndex].activate();
@@ -254,13 +274,14 @@ function SearchDialog({
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [
-    activeKey,
+    activeIndex,
     activations,
     linkResults.length,
     linkSearchQuery.hasNextPage,
     linkSearchQuery.isFetchNextPageError,
     loadNextPage,
     open,
+    trimmedQuery,
   ]);
 
   const showEmptyRecents = !hasQuery && recents.length === 0;
@@ -272,6 +293,13 @@ function SearchDialog({
     >
       <DialogContent className="max-h-[80vh] w-[500px] max-w-[90vw] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[90vw]">
         <DialogTitle className="sr-only">검색</DialogTitle>
+        <Text
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+        >
+          {activations[activeIndex]?.label}
+        </Text>
 
         <View className="flex-row items-center gap-3 border-b border-border px-5 py-4 pr-12">
           <Icon
@@ -329,7 +357,7 @@ function SearchDialog({
                 {includesLink ? (
                   <View className="gap-1">
                     <SectionHeader>
-                      {linkSearchQuery.data && !linkSearchQuery.hasNextPage
+                      {isCurrentQuery && linkSearchQuery.data && !linkSearchQuery.hasNextPage
                         ? `📌 링크 (${linkResults.length})`
                         : "📌 링크"}
                     </SectionHeader>
@@ -402,12 +430,14 @@ function SearchDialog({
                         );
                       })
                     )}
-                    <PaginationFooter
-                      isLoading={linkSearchQuery.isFetchingNextPage}
-                      isError={linkSearchQuery.isFetchNextPageError}
-                      errorTitle={LINK_LOAD_ERROR}
-                      onRetry={handleRetryNextPage}
-                    />
+                    {isCurrentQuery ? (
+                      <PaginationFooter
+                        isLoading={linkSearchQuery.isFetchingNextPage}
+                        isError={linkSearchQuery.isFetchNextPageError}
+                        errorTitle={LINK_LOAD_ERROR}
+                        onRetry={handleRetryNextPage}
+                      />
+                    ) : null}
                   </View>
                 ) : null}
 
