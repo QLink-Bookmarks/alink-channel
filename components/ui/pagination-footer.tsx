@@ -24,7 +24,7 @@ function PaginationFooter({ isLoading, isError, errorTitle, onRetry }: Paginatio
         <>
           <Text className="text-center text-sm text-muted-foreground">{errorTitle}</Text>
           <Button
-            className="min-h-11"
+            className="min-h-11 self-center"
             variant="outline"
             onPress={onRetry}
           >
