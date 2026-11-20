@@ -14,6 +14,7 @@ import { isPreviewableUrl } from "./lib/link-preview/link-preview-result";
 import type { GetLinksParams, LinkDetailContent } from "./types";
 
 const LINK_PREVIEW_TYPING_DEBOUNCE_MS = 500;
+const FIRST_LINK_PAGE_RETRY_LIMIT = 3;
 
 function getLinkQueryKeyRoot() {
   return ["links"] as const;
@@ -202,10 +203,12 @@ function useLinksQuery(params: GetLinksParams = {}) {
 }
 
 function useLinkPagesQuery(params: Omit<GetLinksParams, "cursor"> = {}, enabled = true) {
+  const queryClient = useQueryClient();
   const resolvedParams = resolveLinkListParams(params);
+  const queryKey = [...getLinksQueryKey(resolvedParams), "pages"] as const;
   const query = useInfiniteQuery({
     enabled,
-    queryKey: [...getLinksQueryKey(resolvedParams), "pages"],
+    queryKey,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const response = await getLinks({ ...resolvedParams, cursor: pageParam });
@@ -215,7 +218,8 @@ function useLinkPagesQuery(params: Omit<GetLinksParams, "cursor"> = {}, enabled 
       const cursor = lastPage.nextCursor;
       return lastPage.hasNext && cursor && !pageParams.includes(cursor) ? cursor : undefined;
     },
-    retry: false,
+    retry: (failureCount) =>
+      failureCount < FIRST_LINK_PAGE_RETRY_LIMIT && !queryClient.getQueryData(queryKey),
   });
 
   const pages = query.data?.pages;

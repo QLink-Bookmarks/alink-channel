@@ -246,6 +246,20 @@ describe("useLinkPagesQuery", () => {
 
   beforeEach(() => fetchLinks.mockReset());
 
+  it("retries a transient first-page error using the same criteria", async () => {
+    fetchLinks.mockRejectedValueOnce(new Error("offline"));
+    fetchLinks.mockResolvedValueOnce(page([1]));
+    const { result } = renderPages({ folderId: 1 });
+
+    await waitFor(() => expect(result.current.links.map(({ id }) => id)).toEqual([1]), {
+      timeout: 3_000,
+    });
+    expect(fetchLinks.mock.calls).toEqual([
+      [expect.objectContaining({ folderId: 1, cursor: undefined })],
+      [expect.objectContaining({ folderId: 1, cursor: undefined })],
+    ]);
+  });
+
   it("keeps the criteria for each cursor and stops on a previously visited cursor", async () => {
     const scope = {
       orderKey: "title",

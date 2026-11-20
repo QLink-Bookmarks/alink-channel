@@ -4,11 +4,13 @@ import { RefreshControl, ScrollView, View } from "react-native";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadErrorState } from "@/components/ui/load-error-state";
+import { PaginationFooter } from "@/components/ui/pagination-footer";
 import { Text } from "@/components/ui/text";
 import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
 import { DEFAULT_LINK_SORT, readLinkSort, toLinkListParams } from "@/features/links/lib/link-sort";
-import { useLinksQuery } from "@/features/links/queries";
+import { useLinkPagesQuery } from "@/features/links/queries";
 import type { LinkListItem } from "@/features/links/types";
+import { useCursorPagination } from "@/lib/hooks/use-cursor-pagination";
 import {
   useListMemoryKey,
   useListScrollMemory,
@@ -50,22 +52,27 @@ function LinkListView({
   const [storedSort, setSort] = useRememberedState<unknown>(memoryKey, "sort", DEFAULT_LINK_SORT);
   const sort = React.useMemo(() => readLinkSort(storedSort), [storedSort]);
   const [favoriteOnly, setFavoriteOnly] = useRememberedState(memoryKey, "favoriteOnly", false);
-  const linksQuery = useLinksQuery({
+  const linksQuery = useLinkPagesQuery({
     ...toLinkListParams(sort, favoriteOnly),
     folderId,
     size: 30,
   });
 
-  const links = linksQuery.data?.contents ?? [];
+  const { links } = linksQuery;
   const isLoadError = linksQuery.isError && !linksQuery.data;
-  const isEmpty = !linksQuery.isLoading && !isLoadError && links.length === 0;
-  const totalLabel = meta ?? `${links.length}개 링크`;
+  const isEmpty = linksQuery.isSuccess && !linksQuery.hasNextPage && links.length === 0;
+  const totalLabel =
+    meta ?? (linksQuery.isSuccess && !linksQuery.hasNextPage ? `${links.length}개 링크` : null);
   const { isRefreshing, handleRefresh } = usePullToRefresh(linksQuery.refetch);
+  const contentKey = JSON.stringify([folderId, sort.key, sort.direction, favoriteOnly]);
   const { scrollViewRef, scrollViewProps } = useListScrollMemory({
     memoryKey,
-    contentKey: [sort.key, sort.direction, favoriteOnly].join("|"),
+    contentKey,
     isLoading: linksQuery.isLoading,
     hasContent: links.length > 0,
+  });
+  const pagination = useCursorPagination(linksQuery, {
+    scroll: { contentKey, ref: scrollViewRef, props: scrollViewProps },
   });
 
   const handleCardPress = React.useCallback(
@@ -82,7 +89,7 @@ function LinkListView({
   return (
     <ScrollView
       ref={scrollViewRef}
-      {...scrollViewProps}
+      {...pagination.scrollViewProps}
       className="flex-1"
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
@@ -109,7 +116,9 @@ function LinkListView({
           onFavoriteOnlyChange={setFavoriteOnly}
           onSortChange={setSort}
         >
-          <Text className="text-sm text-muted-foreground">{totalLabel}</Text>
+          {totalLabel != null ? (
+            <Text className="text-sm text-muted-foreground">{totalLabel}</Text>
+          ) : null}
         </LinkFilterRow>
         {isLoadError ? (
           <LoadErrorState
@@ -140,6 +149,12 @@ function LinkListView({
             onCardPress={handleCardPress}
           />
         )}
+        <PaginationFooter
+          isLoading={linksQuery.isFetchingNextPage}
+          isError={linksQuery.isFetchNextPageError}
+          errorTitle="링크를 불러오지 못했어요"
+          onRetry={pagination.retryNextPage}
+        />
       </View>
     </ScrollView>
   );
