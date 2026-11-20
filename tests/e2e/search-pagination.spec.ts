@@ -130,13 +130,20 @@ test("preserves selection on a slow and repeatedly failing next page, then opens
   const pendingPage = new Promise<void>((resolve) => {
     releasePage = resolve;
   });
+  let releaseRetry: () => void = () => {};
+  const pendingRetry = new Promise<void>((resolve) => {
+    releaseRetry = resolve;
+  });
+  let attempts = 0;
   let fail = true;
   const requests = await mockLinkPagination(page, {
     links: makePaginationLinks(20),
     theme: "dark",
     respond: async (params) => {
       if (params.get("cursor") === "page:8") {
-        await pendingPage;
+        attempts += 1;
+        if (attempts === 1) await pendingPage;
+        if (attempts === 2) await pendingRetry;
         return { fail };
       }
       return {};
@@ -179,7 +186,10 @@ test("preserves selection on a slow and repeatedly failing next page, then opens
   await page.keyboard.press("Tab");
   await expect(retry).toBeFocused();
   await page.keyboard.press("Enter");
+  await expect(loading).toBeVisible();
+  await expect(retry).toHaveCount(0);
   await expect.poll(() => searchCursors(requests)).toEqual([null, "page:8", "page:8"]);
+  releaseRetry();
   await expect(retry).toBeVisible();
   await expect(input).toBeFocused();
   fail = false;
