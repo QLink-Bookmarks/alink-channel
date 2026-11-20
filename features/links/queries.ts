@@ -1,6 +1,11 @@
 import * as React from "react";
 
-import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { getLinkDetail, getLinks } from "./api";
 import { getExcerptRecheckDelay } from "./lib/excerpt-recheck";
@@ -177,13 +182,16 @@ function useLinkDetailExcerptRecheck(
   }, [excerpt, isPending, linkId, queryClient, recheckCount]);
 }
 
-function useLinksQuery(params: GetLinksParams = {}) {
+function resolveLinkListParams(params: GetLinksParams): GetLinksParams {
   // A caller that gives only a criterion gets the server's direction for it.
   const hasSort = params.orderKey != null || params.order != null;
-  const resolvedParams: GetLinksParams = hasSort
+  return hasSort
     ? { size: 30, ...params }
     : { orderKey: "created_at", order: "desc", size: 30, ...params };
+}
 
+function useLinksQuery(params: GetLinksParams = {}) {
+  const resolvedParams = resolveLinkListParams(params);
   return useQuery({
     queryFn: async () => {
       const response = await getLinks(resolvedParams);
@@ -191,6 +199,40 @@ function useLinksQuery(params: GetLinksParams = {}) {
     },
     queryKey: getLinksQueryKey(resolvedParams),
   });
+}
+
+function useLinkPagesQuery(params: Omit<GetLinksParams, "cursor"> = {}, enabled = true) {
+  const resolvedParams = resolveLinkListParams(params);
+  const query = useInfiniteQuery({
+    enabled,
+    queryKey: [...getLinksQueryKey(resolvedParams), "pages"],
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const response = await getLinks({ ...resolvedParams, cursor: pageParam });
+      return response.data;
+    },
+    getNextPageParam: (lastPage, _pages, _lastPageParam, pageParams) => {
+      const cursor = lastPage.nextCursor;
+      return lastPage.hasNext && cursor && !pageParams.includes(cursor) ? cursor : undefined;
+    },
+    retry: false,
+  });
+
+  const pages = query.data?.pages;
+  const links = React.useMemo(() => {
+    const seen = new Set<number>();
+    return (pages ?? []).flatMap((page) =>
+      page.contents.filter((link) => {
+        if (seen.has(link.id)) {
+          return false;
+        }
+        seen.add(link.id);
+        return true;
+      }),
+    );
+  }, [pages]);
+
+  return { ...query, links };
 }
 
 export {
@@ -202,6 +244,7 @@ export {
   invalidateLinkListAndSearchQueries,
   useLinkDetailExcerptRecheck,
   useLinkDetailQuery,
+  useLinkPagesQuery,
   useLinkPreviewQuery,
   useLinksQuery,
 };
