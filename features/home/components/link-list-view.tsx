@@ -68,7 +68,7 @@ function LinkListView({
   const { scrollViewRef, scrollViewProps } = useListScrollMemory({
     memoryKey,
     contentKey,
-    isLoading: linksQuery.isLoading,
+    isLoading: linksQuery.isPending,
     hasContent: links.length > 0,
   });
   const pagination = useCursorPagination(linksQuery, {
@@ -142,7 +142,7 @@ function LinkListView({
           />
         ) : (
           <LinkCardGrid
-            isLoading={linksQuery.isLoading}
+            isLoading={linksQuery.isPending}
             links={links}
             skeletonCount={8}
             activeLinkId={activeLinkId}

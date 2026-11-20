@@ -343,14 +343,14 @@ function WideHomeScreen() {
                 void recentLinksQuery.refetch();
               }}
             />
-          ) : !recentLinksQuery.isLoading && recentLinks.length === 0 ? (
+          ) : recentLinksQuery.data && recentLinks.length === 0 ? (
             <EmptyState
               emoji="⛓️‍💥"
               title="최근 저장 링크가 없어요"
             />
           ) : (
             <LinkCardGrid
-              isLoading={recentLinksQuery.isLoading}
+              isLoading={recentLinksQuery.isPending}
               links={recentLinks}
               skeletonCount={RECENT_PREVIEW_COUNT}
               onCardPress={(item) => router.push(`/links/${item.id}` as Href)}

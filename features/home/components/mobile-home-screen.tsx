@@ -96,7 +96,7 @@ function MobileHomeScreen() {
     !isDebouncing,
   );
   const links = isDebouncing ? [] : linksQuery.links;
-  const isLoading = isDebouncing || linksQuery.isLoading;
+  const isLoading = isDebouncing || linksQuery.isPending;
   const isLoadError = !isDebouncing && linksQuery.isError && !linksQuery.data;
   const isEmpty =
     !isDebouncing && linksQuery.isSuccess && !linksQuery.hasNextPage && links.length === 0;

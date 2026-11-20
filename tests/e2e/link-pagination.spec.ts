@@ -216,6 +216,39 @@ test("mobile search retries the current search term after an initial error", asy
   expect(requestsForSearch()).toHaveLength(failedAttempts + 1);
 });
 
+for (const route of ["/home", "/links", "/folders/0"]) {
+  test(`an offline first visit stays loading until reconnecting on ${route}`, async ({ page }) => {
+    const wide = isWideProject();
+    test.skip(route === "/links" && !wide);
+    const links = makePaginationLinks(1).map((link) => ({ ...link, folderId: 0 }));
+    const requests = await mockLinkPagination(page, { links });
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+      const addEventListener = window.addEventListener.bind(window);
+      window.addEventListener = ((...args: Parameters<typeof window.addEventListener>) => {
+        const [type] = args;
+        addEventListener(...args);
+        if (type === "offline" && !navigator.onLine) {
+          window.dispatchEvent(new Event("offline"));
+        }
+      }) as typeof window.addEventListener;
+    });
+
+    await page.goto(route);
+    await expect(page.getByTestId("link-card-skeleton").first()).toBeVisible();
+    await expect(cards(page)).toHaveCount(0);
+    await expect(page.getByText(/최근 저장 링크가 없어요|아직 링크가 없어요/)).toHaveCount(0);
+    expect(requests).toHaveLength(0);
+
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+      window.dispatchEvent(new Event("online"));
+    });
+    await expect(cards(page)).toHaveCount(1);
+    await expect(page.getByTestId("link-card-skeleton")).toHaveCount(0);
+  });
+}
+
 test("an empty folder shows its empty message after the first response", async ({ page }) => {
   let release: () => void = () => {};
   const pending = new Promise<void>((resolve) => {
