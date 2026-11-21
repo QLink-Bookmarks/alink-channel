@@ -9,6 +9,7 @@ import { type Href, Link } from "expo-router";
 
 export const LANDING_FRAME = "mx-auto w-full max-w-[1280px]";
 export const LANDING_TOP_GUTTER = "px-[22px] md:px-6";
+export const LANDING_SCROLL_ID = "landing-scroll";
 export const LANDING_COLOR_VARS = {
   "--landing-header-surface": "#F4EDF6",
   "--landing-hero-foreground": "#292536",
@@ -39,14 +40,17 @@ const SECTION_BLOB = ["#AEB8D4", "#9CC4F2", "#C4A9EE", "#F2C889", "#8FD9AF"];
 export const LANDING_FOCUS =
   "web:focus-visible:[outline-style:solid] web:focus-visible:outline-2 web:focus-visible:outline-offset-2 web:focus-visible:outline-foreground";
 
+export function focusLandingSection(target: HTMLElement) {
+  if (target === document.activeElement) return;
+  target.tabIndex = -1;
+  target.addEventListener("blur", () => target.removeAttribute("tabindex"), { once: true });
+  target.focus({ preventScroll: true });
+}
+
 export function scrollToLandingSection(id: string, focusSection = false) {
   const target = document.getElementById(id);
   if (!target) return;
-  if (focusSection) {
-    target.tabIndex = -1;
-    target.addEventListener("blur", () => target.removeAttribute("tabindex"), { once: true });
-    target.focus({ preventScroll: true });
-  }
+  if (focusSection) focusLandingSection(target);
   target.scrollIntoView({ block: "start" });
 }
 
@@ -67,6 +71,10 @@ export function LandingSectionLink({
         event.preventDefault();
         const hash = `#${id}`;
         if (window.location.hash !== hash) {
+          if (!window.location.hash) {
+            const landingScrollTop = document.getElementById(LANDING_SCROLL_ID)?.scrollTop ?? 0;
+            window.history.replaceState({ ...window.history.state, landingScrollTop }, "");
+          }
           window.history.pushState(window.history.state, "", hash);
         }
         scrollToLandingSection(id, true);

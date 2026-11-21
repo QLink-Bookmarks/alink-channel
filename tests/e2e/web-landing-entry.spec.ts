@@ -192,18 +192,54 @@ test("restores sections when moving backward, forward, or returning from app ent
   await expectSection("share", "AI");
 });
 
+test("back restores the exact position and visible focus after reading a section without a fragment", async ({
+  page,
+}) => {
+  await openGuestLanding(page);
+  const nav = page.getByRole("navigation", { name: "온보딩 섹션" });
+  const action = page.getByRole("region", { name: "Action", exact: true });
+  const viewport = page.locator("#landing-scroll");
+  const previousScroll = await viewport.evaluate((node) => {
+    document.getElementById("landing-task")!.scrollIntoView({ block: "start" });
+    node.scrollTop += 56;
+    return node.scrollTop;
+  });
+  await expect(nav.locator('[aria-current="location"]')).toHaveText("Action");
+  await expect(page).toHaveURL(/\/$/);
+
+  await nav.getByRole("link", { name: "AI", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("region", { name: "AI", exact: true })).toBeFocused();
+  await page.goBack();
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect.poll(() => viewport.evaluate((node) => node.scrollTop)).toBe(previousScroll);
+  await expect(nav.locator('[aria-current="location"]')).toHaveText("Action");
+  await expect(action).toBeFocused();
+  await expect(action).toBeInViewport();
+  await page.goForward();
+  await expect(nav.locator('[aria-current="location"]')).toHaveText("AI");
+  await page.goBack();
+  await expect.poll(() => viewport.evaluate((node) => node.scrollTop)).toBe(previousScroll);
+  await expect(nav.locator('[aria-current="location"]')).toHaveText("Action");
+});
+
 test("keeps both the Archived badge and video credit readable", async ({ page }) => {
   await openGuestLanding(page);
   const graphic = page.getByRole("img", { name: scene });
   const credit = graphic.getByText("サカナクション sakanaction", { exact: true });
   const badge = graphic.getByText("Archived", { exact: true }).locator("..");
-  for (const width of [390, 768, 769, 960, 1179, 1180, 1280]) {
+  for (const width of [320, 360, 390, 768, 769, 960, 1179, 1180, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(credit).toBeInViewport({ ratio: 1 });
     await expect(badge).toBeInViewport({ ratio: 1 });
     const creditBounds = (await credit.boundingBox())!;
     const badgeBounds = (await badge.boundingBox())!;
     expect(badgeBounds.y).toBeGreaterThanOrEqual(creditBounds.y + creditBounds.height);
+    const sceneBounds = (await graphic.boundingBox())!;
+    expect(badgeBounds.y + badgeBounds.height).toBeLessThanOrEqual(
+      sceneBounds.y + sceneBounds.height,
+    );
   }
 });
 

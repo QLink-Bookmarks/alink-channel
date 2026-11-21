@@ -11,10 +11,12 @@ import {
   FINAL_BG,
   LANDING_COLOR_VARS,
   LANDING_FRAME,
+  LANDING_SCROLL_ID,
   ProgressRail,
   SECTION_BG,
   SectionBackdrop,
   StartButton,
+  focusLandingSection,
   scrollToLandingSection,
 } from "./landing-chrome";
 import { LandingHeader } from "./landing-header";
@@ -32,27 +34,69 @@ const SECTION_IDS = [
 ];
 const SUPPORT_EMAIL = "qlinkk1004@gmail.com";
 
+// The router can replace the history state and remount this route during popstate.
+let pendingLandingScrollTop: number | undefined;
+
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "popstate",
+    (event) => {
+      const saved = event.state?.landingScrollTop;
+      pendingLandingScrollTop =
+        !window.location.hash && typeof saved === "number" ? saved : undefined;
+    },
+    true,
+  );
+}
+
+function getActiveSectionIndex(viewport: HTMLElement) {
+  const center = viewport.getBoundingClientRect().top + viewport.clientHeight / 2;
+  const index = SECTION_IDS.findLastIndex((id) => {
+    const section = document.getElementById(id);
+    return section != null && section.getBoundingClientRect().top <= center;
+  });
+  return Math.max(0, index);
+}
+
 function WebLanding() {
   const router = useRouter();
   const [active, setActive] = React.useState(0);
 
   function handleScroll() {
-    const viewport = document.getElementById("landing-scroll");
-    if (!viewport) return;
-    const center = viewport.getBoundingClientRect().top + viewport.clientHeight / 2;
-    const next = SECTION_IDS.findLastIndex((id) => {
-      const section = document.getElementById(id);
-      return section != null && section.getBoundingClientRect().top <= center;
-    });
-    setActive(Math.max(0, next));
+    const viewport = document.getElementById(LANDING_SCROLL_ID);
+    if (viewport) setActive(getActiveSectionIndex(viewport));
   }
 
   React.useEffect(() => {
     function restoreSection() {
-      const id = window.location.hash.slice(1) || SECTION_IDS[0];
-      if (SECTION_IDS.includes(id)) scrollToLandingSection(id);
+      const viewport = document.getElementById(LANDING_SCROLL_ID);
+      if (!viewport) return;
+      const id = window.location.hash.slice(1);
+      const saved = pendingLandingScrollTop ?? window.history.state?.landingScrollTop;
+      pendingLandingScrollTop = undefined;
+      if (SECTION_IDS.includes(id)) {
+        scrollToLandingSection(id);
+      } else if (!id) {
+        viewport.scrollTop = typeof saved === "number" ? saved : 0;
+        if (typeof saved === "number" && window.history.state?.landingScrollTop !== saved) {
+          window.history.replaceState({ ...window.history.state, landingScrollTop: saved }, "");
+        }
+      } else {
+        return;
+      }
+      const index = getActiveSectionIndex(viewport);
+      setActive(index);
+      const focused = document.activeElement;
+      if (focused && viewport.contains(focused)) {
+        const { top, bottom } = focused.getBoundingClientRect();
+        const visible = viewport.getBoundingClientRect();
+        if (bottom <= visible.top || top >= visible.bottom) {
+          const section = document.getElementById(SECTION_IDS[index]);
+          if (section) focusLandingSection(section);
+        }
+      }
     }
-    if (window.location.hash) restoreSection();
+    if (window.location.hash || pendingLandingScrollTop !== undefined) restoreSection();
     window.addEventListener("hashchange", restoreSection);
     return () => window.removeEventListener("hashchange", restoreSection);
   }, []);
@@ -65,7 +109,7 @@ function WebLanding() {
       <LandingHeader activeSection={SLIDES[active - 1]?.key} />
       <View className="min-h-0 flex-1">
         <ScrollView
-          nativeID="landing-scroll"
+          nativeID={LANDING_SCROLL_ID}
           className="flex-1"
           contentInsetAdjustmentBehavior="automatic"
           showsVerticalScrollIndicator={false}

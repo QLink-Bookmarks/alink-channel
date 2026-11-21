@@ -60,7 +60,7 @@ function ArchivedScene() {
       </View>
       <View
         aria-hidden
-        className="absolute bottom-[8%] left-[16%] h-14 origin-left -rotate-[4deg] flex-row items-center gap-2.5 rounded-full bg-card pl-3 pr-5 shadow-qlink-lg max-md:scale-[0.82] xl:bottom-[18%]"
+        className="absolute bottom-0 left-[16%] h-14 origin-left -rotate-[4deg] flex-row items-center gap-2.5 rounded-full bg-card pl-3 pr-5 shadow-qlink-lg max-md:scale-[0.82] min-[360px]:bottom-[8%] xl:bottom-[18%]"
         style={vars(getNativeThemeVars(mode, accent))}
       >
         <Icon
