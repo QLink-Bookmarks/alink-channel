@@ -762,7 +762,7 @@ function FilterCoverRow({
         >
           <ScrollView
             horizontal
-            className="grow-0 web:transform-none"
+            className="grow-0 web:transform-none web:scroll-px-1"
             contentContainerClassName="items-center gap-1"
             contentContainerStyle={{
               paddingHorizontal: PRIMARY_RING_ROOM,
