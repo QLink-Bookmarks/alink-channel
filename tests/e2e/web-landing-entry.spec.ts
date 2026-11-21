@@ -5,6 +5,7 @@ import { envelope, mockApi } from "./support/mock-api";
 const title = /다시 찾을 링크,\s*한곳에 모아요\./;
 const description = "AI가 도와주는 북마크 아카이브.";
 const scene = /sakanaction의 怪獣.*Archived 저장 완료/;
+const thumbnail = /sakanaction-kaiju(?:\.[\da-f]+)?\.jpg/;
 const subjects = ["Archive", "AI", "Ask & Access", "Action", "Amigo"];
 const sectionIds = ["organize", "share", "ask", "task", "shared"];
 const startLink = (page: Page) =>
@@ -114,7 +115,7 @@ test("opens the Archive from the scroll hint and switches its sample folder", as
   const archive = page.getByRole("region", { name: "Archive", exact: true });
   await expect(archive).toBeFocused();
   const travel = archive.getByText("✈️ 여행", { exact: true });
-  await expect(travel).toBeInViewport({ ratio: 1 });
+  await expect(travel.locator("xpath=../../..")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
   await travel.click();
   await expect(archive.getByText("제주 3박4일 여행 코스")).toBeInViewport();
 });
@@ -184,12 +185,12 @@ for (const image of ["loading", "failed"] as const) {
     const pending = new Promise<void>((resolve) => {
       releaseImage = resolve;
     });
-    await page.route(/sakanaction-kaiju\.jpg/, async (route) => {
+    await page.route(thumbnail, async (route) => {
       if (image === "loading") await pending;
       await route.abort();
     });
     try {
-      const imageRequested = page.waitForRequest(/sakanaction-kaiju\.jpg/);
+      const imageRequested = page.waitForRequest(thumbnail);
       await page.goto("/", { waitUntil: "domcontentloaded" });
       await imageRequested;
       await expectFirstScreen(page);
@@ -245,7 +246,7 @@ test("an empty account shows its profile and the same static example", async ({ 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(graphic.getByText("Archived")).toBeVisible();
   const image = graphic.locator("img");
-  await expect(image).toHaveAttribute("src", /sakanaction-kaiju\.jpg/);
+  await expect(image).toHaveAttribute("src", thumbnail);
   const bounds = (await image.boundingBox())!;
   if (await page.evaluate(() => navigator.maxTouchPoints > 0)) await graphic.tap();
   else await page.mouse.move(bounds.x, bounds.y);
