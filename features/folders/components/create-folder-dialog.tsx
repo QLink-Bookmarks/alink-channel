@@ -1,16 +1,35 @@
 import * as React from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 
 import { Sheet } from "@/components/layout/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmojiPickerGrid } from "@/components/ui/emoji-picker-grid";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useCreateFolderMutation, useUpdateFolderMutation } from "../mutations";
+import { folderQueryKeys, useFolderPrivacyQuery } from "../queries";
 import type { Folder } from "../types";
+import { PublicFolderAddress } from "./public-folder-address";
+import { VisibilityField } from "./visibility-field";
+
+const PUBLISH_TITLE = "폴더를 전체 공개할까요?";
+const PUBLISH_DESCRIPTION =
+  "기존 링크는 모두 나만 보기로 유지되고, 새로 추가하는 링크는 전체 공개돼요.";
+const FOLDER_VISIBILITY_HELP = "전체 공개하면 주소를 아는 누구나 공개 링크와 할 일을 볼 수 있어요.";
 
 type CreateFolderDialogMode = "wide" | "mobile";
 
@@ -39,9 +58,13 @@ function CreateFolderDialog({
   const [name, setName] = React.useState("");
   const [emoji, setEmoji] = React.useState<string | null>(null);
   const [isShared, setIsShared] = React.useState(false);
+  const [isPublic, setIsPublic] = React.useState(false);
+  const [created, setCreated] = React.useState<CreatedFolder>();
   const [validationError, setValidationError] = React.useState<string | undefined>();
   const mutation = useCreateFolderMutation();
   const resetMutation = mutation.reset;
+  const saving = React.useRef(false);
+  const privacy = useFolderPrivacyQuery(open ? (created?.id ?? null) : null);
 
   React.useEffect(() => {
     if (open) {
@@ -51,28 +74,53 @@ function CreateFolderDialog({
     setName("");
     setEmoji(null);
     setIsShared(false);
+    setIsPublic(false);
+    setCreated(undefined);
     setValidationError(undefined);
     resetMutation();
   }, [defaultShared, open, resetMutation]);
 
   const handleSave = React.useCallback(async () => {
+    if (saving.current || created) return;
     const trimmed = name.trim();
     if (!trimmed) {
       setValidationError("폴더 이름을 입력해주세요.");
       return;
     }
 
+    saving.current = true;
     try {
-      const response = await mutation.mutateAsync({ name: trimmed, emoji, isShared });
+      const response = await mutation.mutateAsync({ name: trimmed, emoji, isShared, isPublic });
+      const result = { id: response.data.id, isShared };
+      if (isPublic) {
+        setCreated(result);
+        return;
+      }
       onOpenChange(false);
-      onCreated?.({ id: response.data.id, isShared });
-    } catch (error) {
-      console.log("folders:create:failed", error);
+      onCreated?.(result);
+    } catch {
+      return;
+    } finally {
+      saving.current = false;
     }
-  }, [emoji, isShared, mutation, name, onCreated, onOpenChange]);
+  }, [created, emoji, isPublic, isShared, mutation, name, onCreated, onOpenChange]);
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && saving.current) return;
+    onOpenChange(next);
+    if (!next && created) onCreated?.(created);
+  };
 
   const isMobile = mode === "mobile";
-  const body = (
+  const body = created ? (
+    <View className="gap-3">
+      <Text role="status">폴더를 만들었어요.</Text>
+      <FolderPrivacyDetails query={privacy} />
+      <Button onPress={() => handleOpenChange(false)}>
+        <Text>완료</Text>
+      </Button>
+    </View>
+  ) : (
     <FolderFormBody
       emoji={emoji}
       errorMessage={
@@ -80,10 +128,18 @@ function CreateFolderDialog({
       }
       isPending={mutation.isPending}
       isShared={isShared}
+      visibility={
+        <VisibilityField
+          disabled={mutation.isPending}
+          help={FOLDER_VISIBILITY_HELP}
+          isPublic={isPublic}
+          onChange={setIsPublic}
+        />
+      }
       name={name}
       showActions={!isMobile}
       validationError={validationError}
-      onCancel={() => onOpenChange(false)}
+      onCancel={() => handleOpenChange(false)}
       onEmojiChange={setEmoji}
       onNameChange={(next) => {
         setName(next);
@@ -100,13 +156,18 @@ function CreateFolderDialog({
     return (
       <Dialog
         open={open}
-        onOpenChange={onOpenChange}
+        onOpenChange={handleOpenChange}
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>새 폴더</DialogTitle>
           </DialogHeader>
-          {body}
+          <ScrollView
+            className="max-h-[65vh]"
+            keyboardShouldPersistTaps="handled"
+          >
+            {body}
+          </ScrollView>
         </DialogContent>
       </Dialog>
     );
@@ -121,14 +182,16 @@ function CreateFolderDialog({
       open={open}
       fitContent
       footer={
-        <FolderFormActions
-          isPending={mutation.isPending}
-          onCancel={() => onOpenChange(false)}
-          onSave={handleSave}
-        />
+        created ? undefined : (
+          <FolderFormActions
+            isPending={mutation.isPending}
+            onCancel={() => handleOpenChange(false)}
+            onSave={handleSave}
+          />
+        )
       }
       stackBehavior={stackBehavior}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
     >
       <View className="gap-3">
         <Text className="text-lg font-semibold text-foreground">새 폴더</Text>
@@ -151,49 +214,123 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
   const [emoji, setEmoji] = React.useState<string | null>(folder.emoji ?? null);
   const [isShared, setIsShared] = React.useState(folder.isShared);
   const [validationError, setValidationError] = React.useState<string | undefined>();
+  const [draftPrivacy, setDraftPrivacy] = React.useState<boolean>();
+  const [confirming, setConfirming] = React.useState(false);
+  const [notice, setNotice] = React.useState<string>();
+  const queryClient = useQueryClient();
+  const privacy = useFolderPrivacyQuery(open ? folder.id : null);
+  const savedPublic = privacy.data?.isPublic ?? folder.isPublic === true;
+  const isPublic = draftPrivacy ?? savedPublic;
+  const saving = React.useRef(false);
+  const saveButton = React.useRef<React.ComponentRef<typeof View>>(null);
+  const resultNotice = React.useRef<React.ComponentRef<typeof View>>(null);
   const mutation = useUpdateFolderMutation();
   const resetMutation = mutation.reset;
+  const initializedFolder = React.useRef<number | null>(null);
 
   React.useEffect(() => {
-    if (open) {
-      setName(folder.name);
-      setEmoji(folder.emoji ?? null);
-      setIsShared(folder.isShared);
-      setValidationError(undefined);
-      resetMutation();
+    if (!open) {
+      initializedFolder.current = null;
+      return;
     }
+    if (initializedFolder.current === folder.id) return;
+    initializedFolder.current = folder.id;
+    setName(folder.name);
+    setEmoji(folder.emoji ?? null);
+    setIsShared(folder.isShared);
+    setValidationError(undefined);
+    setDraftPrivacy(undefined);
+    setConfirming(false);
+    setNotice(undefined);
+    resetMutation();
   }, [folder.emoji, folder.id, folder.isShared, folder.name, open, resetMutation]);
 
-  const handleSave = React.useCallback(async () => {
+  const handleSave = async (confirmed = false) => {
+    if (saving.current || (confirming && !confirmed)) return;
+    if (draftPrivacy !== undefined && !privacy.isSuccess) return;
     const trimmed = name.trim();
     if (!trimmed) {
       setValidationError("폴더 이름을 입력해주세요.");
       return;
     }
 
+    const change = isPublic !== savedPublic && privacy.isSuccess ? isPublic : undefined;
+    if (change === true && !confirmed) {
+      setConfirming(true);
+      return;
+    }
+    saving.current = true;
+    setConfirming(false);
     try {
       const response = await mutation.mutateAsync({
         id: folder.id,
-        payload: { name: trimmed, emoji, isShared },
+        payload: { name: trimmed, emoji, isShared, isPublic: change },
       });
-      onOpenChange(false);
       onUpdated?.(response.data.id);
-    } catch (error) {
-      console.log("folders:update:failed", error);
+      if (change === undefined) {
+        onOpenChange(false);
+        return;
+      }
+      queryClient.setQueryData(folderQueryKeys.privacy(folder.id), {
+        isPublic: response.data.isPublic,
+        publicId: response.data.publicId,
+      });
+      setDraftPrivacy(undefined);
+      setNotice(
+        change ? "폴더를 전체 공개했어요." : "공개를 껐어요. 이전 주소는 더 이상 열리지 않아요.",
+      );
+      requestAnimationFrame(() => resultNotice.current?.focus());
+    } catch {
+      void privacy.refetch();
+    } finally {
+      saving.current = false;
     }
-  }, [emoji, folder.id, isShared, mutation, name, onOpenChange, onUpdated]);
+  };
 
-  const body = (
+  const handleOpenChange = (next: boolean) => {
+    if (!saving.current && !confirming) onOpenChange(next);
+  };
+
+  const useSheetActions = mode === "mobile" && process.env.EXPO_OS !== "web";
+  const isPending = mutation.isPending || (draftPrivacy !== undefined && privacy.isFetching);
+  const body = notice ? (
+    <View className="gap-3">
+      <View
+        ref={resultNotice}
+        tabIndex={-1}
+        className="rounded"
+      >
+        <Text role="status">{notice}</Text>
+      </View>
+      <FolderPrivacyDetails query={privacy} />
+      <Button onPress={() => handleOpenChange(false)}>
+        <Text>완료</Text>
+      </Button>
+    </View>
+  ) : (
     <FolderFormBody
       emoji={emoji}
       errorMessage={
         mutation.error ? "폴더 수정에 실패했어요. 잠시 후 다시 시도해주세요." : undefined
       }
-      isPending={mutation.isPending}
+      isPending={isPending}
       isShared={isShared}
+      saveButton={saveButton}
+      visibility={
+        <View className="gap-3">
+          <VisibilityField
+            disabled={mutation.isPending || !privacy.isSuccess || privacy.isFetching}
+            help={FOLDER_VISIBILITY_HELP}
+            isPublic={isPublic}
+            onChange={setDraftPrivacy}
+          />
+          <FolderPrivacyDetails query={privacy} />
+        </View>
+      }
       name={name}
+      showActions={!useSheetActions}
       validationError={validationError}
-      onCancel={() => onOpenChange(false)}
+      onCancel={() => handleOpenChange(false)}
       onEmojiChange={setEmoji}
       onNameChange={(next) => {
         setName(next);
@@ -201,24 +338,60 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
           setValidationError(undefined);
         }
       }}
-      onSave={handleSave}
+      onSave={() => void handleSave()}
       onSharedChange={setIsShared}
     />
   );
 
+  const confirm = (
+    <AlertDialog
+      open={confirming}
+      onOpenChange={setConfirming}
+    >
+      <AlertDialogContent
+        className="max-w-md"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          if (!saving.current) saveButton.current?.focus();
+        }}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>{PUBLISH_TITLE}</AlertDialogTitle>
+          <AlertDialogDescription>{PUBLISH_DESCRIPTION}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>
+            <Text>취소</Text>
+          </AlertDialogCancel>
+          <AlertDialogAction onPress={() => void handleSave(true)}>
+            <Text>전체 공개</Text>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   if (mode === "wide") {
     return (
-      <Dialog
-        open={open}
-        onOpenChange={onOpenChange}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>폴더 수정</DialogTitle>
-          </DialogHeader>
-          {body}
-        </DialogContent>
-      </Dialog>
+      <>
+        <Dialog
+          open={open}
+          onOpenChange={handleOpenChange}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>폴더 수정</DialogTitle>
+            </DialogHeader>
+            <ScrollView
+              className="max-h-[65vh]"
+              keyboardShouldPersistTaps="handled"
+            >
+              {body}
+            </ScrollView>
+          </DialogContent>
+        </Dialog>
+        {confirm}
+      </>
     );
   }
 
@@ -227,17 +400,56 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
   }
 
   return (
-    <Sheet
-      open={open}
-      fitContent
-      onOpenChange={onOpenChange}
-    >
-      <View className="gap-3">
-        <Text className="text-lg font-semibold text-foreground">폴더 수정</Text>
-        {body}
-      </View>
-    </Sheet>
+    <>
+      <Sheet
+        open={open}
+        fitContent
+        footer={
+          useSheetActions && !notice ? (
+            <FolderFormActions
+              isPending={isPending}
+              saveButton={saveButton}
+              onCancel={() => handleOpenChange(false)}
+              onSave={() => void handleSave()}
+            />
+          ) : undefined
+        }
+        onOpenChange={handleOpenChange}
+      >
+        <View className="gap-3">
+          <Text className="text-lg font-semibold text-foreground">폴더 수정</Text>
+          {body}
+        </View>
+      </Sheet>
+      {confirm}
+    </>
   );
+}
+
+function FolderPrivacyDetails({ query }: { query: ReturnType<typeof useFolderPrivacyQuery> }) {
+  if (query.isFetching) {
+    return <Text className="text-xs text-muted-foreground">공개 설정을 확인하는 중이에요.</Text>;
+  }
+  if (query.isError) {
+    return (
+      <View className="items-start gap-2">
+        <Text className="text-xs text-muted-foreground">공개 설정을 확인하지 못했어요.</Text>
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={() => void query.refetch()}
+        >
+          <Text>다시 확인</Text>
+        </Button>
+      </View>
+    );
+  }
+  return query.data?.isPublic && query.data.publicId ? (
+    <PublicFolderAddress
+      key={query.data.publicId}
+      publicId={query.data.publicId}
+    />
+  ) : null;
 }
 
 function FolderFormBody({
@@ -248,6 +460,8 @@ function FolderFormBody({
   errorMessage,
   isPending,
   showActions = true,
+  visibility,
+  saveButton,
   onNameChange,
   onEmojiChange,
   onSharedChange,
@@ -261,6 +475,8 @@ function FolderFormBody({
   errorMessage?: string;
   isPending: boolean;
   showActions?: boolean;
+  visibility: React.ReactNode;
+  saveButton?: React.RefObject<React.ComponentRef<typeof View> | null>;
   onNameChange: (name: string) => void;
   onEmojiChange: (emoji: string | null) => void;
   onSharedChange: (isShared: boolean) => void;
@@ -290,7 +506,7 @@ function FolderFormBody({
         <View className="min-w-0 flex-1">
           <Text className="text-sm font-semibold text-foreground">공유 폴더</Text>
           <Text className="text-xs text-muted-foreground">
-            공유 링크와 멤버 초대를 사용할 수 있어요.
+            초대 링크로 멤버를 초대하고 함께 편집할 수 있어요.
           </Text>
         </View>
         <Switch
@@ -298,6 +514,7 @@ function FolderFormBody({
           onCheckedChange={onSharedChange}
         />
       </View>
+      {visibility}
       <View className="gap-2">
         <Text className="text-sm font-semibold text-muted-foreground">이모지</Text>
         <EmojiPickerGrid
@@ -309,6 +526,7 @@ function FolderFormBody({
       {showActions ? (
         <FolderFormActions
           isPending={isPending}
+          saveButton={saveButton}
           onCancel={onCancel}
           onSave={onSave}
         />
@@ -319,10 +537,12 @@ function FolderFormBody({
 
 function FolderFormActions({
   isPending,
+  saveButton,
   onCancel,
   onSave,
 }: {
   isPending: boolean;
+  saveButton?: React.RefObject<React.ComponentRef<typeof View> | null>;
   onCancel: () => void;
   onSave: () => void;
 }) {
@@ -337,6 +557,9 @@ function FolderFormActions({
         <Text>취소</Text>
       </Button>
       <Button
+        ref={(node: React.ComponentRef<typeof Button> | null) => {
+          if (saveButton) saveButton.current = node && "focus" in node ? node : null;
+        }}
         className="h-10"
         disabled={isPending}
         onPress={onSave}

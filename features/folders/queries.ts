@@ -7,7 +7,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
-import { getFolderMembers, getFolders } from "./api";
+import { getFolderMembers, getFolderPrivacy, getFolders } from "./api";
 import {
   findFolderInPages,
   flattenFolderPages,
@@ -29,7 +29,22 @@ const folderQueryKeys = {
   list: (params: FolderListParams) => ["folders", "list", params] as const,
   infinite: (params: FolderPagesParams) => ["folders", "infinite", params] as const,
   members: (id: number) => ["folders", "members", id] as const,
+  privacy: (id: number | null) => ["folders", "privacy", id] as const,
 };
+
+function useFolderPrivacyQuery(id: number | null) {
+  return useQuery({
+    enabled: id != null,
+    queryFn: async ({ signal }) => {
+      if (id == null) return null;
+      return (await getFolderPrivacy(id, signal)).data;
+    },
+    queryKey: folderQueryKeys.privacy(id),
+    refetchOnMount: "always",
+    retry: false,
+    staleTime: 0,
+  });
+}
 
 async function fetchAllFolders(params: FolderListParams): Promise<FolderScrollResponse> {
   const pages: FolderScrollResponse[] = [];
@@ -194,6 +209,7 @@ export {
   folderQueryKeys,
   useFolderMembersQuery,
   useFolderPagesQuery,
+  useFolderPrivacyQuery,
   useFolderQuery,
   useFoldersQuery,
 };
