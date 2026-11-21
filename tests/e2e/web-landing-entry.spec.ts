@@ -222,6 +222,7 @@ test("back restores the exact position and visible focus after reading a section
   await page.goBack();
   await expect.poll(() => viewport.evaluate((node) => node.scrollTop)).toBe(previousScroll);
   await expect(nav.locator('[aria-current="location"]')).toHaveText("Action");
+  await expect(action).toBeFocused();
 });
 
 test("keeps both the Archived badge and video credit readable", async ({ page }) => {

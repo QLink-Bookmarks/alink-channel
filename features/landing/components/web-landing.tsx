@@ -35,15 +35,24 @@ const SECTION_IDS = [
 const SUPPORT_EMAIL = "qlinkk1004@gmail.com";
 
 // The router can replace the history state and remount this route during popstate.
-let pendingLandingScrollTop: number | undefined;
+let restoredLandingPosition:
+  | { id?: string; scrollTop: number; hadSectionFocus: boolean }
+  | undefined;
 
 if (typeof window !== "undefined") {
   window.addEventListener(
     "popstate",
     (event) => {
-      const saved = event.state?.landingScrollTop;
-      pendingLandingScrollTop =
-        !window.location.hash && typeof saved === "number" ? saved : undefined;
+      const { id, landingScrollTop } = event.state ?? {};
+      const viewport = document.getElementById(LANDING_SCROLL_ID);
+      restoredLandingPosition =
+        !window.location.hash && typeof landingScrollTop === "number"
+          ? {
+              id,
+              scrollTop: landingScrollTop,
+              hadSectionFocus: viewport?.contains(document.activeElement) ?? false,
+            }
+          : undefined;
     },
     true,
   );
@@ -68,12 +77,16 @@ function WebLanding() {
   }
 
   React.useEffect(() => {
+    function getRestoredPosition() {
+      if (restoredLandingPosition?.id === window.history.state?.id) return restoredLandingPosition;
+    }
+
     function restoreSection() {
       const viewport = document.getElementById(LANDING_SCROLL_ID);
       if (!viewport) return;
       const id = window.location.hash.slice(1);
-      const saved = pendingLandingScrollTop ?? window.history.state?.landingScrollTop;
-      pendingLandingScrollTop = undefined;
+      const restored = getRestoredPosition();
+      const saved = restored?.scrollTop ?? window.history.state?.landingScrollTop;
       if (SECTION_IDS.includes(id)) {
         scrollToLandingSection(id);
       } else if (!id) {
@@ -87,7 +100,10 @@ function WebLanding() {
       const index = getActiveSectionIndex(viewport);
       setActive(index);
       const focused = document.activeElement;
-      if (focused && viewport.contains(focused)) {
+      if (restored?.hadSectionFocus && focused === document.body) {
+        const section = document.getElementById(SECTION_IDS[index]);
+        if (section) focusLandingSection(section);
+      } else if (focused && viewport.contains(focused)) {
         const { top, bottom } = focused.getBoundingClientRect();
         const visible = viewport.getBoundingClientRect();
         if (bottom <= visible.top || top >= visible.bottom) {
@@ -96,7 +112,7 @@ function WebLanding() {
         }
       }
     }
-    if (window.location.hash || pendingLandingScrollTop !== undefined) restoreSection();
+    if (window.location.hash || getRestoredPosition()) restoreSection();
     window.addEventListener("hashchange", restoreSection);
     return () => window.removeEventListener("hashchange", restoreSection);
   }, []);
