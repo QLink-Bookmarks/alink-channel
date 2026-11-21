@@ -1,13 +1,9 @@
-import { getLinks } from "@/features/links/api";
+import { useLinkPagesQuery } from "@/features/links/queries";
 import { useQuery } from "@tanstack/react-query";
 
 import { searchWeb } from "./api";
 
 const LINK_SEARCH_SIZE = 8;
-
-function getLinkSearchQueryKey(query: string) {
-  return ["search", "links", query] as const;
-}
 
 function getWebSearchQueryKey(query: string) {
   return ["search", "web", query] as const;
@@ -15,19 +11,7 @@ function getWebSearchQueryKey(query: string) {
 
 function useLinkSearchQuery(query: string, enabled: boolean) {
   const trimmed = query.trim();
-  return useQuery({
-    enabled: enabled && trimmed.length > 0,
-    queryFn: async () => {
-      const response = await getLinks({
-        query: trimmed,
-        orderKey: "created_at",
-        order: "desc",
-        size: LINK_SEARCH_SIZE,
-      });
-      return response.data;
-    },
-    queryKey: getLinkSearchQueryKey(trimmed),
-  });
+  return useLinkPagesQuery({ query: trimmed, size: LINK_SEARCH_SIZE }, enabled && !!trimmed);
 }
 
 function useWebSearchQuery(query: string, enabled: boolean) {
@@ -39,4 +23,4 @@ function useWebSearchQuery(query: string, enabled: boolean) {
   });
 }
 
-export { getLinkSearchQueryKey, getWebSearchQueryKey, useLinkSearchQuery, useWebSearchQuery };
+export { getWebSearchQueryKey, useLinkSearchQuery, useWebSearchQuery };
