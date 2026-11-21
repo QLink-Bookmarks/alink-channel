@@ -1,6 +1,11 @@
 import * as React from "react";
 
-import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { getLinkDetail, getLinks } from "./api";
 import { getExcerptRecheckDelay } from "./lib/excerpt-recheck";
@@ -9,6 +14,7 @@ import { isPreviewableUrl } from "./lib/link-preview/link-preview-result";
 import type { GetLinksParams, LinkDetailContent } from "./types";
 
 const LINK_PREVIEW_TYPING_DEBOUNCE_MS = 500;
+const FIRST_LINK_PAGE_RETRY_LIMIT = 3;
 
 function getLinkQueryKeyRoot() {
   return ["links"] as const;
@@ -177,13 +183,16 @@ function useLinkDetailExcerptRecheck(
   }, [excerpt, isPending, linkId, queryClient, recheckCount]);
 }
 
-function useLinksQuery(params: GetLinksParams = {}) {
+function resolveLinkListParams(params: GetLinksParams): GetLinksParams {
   // A caller that gives only a criterion gets the server's direction for it.
   const hasSort = params.orderKey != null || params.order != null;
-  const resolvedParams: GetLinksParams = hasSort
+  return hasSort
     ? { size: 30, ...params }
     : { orderKey: "created_at", order: "desc", size: 30, ...params };
+}
 
+function useLinksQuery(params: GetLinksParams = {}) {
+  const resolvedParams = resolveLinkListParams(params);
   return useQuery({
     queryFn: async () => {
       const response = await getLinks(resolvedParams);
@@ -191,6 +200,43 @@ function useLinksQuery(params: GetLinksParams = {}) {
     },
     queryKey: getLinksQueryKey(resolvedParams),
   });
+}
+
+function useLinkPagesQuery(params: Omit<GetLinksParams, "cursor"> = {}, enabled = true) {
+  const queryClient = useQueryClient();
+  const resolvedParams = resolveLinkListParams(params);
+  const queryKey = [...getLinksQueryKey(resolvedParams), "pages"] as const;
+  const query = useInfiniteQuery({
+    enabled,
+    queryKey,
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const response = await getLinks({ ...resolvedParams, cursor: pageParam });
+      return response.data;
+    },
+    getNextPageParam: (lastPage, _pages, _lastPageParam, pageParams) => {
+      const cursor = lastPage.nextCursor;
+      return lastPage.hasNext && cursor && !pageParams.includes(cursor) ? cursor : undefined;
+    },
+    retry: (failureCount) =>
+      failureCount < FIRST_LINK_PAGE_RETRY_LIMIT && !queryClient.getQueryData(queryKey),
+  });
+
+  const pages = query.data?.pages;
+  const links = React.useMemo(() => {
+    const seen = new Set<number>();
+    return (pages ?? []).flatMap((page) =>
+      page.contents.filter((link) => {
+        if (seen.has(link.id)) {
+          return false;
+        }
+        seen.add(link.id);
+        return true;
+      }),
+    );
+  }, [pages]);
+
+  return { ...query, links };
 }
 
 export {
@@ -202,6 +248,7 @@ export {
   invalidateLinkListAndSearchQueries,
   useLinkDetailExcerptRecheck,
   useLinkDetailQuery,
+  useLinkPagesQuery,
   useLinkPreviewQuery,
   useLinksQuery,
 };

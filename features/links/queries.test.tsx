@@ -11,10 +11,17 @@ import {
   getLinksQueryKey,
   invalidateLinkListAndSearchQueries,
   useLinkDetailExcerptRecheck,
+  useLinkPagesQuery,
   useLinkPreviewQuery,
   useLinksQuery,
 } from "./queries";
-import type { GetLinksParams, LinkDetailContent, LinkPreview } from "./types";
+import type {
+  GetLinksParams,
+  GetLinksResponse,
+  LinkDetailContent,
+  LinkListItem,
+  LinkPreview,
+} from "./types";
 
 jest.mock("./api", () => ({ getLinks: jest.fn() }));
 jest.mock("./lib/link-preview/extract-link-preview", () => ({
@@ -209,6 +216,127 @@ describe("invalidateLinkListAndSearchQueries", () => {
     expect(isInvalidated(searchKey)).toBe(true);
     expect(isInvalidated(previewKey)).toBe(false);
     expect(isInvalidated(detailKey)).toBe(false);
+  });
+});
+
+describe("useLinkPagesQuery", () => {
+  function page(ids: number[], nextCursor: string | null = null): GetLinksResponse {
+    return {
+      success: true,
+      error: null,
+      data: {
+        contents: ids.map((id) => ({ id }) as LinkListItem),
+        isEmpty: ids.length === 0,
+        hasNext: nextCursor !== null,
+        nextCursor,
+      },
+    };
+  }
+
+  function renderPages(initialProps: GetLinksParams = {}) {
+    const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    return renderHook((params: GetLinksParams) => useLinkPagesQuery(params), {
+      initialProps,
+      wrapper,
+    });
+  }
+
+  beforeEach(() => fetchLinks.mockReset());
+
+  it("retries a transient first-page error using the same criteria", async () => {
+    fetchLinks.mockRejectedValueOnce(new Error("offline"));
+    fetchLinks.mockResolvedValueOnce(page([1]));
+    const { result } = renderPages({ folderId: 1 });
+
+    await waitFor(() => expect(result.current.links.map(({ id }) => id)).toEqual([1]), {
+      timeout: 3_000,
+    });
+    expect(fetchLinks.mock.calls).toEqual([
+      [expect.objectContaining({ folderId: 1, cursor: undefined })],
+      [expect.objectContaining({ folderId: 1, cursor: undefined })],
+    ]);
+  });
+
+  it("keeps the criteria for each cursor and stops on a previously visited cursor", async () => {
+    const scope = {
+      orderKey: "title",
+      order: "asc",
+      folderId: 0,
+      isFavorite: true,
+      query: "여행",
+    } as const;
+    fetchLinks.mockResolvedValueOnce(page([2, 1], "second"));
+    fetchLinks.mockResolvedValueOnce(page([1, 3], "third"));
+    fetchLinks.mockResolvedValueOnce(page([4], "second"));
+    const { result } = renderPages(scope);
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.links.map(({ id }) => id)).toEqual([2, 1, 3]));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(false));
+    expect(result.current.links.map(({ id }) => id)).toEqual([2, 1, 3, 4]);
+    expect(fetchLinks.mock.calls).toEqual([
+      [{ ...scope, size: 30, cursor: undefined }],
+      [{ ...scope, size: 30, cursor: "second" }],
+      [{ ...scope, size: 30, cursor: "third" }],
+    ]);
+  });
+
+  it("preserves previous pages and retries the failed cursor", async () => {
+    fetchLinks.mockResolvedValueOnce(page([1], "second"));
+    fetchLinks.mockRejectedValueOnce(new Error("offline"));
+    fetchLinks.mockResolvedValueOnce(page([2]));
+    const { result } = renderPages();
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.isFetchNextPageError).toBe(true));
+    expect(result.current.links.map(({ id }) => id)).toEqual([1]);
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.links.map(({ id }) => id)).toEqual([1, 2]));
+    expect(fetchLinks.mock.calls.map(([params]) => params?.cursor)).toEqual([
+      undefined,
+      "second",
+      "second",
+    ]);
+  });
+
+  it("isolates a late page from the results of a new search", async () => {
+    let finish: (response: GetLinksResponse) => void = () => {};
+    fetchLinks.mockResolvedValueOnce(page([1], "second"));
+    fetchLinks.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fetchLinks.mockResolvedValueOnce(page([3]));
+    const { result, rerender } = renderPages({ query: "여행" });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    act(() => {
+      void result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(fetchLinks).toHaveBeenCalledTimes(2));
+
+    rerender({ query: "독서" });
+    await waitFor(() => expect(result.current.links.map(({ id }) => id)).toEqual([3]));
+    await act(async () => finish(page([2])));
+    expect(result.current.links.map(({ id }) => id)).toEqual([3]);
+    expect(fetchLinks).toHaveBeenLastCalledWith(
+      expect.objectContaining({ query: "독서", cursor: undefined }),
+    );
   });
 });
 

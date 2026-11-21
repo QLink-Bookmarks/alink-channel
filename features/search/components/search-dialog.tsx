@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Platform, Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import type { TextInput } from "react-native";
 
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
@@ -9,11 +9,13 @@ import { Favicon } from "@/components/ui/favicon";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
+import { PaginationFooter } from "@/components/ui/pagination-footer";
 import { Text } from "@/components/ui/text";
 import { getCardSnippet, getDomainFromUrl } from "@/features/home/lib/link-card-mapper";
 import { HighlightedText } from "@/features/links/components/snippet-text/highlighted-text";
 import { SnippetText } from "@/features/links/components/snippet-text/snippet-text";
 import type { LinkListItem } from "@/features/links/types";
+import { useCursorPagination } from "@/lib/hooks/use-cursor-pagination";
 import { cn } from "@/lib/utils";
 import { useRecentSearches } from "@/stores/recent-searches";
 
@@ -30,8 +32,10 @@ type SearchDialogProps = {
   onSelectLink: (linkId: number) => void;
 };
 
+const LINK_LOAD_ERROR = "링크를 불러오지 못했어요";
+
 function openExternalUrl(url: string) {
-  if (Platform.OS === "web" && typeof window !== "undefined") {
+  if (process.env.EXPO_OS === "web" && typeof window !== "undefined") {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 }
@@ -54,10 +58,19 @@ function ResultRow({
   children: React.ReactNode;
   testID?: string;
 }) {
+  const rowRef = React.useRef<View>(null);
+  React.useEffect(() => {
+    if (active && process.env.EXPO_OS === "web" && rowRef.current instanceof HTMLElement) {
+      rowRef.current.scrollIntoView({ block: "nearest" });
+    }
+  }, [active]);
+
   return (
     <Pressable
+      ref={rowRef}
+      role="button"
       className={cn(
-        "flex-row items-center gap-3 rounded-xl px-3 py-2.5 web:transition-colors web:hover:bg-accent",
+        "flex-row items-center gap-3 rounded-xl px-3 py-2.5 web:transition-colors web:hover:bg-accent web:focus-visible:ring-2 web:focus-visible:ring-inset web:focus-visible:ring-ring",
         active && "bg-accent",
       )}
       onPress={onPress}
@@ -87,14 +100,15 @@ function SearchDialog({
 
   const [query, setQuery] = React.useState("");
   const [debouncedQuery, setDebouncedQuery] = React.useState("");
-  const [activeIndex, setActiveIndex] = React.useState(-1);
+  const [activeKey, setActiveKey] = React.useState<string | null>(null);
   const inputRef = React.useRef<TextInput>(null);
+  const scrollRef = React.useRef<ScrollView>(null);
 
   React.useEffect(() => {
     if (open) {
       setQuery(initialQuery);
       setDebouncedQuery(initialQuery.trim());
-      setActiveIndex(-1);
+      setActiveKey(null);
     }
   }, [initialQuery, open]);
 
@@ -105,18 +119,39 @@ function SearchDialog({
     return () => clearTimeout(timeout);
   }, [query]);
 
-  const hasQuery = debouncedQuery.length > 0;
+  const trimmedQuery = query.trim();
+  const hasQuery = trimmedQuery.length > 0;
+  const isCurrentQuery = trimmedQuery === debouncedQuery;
 
-  const linkSearchQuery = useLinkSearchQuery(debouncedQuery, open && includesLink);
-  const webSearchQuery = useWebSearchQuery(debouncedQuery, open && includesWeb);
+  const linkSearchQuery = useLinkSearchQuery(
+    debouncedQuery,
+    open && includesLink && isCurrentQuery,
+  );
+  const webSearchQuery = useWebSearchQuery(debouncedQuery, open && includesWeb && isCurrentQuery);
+  const { loadNextPage, retryNextPage, scrollViewProps } = useCursorPagination(linkSearchQuery, {
+    enabled: open && includesLink && hasQuery && isCurrentQuery,
+  });
+  const handleResultsLayout = React.useCallback(() => {
+    if (process.env.EXPO_OS !== "web") {
+      return;
+    }
+    const node = scrollRef.current?.getScrollableNode();
+    if (node && node.clientHeight > 0 && node.scrollHeight <= node.clientHeight + 1) {
+      loadNextPage();
+    }
+  }, [loadNextPage]);
 
-  const linkResults = React.useMemo<LinkListItem[]>(
-    () => (includesLink && hasQuery ? (linkSearchQuery.data?.contents ?? []) : []),
-    [hasQuery, includesLink, linkSearchQuery.data?.contents],
+  React.useEffect(() => {
+    handleResultsLayout();
+  }, [handleResultsLayout, linkSearchQuery.data]);
+
+  const linkResults = React.useMemo(
+    () => (includesLink && hasQuery && isCurrentQuery ? linkSearchQuery.links : []),
+    [hasQuery, includesLink, isCurrentQuery, linkSearchQuery.links],
   );
   const webResults = React.useMemo<WebSearchResult[]>(
-    () => (includesWeb && hasQuery ? (webSearchQuery.data ?? []) : []),
-    [hasQuery, includesWeb, webSearchQuery.data],
+    () => (includesWeb && hasQuery && isCurrentQuery ? (webSearchQuery.data ?? []) : []),
+    [hasQuery, includesWeb, isCurrentQuery, webSearchQuery.data],
   );
 
   // The server puts metadata matches first; a thin line goes before the first body-only match.
@@ -125,8 +160,19 @@ function SearchDialog({
     [linkResults],
   );
 
-  const linkLoading = includesLink && hasQuery && linkSearchQuery.isLoading;
-  const webLoading = includesWeb && hasQuery && webSearchQuery.isLoading;
+  const linkLoading = !isCurrentQuery || linkSearchQuery.isPending;
+  const linkError = linkSearchQuery.isError && !linkSearchQuery.data;
+  const webLoading = !isCurrentQuery || webSearchQuery.isLoading;
+
+  const handleRetryFirstPage = () => {
+    inputRef.current?.focus();
+    void linkSearchQuery.refetch({ cancelRefetch: false });
+  };
+
+  const handleRetryNextPage = () => {
+    inputRef.current?.focus();
+    retryNextPage();
+  };
 
   const handleSelectLink = React.useCallback(
     (link: LinkListItem) => {
@@ -148,17 +194,29 @@ function SearchDialog({
 
   const handleSelectRecent = React.useCallback((term: string) => {
     setQuery(term);
-    setActiveIndex(-1);
+    setActiveKey(null);
     inputRef.current?.focus();
   }, []);
 
-  const activations = React.useMemo<(() => void)[]>(() => {
+  const activations = React.useMemo(() => {
     if (!hasQuery) {
-      return recents.map((term) => () => handleSelectRecent(term));
+      return recents.map((term) => ({
+        key: term,
+        label: term,
+        activate: () => handleSelectRecent(term),
+      }));
     }
     return [
-      ...linkResults.map((link) => () => handleSelectLink(link)),
-      ...webResults.map((result) => () => handleSelectWeb(result)),
+      ...linkResults.map((link) => ({
+        key: `link-${link.id}`,
+        label: link.title,
+        activate: () => handleSelectLink(link),
+      })),
+      ...webResults.map((result) => ({
+        key: result.id,
+        label: result.title,
+        activate: () => handleSelectWeb(result),
+      })),
     ];
   }, [
     handleSelectLink,
@@ -170,47 +228,61 @@ function SearchDialog({
     webResults,
   ]);
 
-  const activationsRef = React.useRef(activations);
-  activationsRef.current = activations;
-  const activeIndexRef = React.useRef(activeIndex);
-  React.useEffect(() => {
-    activeIndexRef.current = activeIndex;
-  }, [activeIndex]);
+  const activeIndex = activations.findIndex(({ key }) => key === activeKey);
+
+  React.useLayoutEffect(() => {
+    setActiveKey(null);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [trimmedQuery, mode]);
 
   React.useEffect(() => {
-    setActiveIndex(-1);
-  }, [debouncedQuery, mode]);
-
-  React.useEffect(() => {
-    if (!open || Platform.OS !== "web" || typeof window === "undefined") {
+    if (!open || process.env.EXPO_OS !== "web" || typeof window === "undefined") {
       return;
     }
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Keys that confirm a Hangul syllable are not navigation. Safari ends the composition
-      // before the keydown, which then reports keyCode 229 instead of isComposing.
-      if (event.isComposing || event.keyCode === 229) {
+      const input = inputRef.current;
+      // Safari can report keyCode 229 when a Hangul composition ends before keydown.
+      if (
+        !(input instanceof HTMLInputElement) ||
+        event.target !== input ||
+        input.value.trim() !== trimmedQuery ||
+        event.isComposing ||
+        event.keyCode === 229
+      ) {
         return;
       }
-      const items = activationsRef.current;
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setActiveIndex((index) => Math.min(items.length - 1, index + 1));
+        const atLastLink = linkResults.length > 0 && activeIndex === linkResults.length - 1;
+        if (atLastLink && linkSearchQuery.hasNextPage && !linkSearchQuery.isFetchNextPageError) {
+          loadNextPage();
+          return;
+        }
+        setActiveKey(activations[Math.min(activations.length - 1, activeIndex + 1)]?.key ?? null);
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
-        setActiveIndex((index) => Math.max(0, index - 1));
-      } else if (event.key === "Enter") {
-        const activate = items[activeIndexRef.current];
-        if (activate) {
-          event.preventDefault();
-          activate();
-        }
+        const previous =
+          activeIndex < 0 ? activations.at(-1) : activations[Math.max(0, activeIndex - 1)];
+        setActiveKey(previous?.key ?? null);
+      } else if (event.key === "Enter" && activeIndex >= 0) {
+        event.preventDefault();
+        activations[activeIndex].activate();
       }
     };
     // Capture phase: the focused search input (react-native-web TextInput) stops every
     // keydown from bubbling, so a bubbling listener never sees ↑↓ or Enter.
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [open]);
+  }, [
+    activeIndex,
+    activations,
+    linkResults.length,
+    linkSearchQuery.hasNextPage,
+    linkSearchQuery.isFetchNextPageError,
+    loadNextPage,
+    open,
+    trimmedQuery,
+  ]);
 
   const showEmptyRecents = !hasQuery && recents.length === 0;
 
@@ -221,6 +293,13 @@ function SearchDialog({
     >
       <DialogContent className="max-h-[80vh] w-[500px] max-w-[90vw] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[90vw]">
         <DialogTitle className="sr-only">검색</DialogTitle>
+        <Text
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+        >
+          {activations[activeIndex]?.label}
+        </Text>
 
         <View className="flex-row items-center gap-3 border-b border-border px-5 py-4 pr-12">
           <Icon
@@ -238,9 +317,15 @@ function SearchDialog({
         </View>
 
         <ScrollView
+          ref={scrollRef}
           className="max-h-[60vh]"
+          contentInsetAdjustmentBehavior="automatic"
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onContentSizeChange={handleResultsLayout}
+          onLayout={handleResultsLayout}
+          onScroll={scrollViewProps.onScroll}
+          scrollEventThrottle={scrollViewProps.scrollEventThrottle}
         >
           <View className="gap-4 p-3">
             {!hasQuery ? (
@@ -252,10 +337,10 @@ function SearchDialog({
               ) : (
                 <View className="gap-1">
                   <SectionHeader>최근 검색어</SectionHeader>
-                  {recents.map((term, index) => (
+                  {recents.map((term) => (
                     <ResultRow
                       key={term}
-                      active={index === activeIndex}
+                      active={term === activeKey}
                       onPress={() => handleSelectRecent(term)}
                     >
                       <Icon
@@ -271,11 +356,23 @@ function SearchDialog({
               <>
                 {includesLink ? (
                   <View className="gap-1">
-                    <SectionHeader>📌 링크 ({linkResults.length})</SectionHeader>
+                    <SectionHeader>
+                      {isCurrentQuery && linkSearchQuery.data && !linkSearchQuery.hasNextPage
+                        ? `📌 링크 (${linkResults.length})`
+                        : "📌 링크"}
+                    </SectionHeader>
                     {linkLoading ? (
                       <ActivityIndicator
+                        accessibilityLabel="불러오는 중"
                         size="small"
                         className="py-4"
+                      />
+                    ) : linkError ? (
+                      <PaginationFooter
+                        isLoading={false}
+                        isError
+                        errorTitle={LINK_LOAD_ERROR}
+                        onRetry={handleRetryFirstPage}
                       />
                     ) : linkResults.length === 0 ? (
                       <EmptyState
@@ -296,7 +393,7 @@ function SearchDialog({
                               />
                             ) : null}
                             <ResultRow
-                              active={index === activeIndex}
+                              active={`link-${link.id}` === activeKey}
                               onPress={() => handleSelectLink(link)}
                               testID="search-link-result"
                             >
@@ -333,6 +430,14 @@ function SearchDialog({
                         );
                       })
                     )}
+                    {isCurrentQuery ? (
+                      <PaginationFooter
+                        isLoading={linkSearchQuery.isFetchingNextPage}
+                        isError={linkSearchQuery.isFetchNextPageError}
+                        errorTitle={LINK_LOAD_ERROR}
+                        onRetry={handleRetryNextPage}
+                      />
+                    ) : null}
                   </View>
                 ) : null}
 
@@ -350,10 +455,10 @@ function SearchDialog({
                         className="px-6 py-6"
                       />
                     ) : (
-                      webResults.map((result, index) => (
+                      webResults.map((result) => (
                         <ResultRow
                           key={result.id}
-                          active={index + linkResults.length === activeIndex}
+                          active={result.id === activeKey}
                           onPress={() => handleSelectWeb(result)}
                         >
                           <View className="size-6 items-center justify-center rounded-full border border-border-soft bg-muted">

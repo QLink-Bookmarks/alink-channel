@@ -6,12 +6,16 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FilterChip } from "@/components/ui/filter-chip";
 import { Icon } from "@/components/ui/icon";
 import { LoadErrorState } from "@/components/ui/load-error-state";
+import { PaginationFooter } from "@/components/ui/pagination-footer";
 import { useFoldersQuery } from "@/features/folders/queries";
 import { HomeEmptyState } from "@/features/imports/components/flow/home-empty-state";
 import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
+import { useLinkCardSize } from "@/features/links/hooks/use-link-card-size";
+import { getLinkCardPageSize } from "@/features/links/lib/link-card-size";
 import { DEFAULT_LINK_SORT, readLinkSort, toLinkListParams } from "@/features/links/lib/link-sort";
-import { useLinksQuery } from "@/features/links/queries";
+import { useLinkPagesQuery } from "@/features/links/queries";
 import { useShellActions } from "@/features/navigation/hooks/use-shell-actions";
+import { useCursorPagination } from "@/lib/hooks/use-cursor-pagination";
 import {
   useListMemoryKey,
   useListScrollMemory,
@@ -30,6 +34,7 @@ const UNCATEGORIZED_FOLDER_VALUE = "0";
 
 function MobileHomeScreen() {
   const router = useRouter();
+  const { isWideView, linkCardSize } = useLinkCardSize();
   const foldersQuery = useFoldersQuery({ size: 15 });
   const memoryKey = useListMemoryKey("mobile");
   const [selectedFolder, setSelectedFolder] = useRememberedState<string>(
@@ -40,8 +45,9 @@ function MobileHomeScreen() {
   const [storedSort, setSort] = useRememberedState<unknown>(memoryKey, "sort", DEFAULT_LINK_SORT);
   const sort = React.useMemo(() => readLinkSort(storedSort), [storedSort]);
   const [favoriteOnly, setFavoriteOnly] = useRememberedState(memoryKey, "favoriteOnly", false);
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState("");
+  const [searchQuery, setSearchQuery] = useRememberedState(memoryKey, "searchQuery", "");
+  const trimmedSearchQuery = searchQuery.trim();
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState(trimmedSearchQuery);
   const searchInputRef = React.useRef<TextInput>(null);
   // Bridge from AppHeader's search icon — bump the nonce in the shell, we focus our field here.
   const focusNonce = useHomeSearchFocus((state) => state.nonce);
@@ -54,13 +60,13 @@ function MobileHomeScreen() {
 
   React.useEffect(() => {
     const timeout = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery.trim());
+      setDebouncedSearchQuery(trimmedSearchQuery);
     }, 300);
 
     return () => {
       clearTimeout(timeout);
     };
-  }, [searchQuery]);
+  }, [trimmedSearchQuery]);
 
   const folderContents = foldersQuery.data?.contents;
 
@@ -82,17 +88,22 @@ function MobileHomeScreen() {
       : Number.isNaN(Number(selectedFolder))
         ? undefined
         : Number(selectedFolder);
-  const linksQuery = useLinksQuery({
-    ...toLinkListParams(sort, favoriteOnly),
-    folderId,
-    query: debouncedSearchQuery || undefined,
-    size: 30,
-  });
-  const links = linksQuery.data?.contents ?? [];
-  const isLoading = linksQuery.isLoading;
-  const isLoadError = linksQuery.isError && !linksQuery.data;
-  const isEmpty = !isLoading && !isLoadError && links.length === 0;
-  const hasSearch = Boolean(debouncedSearchQuery || searchQuery.trim());
+  const isDebouncing = trimmedSearchQuery !== debouncedSearchQuery;
+  const linksQuery = useLinkPagesQuery(
+    {
+      ...toLinkListParams(sort, favoriteOnly),
+      folderId,
+      query: trimmedSearchQuery || undefined,
+      size: getLinkCardPageSize(linkCardSize, isWideView),
+    },
+    !isDebouncing,
+  );
+  const links = isDebouncing ? [] : linksQuery.links;
+  const isLoading = isDebouncing || linksQuery.isPending;
+  const isLoadError = !isDebouncing && linksQuery.isError && !linksQuery.data;
+  const isEmpty =
+    !isDebouncing && linksQuery.isSuccess && !linksQuery.hasNextPage && links.length === 0;
+  const hasSearch = Boolean(trimmedSearchQuery);
   const isUnfiltered = selectedFolder === ALL_VALUE && !favoriteOnly && !hasSearch;
   const isAccountEmpty = isEmpty && isUnfiltered;
   const emptyDescription = favoriteOnly
@@ -102,26 +113,37 @@ function MobileHomeScreen() {
       : null;
   const shellActions = useShellActions();
   const { isRefreshing, handleRefresh } = usePullToRefresh(() =>
-    Promise.allSettled([linksQuery.refetch(), foldersQuery.refetch()]),
+    Promise.allSettled(
+      isDebouncing ? [foldersQuery.refetch()] : [linksQuery.refetch(), foldersQuery.refetch()],
+    ),
   );
+  const contentKey = JSON.stringify([
+    selectedFolder,
+    sort.key,
+    sort.direction,
+    favoriteOnly,
+    trimmedSearchQuery,
+  ]);
   const { scrollViewRef, scrollViewProps } = useListScrollMemory({
     memoryKey,
-    contentKey: [selectedFolder, sort.key, sort.direction, favoriteOnly, debouncedSearchQuery].join(
-      "|",
-    ),
+    contentKey,
     isLoading,
     hasContent: links.length > 0,
-    isEnabled: !searchQuery.trim() && !debouncedSearchQuery,
+  });
+  const pagination = useCursorPagination(linksQuery, {
+    enabled: !isDebouncing,
+    scroll: { contentKey, ref: scrollViewRef, props: scrollViewProps },
   });
 
   return (
     <ScrollView
       ref={scrollViewRef}
-      {...scrollViewProps}
+      {...pagination.scrollViewProps}
       className="flex-1"
       contentContainerClassName={isAccountEmpty ? "grow" : undefined}
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
@@ -193,7 +215,7 @@ function MobileHomeScreen() {
             )
           ) : (
             <LinkCardGrid
-              highlightQuery={debouncedSearchQuery || undefined}
+              highlightQuery={trimmedSearchQuery || undefined}
               isLoading={isLoading}
               links={links}
               skeletonCount={6}
@@ -202,6 +224,14 @@ function MobileHomeScreen() {
               }}
             />
           )}
+          {!isDebouncing ? (
+            <PaginationFooter
+              isLoading={linksQuery.isFetchingNextPage}
+              isError={linksQuery.isFetchNextPageError}
+              errorTitle="링크를 불러오지 못했어요"
+              onRetry={pagination.retryNextPage}
+            />
+          ) : null}
         </View>
       )}
     </ScrollView>
