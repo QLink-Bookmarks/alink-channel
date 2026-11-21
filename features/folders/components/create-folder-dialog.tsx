@@ -291,6 +291,8 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
     if (!saving.current && !confirming) onOpenChange(next);
   };
 
+  const useSheetActions = mode === "mobile" && process.env.EXPO_OS !== "web";
+  const isPending = mutation.isPending || (draftPrivacy !== undefined && privacy.isFetching);
   const body = notice ? (
     <View className="gap-3">
       <View
@@ -311,7 +313,7 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
       errorMessage={
         mutation.error ? "폴더 수정에 실패했어요. 잠시 후 다시 시도해주세요." : undefined
       }
-      isPending={mutation.isPending || (draftPrivacy !== undefined && privacy.isFetching)}
+      isPending={isPending}
       isShared={isShared}
       saveButton={saveButton}
       visibility={
@@ -326,6 +328,7 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
         </View>
       }
       name={name}
+      showActions={!useSheetActions}
       validationError={validationError}
       onCancel={() => handleOpenChange(false)}
       onEmojiChange={setEmoji}
@@ -401,6 +404,16 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
       <Sheet
         open={open}
         fitContent
+        footer={
+          useSheetActions && !notice ? (
+            <FolderFormActions
+              isPending={isPending}
+              saveButton={saveButton}
+              onCancel={() => handleOpenChange(false)}
+              onSave={() => void handleSave()}
+            />
+          ) : undefined
+        }
         onOpenChange={handleOpenChange}
       >
         <View className="gap-3">

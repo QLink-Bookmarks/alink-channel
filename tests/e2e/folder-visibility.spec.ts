@@ -194,6 +194,32 @@ test("preserves the folder draft on failure and reloads a committed change after
   expect(writes()).toHaveLength(2);
 });
 
+test("reads current visibility when the folder form is reopened immediately", async ({ page }) => {
+  const [folder] = makeFolders(1);
+  let publicId: string | null = ORIGINAL_ADDRESS;
+  const state = await mockApi(page, {
+    folders: [{ ...folder, isPublic: true }],
+    handlers: {
+      [`GET /api/folders/${FOLDER_ID}/privacy`]: (route) =>
+        route.fulfill({ json: envelope({ isPublic: publicId !== null, publicId }) }),
+    },
+  });
+
+  await page.goto(`/folders/${FOLDER_ID}`);
+  const form = await openEdit(page);
+  await expect(form.getByRole("radio", { name: "전체 공개" })).toBeChecked();
+  await form.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "전체 공개" })).toHaveCount(0);
+
+  publicId = null;
+  const reopened = await openEdit(page);
+  await expect(reopened.getByRole("radio", { name: "나만 보기" })).toBeChecked();
+  await expect(reopened.getByRole("link", { name: "공개 페이지 열기" })).toHaveCount(0);
+  expect(
+    state.requests.filter(({ path }) => path === `/api/folders/${FOLDER_ID}/privacy`),
+  ).toHaveLength(2);
+});
+
 for (const theme of ["light", "dark"] as const) {
   test(`publishes only after confirmation, preserves collaboration and replaces withdrawn addresses in ${theme}`, async ({
     page,

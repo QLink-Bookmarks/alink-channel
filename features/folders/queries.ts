@@ -42,6 +42,7 @@ function useFolderPrivacyQuery(id: number | null) {
     queryKey: folderQueryKeys.privacy(id),
     refetchOnMount: "always",
     retry: false,
+    staleTime: 0,
   });
 }
 
