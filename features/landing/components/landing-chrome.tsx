@@ -39,10 +39,15 @@ const SECTION_BLOB = ["#AEB8D4", "#9CC4F2", "#C4A9EE", "#F2C889", "#8FD9AF"];
 export const LANDING_FOCUS =
   "web:focus-visible:[outline-style:solid] web:focus-visible:outline-2 web:focus-visible:outline-offset-2 web:focus-visible:outline-foreground";
 
-export function scrollToLandingSection(id: string) {
+export function scrollToLandingSection(id: string, focusSection = false) {
   const target = document.getElementById(id);
-  target?.focus({ preventScroll: true });
-  target?.scrollIntoView({ block: "start" });
+  if (!target) return;
+  if (focusSection) {
+    target.tabIndex = -1;
+    target.addEventListener("blur", () => target.removeAttribute("tabindex"), { once: true });
+    target.focus({ preventScroll: true });
+  }
+  target.scrollIntoView({ block: "start" });
 }
 
 export function LandingSectionLink({
@@ -59,7 +64,7 @@ export function LandingSectionLink({
       asChild
       onPress={(event) => {
         event.preventDefault();
-        scrollToLandingSection(id);
+        scrollToLandingSection(id, true);
       }}
     >
       <Pressable

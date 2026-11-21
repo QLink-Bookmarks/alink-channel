@@ -33,10 +33,9 @@ function ArchivedScene() {
       role="img"
       aria-label={SCENE_LABEL}
       testID="landing-archived-scene"
-      className="relative aspect-[1.14] w-full max-w-[420px] self-center overflow-hidden md:max-w-[660px]"
+      className="relative aspect-[1.14] w-full max-w-[420px] self-center overflow-hidden rounded-b-[9%] rounded-t-[38%] md:max-w-[660px]"
       style={
         {
-          borderRadius: "38% 38% 9% 9%",
           backgroundImage:
             "radial-gradient(ellipse at 68% 34%, var(--landing-stage-glow), transparent 60%), linear-gradient(135deg, var(--landing-stage-rose), var(--landing-stage-lavender))",
         } as never

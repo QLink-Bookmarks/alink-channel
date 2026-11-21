@@ -104,6 +104,31 @@ test("keeps the header in place and takes keyboard focus to each section", async
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test("tabs through the header in visual order", async ({ page }, testInfo) => {
+  await openGuestLanding(page);
+  const header = page.getByRole("banner");
+  const account = ["로그인", "시작하기"];
+  const order = testInfo.project.use.hasTouch
+    ? [...account, ...subjects]
+    : [...subjects, ...account];
+  await expect(header.getByRole("link").first()).toHaveText(order[0]);
+  for (const name of order) {
+    await page.keyboard.press("Tab");
+    await expect(header.getByRole("link", { name, exact: true })).toBeFocused();
+  }
+});
+
+test("opens a section anchor without moving keyboard focus", async ({ page }) => {
+  await mockApi(page, { seedSession: false });
+  await page.goto("/#landing-organize", { waitUntil: "domcontentloaded" });
+  const header = page.getByRole("banner");
+  const archive = page.getByRole("region", { name: "Archive", exact: true });
+  await expect
+    .poll(async () => (await archive.boundingBox())!.y)
+    .toBeCloseTo((await header.boundingBox())!.height, 0);
+  await expect(archive).not.toBeFocused();
+});
+
 test("opens the Archive from the scroll hint and switches its sample folder", async ({
   page,
 }, testInfo) => {

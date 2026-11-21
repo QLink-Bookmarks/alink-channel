@@ -79,7 +79,6 @@ function WebLanding() {
               <View
                 key={slide.key}
                 nativeID={`landing-${slide.key}`}
-                tabIndex={-1}
                 role="region"
                 aria-label={slide.subject}
                 className={cn(
@@ -131,7 +130,6 @@ function WebLanding() {
 
           <View
             nativeID="landing-final"
-            tabIndex={-1}
             className={cn(
               "min-h-screen w-full items-center justify-center gap-6 overflow-hidden px-6",
               FINAL_BG,
