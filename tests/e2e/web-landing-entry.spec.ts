@@ -197,7 +197,7 @@ test("keeps both the Archived badge and video credit readable", async ({ page })
   const graphic = page.getByRole("img", { name: scene });
   const credit = graphic.getByText("サカナクション sakanaction", { exact: true });
   const badge = graphic.getByText("Archived", { exact: true }).locator("..");
-  for (const width of [390, 768, 769, 959, 960, 1280]) {
+  for (const width of [390, 768, 769, 960, 1179, 1180, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(credit).toBeInViewport({ ratio: 1 });
     await expect(badge).toBeInViewport({ ratio: 1 });
