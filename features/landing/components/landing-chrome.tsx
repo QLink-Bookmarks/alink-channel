@@ -1,12 +1,31 @@
+import type { ComponentProps } from "react";
 import { Pressable, View } from "react-native";
 
 import { LinearGradient } from "@/components/ui/linear-gradient";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
+import { type Href, Link } from "expo-router";
+
+export const LANDING_FRAME = "mx-auto w-full max-w-[1280px]";
+export const LANDING_TOP_GUTTER = "px-[22px] md:px-6";
+export const LANDING_SCROLL_ID = "landing-scroll";
+export const LANDING_COLOR_VARS = {
+  "--landing-header-surface": "#F4EDF6",
+  "--landing-hero-foreground": "#292536",
+  "--landing-hero-muted": "#595165",
+  "--landing-hero-surface": "#FAF6F1",
+  "--landing-hero-rose": "#F5DCE5",
+  "--landing-hero-lavender": "#EDE4FC",
+  "--landing-stage-glow": "#FFF2DF",
+  "--landing-stage-rose": "#EFD9E4",
+  "--landing-stage-lavender": "#E1D1EF",
+  "--landing-device-frame": "#28252D",
+  "--landing-device-surface": "#151219",
+};
+
 // Clear pastel wash per section so scrolling reads as moving between distinct
 // pages. Landing is pinned to light mode, so these fixed tints stay consistent.
-export const HERO_BG = "bg-[#EFE9FB]";
 export const SECTION_BG = [
   "bg-[#E9ECF3]",
   "bg-[#E1EDFC]",
@@ -18,19 +37,86 @@ export const FINAL_BG = "bg-[#FBE4EF]";
 
 const SECTION_BLOB = ["#AEB8D4", "#9CC4F2", "#C4A9EE", "#F2C889", "#8FD9AF"];
 
-export function StartButton({ onPress, label }: { onPress: () => void; label: string }) {
+export const LANDING_FOCUS =
+  "web:focus-visible:[outline-style:solid] web:focus-visible:outline-2 web:focus-visible:outline-offset-2 web:focus-visible:outline-foreground";
+
+export function focusLandingSection(target: HTMLElement) {
+  if (target === document.activeElement) return;
+  target.tabIndex = -1;
+  target.addEventListener("blur", () => target.removeAttribute("tabindex"), { once: true });
+  target.focus({ preventScroll: true });
+}
+
+export function scrollToLandingSection(id: string, focusSection = false) {
+  const target = document.getElementById(id);
+  if (!target) return;
+  if (focusSection) focusLandingSection(target);
+  target.scrollIntoView({ block: "start" });
+}
+
+export function LandingSectionLink({
+  section,
+  className,
+  ...props
+}: Pick<ComponentProps<typeof Pressable>, "accessibilityLabel" | "children" | "className"> & {
+  "aria-current"?: "location";
+  section: string;
+}) {
+  const id = `landing-${section}`;
   return (
-    <Pressable
-      className="relative h-12 items-center justify-center overflow-hidden rounded-2xl px-8 shadow-qlink-md active:opacity-95 web:transition-transform web:hover:scale-105"
-      onPress={onPress}
+    <Link
+      href={`/#${id}`}
+      asChild
+      onPress={(event) => {
+        event.preventDefault();
+        const hash = `#${id}`;
+        if (window.location.hash !== hash) {
+          if (!window.location.hash) {
+            const landingScrollTop = document.getElementById(LANDING_SCROLL_ID)?.scrollTop ?? 0;
+            window.history.replaceState({ ...window.history.state, landingScrollTop }, "");
+          }
+          window.history.pushState(window.history.state, "", hash);
+        }
+        scrollToLandingSection(id, true);
+      }}
     >
-      <LinearGradient
-        accent="pink"
-        style={{ bottom: 0, left: 0, position: "absolute", right: 0, top: 0 }}
-        pointerEvents="none"
+      <Pressable
+        {...props}
+        className={cn(LANDING_FOCUS, className)}
       />
-      <Text className="text-base font-semibold text-primary-foreground">{label}</Text>
-    </Pressable>
+    </Link>
+  );
+}
+
+export function StartButton({
+  href,
+  label,
+  className,
+}: {
+  href: Href;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      asChild
+    >
+      <Pressable
+        className={cn(
+          "relative h-12 items-center justify-center overflow-hidden rounded-2xl px-8 shadow-qlink-md active:opacity-95 web:transition-transform web:hover:scale-105",
+          LANDING_FOCUS,
+          className,
+        )}
+      >
+        <LinearGradient
+          accent="pink"
+          style={{ bottom: 0, left: 0, position: "absolute", right: 0, top: 0 }}
+          pointerEvents="none"
+        />
+        <Text className="text-base font-semibold text-primary-foreground">{label}</Text>
+      </Pressable>
+    </Link>
   );
 }
 
@@ -61,10 +147,15 @@ export function SectionBackdrop({ index }: { index: number }) {
 // Vertical progress rail (desktop): a dot per page, the active one stretches.
 export function ProgressRail({ total, active }: { total: number; active: number }) {
   return (
-    <View className="absolute right-6 top-1/2 hidden -translate-y-1/2 gap-2.5 md:flex">
+    <View
+      aria-hidden
+      className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 gap-2.5 md:flex"
+    >
       {Array.from({ length: total }).map((_, index) => (
         <View
           key={index}
+          testID={index === active ? "landing-progress-current" : undefined}
+          nativeID={`landing-progress-${index}`}
           className={cn(
             "w-1 rounded-full",
             index === active ? "h-6 bg-primary" : "bg-border-strong h-1.5",
