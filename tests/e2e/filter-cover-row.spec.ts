@@ -1,7 +1,15 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
 import { isWideProject } from "./support/helpers";
-import { type MockLink, makeDetail, makeLink, mockApi } from "./support/mock-api";
+import {
+  type MockLink,
+  type MockTodo,
+  makeDetail,
+  makeFolders,
+  makeLink,
+  mockApi,
+  settingsHandler,
+} from "./support/mock-api";
 
 // #79: the filter row's cover — how it opens and closes, the auto close, the pill, the keyboard,
 // the accessible names, the row at 320–769px and reduced motion. The sorting and filtering itself
@@ -23,6 +31,9 @@ function buildLinks(): MockLink[] {
       id: Number(id),
       title,
       createdAt: new Date(Date.UTC(2026, 9, Number(id), 9, 0)).toISOString(),
+      folderId: 1,
+      folderName: "공부",
+      folderEmoji: "📚",
       isFavorite: Number(id) === 2,
     }),
   );
@@ -73,8 +84,12 @@ async function expectClosed(page: Page) {
 async function openList(page: Page) {
   await mockLinks(page);
   await page.goto(listPath());
-  await expect(page.getByTestId("link-card-title").first()).toBeVisible();
+  await expect(linkTitles(page).first()).toBeVisible();
   await expect(coverButton(page)).toBeVisible();
+}
+
+function linkTitles(page: Page) {
+  return page.getByTestId("link-card-title").filter({ visible: true });
 }
 
 /**
@@ -148,7 +163,7 @@ test.describe("opening and closing", () => {
     await coverButton(page).click();
     await expectOpen(page);
 
-    await page.getByTestId("link-card-title").filter({ hasText: TITLES[3] }).click();
+    await linkTitles(page).filter({ hasText: TITLES[3] }).click();
     if (isWideProject()) {
       await expect(page).toHaveURL(/linkId=3/);
       await expectClosed(page);
@@ -495,9 +510,272 @@ test.describe("reduced motion", () => {
 
     await expectOpen(page);
     await sortChip(page, "제목").click();
-    await expect(page.getByTestId("link-card-title").first()).toHaveText(TITLES[2]);
+    await expect(linkTitles(page).first()).toHaveText(TITLES[2]);
     await coverButton(page).click();
     await expectClosed(page);
     await expect(coverButton(page)).toHaveAccessibleName("정렬·필터 열기, 적용 중: 제목 오름차순");
+  });
+});
+
+async function expectFocusRing(chip: Locator, selector: string | null = null) {
+  await expect(chip).toBeFocused();
+  await expect
+    .poll(() =>
+      chip.evaluate((node, innerSelector) => {
+        const target = innerSelector ? node.querySelector(innerSelector) : node;
+        const style = getComputedStyle(target!);
+        return {
+          hasRing: style.boxShadow !== "none",
+          offset: style.getPropertyValue("--tw-ring-offset-width").trim(),
+          offsetMatchesBackground:
+            style.getPropertyValue("--tw-ring-offset-color").trim() ===
+            `hsl(${style.getPropertyValue("--background").trim()})`,
+        };
+      }, selector),
+    )
+    .toEqual({ hasRing: true, offset: "2px", offsetMatchesBackground: true });
+}
+
+test.describe("#96 filter row regressions", () => {
+  for (const folderDetail of [false, true]) {
+    test(`filled shortcut icon, switch state and matching results on ${folderDetail ? "folder detail" : "the main list"}`, async ({
+      page,
+    }) => {
+      await mockLinks(page);
+      await page.goto(folderDetail ? "/folders/1" : listPath());
+      const titles = linkTitles(page);
+      await expect(titles).toHaveCount(3);
+      await coverButton(page).focus();
+      await page.keyboard.press("Enter");
+      const star = favoriteToggle(page).locator("svg path");
+      await expect(star).toHaveCSS("fill", "none");
+      await expect(favoriteToggle(page)).not.toBeChecked();
+      await page.keyboard.press("Space");
+      await expect(favoriteToggle(page)).toBeChecked();
+      await expect(star).not.toHaveCSS("fill", "none");
+      await expect(titles).toHaveText([TITLES[2]]);
+      await page.keyboard.press("Tab");
+      await expectFocusRing(sortChip(page, "저장일, 내림차순"));
+      await page.keyboard.press("Escape");
+      await expect(coverButton(page)).toBeFocused();
+      const pillStar = coverButton(page).locator("svg path[fill='currentColor']");
+      await expect(pillStar).toHaveCount(1);
+      await expect(pillStar).not.toHaveCSS("fill", "none");
+
+      await page.keyboard.press("Enter");
+      await page.keyboard.press("Space");
+      await expect(favoriteToggle(page)).not.toBeChecked();
+      await expect(star).toHaveCSS("fill", "none");
+      await expect(titles).toHaveCount(3);
+      await page.keyboard.press("Escape");
+      await expect(pillStar).toHaveCount(0);
+    });
+  }
+
+  test("folder and shortcut switch respond 21.5 pixels above and below their centers", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "web mobile touch targets");
+    await openList(page);
+    const folders = page.getByRole("radiogroup", { name: "폴더" });
+    const folder = folders.getByRole("radio", { name: "📚 공부" });
+    const all = folders.getByRole("radio", { name: "전체", exact: true });
+    const other = folders.getByRole("radio", { name: "🗂️ 미분류" });
+    for (const delta of [-21.5, 21.5]) {
+      await all.tap();
+      const area = await box(folder);
+      await page.touchscreen.tap(area.x + area.width / 2, area.y + area.height / 2 + delta);
+      await expect(folder).toBeChecked();
+      await expect(other).not.toBeChecked();
+      await expectClosed(page);
+    }
+
+    await coverButton(page).tap();
+    await expect.poll(() => coverShift(page)).toBeLessThan(0.5);
+    for (const delta of [-21.5, 21.5]) {
+      await expect(favoriteToggle(page)).not.toBeChecked();
+      const area = await box(favoriteToggle(page));
+      await page.touchscreen.tap(area.x + area.width / 2, area.y + area.height / 2 + delta);
+      await expect(favoriteToggle(page)).toBeChecked();
+      await expect(sortChip(page, "저장일, 내림차순")).toBeChecked();
+      await expectOpen(page);
+      await favoriteToggle(page).tap();
+    }
+  });
+
+  test("folder scroll fades follow the edges, let touches through, and survive reopening", async ({
+    page,
+  }) => {
+    test.skip(isWideProject(), "web mobile folder scroll");
+    await mockApi(page, { folders: makeFolders(10), links: buildLinks() });
+    await page.goto("/home");
+    const folders = page.getByRole("radiogroup", { name: "폴더" });
+    const scroll = page.getByTestId("link-filter-row-primary-scroll");
+    const left = page.getByTestId("link-filter-row-primary-fade-left");
+    const right = page.getByTestId("link-filter-row-primary-fade-right");
+    const first = folders.getByRole("radio").first();
+    const last = folders.getByRole("radio").last();
+    const clipped = folders.getByRole("radio", { name: "📁 폴더 8" });
+    await expect(first).toBeChecked();
+    await expect(left).toHaveCount(0);
+    await expect(right).toBeVisible();
+
+    const viewport = await box(scroll);
+    const chip = await box(clipped);
+    await scroll.evaluate((node, x) => (node.scrollLeft = x), chip.x - viewport.x + chip.width / 2);
+    await expect(left).toBeVisible();
+    await expect(right).toBeVisible();
+
+    const fade = await box(left);
+    const x = fade.x + fade.width / 2;
+    const y = fade.y + fade.height / 2;
+    await page.touchscreen.tap(x, y);
+    await expect(clipped).toBeChecked();
+    const beforeOpening = await scroll.evaluate((node) => node.scrollLeft);
+    await coverButton(page).click();
+    await expectOpen(page);
+    await coverButton(page).click();
+    await expectClosed(page);
+    await expect.poll(() => scroll.evaluate((node) => node.scrollLeft)).toBe(beforeOpening);
+
+    const client = await page.context().newCDPSession(page);
+    const previous = await scroll.evaluate((node) => node.scrollLeft);
+    await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    for (const distance of [20, 40, 65]) {
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: x + distance, y }],
+      });
+    }
+    await expect.poll(() => scroll.evaluate((node) => node.scrollLeft)).toBeLessThan(previous);
+    await scroll.evaluate((node) => {
+      node.dataset.scrolling = "true";
+      node.addEventListener("scrollend", () => delete node.dataset.scrolling, { once: true });
+    });
+    await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await client.detach();
+    await expect(scroll).not.toHaveAttribute("data-scrolling");
+
+    await page.keyboard.press("Tab");
+    await last.focus();
+    await page.keyboard.press("Space");
+    await expect(last).toBeChecked();
+    await expectFocusRing(last, ":scope > div");
+    await expect(right).toHaveCount(0);
+    await expect(left).toBeVisible();
+    expect((await box(last)).x + (await box(last)).width + 4).toBeLessThanOrEqual(
+      viewport.x + viewport.width + 0.1,
+    );
+    await first.focus();
+    await page.keyboard.press("Space");
+    await expect(first).toBeChecked();
+    await expectFocusRing(first, ":scope > div");
+    await expect(left).toHaveCount(0);
+    await expect(right).toBeVisible();
+    expect((await box(first)).x - 4).toBeGreaterThanOrEqual(viewport.x - 0.1);
+  });
+
+  test("fitting folder chips have no fade on either side", async ({ page }) => {
+    test.skip(isWideProject(), "web mobile folder scroll");
+    await mockApi(page, { folders: [], links: buildLinks() });
+    await page.goto("/home");
+    const scroll = page.getByTestId("link-filter-row-primary-scroll");
+    await expect(scroll.getByRole("radio", { name: "전체", exact: true })).toBeChecked();
+    await expect.poll(() => scroll.evaluate((node) => node.scrollWidth - node.clientWidth)).toBe(0);
+    await expect(page.getByTestId(/link-filter-row-primary-fade-/)).toHaveCount(0);
+  });
+
+  const todos: MockTodo[] = ["진행할 일", "기간 지난 일", "끝낸 일"].map((title, index) => ({
+    id: index + 1,
+    title,
+    reminderAt: index === 1 ? "2020-01-01T00:00:00Z" : null,
+    completedAt: index === 2 ? "2020-01-02T00:00:00Z" : null,
+    linkId: 1,
+    linkUrl: "https://example.com",
+    linkTitle: "링크",
+    linkThumbnailUrl: null,
+    linkFaviconUrl: null,
+  }));
+
+  for (const theme of ["light", "dark"] as const) {
+    for (const accent of ["gray", "pink", "blue"] as const) {
+      test(`sort and status focus are separated from the selected fill in ${theme} / ${accent}`, async ({
+        page,
+      }) => {
+        await mockApi(page, {
+          todos,
+          handlers: { "GET /api/users/me/settings": settingsHandler(theme, accent) },
+        });
+        await page.goto("/todos");
+        await expect(page.locator("html")).toHaveAttribute("data-accent", accent);
+        if (theme === "dark") {
+          await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+        } else {
+          await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+        }
+        const all = page.getByRole("radio", { name: "전체 3", exact: true });
+        const button = page.getByTestId("todo-filter-row-button");
+        await expect(all).toBeChecked();
+        await page.keyboard.press("Tab");
+        await all.focus();
+        await expectFocusRing(all, ":scope > div");
+        await button.focus();
+        await page.keyboard.press("Enter");
+        const sorts = page.getByRole("radiogroup", { name: "정렬 기준" });
+        await expectFocusRing(sorts.getByRole("radio", { checked: true }));
+      });
+    }
+  }
+
+  test("four action statuses fit after selecting a nondefault sort and 완료 works by pointer and keyboard", async ({
+    page,
+  }) => {
+    await mockApi(page, { todos });
+    await page.goto("/todos");
+    const button = page.getByTestId("todo-filter-row-button");
+    const scroll = page.getByTestId("todo-filter-row-primary-scroll");
+    const statuses = scroll.getByRole("radio");
+    const completed = scroll.getByRole("radio", { name: "완료 1", exact: true });
+    const all = scroll.getByRole("radio", { name: "전체 3", exact: true });
+    await expect(all).toBeChecked();
+    await button.click();
+    await sortChip(page, "만든 날").click();
+    await expect(sortChip(page, "만든 날, 내림차순")).toBeChecked();
+    await button.click();
+    await expect(button).toHaveAccessibleName("정렬·필터 열기, 적용 중: 만든 날 내림차순");
+    await expect(statuses).toHaveCount(4);
+    for (const name of ["전체 3", "진행 중 1", "기간지남 1", "완료 1"]) {
+      await expect(scroll.getByRole("radio", { name, exact: true })).toBeInViewport({ ratio: 1 });
+    }
+    await expect.poll(() => scroll.evaluate((node) => node.scrollWidth - node.clientWidth)).toBe(0);
+    await expect(page.getByTestId(/todo-filter-row-primary-fade-/)).toHaveCount(0);
+    if (isWideProject()) {
+      await expect(button.getByText("만든 날", { exact: true })).toBeVisible();
+    } else {
+      await expect(button.getByText("만든 날", { exact: true })).toHaveCount(0);
+      await expect(button.getByTestId("todo-filter-sort-direction")).toBeVisible();
+    }
+    for (const delta of [-21.5, 21.5]) {
+      const buttonArea = await box(button);
+      await page.mouse.click(
+        buttonArea.x + buttonArea.width / 2,
+        buttonArea.y + buttonArea.height / 2 + delta,
+      );
+      await expect(sortChip(page, "만든 날, 내림차순")).toBeChecked();
+      await button.click();
+      const target = await box(completed);
+      await page.mouse.click(target.x + target.width / 2, target.y + target.height / 2 + delta);
+      await expect(completed).toBeChecked();
+      await expect(page.getByTestId("todo-item-title")).toHaveText(["끝낸 일"]);
+      await all.click();
+    }
+    await all.focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await expect(completed).toBeFocused();
+    await page.keyboard.press("Space");
+    await expect(completed).toBeChecked();
+    await expect(page.getByTestId("todo-item-title")).toHaveText(["끝낸 일"]);
   });
 });
