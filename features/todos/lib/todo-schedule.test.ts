@@ -165,7 +165,7 @@ describe("validateTodoDrafts with an untitled action", () => {
       NOW,
     );
     expect(result).toMatchObject({ hasError: true, errorCount: 2, firstErrorId: "untitled" });
-    expect(countTodoDraftErrors(result.todos)).toBe(2);
+    expect(countTodoDraftErrors(result.todos, NOW)).toBe(2);
   });
 
   it("drops the count as errors are fixed", () => {
@@ -179,7 +179,7 @@ describe("validateTodoDrafts with an untitled action", () => {
     const fixedTitle = result.todos.map((todo) =>
       todo.id === "a" ? { ...todo, title: "예약", titleError: null } : todo,
     );
-    expect(countTodoDraftErrors(fixedTitle)).toBe(1);
+    expect(countTodoDraftErrors(fixedTitle, NOW)).toBe(1);
     expect(validateTodoDrafts(fixedTitle, NOW).errorCount).toBe(1);
   });
 });
