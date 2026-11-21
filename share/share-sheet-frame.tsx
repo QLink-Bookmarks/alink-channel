@@ -1,5 +1,5 @@
 import * as React from "react";
-import { type LayoutChangeEvent, Pressable, View, useWindowDimensions } from "react-native";
+import { type LayoutChangeEvent, Pressable, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -13,12 +13,7 @@ import { scheduleOnRN } from "react-native-worklets";
 
 import { cn } from "@/lib/utils";
 
-import {
-  DEFAULT_SHEET_HEIGHT,
-  type SheetPlacement,
-  clampSheetHeight,
-  getAvailableSheetHeight,
-} from "./share-sheet-height";
+import { DEFAULT_SHEET_HEIGHT, clampSheetHeight } from "./share-sheet-height";
 import { FADE_DURATION_MS, PUSH_DURATION_MS, PUSH_EASING } from "./share-step-layer";
 
 const CONTENT_FADE_DURATION_MS = 200;
@@ -55,14 +50,10 @@ function ShareSheetFrame({
   onAvailableHeightChange,
   onDismiss,
 }: ShareSheetFrameProps) {
-  const { height: windowHeight } = useWindowDimensions();
-  const containerRef = React.useRef<View>(null);
-  const [placement, setPlacement] = React.useState<SheetPlacement | null>(null);
-  const availableHeight = placement
-    ? getAvailableSheetHeight(placement, windowHeight)
-    : DEFAULT_SHEET_HEIGHT;
+  const [containerHeight, setContainerHeight] = React.useState<number>();
+  const availableHeight = containerHeight ?? DEFAULT_SHEET_HEIGHT;
   const visibleTarget = clampSheetHeight(contentHeight, availableHeight);
-  const isMeasured = contentHeight != null && placement != null;
+  const isMeasured = contentHeight != null && containerHeight != null;
   const [hasFallbackElapsed, setHasFallbackElapsed] = React.useState(false);
   const isShown = isMeasured || hasFallbackElapsed;
 
@@ -76,10 +67,10 @@ function ShareSheetFrame({
 
   React.useEffect(() => {
     available.value = availableHeight;
-    if (placement) {
-      onAvailableHeightChange?.(availableHeight);
+    if (containerHeight != null) {
+      onAvailableHeightChange?.(containerHeight);
     }
-  }, [available, availableHeight, onAvailableHeightChange, placement]);
+  }, [available, availableHeight, containerHeight, onAvailableHeightChange]);
 
   React.useEffect(() => {
     const timer = setTimeout(() => setHasFallbackElapsed(true), FACE_FALLBACK_MS);
@@ -116,11 +107,9 @@ function ShareSheetFrame({
 
   const handleLayout = React.useCallback((event: LayoutChangeEvent) => {
     const { height } = event.nativeEvent.layout;
-    containerRef.current?.measureInWindow((_x, y) => {
-      setPlacement((current) =>
-        current?.top === y && current.height === height ? current : { top: y, height },
-      );
-    });
+    if (height > 0) {
+      setContainerHeight(height);
+    }
   }, []);
 
   const handleBackdropPress = React.useCallback(() => {
@@ -189,9 +178,7 @@ function ShareSheetFrame({
 
   return (
     <View
-      ref={containerRef}
       className="flex-1 bg-transparent"
-      collapsable={false}
       onLayout={handleLayout}
     >
       <Pressable

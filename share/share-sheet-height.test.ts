@@ -1,9 +1,4 @@
-import {
-  DEFAULT_SHEET_HEIGHT,
-  clampSheetHeight,
-  getAvailableSheetHeight,
-  getFolderStepHeight,
-} from "./share-sheet-height";
+import { DEFAULT_SHEET_HEIGHT, clampSheetHeight, getFolderStepHeight } from "./share-sheet-height";
 
 /* eslint-disable @typescript-eslint/no-require-imports -- jest.mock factories must require */
 jest.mock("react-native-worklets", () => require("react-native-worklets/src/mock"));
@@ -42,16 +37,5 @@ describe("clampSheetHeight", () => {
   it("never exceeds the container", () => {
     expect(clampSheetHeight(320, 392)).toBe(320);
     expect(clampSheetHeight(500, 392)).toBe(392);
-  });
-});
-
-describe("getAvailableSheetHeight", () => {
-  it("keeps the full extension height when it ends at the window bottom", () => {
-    expect(getAvailableSheetHeight({ top: 452, height: 392 }, 844)).toBe(392);
-  });
-
-  it("drops the part the system pushed below the window", () => {
-    expect(getAvailableSheetHeight({ top: 462, height: 392 }, 844)).toBe(382);
-    expect(getAvailableSheetHeight({ top: 509, height: 392 }, 844)).toBe(335);
   });
 });
