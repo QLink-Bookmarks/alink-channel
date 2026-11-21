@@ -123,7 +123,9 @@ async function expectNoReloginToast(page: Page) {
 }
 
 test.describe("new tab in a signed-in browser", () => {
-  test("/ shows the checking screen, then home, never the landing or login", async ({ page }) => {
+  test("/app shows the checking screen, then home, without visiting landing or login", async ({
+    page,
+  }) => {
     let release: () => void = () => {};
     const held = new Promise<void>((resolve) => {
       release = resolve;
@@ -134,7 +136,7 @@ test.describe("new tab in a signed-in browser", () => {
     });
     await recordTexts(page, [LANDING, LOGIN]);
 
-    await page.goto("/");
+    await page.goto("/app");
     await expect(page.getByText(CHECKING, { exact: true })).toBeVisible();
     release();
 
@@ -148,7 +150,7 @@ test.describe("new tab in a signed-in browser", () => {
   test("reloading the restored tab several times makes no refresh call", async ({ page }) => {
     const { refreshCalls } = await openNewTab(page, "success");
 
-    await page.goto("/");
+    await page.goto("/app");
     await expect(page).toHaveURL(/\/home$/);
     for (let count = 0; count < 3; count += 1) {
       await page.reload();
@@ -203,21 +205,21 @@ test.describe("new tab in a signed-in browser", () => {
     await openNewTab(page, "success");
     await openNewTab(second, "success");
 
-    await Promise.all([page.goto("/"), second.goto("/")]);
+    await Promise.all([page.goto("/app"), second.goto("/app")]);
 
     await expect(page).toHaveURL(/\/home$/);
     await expect(second).toHaveURL(/\/home$/);
     await second.close();
   });
 
-  test("a duplicated tab starts from its copied token without the checking screen", async ({
+  test("a duplicated tab uses its copied token without refreshing or showing login", async ({
     page,
   }) => {
     const state = await mockApi(page, {
       links: [link],
       handlers: { [`POST ${REFRESH_PATH}`]: (route) => fulfillRefresh(route, "success") },
     });
-    await recordTexts(page, [CHECKING, LOGIN]);
+    await recordTexts(page, [LOGIN]);
 
     await page.goto("/home");
 
@@ -250,7 +252,7 @@ test.describe("new tab in a signed-in browser", () => {
       },
     });
 
-    await page.goto("/");
+    await page.goto("/app");
 
     await expect(page).toHaveURL(/\/agreements$/);
   });
@@ -260,7 +262,7 @@ test.describe("new tab in a signed-in browser", () => {
     const page = await context.newPage();
     const { refreshCalls } = await openNewTab(page, "success");
 
-    await page.goto("/");
+    await page.goto("/app");
 
     await expect(page).toHaveURL(/\/home$/);
     expect(refreshCalls()).toBe(1);
@@ -310,15 +312,15 @@ test.describe("new tab when the refresh does not succeed", () => {
     let reply: RefreshReply = "offline";
     await openNewTab(page, (route) => fulfillRefresh(route, reply));
 
-    await page.goto("/");
-    await expect(landingScreen(page)).toBeVisible();
+    await page.goto("/app");
+    await expect(page).toHaveURL("/login");
     reply = "success";
     await page.reload();
 
     await expect(page).toHaveURL(/\/home$/);
   });
 
-  test("a refresh slower than the wait cap shows the landing and a late success is dropped", async ({
+  test("a refresh slower than the wait cap shows login and a late success is dropped", async ({
     page,
   }) => {
     let answer: () => void = () => {};
@@ -334,15 +336,15 @@ test.describe("new tab when the refresh does not succeed", () => {
     page.on("requestfailed", (request) => failed.push(request.url()));
     page.on("requestfinished", (request) => finished.push(request.url()));
 
-    await page.goto("/");
-    await expect(landingScreen(page)).toBeVisible({ timeout: 8_000 });
+    await page.goto("/app");
+    await expect(page).toHaveURL("/login", { timeout: 8_000 });
     answer();
 
     await expect.poll(() => finished.some((url) => url.endsWith(REFRESH_PATH))).toBe(true);
     await settleFrames(page);
     expect(failed.filter((url) => url.endsWith(REFRESH_PATH))).toEqual([]);
     expect(page.url()).not.toContain("/home");
-    await expect(landingScreen(page)).toBeVisible();
+    await expect(page.getByText(LOGIN).filter({ visible: true }).first()).toBeVisible();
     expect(await storedAuthRecord(page)).toBeNull();
     await expectNoReloginToast(page);
   });

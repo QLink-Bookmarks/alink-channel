@@ -16,11 +16,12 @@ type InviteAcceptScreenProps = {
   // Fired once the invite is actually accepted, so the caller can drop the
   // stored invite only after it has been consumed.
   onAccepted?: () => void;
+  onFailed?: () => void;
 };
 
 type InviteAcceptStatus = "reading" | "checking" | "success" | "client-error" | "server-error";
 
-function InviteAcceptScreen({ folderId, token, onAccepted }: InviteAcceptScreenProps) {
+function InviteAcceptScreen({ folderId, token, onAccepted, onFailed }: InviteAcceptScreenProps) {
   const router = useRouter();
   const { mutateAsync, reset } = useAcceptFolderInvitationMutation();
   const [status, setStatus] = React.useState<InviteAcceptStatus>("reading");
@@ -48,6 +49,7 @@ function InviteAcceptScreen({ folderId, token, onAccepted }: InviteAcceptScreenP
       hasSubmittedRef.current = true;
       setStatus("client-error");
       setErrorMessage("초대 정보가 올바르지 않아요.");
+      onFailed?.();
       return;
     }
 
@@ -69,8 +71,9 @@ function InviteAcceptScreen({ folderId, token, onAccepted }: InviteAcceptScreenP
 
         setStatus(isClientError ? "client-error" : "server-error");
         setErrorMessage(getInviteErrorMessage(error));
+        onFailed?.();
       });
-  }, [folderId, mutateAsync, onAccepted, token]);
+  }, [folderId, mutateAsync, onAccepted, onFailed, token]);
 
   const message =
     status === "reading"
