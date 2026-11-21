@@ -24,6 +24,9 @@ function useAgreementStatus(): AgreementStatus {
     queryKey: accountQueryKeys.myProfile(),
     queryFn: async () => {
       const response = await getMyProfile();
+      if (!response.success || !response.data) {
+        throw new Error("Unable to read required agreement status");
+      }
       return response.data;
     },
     enabled: isAuthenticated,

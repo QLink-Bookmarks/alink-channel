@@ -38,9 +38,9 @@ function validateReturnDestination(value: string | null) {
 
 function rememberReturnDestination(value: string) {
   const destination = validateReturnDestination(value);
+  if (!destination) return;
   if (process.env.EXPO_OS === "web") {
-    if (destination) void SessionStorage.setItem(RETURN_DESTINATION_KEY, destination);
-    else void SessionStorage.removeItem(RETURN_DESTINATION_KEY);
+    void SessionStorage.setItem(RETURN_DESTINATION_KEY, destination);
   } else {
     nativeDestination = destination;
   }

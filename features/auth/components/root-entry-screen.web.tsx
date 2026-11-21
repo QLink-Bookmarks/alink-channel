@@ -22,7 +22,7 @@ function RootEntryScreen() {
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const [isCallback, setIsCallback] = React.useState(false);
   React.useEffect(() => {
-    setIsCallback(hasOauthCallback(window.location));
+    setIsCallback(window.location.pathname === "/" && hasOauthCallback(window.location));
   }, []);
 
   if (isCallback) return hasHydrated ? <OauthEntry /> : <CheckingScreen />;

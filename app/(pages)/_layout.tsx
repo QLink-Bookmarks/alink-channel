@@ -6,13 +6,15 @@ import { ResponsiveShell } from "@/features/navigation/components/responsive-she
 import { useWideViewState } from "@/lib/hooks/use-wide-view";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 
-import { Slot } from "expo-router";
+import { Navigator } from "expo-router";
 
 export default function PagesLayout() {
   return (
-    <ProtectedRoute>
-      <PagesShell />
-    </ProtectedRoute>
+    <Navigator>
+      <ProtectedRoute>
+        <PagesShell />
+      </ProtectedRoute>
+    </Navigator>
   );
 }
 
@@ -25,7 +27,7 @@ function PagesShell() {
   return (
     <BottomSheetModalProvider>
       <ResponsiveShell>
-        <Slot />
+        <Navigator.Slot />
       </ResponsiveShell>
       <ImportFlowHost />
     </BottomSheetModalProvider>

@@ -25,14 +25,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   useFocusEffect(
     React.useCallback(() => {
       if (!nextRoute) return;
-      const query = new URLSearchParams();
-      const overlayId = readParamValue(linkId);
-      const sharedUrl = readParamValue(linkUrl);
-      if (overlayId) query.set("linkId", overlayId);
-      if (sharedUrl) query.set("linkUrl", sharedUrl);
-      const search = query.toString();
-      rememberReturnDestination(search ? `${pathname}?${search}` : pathname);
-      router.replace(nextRoute);
+      const frame = requestAnimationFrame(() => {
+        const query = new URLSearchParams();
+        const overlayId = readParamValue(linkId);
+        const sharedUrl = readParamValue(linkUrl);
+        if (overlayId) query.set("linkId", overlayId);
+        if (sharedUrl) query.set("linkUrl", sharedUrl);
+        const search = query.toString();
+        rememberReturnDestination(search ? `${pathname}?${search}` : pathname);
+        router.replace(nextRoute);
+      });
+      return () => cancelAnimationFrame(frame);
     }, [linkId, linkUrl, nextRoute, pathname, router]),
   );
 
