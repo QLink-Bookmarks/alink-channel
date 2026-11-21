@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ScrollView, View, type ViewStyle, useColorScheme } from "react-native";
+import { ScrollView, View, type ViewStyle } from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -11,6 +11,19 @@ import { usePublicFolderListQuery, usePublicFolderQuery } from "../public-querie
 import { isAxiosError } from "axios";
 import { Link, useIsFocused } from "expo-router";
 import { Check, Circle, ExternalLink } from "lucide-react-native";
+
+const DARK_COLOR_SCHEME = "(prefers-color-scheme: dark)";
+
+function subscribeToColorScheme(onChange: () => void) {
+  if (process.env.EXPO_OS !== "web") return () => {};
+  const preference = window.matchMedia(DARK_COLOR_SCHEME);
+  preference.addEventListener("change", onChange);
+  return () => preference.removeEventListener("change", onChange);
+}
+
+function prefersDarkColorScheme() {
+  return process.env.EXPO_OS === "web" && window.matchMedia(DARK_COLOR_SCHEME).matches;
+}
 
 function isUnavailable(error: unknown) {
   return isAxiosError(error) && error.response?.status === 404;
@@ -221,10 +234,14 @@ function PublicFolderContent({ publicId }: { publicId: string }) {
 function PublicFolderScreen({ publicId }: { publicId?: string }) {
   const focused = useIsFocused();
   const [restore, setRestore] = React.useState(0);
-  const systemTheme = useColorScheme();
+  const prefersDark = React.useSyncExternalStore(
+    subscribeToColorScheme,
+    prefersDarkColorScheme,
+    () => false,
+  );
   const themeVars = React.useMemo(
-    () => getNativeThemeVars(systemTheme === "dark" ? "dark" : "light", "gray"),
-    [systemTheme],
+    () => getNativeThemeVars(prefersDark ? "dark" : "light", "gray"),
+    [prefersDark],
   );
 
   React.useEffect(() => {

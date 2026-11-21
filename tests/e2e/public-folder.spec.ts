@@ -64,6 +64,12 @@ for (const signedIn of [false, true]) {
     await expect(page.getByRole("checkbox")).toHaveCount(0);
     await expect(page.getByRole("main")).toContainText("읽기 전용");
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+    await page.context().route(LONG_URL, (route) => route.fulfill({ body: "원문" }));
+    const opened = page.context().waitForEvent("page");
+    await link.click();
+    const original = await opened;
+    await expect(original).toHaveURL(LONG_URL);
+    await original.close();
     await page.reload();
     await expect(heading).toBeVisible();
     await expect(link).toBeVisible();
@@ -115,4 +121,53 @@ test("retains rows on a paging failure and clears the whole view on withdrawal",
   await expect(page.getByText("다음 산책 코스 고르기")).toHaveCount(0);
   await page.reload();
   await expect(page.getByText("이 주소로 폴더를 열 수 없어요.")).toBeVisible();
+});
+
+test("checks the public address again after returning through browser history", async ({
+  page,
+}) => {
+  const state = await mockPublicFolder(page);
+  await page.goto(WEB_PATH);
+  await expect(page.getByRole("heading", { name: new RegExp(FOLDER_NAME) })).toBeVisible();
+  await page.goto("/privacy");
+  state.headStatus = 404;
+  await page.goBack();
+  await expect(page.getByText("이 주소로 폴더를 열 수 없어요.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: new RegExp(FOLDER_NAME) })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "오래된 골목길" })).toHaveCount(0);
+});
+
+test("uses the browser color scheme for the anonymous folder", async ({ page }) => {
+  await mockPublicFolder(page);
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto(WEB_PATH);
+  const main = page.getByRole("main");
+  await expect(main).toContainText(FOLDER_NAME);
+  const background = () =>
+    main.evaluate((element) => getComputedStyle(element).getPropertyValue("--background").trim());
+  const light = await background();
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect.poll(background).not.toBe(light);
+});
+
+test("wraps a long title and address inside one link row", async ({ page }) => {
+  const state = await mockPublicFolder(page);
+  const title = "오래된골목길산책기록".repeat(22);
+  state.links = [{ title, url: LONG_URL }];
+  state.todos = [];
+  await page.goto(WEB_PATH);
+  const link = page.getByRole("link", { name: title });
+  const row = page.getByRole("listitem").filter({ has: link });
+  const address = row.getByText(LONG_URL, { exact: true });
+  await expect(row).toHaveCount(1);
+  await expect(address).toBeVisible();
+  const rowBox = (await row.boundingBox())!;
+  const titleBox = (await link.boundingBox())!;
+  const addressBox = (await address.boundingBox())!;
+  expect(titleBox.height).toBeGreaterThan(24);
+  expect(titleBox.y + titleBox.height).toBeLessThanOrEqual(addressBox.y);
+  for (const box of [titleBox, addressBox]) {
+    expect(box.x).toBeGreaterThanOrEqual(rowBox.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+  }
 });
