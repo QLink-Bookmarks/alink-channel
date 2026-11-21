@@ -23,7 +23,6 @@ const login = "Google로 계속하기";
 const refreshPath = "/api/auth/token/refresh/web";
 const googleSdk = "https://accounts.google.com/gsi/client";
 const kakaoSdk = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.9/kakao.min.js";
-const naverSdk = "https://static.nid.naver.com/js/naveridlogin_js_sdk_2.0.2.js";
 
 function json(route: Route, data: unknown, status = 200) {
   return route.fulfill({ status, json: data });
@@ -93,27 +92,26 @@ async function setUp(
     }) } } };`,
     }),
   );
-  await page.route(naverSdk, (route) =>
-    route.fulfill({
-      contentType: "application/javascript",
-      body: `window.naver = { LoginWithNaverId: class {
-      init() {
-        const anchor = document.createElement("a");
-        anchor.href = "/__e2e__/provider?naver=1";
-        document.getElementById("naverIdLogin").appendChild(anchor);
-      }
-      getLoginStatus(cb) { this.accessToken = { accessToken: "naver-token" }; cb(true); }
-    } };`,
-    }),
-  );
+  await page.route("https://nid.naver.com/oauth2.0/authorize?*", (route) => {
+    const requestUrl = new URL(route.request().url());
+    const callbackOrigin = requestUrl.searchParams.get("redirect_uri")!;
+    const state = requestUrl.searchParams.get("state")!;
+    return route.fulfill({
+      status: 302,
+      headers: {
+        location: `${callbackOrigin}/__e2e__/provider?naver=${encodeURIComponent(state)}`,
+      },
+    });
+  });
   await page.route("**/__e2e__/provider?*", (route) => {
-    const state = new URL(route.request().url()).searchParams.get("kakao");
-    const success = state
-      ? "/?code=e2e-code&state=" + encodeURIComponent(state)
-      : "/#access_token=naver-token";
-    const cancel = state
-      ? "/?error=access_denied&state=" + encodeURIComponent(state)
-      : "/#error=access_denied&state=naver";
+    const params = new URL(route.request().url()).searchParams;
+    const state = encodeURIComponent(params.get("kakao") ?? params.get("naver") ?? "");
+    const success = params.has("kakao")
+      ? `/?code=e2e-code&state=${state}`
+      : `/#access_token=naver-token&state=${state}`;
+    const cancel = params.has("kakao")
+      ? `/?error=access_denied&state=${state}`
+      : `/#error=access_denied&state=${state}`;
     return route.fulfill({
       contentType: "text/html; charset=utf-8",
       body: `<a href="${success}">인증 완료</a><a href="${cancel}">인증 취소</a>`,
@@ -267,6 +265,32 @@ test("protects content while agreement is being checked and lets the user retry"
   await expect(page.getByText(folder.name).filter({ visible: true }).first()).toBeVisible();
 });
 
+test("a background profile error preserves the open link form and its input", async ({ page }) => {
+  await setUp(page);
+  await page.goto(`/home?linkUrl=${encodeURIComponent(sharedUrl)}`);
+  const field = page.getByRole("textbox", { name: "URL", exact: true });
+  const edited = "https://example.com/unsaved-edit";
+  await expect(field).toHaveValue(sharedUrl);
+  await field.fill(edited);
+
+  let refetchFailures = 0;
+  await page.route(
+    (url) => url.pathname === "/api/users/me",
+    async (route) => {
+      await json(route, { success: false, data: null }, 500);
+      refetchFailures++;
+    },
+  );
+  await page.clock.setFixedTime(new Date(Date.now() + 31_000));
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("visibilitychange"));
+  });
+
+  await expect.poll(() => refetchFailures, { timeout: 12_000 }).toBe(4);
+  await expect(field).toHaveValue(edited);
+  await expect(page.getByRole("button", { name: "다시 확인" })).toHaveCount(0);
+});
+
 for (const route of ["/folders/3", "/links/7", "/qr-scan"] as const) {
   test(`agreed user can open, reload and leave ${route}`, async ({ page, isMobile }) => {
     await setUp(page);
@@ -394,6 +418,28 @@ for (const provider of ["카카오로 계속하기", "네이버로 계속하기"
     await expect(page).toHaveURL("/");
     await expect(page.getByText(landing, { exact: true }).first()).toBeVisible();
     expect(state.requests.filter(({ path }) => path === "/api/auth/sign")).toHaveLength(1);
+
+    if (provider === "네이버로 계속하기") {
+      await page.goto("/settings");
+      await page.getByLabel("계정 연결 추가").click();
+      await page.getByText("카카오 계정 연결", { exact: true }).click();
+      const currentCallback = await page
+        .getByRole("link", { name: "인증 완료" })
+        .getAttribute("href");
+
+      await page.goto(callbackAddress);
+      await expect(page).toHaveURL("/");
+      await expect(page.getByText(landing, { exact: true }).first()).toBeVisible();
+      const connections = () =>
+        state.requests.filter(({ path }) => path === "/api/auth/connection");
+      expect(connections()).toHaveLength(0);
+
+      await page.goto(currentCallback!);
+      await expect(page.getByText("계정을 연결했어요.")).toBeVisible();
+      expect(connections().map(({ body }) => body)).toEqual([
+        { provider: "KAKAO", token: "kakao-token", platform: "WEB" },
+      ]);
+    }
   });
 }
 

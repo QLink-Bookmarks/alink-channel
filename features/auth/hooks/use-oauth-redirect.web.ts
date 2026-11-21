@@ -3,14 +3,8 @@ import * as React from "react";
 import { reportError } from "@/lib/error-reporting";
 
 import { type ConnectOutcome, connectFailed } from "../lib/connect-with-token";
-import { hasNaverCallbackHash, hasOauthCallbackHash } from "../lib/oauth-callback";
-import {
-  clearOauthMode,
-  clearOauthState,
-  getOauthMode,
-  hasOauthMode,
-  resolveOauthState,
-} from "../lib/oauth-state";
+import { hasOauthCallbackHash } from "../lib/oauth-callback";
+import { consumeOauthAttempt } from "../lib/oauth-state";
 import type { SocialProvider } from "../lib/provider-brand";
 import { useConnectFeedback } from "./use-connect-feedback";
 import { exchangeKakaoCode } from "./use-kakao-login.web";
@@ -37,34 +31,34 @@ function useOauthRedirect() {
 
     void (async () => {
       const url = new URL(window.location.href);
-      const code = url.searchParams.get("code");
-      const isNaver = hasNaverCallbackHash(url.hash);
-      const isKakao = resolveOauthState(url.searchParams.get("state")) === "kakao";
-      const startedHere = hasOauthMode() || isKakao;
-      const isConnect = getOauthMode() === "connect";
+      const hash = new URLSearchParams(url.hash.slice(1));
+      const hashCallback = hasOauthCallbackHash(url.hash);
+      const params = hashCallback ? hash : url.searchParams;
+      const state = params.get("state");
+      const provider =
+        hashCallback || (params.has("error") && state?.startsWith("naver:")) ? "naver" : "kakao";
+      const credential = params.get(provider === "naver" ? "access_token" : "code");
+      const attempt = consumeOauthAttempt(provider, state);
       let attempted: SocialProvider | null = null;
       let outcome: ConnectOutcome | null = null;
 
-      clearOauthState();
       try {
-        if (isNaver && startedHere) {
-          attempted = "NAVER";
-          outcome = await processNaverRedirect();
-        } else if (code && isKakao) {
-          attempted = "KAKAO";
-          outcome = await exchangeKakaoCode(code);
+        if (attempt && credential) {
+          attempted = provider === "naver" ? "NAVER" : "KAKAO";
+          outcome = await (provider === "naver"
+            ? processNaverRedirect(credential, attempt.mode)
+            : exchangeKakaoCode(credential, attempt.mode));
         }
       } catch (error) {
         reportError(error, { area: "auth:oauth-exchange" });
       } finally {
-        clearOauthMode();
-        if (isConnect && attempted) {
+        if (attempt?.mode === "connect" && attempted) {
           applyConnectOutcome(outcome ?? connectFailed(attempted));
         }
         // Expo Router can still be committing the initial URL on hydration.
         setTimeout(() => {
           if (window.location.pathname === "/") clearCallbackUrl();
-          setShouldEnterApp(startedHere);
+          setShouldEnterApp(attempt !== null);
           setIsProcessing(false);
         }, 0);
       }

@@ -32,17 +32,14 @@ function useAgreementStatus(): AgreementStatus {
     enabled: isAuthenticated,
   });
 
-  const needsAgreement =
-    isAuthenticated &&
-    !!query.data &&
-    (query.data.allowsPrivacy === false || query.data.allowsAiUsage === false);
+  const profile = isAuthenticated ? query.data : undefined;
 
   return {
     hasHydrated,
     isAuthenticated,
-    needsAgreement,
-    hasResolved: isAuthenticated && query.isSuccess && !!query.data,
-    isError: isAuthenticated && query.isError && !query.isFetching,
+    needsAgreement: profile?.allowsPrivacy === false || profile?.allowsAiUsage === false,
+    hasResolved: !!profile,
+    isError: isAuthenticated && !profile && query.isError && !query.isFetching,
     retry: query.refetch,
   };
 }
