@@ -49,7 +49,7 @@ test("fits both layouts at the breakpoint and shares the page margins", async ({
   const frames = page.getByTestId("landing-frame");
   await expect(frames).toHaveCount(9);
 
-  for (const width of [390, 768, 769, 1280, 1600, 1920]) {
+  for (const width of [390, 768, 769, 1280, 1326, 1328, 1330, 1600, 1920]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
     const button = (await startLink(page).boundingBox())!;
     const graphic = (await page.getByRole("img", { name: scene }).boundingBox())!;
@@ -62,13 +62,12 @@ test("fits both layouts at the breakpoint and shares the page margins", async ({
       await page.locator("#landing-scroll").evaluate((node) => node.scrollWidth),
     ).toBeLessThanOrEqual(width);
 
-    if (width === 390 || width >= 1600) {
-      for (const [index, frame] of (await frames.all()).entries()) {
-        const bounds = (await frame.boundingBox())!;
-        const margin = width === 390 ? (index < 2 ? 22 : 24) : (width - 1280) / 2;
-        expect(bounds.x).toBeCloseTo(margin, 0);
-        expect(bounds.width).toBeCloseTo(width - margin * 2, 0);
-      }
+    for (const [index, frame] of (await frames.all()).entries()) {
+      const bounds = (await frame.boundingBox())!;
+      const gutter = width <= 768 && index < 2 ? 22 : 24;
+      const margin = Math.max(gutter, (width - 1280) / 2);
+      expect(bounds.x).toBeCloseTo(margin, 0);
+      expect(bounds.width).toBeCloseTo(width - margin * 2, 0);
     }
   }
 });

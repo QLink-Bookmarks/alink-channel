@@ -7,6 +7,22 @@ import { cn } from "@/lib/utils";
 
 import { type Href, Link } from "expo-router";
 
+export const LANDING_FRAME = "mx-auto w-full max-w-[1280px]";
+export const LANDING_TOP_GUTTER = "px-[22px] md:px-6";
+export const LANDING_COLOR_VARS = {
+  "--landing-header-surface": "#F4EDF6",
+  "--landing-hero-foreground": "#292536",
+  "--landing-hero-muted": "#595165",
+  "--landing-hero-surface": "#FAF6F1",
+  "--landing-hero-rose": "#F5DCE5",
+  "--landing-hero-lavender": "#EDE4FC",
+  "--landing-stage-glow": "#FFF2DF",
+  "--landing-stage-rose": "#EFD9E4",
+  "--landing-stage-lavender": "#E1D1EF",
+  "--landing-device-frame": "#28252D",
+  "--landing-device-surface": "#151219",
+};
+
 // Clear pastel wash per section so scrolling reads as moving between distinct
 // pages. Landing is pinned to light mode, so these fixed tints stay consistent.
 export const SECTION_BG = [

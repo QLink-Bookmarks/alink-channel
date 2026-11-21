@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 
 import {
   FINAL_BG,
+  LANDING_COLOR_VARS,
+  LANDING_FRAME,
   ProgressRail,
   SECTION_BG,
   SectionBackdrop,
@@ -53,7 +55,7 @@ function WebLanding() {
   return (
     <View
       className="flex-1 bg-background"
-      style={vars(getNativeThemeVars("light", "gray"))}
+      style={vars({ ...getNativeThemeVars("light", "gray"), ...LANDING_COLOR_VARS })}
     >
       <LandingHeader />
       <View className="min-h-0 flex-1">
@@ -88,7 +90,7 @@ function WebLanding() {
                 <SectionBackdrop index={index} />
                 <View
                   testID="landing-frame"
-                  className="mx-auto w-full max-w-[1280px]"
+                  className={LANDING_FRAME}
                 >
                   <View
                     className={cn(
@@ -150,7 +152,7 @@ function WebLanding() {
             </View>
             <View
               testID="landing-frame"
-              className="mx-auto w-full max-w-[1280px]"
+              className={LANDING_FRAME}
             >
               <Reveal
                 from="up"
@@ -172,7 +174,7 @@ function WebLanding() {
             >
               <View
                 testID="landing-frame"
-                className="mx-auto w-full max-w-[1280px] items-center gap-2"
+                className={cn(LANDING_FRAME, "items-center gap-2")}
               >
                 <Text className="font-mono text-sm text-muted-foreground">에이링크 ALink</Text>
                 <Pressable onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}>

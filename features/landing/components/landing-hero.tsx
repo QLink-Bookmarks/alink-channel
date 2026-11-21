@@ -5,9 +5,15 @@ import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { getThemeTokens } from "@/lib/theme";
 import { getNativeThemeVars } from "@/lib/theme-vars";
+import { cn } from "@/lib/utils";
 import { useDisplaySettings } from "@/stores/display-settings";
 
-import { LandingSectionLink, StartButton } from "./landing-chrome";
+import {
+  LANDING_FRAME,
+  LANDING_TOP_GUTTER,
+  LandingSectionLink,
+  StartButton,
+} from "./landing-chrome";
 
 import { Image } from "expo-image";
 import { ArrowDown, CircleCheck } from "lucide-react-native/icons";
@@ -32,13 +38,13 @@ function ArchivedScene() {
         {
           borderRadius: "38% 38% 9% 9%",
           backgroundImage:
-            "radial-gradient(ellipse at 68% 34%, #fff2df, transparent 60%), linear-gradient(135deg, #efd9e4, #e1d1ef)",
+            "radial-gradient(ellipse at 68% 34%, var(--landing-stage-glow), transparent 60%), linear-gradient(135deg, var(--landing-stage-rose), var(--landing-stage-lavender))",
         } as never
       }
     >
       <View
         aria-hidden
-        className="absolute left-[34%] top-[5%] h-[88%] w-[41%] justify-center gap-1 overflow-hidden rounded-[22px] border-[4px] border-[#28252D] bg-[#151219] shadow-qlink-lg md:rounded-[32px] md:border-[6px]"
+        className="absolute left-[34%] top-[5%] h-[88%] w-[41%] justify-center gap-1 overflow-hidden rounded-[22px] border-[4px] border-[color:var(--landing-device-frame)] bg-[color:var(--landing-device-surface)] shadow-qlink-lg md:rounded-[32px] md:border-[6px]"
         style={{ transform: [{ rotate: "5deg" }] }}
       >
         <Image
@@ -73,27 +79,30 @@ function LandingHero() {
   return (
     <View
       nativeID="landing-intro"
-      className="w-full px-[22px]"
+      className={cn("w-full bg-[color:var(--landing-hero-surface)]", LANDING_TOP_GUTTER)}
       style={
         {
           backgroundImage:
-            "radial-gradient(ellipse at 92% 75%, #f5dce5, transparent 54%), radial-gradient(ellipse at 5% 0%, #ede4fc, transparent 56%), linear-gradient(#faf6f1, #faf6f1)",
+            "radial-gradient(ellipse at 92% 75%, var(--landing-hero-rose), transparent 54%), radial-gradient(ellipse at 5% 0%, var(--landing-hero-lavender), transparent 56%)",
         } as never
       }
     >
       <View
         testID="landing-frame"
-        className="mx-auto min-h-[calc(100svh-96px)] w-full max-w-[1280px] gap-2 pb-2 pt-5 md:min-h-[calc(100svh-64px)] md:pt-0"
+        className={cn(
+          LANDING_FRAME,
+          "min-h-[calc(100svh-96px)] gap-2 pb-2 pt-5 md:min-h-[calc(100svh-64px)] md:pt-0",
+        )}
       >
         <View className="flex-1 flex-col justify-center gap-[22px] md:flex-row md:items-center md:gap-8">
           <View className="min-w-0 items-start gap-[18px] md:flex-[0.86] md:gap-6">
             <Text
               variant="h1"
-              className="text-left text-[clamp(33px,11.54vw,45px)] font-extrabold leading-[1.1] tracking-[-0.04em] text-[#292536] md:text-[clamp(38px,5.15vw,78px)]"
+              className="text-left text-[clamp(33px,11.54vw,45px)] font-extrabold leading-[1.1] tracking-[-0.04em] text-[color:var(--landing-hero-foreground)] md:text-[clamp(38px,5.15vw,78px)]"
             >
               다시 찾을 링크,{"\n"}한곳에 모아요.
             </Text>
-            <Text className="text-base text-[#595165] md:text-[clamp(16px,1.55vw,22px)]">
+            <Text className="text-base text-[color:var(--landing-hero-muted)] md:text-[clamp(16px,1.55vw,22px)]">
               AI가 도와주는 북마크 아카이브.
             </Text>
             <StartButton

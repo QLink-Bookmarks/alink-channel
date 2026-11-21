@@ -9,7 +9,13 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth";
 import { useDisplaySettings } from "@/stores/display-settings";
 
-import { LANDING_FOCUS, LandingSectionLink, StartButton } from "./landing-chrome";
+import {
+  LANDING_FOCUS,
+  LANDING_FRAME,
+  LANDING_TOP_GUTTER,
+  LandingSectionLink,
+  StartButton,
+} from "./landing-chrome";
 
 import { Link, useRouter } from "expo-router";
 import { vars } from "nativewind";
@@ -23,11 +29,14 @@ function LandingHeader() {
   return (
     <View
       role="banner"
-      className="z-10 shrink-0 bg-[#F4EDF6] px-[22px]"
+      className={cn("z-10 shrink-0 bg-[color:var(--landing-header-surface)]", LANDING_TOP_GUTTER)}
     >
       <View
         testID="landing-frame"
-        className="mx-auto w-full max-w-[1280px] flex-row flex-wrap items-center justify-between py-1 md:flex-nowrap md:gap-4 md:py-2"
+        className={cn(
+          LANDING_FRAME,
+          "flex-row flex-wrap items-center justify-between py-1 md:flex-nowrap md:gap-4 md:py-2",
+        )}
       >
         <View className="shrink-0 md:flex-1">
           <BrandHeader
