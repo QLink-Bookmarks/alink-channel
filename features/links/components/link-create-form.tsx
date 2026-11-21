@@ -31,6 +31,7 @@ import {
   FolderPickerList,
   type FolderPickerSelection,
 } from "@/features/folders/components/folder-picker-list";
+import { VisibilityField } from "@/features/folders/components/visibility-field";
 import { type TodoDraftEditorItem } from "@/features/todos/components/todo-draft-list-editor";
 import {
   type TodoEditorId,
@@ -71,6 +72,7 @@ type SubmitKind = "save" | "ai";
 type FolderDraft = {
   id: string | null;
   label: string;
+  isPublic?: boolean;
 };
 
 type FieldErrors = { url?: string; title?: string };
@@ -123,6 +125,7 @@ function getFolderDraft(selection: FolderPickerSelection): FolderDraft {
   return {
     id: String(selection.id),
     label: selection.emoji ? `${selection.emoji} ${selection.label}` : selection.label,
+    isPublic: selection.isPublic,
   };
 }
 
@@ -230,6 +233,9 @@ function LinkCreateForm({
   const appliedPreviewUrlRef = React.useRef<string | null>(null);
   const [memo, setMemo] = React.useState("");
   const [folder, setFolder] = React.useState<FolderDraft>(defaultFolder);
+  const [visibilityDraft, setVisibilityDraft] = React.useState<boolean>();
+  const isPublic = folder.isPublic === true && (visibilityDraft ?? true);
+  const requestVisibility = folder.isPublic === true ? visibilityDraft : false;
   const [aiProvider, setAiProvider] = React.useState<AiProviderSelection | null>(null);
   const [todos, setTodos] = React.useState<TodoDraftEditorItem[]>(createInitialTodos);
   const [generateTodo, setGenerateTodo] = React.useState(false);
@@ -414,6 +420,7 @@ function LinkCreateForm({
     appliedPreviewUrlRef.current = null;
     setMemo("");
     setFolder(defaultFolder);
+    setVisibilityDraft(undefined);
     setAiProvider(null);
     setTodos(createInitialTodos());
     setGenerateTodo(false);
@@ -594,6 +601,7 @@ function LinkCreateForm({
     try {
       const response = await requestAiSummaryMutation.mutateAsync({
         folderId: folder.id ? Number(folder.id) : null,
+        isPublic: requestVisibility,
         generateTodo,
         modelId: target.modelId,
         title: trimmedTitle ? trimmedTitle : null,
@@ -650,6 +658,7 @@ function LinkCreateForm({
     aiProvider?.providerId,
     checkBeforeSubmit,
     folder.id,
+    requestVisibility,
     myProviders,
     generateTodo,
     invalidateLinkQueries,
@@ -686,6 +695,7 @@ function LinkCreateForm({
         tags: [],
         sourceType: "INPUT",
         folderId: folder.id ? Number(folder.id) : null,
+        isPublic: requestVisibility,
         todos: todoPayload,
         ...getLinkPreviewRequestFields(linkPreview),
       });
@@ -708,6 +718,7 @@ function LinkCreateForm({
     checkBeforeSubmit,
     createLinkMutation,
     folder.id,
+    requestVisibility,
     invalidateLinkQueries,
     linkPreview,
     memo,
@@ -905,6 +916,21 @@ function LinkCreateForm({
       )}
     </FormField>
   );
+  const visibilityField = (
+    <VisibilityField
+      disabled={isBusy || folder.isPublic !== true}
+      help={
+        folder.isPublic === true
+          ? "전체 공개 링크와 연결된 할 일은 공개 페이지에 표시돼요."
+          : "전체 공개 폴더에서만 링크를 공개할 수 있어요."
+      }
+      isPublic={isPublic}
+      onChange={(next) => {
+        setVisibilityDraft(next);
+        clearSaveError();
+      }}
+    />
+  );
 
   if (isMobile) {
     const stepTitle =
@@ -934,6 +960,7 @@ function LinkCreateForm({
                 {urlField}
                 {titleField}
                 {folderField}
+                {visibilityField}
               </View>
               {memoActions}
 
@@ -990,6 +1017,7 @@ function LinkCreateForm({
                 {urlField}
                 {titleField}
                 {folderField}
+                {visibilityField}
               </View>
             </View>
           </View>
