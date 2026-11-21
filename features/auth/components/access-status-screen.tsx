@@ -14,9 +14,9 @@ function CheckingScreen() {
 function AgreementRetryScreen({ onRetry }: { onRetry: () => void }) {
   return (
     <View className="flex-1 items-center justify-center gap-4 bg-background px-6">
-      <Text className="text-center text-muted-foreground">약관 동의 상태를 확인하지 못했어요.</Text>
+      <Text className="text-center text-muted-foreground">이 영역을 불러오지 못했어요</Text>
       <Button onPress={onRetry}>
-        <Text>다시 확인</Text>
+        <Text>다시 시도</Text>
       </Button>
     </View>
   );

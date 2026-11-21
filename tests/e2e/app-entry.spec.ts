@@ -260,9 +260,9 @@ test("protects content while agreement is being checked and lets the user retry"
   await expect(page.getByText(checking)).toBeVisible();
   expect(state.requests.some(({ path }) => path.startsWith("/api/folders/"))).toBe(false);
   profile.release();
-  await expect(page.getByRole("button", { name: "다시 확인" })).toBeVisible({ timeout: 12_000 });
+  await expect(page.getByRole("button", { name: "다시 시도" })).toBeVisible({ timeout: 12_000 });
   await expect(page.getByText(folder.name).filter({ visible: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "다시 확인" }).click();
+  await page.getByRole("button", { name: "다시 시도" }).click();
   await expect(page.getByText(folder.name).filter({ visible: true }).first()).toBeVisible();
 });
 
@@ -289,7 +289,7 @@ test("a background profile error preserves the open link form and its input", as
 
   await expect.poll(() => refetchFailures, { timeout: 12_000 }).toBe(4);
   await expect(field).toHaveValue(edited);
-  await expect(page.getByRole("button", { name: "다시 확인" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "다시 시도" })).toHaveCount(0);
 });
 
 for (const route of ["/folders/3", "/links/7", "/qr-scan"] as const) {
