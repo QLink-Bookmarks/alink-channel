@@ -38,6 +38,8 @@ type MockDetailTodo = {
 };
 
 type MockDetail = Omit<MockLink, "todoCounts"> & {
+  isOwner?: boolean;
+  isPublic?: boolean;
   summary: string | null;
   memo: string | null;
   sourceType: "INPUT" | "QR";
@@ -85,6 +87,7 @@ type MockFolder = {
   name: string;
   emoji: string | null;
   isShared: boolean;
+  isPublic?: boolean;
   shareCounts: number;
   linkCounts: number;
   /** The signed-in user's links in it. `GET /api/folders` answers `linkCounts` when omitted. */
