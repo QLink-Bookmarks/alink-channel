@@ -21,7 +21,7 @@ import {
 import { Link, useRouter } from "expo-router";
 import { vars } from "nativewind";
 
-function LandingHeader() {
+function LandingHeader({ activeSection }: { activeSection?: string }) {
   const router = useRouter();
   const isWideView = useWideView();
   const isMember = useAuthStore((state) => state.hasHydrated && state.accessToken !== null);
@@ -67,15 +67,29 @@ function LandingHeader() {
       aria-label="온보딩 섹션"
       className="w-full flex-row items-center justify-between md:order-2 md:w-auto md:gap-1 lg:gap-4"
     >
-      {SLIDES.map(({ key, subject }) => (
-        <LandingSectionLink
-          key={key}
-          section={key}
-          className="h-11 min-w-11 items-center justify-center rounded-xl md:px-1"
-        >
-          <Text className="text-xs font-semibold md:text-sm">{subject}</Text>
-        </LandingSectionLink>
-      ))}
+      {SLIDES.map(({ key, subject }) => {
+        const isCurrent = key === activeSection;
+        return (
+          <LandingSectionLink
+            key={key}
+            section={key}
+            aria-current={isCurrent ? "location" : undefined}
+            className={cn(
+              "h-11 min-w-11 items-center justify-center rounded-xl px-1",
+              isCurrent && "bg-secondary",
+            )}
+          >
+            <Text
+              className={cn(
+                "text-xs font-semibold md:text-sm",
+                isCurrent && "underline underline-offset-4",
+              )}
+            >
+              {subject}
+            </Text>
+          </LandingSectionLink>
+        );
+      })}
     </View>
   );
 

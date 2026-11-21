@@ -48,8 +48,13 @@ function WebLanding() {
   }
 
   React.useEffect(() => {
-    const id = window.location.hash.slice(1);
-    if (SECTION_IDS.includes(id)) scrollToLandingSection(id);
+    function restoreSection() {
+      const id = window.location.hash.slice(1) || SECTION_IDS[0];
+      if (SECTION_IDS.includes(id)) scrollToLandingSection(id);
+    }
+    if (window.location.hash) restoreSection();
+    window.addEventListener("hashchange", restoreSection);
+    return () => window.removeEventListener("hashchange", restoreSection);
   }, []);
 
   return (
@@ -57,7 +62,7 @@ function WebLanding() {
       className="flex-1 bg-background"
       style={vars({ ...getNativeThemeVars("light", "gray"), ...LANDING_COLOR_VARS })}
     >
-      <LandingHeader />
+      <LandingHeader activeSection={SLIDES[active - 1]?.key} />
       <View className="min-h-0 flex-1">
         <ScrollView
           nativeID="landing-scroll"

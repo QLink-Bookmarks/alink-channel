@@ -82,6 +82,7 @@ test("keeps the header in place and takes keyboard focus to each section", async
     await link.focus();
     await page.keyboard.press("Enter");
     const section = page.getByRole("region", { name: subjects[index], exact: true });
+    await expect(page).toHaveURL(new RegExp(`/#landing-${sectionIds[index]}$`));
     await expect(section).toBeFocused();
     await expect
       .poll(async () => {
@@ -127,6 +128,80 @@ test("opens a section anchor without moving keyboard focus", async ({ page }) =>
     .poll(async () => (await archive.boundingBox())!.y)
     .toBeCloseTo((await header.boundingBox())!.height, 0);
   await expect(archive).not.toBeFocused();
+  await expect(header.locator('[aria-current="location"]')).toHaveText("Archive");
+});
+
+test("marks the section reached by scrolling and clears it when returning to the intro", async ({
+  page,
+}) => {
+  await openGuestLanding(page);
+  const nav = page.getByRole("navigation", { name: "온보딩 섹션" });
+  const current = nav.locator('[aria-current="location"]');
+  await expect(current).toHaveCount(0);
+  for (const [index, id] of sectionIds.entries()) {
+    await page
+      .locator(`#landing-${id}`)
+      .evaluate((node) => node.scrollIntoView({ block: "start" }));
+    await expect(current).toHaveText(subjects[index]);
+    await expect(current.getByText(subjects[index])).toHaveCSS("text-decoration-line", "underline");
+    await expect(page).toHaveURL(/\/$/);
+  }
+  await page.locator("#landing-final").evaluate((node) => node.scrollIntoView({ block: "start" }));
+  await expect(current).toHaveCount(0);
+  await page.locator("#landing-scroll").evaluate((node) => {
+    node.scrollTop = 0;
+  });
+  await expect(current).toHaveCount(0);
+});
+
+test("restores sections when moving backward, forward, or returning from app entry", async ({
+  page,
+}) => {
+  await openGuestLanding(page);
+  const header = page.getByRole("banner");
+  const nav = header.getByRole("navigation", { name: "온보딩 섹션" });
+  const archive = nav.getByRole("link", { name: "Archive", exact: true });
+  const ai = nav.getByRole("link", { name: "AI", exact: true });
+
+  async function expectSection(id: string, name: string) {
+    await expect(page).toHaveURL(new RegExp(`/#landing-${id}$`));
+    const headerBottom = (await header.boundingBox())!.height;
+    await expect
+      .poll(async () => (await page.locator(`#landing-${id}`).boundingBox())!.y)
+      .toBeCloseTo(headerBottom, 0);
+    await expect(nav.locator('[aria-current="location"]')).toHaveText(name);
+  }
+
+  await archive.click();
+  await expectSection("organize", "Archive");
+  await ai.click();
+  await expectSection("share", "AI");
+  await page.goBack();
+  await expectSection("organize", "Archive");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(nav.locator('[aria-current="location"]')).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: title })).toBeInViewport({ ratio: 1 });
+  await page.goForward();
+  await expectSection("organize", "Archive");
+  await page.goForward();
+  await expectSection("share", "AI");
+  await header.getByRole("link", { name: "시작하기", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.goBack();
+  await expectSection("share", "AI");
+});
+
+test("keeps both the Archived badge and video credit readable", async ({ page }) => {
+  await openGuestLanding(page);
+  const graphic = page.getByRole("img", { name: scene });
+  const credit = graphic.getByText("サカナクション sakanaction", { exact: true });
+  const badge = graphic.getByText("Archived", { exact: true }).locator("..");
+  await expect(credit).toBeInViewport({ ratio: 1 });
+  await expect(badge).toBeInViewport({ ratio: 1 });
+  const creditBounds = (await credit.boundingBox())!;
+  const badgeBounds = (await badge.boundingBox())!;
+  expect(badgeBounds.y).toBeGreaterThanOrEqual(creditBounds.y + creditBounds.height);
 });
 
 test("opens the Archive from the scroll hint and switches its sample folder", async ({

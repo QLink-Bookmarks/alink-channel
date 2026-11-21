@@ -55,6 +55,7 @@ export function LandingSectionLink({
   className,
   ...props
 }: Pick<ComponentProps<typeof Pressable>, "accessibilityLabel" | "children" | "className"> & {
+  "aria-current"?: "location";
   section: string;
 }) {
   const id = `landing-${section}`;
@@ -64,6 +65,10 @@ export function LandingSectionLink({
       asChild
       onPress={(event) => {
         event.preventDefault();
+        const hash = `#${id}`;
+        if (window.location.hash !== hash) {
+          window.history.pushState(window.history.state, "", hash);
+        }
         scrollToLandingSection(id, true);
       }}
     >
