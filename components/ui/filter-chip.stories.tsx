@@ -24,7 +24,7 @@ function FilterChipStory({ withCount }: FilterChipStoryProps) {
     <ScrollView
       horizontal
       className="grow-0"
-      contentContainerClassName="items-center gap-1"
+      contentContainerClassName="items-center gap-1 px-1"
     >
       {STATUSES.map((status) => (
         <FilterChip

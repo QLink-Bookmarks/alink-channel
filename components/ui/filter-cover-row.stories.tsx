@@ -30,7 +30,8 @@ function buildPill(sort: ListSort<SortKey>, favoriteOnly: boolean): FilterPill |
     const star = (
       <Icon
         as={Star}
-        className="fill-warning text-warning-icon"
+        className="text-warning-icon"
+        fill="currentColor"
         size={13}
       />
     );
@@ -120,16 +121,17 @@ function FilterCoverRowStory({
               accessibilityLabel="바로가기만 보기"
               accessibilityRole="switch"
               accessibilityState={{ checked: favoriteOnly }}
-              className="size-8 items-center justify-center rounded-full border border-border bg-card"
+              className="h-11 w-8 justify-center"
               onPress={() => setFavoriteOnly((current) => !current)}
             >
-              <Icon
-                as={Star}
-                className={
-                  favoriteOnly ? "fill-warning text-warning-icon" : "text-muted-foreground"
-                }
-                size={16}
-              />
+              <View className="size-8 items-center justify-center rounded-full border border-border bg-card">
+                <Icon
+                  as={Star}
+                  className={favoriteOnly ? "text-warning-icon" : "text-muted-foreground"}
+                  fill={favoriteOnly ? "currentColor" : "none"}
+                  size={16}
+                />
+              </View>
             </Pressable>
           </FilterCoverPart>
           <SortCriterionChips

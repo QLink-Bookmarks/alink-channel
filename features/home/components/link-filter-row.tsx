@@ -8,7 +8,6 @@ import {
   type FilterPill,
 } from "@/components/ui/filter-cover-row";
 import { Icon } from "@/components/ui/icon";
-import { PressableHitSlopArea } from "@/components/ui/icon-button";
 import { SortCriterionChips, SortDirectionArrow } from "@/components/ui/sort-criterion-chips";
 import { Text } from "@/components/ui/text";
 import {
@@ -23,9 +22,6 @@ import { cn } from "@/lib/utils";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Star } from "lucide-react-native/icons";
 
 const isWeb = process.env.EXPO_OS === "web";
-
-// The toggle is 32px; its press area reaches 6px past every side (44 × 44).
-const STAR_HIT_SLOP = { top: 6, right: 6, bottom: 6, left: 6 };
 
 type LinkFilterRowProps = {
   // The 1st set: folder chips on the mobile home, "N개 링크" elsewhere.
@@ -45,7 +41,8 @@ function StarMark() {
   return (
     <Icon
       as={Star}
-      className="fill-warning text-warning-icon"
+      className="text-warning-icon"
+      fill="currentColor"
       size={13}
     />
   );
@@ -129,25 +126,26 @@ function LinkFilterRow({
               accessibilityRole="switch"
               accessibilityState={{ checked: favoriteOnly }}
               aria-checked={favoriteOnly}
-              className={cn(
-                "size-8 items-center justify-center rounded-full border",
-                favoriteOnly ? "border-warning bg-warning/15" : "border-border bg-card",
-                isWeb &&
-                  "outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring",
-              )}
-              hitSlop={STAR_HIT_SLOP}
+              className={cn("h-11 w-8 justify-center", isWeb && "group outline-none")}
               testID={testID ? `${testID}-favorite` : undefined}
               onPress={handleFavoritePress}
               {...favoriteKeyProps}
             >
-              <PressableHitSlopArea hitSlop={STAR_HIT_SLOP} />
-              <Icon
-                as={Star}
-                className={
-                  favoriteOnly ? "fill-warning text-warning-icon" : "text-muted-foreground"
-                }
-                size={16}
-              />
+              <View
+                className={cn(
+                  "size-8 items-center justify-center rounded-full border",
+                  favoriteOnly ? "border-warning bg-warning/15" : "border-border bg-card",
+                  isWeb &&
+                    "transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background",
+                )}
+              >
+                <Icon
+                  as={Star}
+                  className={favoriteOnly ? "text-warning-icon" : "text-muted-foreground"}
+                  fill={favoriteOnly ? "currentColor" : "none"}
+                  size={16}
+                />
+              </View>
             </Pressable>
           </FilterCoverPart>
           <SortCriterionChips
