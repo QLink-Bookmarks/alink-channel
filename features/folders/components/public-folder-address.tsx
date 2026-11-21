@@ -18,6 +18,11 @@ function PublicFolderAddress({ publicId }: { publicId: string }) {
 
   const handleCopy = async () => {
     try {
+      if (process.env.EXPO_OS === "web") {
+        await navigator.clipboard.writeText(url);
+        setStatus("copied");
+        return;
+      }
       setStatus((await Clipboard.setStringAsync(url)) ? "copied" : "failed");
     } catch {
       setStatus("failed");

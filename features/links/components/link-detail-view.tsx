@@ -264,8 +264,9 @@ function LinkDetailView({
     currentFolder?.ownerId != null &&
     myProfileQuery.data?.id != null &&
     currentFolder.ownerId === myProfileQuery.data.id;
-  const isMyOwnLink = detail.isOwner === true || !isSharedFolder || isFolderOwner;
-  const canChangePrivacy = detail.isOwner === true && currentFolder?.isPublic === true;
+  const isLinkOwner = detail.isOwner === true;
+  const canCopyFromSharedFolder = isSharedFolder && !isFolderOwner;
+  const canChangePrivacy = isLinkOwner && currentFolder?.isPublic === true;
   const savedPublic = detail.isPublic === true;
   const isPublic = canChangePrivacy ? (privacyDraft ?? savedPublic) : savedPublic;
   const changedPrivacy = canChangePrivacy && isPublic !== savedPublic ? isPublic : undefined;
@@ -647,26 +648,25 @@ function LinkDetailView({
   }, [handleBack, mode]);
 
   const isPanel = mode === "panel";
-  const editVisibility = (
+  const editVisibility = isLinkOwner ? (
     <VisibilityField
       disabled={!canChangePrivacy || isSavingEdit}
       help={
-        currentFolder?.isPublic !== true
+        !canChangePrivacy
           ? "전체 공개 폴더에서만 링크를 공개할 수 있어요."
-          : !detail.isOwner
-            ? "링크 소유자만 공개 설정을 바꿀 수 있어요."
-            : "전체 공개 링크와 연결된 할 일은 공개 페이지에 표시돼요."
+          : "전체 공개 링크와 연결된 할 일은 공개 페이지에 표시돼요."
       }
       isPublic={isPublic}
       onChange={setPrivacyDraft}
     />
-  );
+  ) : null;
   const toolbar = (
     <LinkDetailToolbar
+      canCopy={canCopyFromSharedFolder}
+      canEdit={isLinkOwner || !canCopyFromSharedFolder}
       isCopyPending={copyLinkMutation.isPending}
       isEditing={isEditingActions}
       isFavorite={detail.isFavorite}
-      isMyOwnLink={isMyOwnLink}
       mode={mode}
       refreshFailed={hasRefreshFailed}
       refreshing={isRefreshing}
@@ -820,7 +820,11 @@ function LinkDetailView({
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>수정하기</DialogTitle>
-              <DialogDescription>제목, 한 줄 요약과 공개 설정을 수정해요.</DialogDescription>
+              <DialogDescription>
+                {isLinkOwner
+                  ? "제목, 한 줄 요약과 공개 설정을 수정해요."
+                  : "제목과 한 줄 요약을 수정해요."}
+              </DialogDescription>
             </DialogHeader>
             <LinkEditFields
               title={titleDraft}

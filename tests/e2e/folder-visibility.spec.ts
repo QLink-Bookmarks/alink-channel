@@ -33,7 +33,7 @@ test("a new folder defaults to private and returns its public address without co
   await expect(page.getByRole("radio", { name: "나만 보기" })).toBeChecked();
   await page.getByPlaceholder(FOLDER_INPUT).fill("새 공개 폴더");
   await page.getByRole("radio", { name: "전체 공개" }).click();
-  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await page.getByRole("button", { name: "저장", exact: true }).dblclick();
   await expect(page.getByText("폴더를 만들었어요.")).toBeVisible();
   await expect(page.getByRole("dialog", { name: PUBLISH_TITLE })).toHaveCount(0);
   expect(
@@ -44,18 +44,40 @@ test("a new folder defaults to private and returns its public address without co
   await page.getByRole("button", { name: "주소 복사" }).click();
   await expect(page.getByText("공개 주소를 복사했어요.")).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(address);
+
+  await context.clearPermissions();
+  const cdp = await context.newCDPSession(page);
+  const { targetInfo } = await cdp.send("Target.getTargetInfo");
+  for (const allowWithoutSanitization of [true, false]) {
+    await cdp.send("Browser.setPermission", {
+      browserContextId: targetInfo.browserContextId,
+      origin: new URL(page.url()).origin,
+      permission: { name: "clipboard-write", allowWithoutSanitization },
+      setting: "denied",
+    });
+  }
+  await page.getByRole("button", { name: "주소 복사" }).click();
+  await expect(
+    page.getByText("복사하지 못했어요. 위 주소를 선택해 직접 복사해 주세요."),
+  ).toBeVisible();
+  await expect(page.getByText(address, { exact: true })).toHaveCSS("user-select", "text");
 });
 
-for (const isOwner of [true, false]) {
-  test(`link publication can only be changed by its owner (owner: ${isOwner})`, async ({
+for (const { isOwner, folderOwnerId, isPublic } of [
+  { isOwner: true, folderOwnerId: 2, isPublic: false },
+  { isOwner: false, folderOwnerId: 1, isPublic: false },
+  { isOwner: false, folderOwnerId: 1, isPublic: true },
+  { isOwner: undefined, folderOwnerId: 1, isPublic: true },
+]) {
+  test(`link publication uses link ownership (link owner: ${isOwner}, folder owner: ${folderOwnerId}, public: ${isPublic})`, async ({
     page,
   }) => {
     const [folder] = makeFolders(1);
     const link = makeLink({ id: 1, folderId: folder.id, folderName: folder.name });
     const state = await mockApi(page, {
-      folders: [{ ...folder, isShared: true, isPublic: true }],
+      folders: [{ ...folder, ownerId: folderOwnerId, isShared: true, isPublic: true }],
       links: [link],
-      details: { [link.id]: makeDetail(link, { isOwner, isPublic: !isOwner }) },
+      details: { [link.id]: makeDetail(link, { isOwner, isPublic }) },
       handlers: {
         "PUT /api/links/1": (route, request) => {
           const { isPublic, title } = request.postDataJSON() as {
@@ -68,13 +90,16 @@ for (const isOwner of [true, false]) {
       },
     });
     await page.goto(isWideProject() ? "/links?linkId=1" : "/links/1");
+    if (isOwner) await expect(page.getByTestId("link-detail-copy")).toBeVisible();
     await page.getByTestId("link-detail-edit").click();
     const everyone = page.getByRole("radio", { name: "전체 공개" });
     const onlyMe = page.getByRole("radio", { name: "나만 보기" });
-    if (!isOwner) {
-      await expect(everyone).toBeChecked();
-      await expect(onlyMe).toBeDisabled();
-      await expect(everyone).toBeDisabled();
+    if (isOwner !== true) {
+      await expect(page.getByText("수정하기", { exact: true })).toBeVisible();
+      await expect(page.getByText("공개 설정", { exact: true })).toHaveCount(0);
+      await expect(onlyMe).toHaveCount(0);
+      await expect(everyone).toHaveCount(0);
+      expect(state.requests.some(({ method }) => method === "PUT")).toBe(false);
       return;
     }
     await expect(onlyMe).toBeChecked();
@@ -84,6 +109,10 @@ for (const isOwner of [true, false]) {
     expect(state.details[link.id].isPublic).toBe(true);
     await page.getByTestId("link-detail-edit").click();
     await expect(everyone).toBeChecked();
+    await onlyMe.click();
+    await page.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(onlyMe).toHaveCount(0);
+    expect(state.details[link.id].isPublic).toBe(false);
   });
 }
 
@@ -94,7 +123,11 @@ async function openEdit(page: Page) {
   return scope;
 }
 
-async function mockFolderOwner(page: Page, theme: "light" | "dark") {
+async function mockFolderOwner(
+  page: Page,
+  theme: "light" | "dark",
+  failures: { beforeWrite?: boolean; afterWrite?: boolean } = {},
+) {
   let publicId: string | null = null;
   let previousAddress: string | null = null;
   const [folder] = makeFolders(1);
@@ -106,11 +139,19 @@ async function mockFolderOwner(page: Page, theme: "light" | "dark") {
         route.fulfill({ json: envelope({ isPublic: publicId !== null, publicId }) }),
       [`PUT /api/folders/${FOLDER_ID}`]: (route, request) => {
         const data = request.postDataJSON() as { isPublic?: boolean };
+        if (failures.beforeWrite) {
+          failures.beforeWrite = false;
+          return route.fulfill({ status: 503, json: { success: false, data: null } });
+        }
         if (data.isPublic === true && !publicId) {
           publicId = previousAddress ? NEW_ADDRESS : ORIGINAL_ADDRESS;
           previousAddress = publicId;
         }
         if (data.isPublic === false) publicId = null;
+        if (failures.afterWrite) {
+          failures.afterWrite = false;
+          return route.abort("failed");
+        }
         return route.fulfill({
           json: envelope({ id: FOLDER_ID, isPublic: publicId !== null, publicId }),
         });
@@ -122,6 +163,33 @@ async function mockFolderOwner(page: Page, theme: "light" | "dark") {
       .filter(({ method, path }) => method === "PUT" && path === `/api/folders/${FOLDER_ID}`)
       .map(({ body }) => body);
 }
+
+test("preserves the folder draft on failure and reloads a committed change after a lost response", async ({
+  page,
+}) => {
+  const writes = await mockFolderOwner(page, "light", { beforeWrite: true, afterWrite: true });
+  await page.goto(`/folders/${FOLDER_ID}`);
+  const form = await openEdit(page);
+  await form.getByPlaceholder(FOLDER_INPUT).fill("실패 뒤 유지할 이름");
+  await form.getByRole("radio", { name: "전체 공개" }).click();
+  const confirm = page
+    .getByRole("dialog", { name: PUBLISH_TITLE })
+    .getByRole("button", { name: "전체 공개" });
+  const save = form.getByRole("button", { name: "저장", exact: true });
+  await save.click();
+  await confirm.click();
+  await expect(form.getByText("폴더 수정에 실패했어요. 잠시 후 다시 시도해주세요.")).toBeVisible();
+  await expect(form.getByPlaceholder(FOLDER_INPUT)).toHaveValue("실패 뒤 유지할 이름");
+  await expect(form.getByRole("radio", { name: "전체 공개" })).toBeEnabled();
+  await save.click();
+  await confirm.click();
+  await expect(form.getByRole("link", { name: "공개 페이지 열기" })).toBeVisible();
+  await form.getByRole("button", { name: "취소", exact: true }).click();
+  const reopened = await openEdit(page);
+  await expect(reopened.getByRole("radio", { name: "전체 공개" })).toBeChecked();
+  await expect(reopened.getByRole("link", { name: "공개 페이지 열기" })).toBeVisible();
+  expect(writes()).toHaveLength(2);
+});
 
 for (const theme of ["light", "dark"] as const) {
   test(`publishes only after confirmation, preserves collaboration and replaces withdrawn addresses in ${theme}`, async ({
@@ -149,7 +217,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(save).toBeFocused();
     expect(writes()).toEqual([]);
     await save.click();
-    await confirmation.getByRole("button", { name: "전체 공개" }).click();
+    await confirmation.getByRole("button", { name: "전체 공개" }).focus();
+    await page.keyboard.press("Enter");
     await expect(page.getByText("폴더를 전체 공개했어요.")).toBeVisible();
     expect(writes()).toEqual([
       { name: "협업 이름 초안", emoji: "📁", isShared: true, isPublic: true },
@@ -191,9 +260,12 @@ for (const theme of ["light", "dark"] as const) {
 test("keeps an explicit private link and its todo when the folder is reselected", async ({
   page,
 }) => {
-  const [folder] = makeFolders(1);
+  const [folder, privateFolder] = makeFolders(2);
   const state = await mockApi(page, {
-    folders: [{ ...folder, name: "공개 폴더", emoji: null, isPublic: true }],
+    folders: [
+      { ...folder, name: "공개 폴더", emoji: null, isPublic: true },
+      { ...privateFolder, name: "비공개 폴더", emoji: null, isPublic: false },
+    ],
   });
   await page.goto("/home");
   if (isWideProject()) {
@@ -215,6 +287,8 @@ test("keeps an explicit private link and its todo when the folder is reselected"
   await onlyMe.click();
   await selectFolder("공개 폴더");
   await expect(onlyMe).toBeChecked();
+  await selectFolder("비공개 폴더");
+  await expect(everyone).toBeDisabled();
   await selectFolder("없음");
   await expect(everyone).toBeDisabled();
   await selectFolder("공개 폴더");
