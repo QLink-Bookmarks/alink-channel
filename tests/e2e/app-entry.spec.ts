@@ -2,6 +2,8 @@ import { type Page, type Route, expect, test } from "@playwright/test";
 
 import { envelope, makeDetail, makeLink, mockApi } from "./support/mock-api";
 
+import path from "node:path";
+
 const folder = {
   id: 3,
   ownerId: 1,
@@ -354,18 +356,13 @@ test("direct login runs consent and opens home", async ({ page }) => {
   await expectHome(page);
 });
 
-for (const [label, value] of [
-  ["external", "https://outside.test/home"],
-  ["missing", "/does-not-exist"],
-  ["auth", "/login"],
-] as const) {
+for (const label of ["external", "missing", "auth"]) {
   test(`rejects the ${label} return value`, async ({ page }) => {
     await setUp(page, { guest: true });
-    const fixtureUrl = `/__e2e__/return-destination/${label}`;
-    await page.route(`**${fixtureUrl}`, (route) =>
+    const fixtureUrl = `/__e2e__/return-destination.html?case=${label}`;
+    await page.route(`**/return-destination.html?*`, (route) =>
       route.fulfill({
-        contentType: "text/html",
-        body: `<script>sessionStorage.setItem("qlink-return-destination", ${JSON.stringify(value)}); location.replace("/login");</script>`,
+        path: path.resolve("tests/e2e/fixtures/return-destination.html"),
       }),
     );
     await page.goto(fixtureUrl);
