@@ -3,7 +3,7 @@ import * as React from "react";
 import { reportError } from "@/lib/error-reporting";
 
 import { type ConnectOutcome, connectFailed } from "../lib/connect-with-token";
-import { hasNaverCallbackHash } from "../lib/oauth-callback";
+import { hasNaverCallbackHash, hasOauthCallbackHash } from "../lib/oauth-callback";
 import {
   clearOauthMode,
   clearOauthState,
@@ -21,7 +21,7 @@ function clearCallbackUrl() {
   for (const key of ["code", "state", "error", "error_description", "error_uri"]) {
     url.searchParams.delete(key);
   }
-  if (hasNaverCallbackHash(url.hash)) url.hash = "";
+  if (hasOauthCallbackHash(url.hash)) url.hash = "";
   window.history.replaceState(window.history.state, "", url);
 }
 

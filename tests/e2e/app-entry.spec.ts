@@ -111,7 +111,9 @@ async function setUp(
     const success = state
       ? "/?code=e2e-code&state=" + encodeURIComponent(state)
       : "/#access_token=naver-token";
-    const cancel = "/?error=access_denied&state=" + encodeURIComponent(state ?? "naver");
+    const cancel = state
+      ? "/?error=access_denied&state=" + encodeURIComponent(state)
+      : "/#error=access_denied&state=naver";
     return route.fulfill({
       contentType: "text/html; charset=utf-8",
       body: `<a href="${success}">인증 완료</a><a href="${cancel}">인증 취소</a>`,
@@ -379,13 +381,18 @@ for (const provider of ["카카오로 계속하기", "네이버로 계속하기"
     const state = await setUp(page, { guest: true, needsConsent: true });
     await page.goto(destination);
     await page.getByText(provider, { exact: true }).click();
-    await page.getByRole("link", { name: "인증 완료" }).click();
+    const callback = page.getByRole("link", { name: "인증 완료" });
+    const callbackAddress = (await callback.getAttribute("href"))!;
+    await callback.click();
     await agree(page);
     await expectDestination(page, isMobile);
     await page.goBack();
     await expect(page).toHaveURL(/\/__e2e__\/provider/);
     await page.goBack();
     await expectHome(page);
+    await page.goto(callbackAddress);
+    await expect(page).toHaveURL("/");
+    await expect(page.getByText(landing, { exact: true }).first()).toBeVisible();
     expect(state.requests.filter(({ path }) => path === "/api/auth/sign")).toHaveLength(1);
   });
 }
@@ -396,10 +403,14 @@ test("cancelled and failed external login can retry the original flow", async ({
 }) => {
   await setUp(page, { guest: true, signInFailures: 1 });
   await page.goto(destination);
-  const button = page.getByText("카카오로 계속하기", { exact: true });
-  for (const result of ["인증 취소", "인증 완료", "인증 완료"]) {
+  for (const [provider, result] of [
+    ["카카오로 계속하기", "인증 취소"],
+    ["네이버로 계속하기", "인증 취소"],
+    ["카카오로 계속하기", "인증 완료"],
+    ["네이버로 계속하기", "인증 완료"],
+  ]) {
     await expect(page).toHaveURL("/login");
-    await button.click();
+    await page.getByText(provider, { exact: true }).click();
     await page.getByRole("link", { name: result }).click();
   }
   await expectDestination(page, isMobile);

@@ -105,4 +105,17 @@ describe("useOauthRedirect (web)", () => {
     expect(mockedExchangeKakao).not.toHaveBeenCalled();
     expect(mockApply).not.toHaveBeenCalled();
   });
+
+  it("clears a cancelled Naver return and lets the user resume login", async () => {
+    const { result } = startRedirect("https://app.test/#error=access_denied&state=naver", "login");
+
+    await waitFor(() => expect(result.current.isProcessing).toBe(false));
+    expect(result.current.shouldEnterApp).toBe(true);
+    expect(mockedProcessNaver).not.toHaveBeenCalled();
+    expect(window.history.replaceState).toHaveBeenCalledWith(
+      undefined,
+      "",
+      new URL("https://app.test/"),
+    );
+  });
 });

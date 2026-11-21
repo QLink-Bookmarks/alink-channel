@@ -21,7 +21,7 @@ const OAUTH_ENTRY_SCRIPT = `(function () {
   if (window.location.pathname !== "/") return;
   var params = new URLSearchParams(window.location.search);
   var hash = new URLSearchParams(window.location.hash.slice(1));
-  if (params.has("code") || (params.has("error") && params.has("state")) || hash.has("access_token")) {
+  if (params.has("code") || (params.has("error") && params.has("state")) || hash.has("access_token") || (hash.has("error") && hash.has("state"))) {
     document.documentElement.setAttribute("data-oauth-entry", "");
   }
 })();`;

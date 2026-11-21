@@ -51,7 +51,11 @@ function loadNaverSdk(): Promise<void> {
       script.src = NAVER_SDK_SRC;
       script.async = true;
       script.addEventListener("load", () => resolve());
-      script.addEventListener("error", () => reject(new Error("Failed to load Naver SDK")));
+      script.addEventListener("error", () => {
+        scriptPromise = null;
+        script.remove();
+        reject(new Error("Failed to load Naver SDK"));
+      });
       document.body.appendChild(script);
     });
   }
