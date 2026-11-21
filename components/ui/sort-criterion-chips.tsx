@@ -130,7 +130,8 @@ function SortCriterionItem<K extends string>({
       className={cn(
         "h-8 flex-row items-center justify-center rounded-xl px-3",
         isOn ? "bg-primary" : "bg-transparent active:bg-accent",
-        isWeb && "outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring",
+        isWeb &&
+          "outline-none transition-colors focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       )}
       // Roving focus (web): only the chosen criterion is a Tab stop; arrows move between them.
       tabIndex={isOn ? 0 : -1}
