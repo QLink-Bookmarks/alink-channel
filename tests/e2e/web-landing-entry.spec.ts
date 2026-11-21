@@ -197,11 +197,14 @@ test("keeps both the Archived badge and video credit readable", async ({ page })
   const graphic = page.getByRole("img", { name: scene });
   const credit = graphic.getByText("サカナクション sakanaction", { exact: true });
   const badge = graphic.getByText("Archived", { exact: true }).locator("..");
-  await expect(credit).toBeInViewport({ ratio: 1 });
-  await expect(badge).toBeInViewport({ ratio: 1 });
-  const creditBounds = (await credit.boundingBox())!;
-  const badgeBounds = (await badge.boundingBox())!;
-  expect(badgeBounds.y).toBeGreaterThanOrEqual(creditBounds.y + creditBounds.height);
+  for (const width of [390, 768, 769, 959, 960, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(credit).toBeInViewport({ ratio: 1 });
+    await expect(badge).toBeInViewport({ ratio: 1 });
+    const creditBounds = (await credit.boundingBox())!;
+    const badgeBounds = (await badge.boundingBox())!;
+    expect(badgeBounds.y).toBeGreaterThanOrEqual(creditBounds.y + creditBounds.height);
+  }
 });
 
 test("opens the Archive from the scroll hint and switches its sample folder", async ({
