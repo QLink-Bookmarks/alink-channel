@@ -235,7 +235,7 @@ function LinkCreateForm({
   const [folder, setFolder] = React.useState<FolderDraft>(defaultFolder);
   const [visibilityDraft, setVisibilityDraft] = React.useState<boolean>();
   const isPublic = folder.isPublic === true && (visibilityDraft ?? true);
-  const requestVisibility = folder.isPublic === true ? visibilityDraft : folder.isPublic;
+  const requestVisibility = folder.isPublic === true ? visibilityDraft : false;
   const [aiProvider, setAiProvider] = React.useState<AiProviderSelection | null>(null);
   const [todos, setTodos] = React.useState<TodoDraftEditorItem[]>(createInitialTodos);
   const [generateTodo, setGenerateTodo] = React.useState(false);

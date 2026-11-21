@@ -149,3 +149,25 @@ test("uses the browser color scheme for the anonymous folder", async ({ page }) 
   await page.emulateMedia({ colorScheme: "dark" });
   await expect.poll(background).not.toBe(light);
 });
+
+test("wraps a long title and address inside one link row", async ({ page }) => {
+  const state = await mockPublicFolder(page);
+  const title = "오래된골목길산책기록".repeat(22);
+  state.links = [{ title, url: LONG_URL }];
+  state.todos = [];
+  await page.goto(WEB_PATH);
+  const link = page.getByRole("link", { name: title });
+  const row = page.getByRole("listitem").filter({ has: link });
+  const address = row.getByText(LONG_URL, { exact: true });
+  await expect(row).toHaveCount(1);
+  await expect(address).toBeVisible();
+  const rowBox = (await row.boundingBox())!;
+  const titleBox = (await link.boundingBox())!;
+  const addressBox = (await address.boundingBox())!;
+  expect(titleBox.height).toBeGreaterThan(24);
+  expect(titleBox.y + titleBox.height).toBeLessThanOrEqual(addressBox.y);
+  for (const box of [titleBox, addressBox]) {
+    expect(box.x).toBeGreaterThanOrEqual(rowBox.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+  }
+});

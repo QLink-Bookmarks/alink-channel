@@ -33,7 +33,10 @@ test("a new folder defaults to private and returns its public address without co
   await expect(page.getByRole("radio", { name: "나만 보기" })).toBeChecked();
   await page.getByPlaceholder(FOLDER_INPUT).fill("새 공개 폴더");
   await page.getByRole("radio", { name: "전체 공개" }).click();
-  await page.getByRole("button", { name: "저장", exact: true }).dblclick();
+  await page.getByRole("button", { name: "저장", exact: true }).evaluate((button: HTMLElement) => {
+    button.click();
+    button.click();
+  });
   await expect(page.getByText("폴더를 만들었어요.")).toBeVisible();
   await expect(page.getByRole("dialog", { name: PUBLISH_TITLE })).toHaveCount(0);
   expect(
@@ -233,8 +236,23 @@ for (const theme of ["light", "dark"] as const) {
     const publicForm = await openEdit(page);
     await expect(publicForm.getByRole("radio", { name: "전체 공개" })).toBeChecked();
     await expect(firstAddress).toBeVisible();
-    await publicForm.getByRole("radio", { name: "나만 보기" }).click();
-    await publicForm.getByRole("button", { name: "취소" }).click();
+    await publicForm.getByPlaceholder(FOLDER_INPUT).fill("공개 주소를 유지하는 이름 수정");
+    await publicForm.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(publicForm.getByPlaceholder(FOLDER_INPUT)).toHaveCount(0);
+    await expect(confirmation).toHaveCount(0);
+    expect(writes()[1]).toEqual({
+      name: "공개 주소를 유지하는 이름 수정",
+      emoji: "📁",
+      isShared: true,
+    });
+
+    const cancelRevokeForm = await openEdit(page);
+    await expect(firstAddress).toHaveAttribute(
+      "href",
+      new RegExp(`/public/folders/${ORIGINAL_ADDRESS}$`),
+    );
+    await cancelRevokeForm.getByRole("radio", { name: "나만 보기" }).click();
+    await cancelRevokeForm.getByRole("button", { name: "취소" }).click();
     await expect(firstAddress).toHaveCount(0);
 
     const revokeForm = await openEdit(page);
@@ -253,7 +271,7 @@ for (const theme of ["light", "dark"] as const) {
       "href",
       new RegExp(`/public/folders/${NEW_ADDRESS}$`),
     );
-    expect(writes()).toHaveLength(3);
+    expect(writes()).toHaveLength(4);
   });
 }
 
@@ -312,3 +330,72 @@ test("keeps an explicit private link and its todo when the folder is reselected"
       todos: [{ title: "나만 볼 할 일" }],
     });
 });
+
+for (const kind of ["일반", "AI"] as const) {
+  test(`keeps a link private in the ${kind} flow when the folder response omits visibility`, async ({
+    page,
+  }) => {
+    const [known, unknown] = makeFolders(2);
+    const state = await mockApi(page, {
+      folders: [
+        { ...known, name: "공개 상태 확인됨", emoji: null, isPublic: true },
+        { ...unknown, name: "공개 상태 미확인", emoji: null },
+      ],
+      handlers: {
+        "GET /api/users/me/settings": (route) =>
+          route.fulfill({
+            json: envelope({
+              display: { theme: "light", accent: "gray" },
+              ai: {
+                defaultProvider: { id: 1, type: "OPENAI" },
+                defaultModel: { id: 10, model: "gpt-test" },
+              },
+            }),
+          }),
+        "GET /api/ai/providers/models": (route) =>
+          route.fulfill({
+            json: envelope([
+              {
+                providerId: 1,
+                providerType: "OPENAI",
+                models: [{ id: 10, model: "gpt-test", priority: 1, userProviderId: 5 }],
+              },
+            ]),
+          }),
+        "PUT /api/links/ai": (route) => route.fulfill({ json: envelope({ id: 100 }) }),
+      },
+    });
+    await page.goto("/home");
+    if (isWideProject()) {
+      await page.getByText("새 링크", { exact: true }).first().click();
+    } else {
+      await page.getByLabel("새 링크").click();
+    }
+    const choose = async (name: string) => {
+      await page.getByRole("button", { name: /^폴더, / }).click();
+      await page.getByRole("radio", { name, exact: true }).click();
+    };
+    await choose("공개 상태 확인됨");
+    await page.getByRole("radio", { name: "나만 보기" }).click();
+    await choose("공개 상태 미확인");
+    await expect(page.getByRole("radio", { name: "나만 보기" })).toBeChecked();
+    await expect(page.getByRole("radio", { name: "전체 공개" })).toBeDisabled();
+    await page
+      .getByRole("textbox", { name: "URL", exact: true })
+      .fill("https://example.com/unknown");
+    await page.getByRole("textbox", { name: "제목", exact: true }).fill("비공개 링크");
+    await page
+      .getByRole("button", { name: kind === "AI" ? "AI 정리" : "저장", exact: true })
+      .click();
+    await expect
+      .poll(
+        () =>
+          state.requests.find(({ method, path }) =>
+            kind === "AI"
+              ? method === "PUT" && path === "/api/links/ai"
+              : method === "POST" && path === "/api/links",
+          )?.body,
+      )
+      .toMatchObject({ folderId: unknown.id, isPublic: false });
+  });
+}
