@@ -35,23 +35,16 @@ const SECTION_IDS = [
 const SUPPORT_EMAIL = "qlinkk1004@gmail.com";
 
 // The router can replace the history state and remount this route during popstate.
-let restoredLandingPosition:
-  | { id?: string; scrollTop: number; hadSectionFocus: boolean }
-  | undefined;
+let restoredLandingPosition: { id?: string; scrollTop: number } | undefined;
 
 if (typeof window !== "undefined") {
   window.addEventListener(
     "popstate",
     (event) => {
       const { id, landingScrollTop } = event.state ?? {};
-      const viewport = document.getElementById(LANDING_SCROLL_ID);
       restoredLandingPosition =
         !window.location.hash && typeof landingScrollTop === "number"
-          ? {
-              id,
-              scrollTop: landingScrollTop,
-              hadSectionFocus: viewport?.contains(document.activeElement) ?? false,
-            }
+          ? { id, scrollTop: landingScrollTop }
           : undefined;
     },
     true,
@@ -100,7 +93,7 @@ function WebLanding() {
       const index = getActiveSectionIndex(viewport);
       setActive(index);
       const focused = document.activeElement;
-      if (restored?.hadSectionFocus && focused === document.body) {
+      if (restored && focused === document.body) {
         const section = document.getElementById(SECTION_IDS[index]);
         if (section) focusLandingSection(section);
       } else if (focused && viewport.contains(focused)) {
