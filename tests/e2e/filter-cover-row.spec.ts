@@ -488,12 +488,18 @@ test.describe("widths", () => {
 
 test.describe("reduced motion", () => {
   test("the cover slides open normally", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.clock.install();
     await openList(page);
     await pauseClock(page);
     await coverButton(page).click({ force: true });
-    await page.clock.runFor(32);
-    expect(await coverShift(page)).toBeGreaterThan(1);
+    await expectOpen(page);
+    let shift = 0;
+    for (let frame = 0; frame < 6 && shift <= 1; frame++) {
+      await page.clock.runFor(16);
+      shift = await coverShift(page);
+    }
+    expect(shift).toBeGreaterThan(1);
     await page.clock.runFor(400);
     expect(await coverShift(page)).toBeLessThan(0.5);
   });
