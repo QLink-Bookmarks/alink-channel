@@ -22,7 +22,7 @@ function stubLocation(href: string) {
   const storage = new Map<string, string>();
   Object.assign(globalThis, {
     window: {
-      location: { href: url.toString(), hash: url.hash },
+      location: { href: url.toString(), hash: url.hash, pathname: url.pathname },
       history: { replaceState: jest.fn() },
     },
     sessionStorage: {

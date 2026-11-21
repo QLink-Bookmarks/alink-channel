@@ -56,6 +56,10 @@ function getOauthMode(): OauthMode {
   return getSessionStorage()?.getItem(MODE_STORAGE_KEY) === "connect" ? "connect" : "login";
 }
 
+function hasOauthMode(): boolean {
+  return getSessionStorage()?.getItem(MODE_STORAGE_KEY) != null;
+}
+
 function clearOauthMode(): void {
   getSessionStorage()?.removeItem(MODE_STORAGE_KEY);
 }
@@ -65,6 +69,7 @@ export {
   clearOauthMode,
   clearOauthState,
   getOauthMode,
+  hasOauthMode,
   resolveOauthState,
   setOauthMode,
 };

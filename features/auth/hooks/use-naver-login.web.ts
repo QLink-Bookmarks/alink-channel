@@ -5,6 +5,7 @@ import { useAuthStore } from "@/stores/auth";
 
 import { signIn } from "../api";
 import { type ConnectOutcome, connectWithToken } from "../lib/connect-with-token";
+import { hasNaverCallbackHash } from "../lib/oauth-callback";
 import { getOauthMode, setOauthMode } from "../lib/oauth-state";
 
 const NAVER_SDK_SRC = "https://static.nid.naver.com/js/naveridlogin_js_sdk_2.0.2.js";
@@ -84,26 +85,17 @@ function ensureNaverLogin(): NaverLoginInstance | null {
   return naverLoginInstance;
 }
 
-function hasNaverCallbackHash(): boolean {
-  return typeof window !== "undefined" && window.location.hash.includes("access_token");
-}
-
-function clearCallbackHash(): void {
-  window.history.replaceState(null, "", window.location.pathname + window.location.search);
-}
-
 // Implicit-flow callback: the SDK returns the access token in the URL hash.
 // Read it via getLoginStatus, then hand the token to the backend. Returns a
 // connect outcome when this was a "connect" flow, or null otherwise (login or
 // no callback present).
 async function processNaverRedirect(): Promise<ConnectOutcome | null> {
-  if (!hasNaverCallbackHash()) {
+  if (!hasNaverCallbackHash(window.location.hash)) {
     return null;
   }
   await loadNaverSdk();
   const naverLogin = ensureNaverLogin();
   if (!naverLogin) {
-    clearCallbackHash();
     return null;
   }
   const accessToken = await new Promise<string | null>((resolve) => {
@@ -111,7 +103,6 @@ async function processNaverRedirect(): Promise<ConnectOutcome | null> {
       resolve(status ? (naverLogin.accessToken?.accessToken ?? null) : null);
     });
   });
-  clearCallbackHash();
   if (!accessToken) {
     return null;
   }

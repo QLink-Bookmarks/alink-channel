@@ -238,9 +238,9 @@ function ShareSheet({ url, text, preprocessingResults }: ShareSheetProps) {
     // Deep-link straight to /login. An empty path crashes the extension's URL
     // builder ("".split("?") is empty, so pathComponents[0] is out of range),
     // which is why "로그인 하러가기" opened nothing. /login is a real route now.
-    openHostApp("login");
+    openHostApp(`login?sharedUrl=${encodeURIComponent(sharedUrl)}`);
     close();
-  }, []);
+  }, [sharedUrl]);
 
   const hasBottomInset = insets.bottom > 0;
   const paddingBottom = hasBottomInset ? insets.bottom + 8 : 16;

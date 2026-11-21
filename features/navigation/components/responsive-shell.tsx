@@ -50,6 +50,7 @@ import { useShellRouteState } from "../hooks/use-shell-route-state";
 import { useWideShellInsets } from "../hooks/use-wide-shell-insets";
 import { getFolderIdFromPath } from "../lib/folder-path";
 import { isNewLinkShortcut, suppressNextTextInput } from "../lib/new-link-shortcut";
+import { consumeReturnDestination } from "../lib/return-destination";
 import { canOpenWideOverlayInPlace } from "../routes";
 import type { MobileTabKey } from "../types";
 import { WideSidebarColumn } from "./wide-sidebar-column";
@@ -92,7 +93,11 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const [sharedLinkUrl, setSharedLinkUrl] = React.useState<string | null>(null);
   const wasAddLinkOpenRef = React.useRef(false);
   const addLinkFormRef = React.useRef<LinkCreateFormHandle>(null);
-  const { linkUrl: linkUrlParam } = useGlobalSearchParams<{ linkUrl?: string }>();
+  const { linkUrl: linkUrlParam, pendingShareUrl } = useGlobalSearchParams<{
+    linkUrl?: string;
+    pendingShareUrl?: string;
+  }>();
+  const returnAfterShareRef = React.useRef(false);
   const openFolderSection = useFolderNavigation((state) => state.openSectionOn);
   const isAnnouncementsListRoute = routeState.pathname === "/announcements";
   const mobileFolderId = getFolderIdFromPath(routeState.pathname) ?? Number.NaN;
@@ -131,11 +136,12 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   }, [routeState.pathname]);
 
   React.useEffect(() => {
-    const url = linkUrlParam?.trim();
+    const url = (pendingShareUrl || linkUrlParam)?.trim();
     if (!url) {
       return;
     }
     setSharedLinkUrl(url);
+    returnAfterShareRef.current = Boolean(pendingShareUrl);
     if (routeState.isWideView) {
       setAddLinkFormKey((key) => key + 1);
       setIsAddLinkDialogOpen(true);
@@ -143,8 +149,8 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
       setHasOpenedAddLinkSheet(true);
       openAddLinkSheet();
     }
-    router.setParams({ linkUrl: "" });
-  }, [linkUrlParam, openAddLinkSheet, routeState.isWideView, router]);
+    router.setParams(pendingShareUrl ? { pendingShareUrl: "" } : { linkUrl: "" });
+  }, [linkUrlParam, openAddLinkSheet, pendingShareUrl, routeState.isWideView, router]);
 
   React.useEffect(() => {
     // Only clear the shared URL on the open -> closed transition. Clearing whenever
@@ -154,9 +160,14 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     const isAddLinkOpen = isAddLinkDialogOpen || isAddLinkSheetOpen;
     if (wasAddLinkOpenRef.current && !isAddLinkOpen) {
       setSharedLinkUrl(null);
+      if (returnAfterShareRef.current) {
+        returnAfterShareRef.current = false;
+        const destination = consumeReturnDestination();
+        if (destination) router.replace(destination as Href);
+      }
     }
     wasAddLinkOpenRef.current = isAddLinkOpen;
-  }, [isAddLinkDialogOpen, isAddLinkSheetOpen]);
+  }, [isAddLinkDialogOpen, isAddLinkSheetOpen, router]);
 
   const handleMobileTabChange = React.useCallback(
     (value: string) => {

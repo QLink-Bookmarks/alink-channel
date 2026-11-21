@@ -41,7 +41,7 @@ function WebLanding() {
   const brandColors = useCycledBrandColors("light");
   const { height } = useWindowDimensions();
   const [active, setActive] = React.useState(0);
-  const goLogin = React.useCallback(() => router.push("/login" as Href), [router]);
+  const goApp = React.useCallback(() => router.push("/app" as Href), [router]);
 
   const handleScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -98,7 +98,7 @@ function WebLanding() {
               AI가 도와주는 북마크 아카이브.
             </Text>
             <StartButton
-              onPress={goLogin}
+              onPress={goApp}
               label="웹으로 시작하기"
             />
             <AppStoreBadge />
@@ -186,7 +186,7 @@ function WebLanding() {
               흩어진 북마크,{"\n"}이제는 하나로 Archive
             </Text>
             <StartButton
-              onPress={goLogin}
+              onPress={goApp}
               label="웹으로 시작하기"
             />
             <AppStoreBadge />
