@@ -28,6 +28,13 @@ function json(route: Route, data: unknown, status = 200) {
   return route.fulfill({ status, json: data });
 }
 
+function providerPage(route: Route, success: string, cancel: string) {
+  return route.fulfill({
+    contentType: "text/html; charset=utf-8",
+    body: `<a href="${success}">인증 완료</a><a href="${cancel}">인증 취소</a>`,
+  });
+}
+
 function deferred() {
   let release = () => {};
   const promise = new Promise<void>((resolve) => {
@@ -94,28 +101,22 @@ async function setUp(
   );
   await page.route("https://nid.naver.com/oauth2.0/authorize?*", (route) => {
     const requestUrl = new URL(route.request().url());
-    const callbackOrigin = requestUrl.searchParams.get("redirect_uri")!;
-    const state = requestUrl.searchParams.get("state")!;
-    return route.fulfill({
-      status: 302,
-      headers: {
-        location: `${callbackOrigin}/__e2e__/provider?naver=${encodeURIComponent(state)}`,
-      },
-    });
+    const callback = requestUrl.searchParams.get("redirect_uri");
+    const state = encodeURIComponent(requestUrl.searchParams.get("state") ?? "");
+    return providerPage(
+      route,
+      `${callback}/#access_token=naver-token&state=${state}`,
+      `${callback}/#error=access_denied&state=${state}`,
+    );
   });
   await page.route("**/__e2e__/provider?*", (route) => {
     const params = new URL(route.request().url()).searchParams;
-    const state = encodeURIComponent(params.get("kakao") ?? params.get("naver") ?? "");
-    const success = params.has("kakao")
-      ? `/?code=e2e-code&state=${state}`
-      : `/#access_token=naver-token&state=${state}`;
-    const cancel = params.has("kakao")
-      ? `/?error=access_denied&state=${state}`
-      : `/#error=access_denied&state=${state}`;
-    return route.fulfill({
-      contentType: "text/html; charset=utf-8",
-      body: `<a href="${success}">인증 완료</a><a href="${cancel}">인증 취소</a>`,
-    });
+    const state = encodeURIComponent(params.get("kakao") ?? "");
+    return providerPage(
+      route,
+      `/?code=e2e-code&state=${state}`,
+      `/?error=access_denied&state=${state}`,
+    );
   });
 
   return mockApi(page, {
@@ -411,7 +412,11 @@ for (const provider of ["카카오로 계속하기", "네이버로 계속하기"
     await agree(page);
     await expectDestination(page, isMobile);
     await page.goBack();
-    await expect(page).toHaveURL(/\/__e2e__\/provider/);
+    await expect(page).toHaveURL(
+      provider === "네이버로 계속하기"
+        ? /^https:\/\/nid\.naver\.com\/oauth2\.0\/authorize/
+        : /\/__e2e__\/provider/,
+    );
     await page.goBack();
     await expectHome(page);
     await page.goto(callbackAddress);
