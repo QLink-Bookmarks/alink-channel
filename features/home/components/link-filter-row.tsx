@@ -8,6 +8,7 @@ import {
   type FilterPill,
 } from "@/components/ui/filter-cover-row";
 import { Icon } from "@/components/ui/icon";
+import { PressableHitSlopArea } from "@/components/ui/icon-button";
 import { SortCriterionChips, SortDirectionArrow } from "@/components/ui/sort-criterion-chips";
 import { Text } from "@/components/ui/text";
 import {
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Star } from "lucide-react-native/icons";
 
 const isWeb = process.env.EXPO_OS === "web";
+const STAR_HIT_SLOP = { left: 6, right: 6 };
 
 type LinkFilterRowProps = {
   // The 1st set: folder chips on the mobile home, "N개 링크" elsewhere.
@@ -127,10 +129,12 @@ function LinkFilterRow({
               accessibilityState={{ checked: favoriteOnly }}
               aria-checked={favoriteOnly}
               className={cn("h-11 w-8 justify-center", isWeb && "group outline-none")}
+              hitSlop={STAR_HIT_SLOP}
               testID={testID ? `${testID}-favorite` : undefined}
               onPress={handleFavoritePress}
               {...favoriteKeyProps}
             >
+              <PressableHitSlopArea hitSlop={STAR_HIT_SLOP} />
               <View
                 className={cn(
                   "size-8 items-center justify-center rounded-full border",
