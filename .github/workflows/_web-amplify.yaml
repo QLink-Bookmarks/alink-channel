@@ -129,6 +129,18 @@ jobs:
           echo "job_id=${JOB_ID}" >> "${GITHUB_OUTPUT}"
           echo "zip_upload_url=${ZIP_UPLOAD_URL}" >> "${GITHUB_OUTPUT}"
 
+      - name: Configure public folder rewrite
+        run: |
+          source='</^\/public\/folders\/(?!route-shell\.html\/?$)[^\/]+\/?$/>'
+          current=$(aws amplify get-app --app-id "$AMPLIFY_APP_ID" --query 'app.customRules' --output json)
+          desired=$(jq -c --arg source "$source" '
+            [{ source: $source, target: "/public/folders/route-shell.html", status: "200", condition: null }] +
+            ((. // []) | map(select(.source != $source)))
+          ' <<< "$current")
+          if [ "$(jq -cS . <<< "$current")" != "$(jq -cS . <<< "$desired")" ]; then
+            aws amplify update-app --app-id "$AMPLIFY_APP_ID" --custom-rules "$desired" --query 'app.appId'
+          fi
+
       - name: Upload artifact to Amplify
         env:
           ZIP_UPLOAD_URL: ${{ steps.create-deployment.outputs.zip_upload_url }}

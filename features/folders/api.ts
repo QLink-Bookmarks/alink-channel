@@ -1,3 +1,4 @@
+import type { ApiEnvelope } from "@/features/links/types";
 import { api } from "@/lib/api-client";
 
 import type {
@@ -10,9 +11,13 @@ import type {
   DeleteFolderMemberResponse,
   DeleteFolderParams,
   DeleteFolderResponse,
+  FolderPrivacy,
   GetFolderMembersResponse,
   GetFoldersParams,
   GetFoldersResponse,
+  PublicFolder,
+  PublicFolderLists,
+  PublicFolderPage,
   TransferFolderOwnershipRequest,
   TransferFolderOwnershipResponse,
   UpdateFolderRequest,
@@ -49,6 +54,46 @@ async function updateFolder(id: number, payload: UpdateFolderRequest) {
   return api.put<UpdateFolderResponse, UpdateFolderRequest>(`/api/folders/${id}`, payload);
 }
 
+async function getFolderPrivacy(id: number, signal?: AbortSignal) {
+  return api.get<ApiEnvelope<FolderPrivacy>>(`/api/folders/${id}/privacy`, { signal });
+}
+
+async function getPublicFolderData<T>(
+  publicId: string,
+  list: string,
+  params: { cursor?: string } | undefined,
+  signal: AbortSignal,
+) {
+  const path = `/api/public-folders/${encodeURIComponent(publicId)}${list}`;
+  const response = await api.get<ApiEnvelope<T>>(path, {
+    authToken: null,
+    adapter: "fetch",
+    fetchOptions: { cache: "no-store" },
+    withCredentials: false,
+    params,
+    signal,
+  });
+  return response.data;
+}
+
+function getPublicFolder(publicId: string, signal: AbortSignal) {
+  return getPublicFolderData<PublicFolder>(publicId, "", undefined, signal);
+}
+
+function getPublicFolderPage<K extends keyof PublicFolderLists>(
+  publicId: string,
+  list: K,
+  cursor: string | undefined,
+  signal: AbortSignal,
+) {
+  return getPublicFolderData<PublicFolderPage<PublicFolderLists[K]>>(
+    publicId,
+    `/${list}`,
+    { cursor },
+    signal,
+  );
+}
+
 async function deleteFolderMember(id: number, memberId: number) {
   return api.delete<DeleteFolderMemberResponse>(`/api/folders/${id}/members/${memberId}`);
 }
@@ -76,7 +121,10 @@ export {
   deleteFolder,
   deleteFolderMember,
   getFolderMembers,
+  getFolderPrivacy,
   getFolders,
+  getPublicFolder,
+  getPublicFolderPage,
   transferFolderOwnership,
   updateFolder,
 };
