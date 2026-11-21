@@ -7,6 +7,7 @@ import {
   makeFolders,
   makeLink,
   mockApi,
+  scroll,
   settingsHandler,
 } from "./support/mock-api";
 
@@ -118,6 +119,39 @@ for (const { isOwner, folderOwnerId, isPublic } of [
     expect(state.details[link.id].isPublic).toBe(false);
   });
 }
+
+test("a private folder overrides stale public link details", async ({ page }) => {
+  const [folder] = makeFolders(1);
+  const link = makeLink({ id: 1, folderId: FOLDER_ID, folderName: folder.name });
+  let release: () => void = () => {};
+  const folderResponse = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await mockApi(page, {
+    links: [link],
+    details: { [link.id]: makeDetail(link, { isOwner: true, isPublic: true }) },
+    handlers: {
+      "GET /api/folders": async (route) => {
+        await folderResponse;
+        await route.fulfill({ json: scroll([{ ...folder, isPublic: false }]) });
+      },
+    },
+  });
+
+  const onlyMe = page.getByRole("radio", { name: "나만 보기" });
+  const everyone = page.getByRole("radio", { name: "전체 공개" });
+  try {
+    await page.goto(isWideProject() ? `/links?linkId=${link.id}` : `/links/${link.id}`);
+    await page.getByTestId("link-detail-edit").click();
+    await expect(page.getByText("폴더 공개 상태를 확인하는 중이에요.")).toBeVisible();
+    await expect(everyone).toHaveCount(0);
+    await expect(onlyMe).toHaveCount(0);
+  } finally {
+    release();
+  }
+  await expect(onlyMe).toBeChecked();
+  await expect(everyone).toBeDisabled();
+});
 
 async function openEdit(page: Page) {
   await page.getByRole("button", { name: "폴더 수정", exact: true }).click();

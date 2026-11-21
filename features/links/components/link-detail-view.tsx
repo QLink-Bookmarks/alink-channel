@@ -266,9 +266,10 @@ function LinkDetailView({
     currentFolder.ownerId === myProfileQuery.data.id;
   const isLinkOwner = detail.isOwner === true;
   const canCopyFromSharedFolder = isSharedFolder && !isFolderOwner;
-  const canChangePrivacy = isLinkOwner && currentFolder?.isPublic === true;
+  const folderPublic = detail.folderId == null ? false : currentFolder?.isPublic;
+  const canChangePrivacy = isLinkOwner && folderPublic === true;
   const savedPublic = detail.isPublic === true;
-  const isPublic = canChangePrivacy ? (privacyDraft ?? savedPublic) : savedPublic;
+  const isPublic = folderPublic === true && (privacyDraft ?? savedPublic);
   const changedPrivacy = canChangePrivacy && isPublic !== savedPublic ? isPublic : undefined;
 
   const handleDetailUpdated = React.useCallback(
@@ -648,18 +649,32 @@ function LinkDetailView({
   }, [handleBack, mode]);
 
   const isPanel = mode === "panel";
-  const editVisibility = isLinkOwner ? (
-    <VisibilityField
-      disabled={!canChangePrivacy || isSavingEdit}
-      help={
-        !canChangePrivacy
-          ? "전체 공개 폴더에서만 링크를 공개할 수 있어요."
-          : "전체 공개 링크와 연결된 할 일은 공개 페이지에 표시돼요."
-      }
-      isPublic={isPublic}
-      onChange={setPrivacyDraft}
-    />
-  ) : null;
+  let editVisibility: React.ReactNode = null;
+  if (isLinkOwner && folderPublic === undefined) {
+    editVisibility = (
+      <View className="gap-2">
+        <Text className="text-sm font-semibold text-foreground">공개 설정</Text>
+        <Text className="text-xs text-muted-foreground">
+          {foldersQuery.isFetching
+            ? "폴더 공개 상태를 확인하는 중이에요."
+            : "폴더 공개 상태를 확인할 수 없어요."}
+        </Text>
+      </View>
+    );
+  } else if (isLinkOwner) {
+    editVisibility = (
+      <VisibilityField
+        disabled={!canChangePrivacy || isSavingEdit}
+        help={
+          folderPublic
+            ? "전체 공개 링크와 연결된 할 일은 공개 페이지에 표시돼요."
+            : "전체 공개 폴더에서만 링크를 공개할 수 있어요."
+        }
+        isPublic={isPublic}
+        onChange={setPrivacyDraft}
+      />
+    );
+  }
   const toolbar = (
     <LinkDetailToolbar
       canCopy={canCopyFromSharedFolder}
