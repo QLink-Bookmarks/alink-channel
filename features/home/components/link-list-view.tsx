@@ -7,6 +7,8 @@ import { LoadErrorState } from "@/components/ui/load-error-state";
 import { PaginationFooter } from "@/components/ui/pagination-footer";
 import { Text } from "@/components/ui/text";
 import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
+import { useLinkCardSize } from "@/features/links/hooks/use-link-card-size";
+import { getLinkCardPageSize } from "@/features/links/lib/link-card-size";
 import { DEFAULT_LINK_SORT, readLinkSort, toLinkListParams } from "@/features/links/lib/link-sort";
 import { useLinkPagesQuery } from "@/features/links/queries";
 import type { LinkListItem } from "@/features/links/types";
@@ -47,6 +49,7 @@ function LinkListView({
   headerActions,
 }: LinkListViewProps) {
   const router = useRouter();
+  const { isWideView, linkCardSize } = useLinkCardSize();
   const listVariant = useViewportListVariant();
   const memoryKey = useListMemoryKey(listVariant);
   const [storedSort, setSort] = useRememberedState<unknown>(memoryKey, "sort", DEFAULT_LINK_SORT);
@@ -55,7 +58,7 @@ function LinkListView({
   const linksQuery = useLinkPagesQuery({
     ...toLinkListParams(sort, favoriteOnly),
     folderId,
-    size: 30,
+    size: getLinkCardPageSize(linkCardSize, isWideView),
   });
 
   const { links } = linksQuery;

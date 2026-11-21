@@ -12,6 +12,7 @@ import {
 
 const ERROR_TITLE = "링크를 불러오지 못했어요";
 const FOLDER_ROUTE = `/folders/${PAGINATION_FOLDER_ID}`;
+const LINK_COUNT = 65;
 
 test.setTimeout(60_000);
 
@@ -38,8 +39,12 @@ async function scrollNearEnd(page: Page) {
   });
 }
 
-async function finishList(page: Page, total: number) {
-  for (const count of [30, 60].filter((size) => size < total)) {
+function defaultPageSize() {
+  return isWideProject() ? 60 : 30;
+}
+
+async function finishList(page: Page, total: number, pageSize = defaultPageSize()) {
+  for (let count = pageSize; count < total; count += pageSize) {
     await expect(cards(page)).toHaveCount(count);
     await scrollNearEnd(page);
   }
@@ -50,15 +55,16 @@ test("wide home keeps six recent cards and nine shortcuts and opens all links", 
   page,
 }) => {
   test.skip(!isWideProject());
-  await mockLinkPagination(page);
+  const requests = await mockLinkPagination(page);
   await page.goto("/home");
   await expect(cards(page)).toHaveCount(6);
   const shortcuts = page.getByText("바로가기 추가", { exact: true }).locator("..").locator("..");
   await expect(shortcuts.getByText(/^여행 기록 \d+$/)).toHaveCount(9);
+  expect(requests.map((params) => params.get("size"))).toEqual(expect.arrayContaining(["6", "9"]));
   const recent = page.getByText("🔖 최근 저장", { exact: true }).locator("../..");
   await recent.getByText("전체 →").click();
   await expect(page).toHaveURL(/\/links$/);
-  await expect(cards(page)).toHaveCount(30);
+  await expect(cards(page)).toHaveCount(60);
 });
 
 test("the full list loads all pages and restores the list after opening an appended link", async ({
@@ -67,9 +73,9 @@ test("the full list loads all pages and restores the list after opening an appen
   const wide = isWideProject();
   await mockLinkPagination(page);
   await page.goto(wide ? "/links" : "/home");
-  await expect(cards(page)).toHaveCount(30);
+  await expect(cards(page)).toHaveCount(defaultPageSize());
   if (wide) await expect(page.getByText(/개 링크$/)).toHaveCount(0);
-  await finishList(page, 65);
+  await finishList(page, LINK_COUNT);
   await expect(page.getByLabel("불러오는 중", { exact: true })).toHaveCount(0);
   if (wide) await expect(page.getByText("65개 링크")).toBeVisible();
 
@@ -99,10 +105,40 @@ test("folder detail shows the server count before appending the remaining links"
 }) => {
   await mockLinkPagination(page);
   await page.goto(FOLDER_ROUTE);
-  await expect(cards(page)).toHaveCount(30);
+  await expect(cards(page)).toHaveCount(defaultPageSize());
   await expect(page.getByText("65개 링크")).toBeVisible();
-  await finishList(page, 65);
+  await finishList(page, LINK_COUNT);
   await expect(cards(page).last()).toContainText("여행 기록 65");
+});
+
+test("the chosen card size sets the page size for the first and next requests", async ({
+  page,
+}) => {
+  const wide = isWideProject();
+  const requests = await mockLinkPagination(page);
+  await page.addInitScript(
+    (size) => {
+      localStorage.setItem("qlink-link-card-size", size);
+    },
+    wide ? "large" : "small",
+  );
+  await page.goto(wide ? FOLDER_ROUTE : "/home");
+
+  if (!wide) {
+    await page.getByPlaceholder("링크 · 요약 · 태그 검색…").fill(MANY_LINKS_QUERY);
+    await expect(cards(page).first()).toContainText("여행 기록 02");
+  }
+  await finishList(page, LINK_COUNT, 40);
+
+  const listRequests = requests.filter((params) =>
+    wide
+      ? params.get("folderId") === String(PAGINATION_FOLDER_ID)
+      : params.get("query") === MANY_LINKS_QUERY,
+  );
+  expect(listRequests.map((params) => [params.get("size"), params.get("cursor")])).toEqual([
+    ["40", null],
+    ["40", "page:40"],
+  ]);
 });
 
 test("a short wide list loads more without a scroll and stops at the end", async ({ page }) => {
@@ -115,18 +151,18 @@ test("a short wide list loads more without a scroll and stops at the end", async
   await expect(cards(page)).toHaveCount(3);
   await expect(page.getByText("3개 링크")).toBeVisible();
   expect(
-    requests.filter((params) => params.get("size") === "30").map((params) => params.get("cursor")),
+    requests.filter((params) => params.get("size") === "60").map((params) => params.get("cursor")),
   ).toEqual([null, "page:1", "page:2"]);
 });
 
 test("sort and shortcut filters restart at their first page", async ({ page }) => {
   const requests = await mockLinkPagination(page);
   await page.goto(isWideProject() ? "/links" : "/home");
-  await finishList(page, 65);
+  await finishList(page, LINK_COUNT);
   await page.getByTestId("link-filter-row-button").click();
   await page.getByRole("radio", { name: "저장일, 내림차순" }).click();
   await expect(cards(page).first()).toContainText("여행 기록 65");
-  await expect(cards(page)).toHaveCount(30);
+  await expect(cards(page)).toHaveCount(defaultPageSize());
   expect(requests.find((params) => params.get("order") === "asc")?.get("cursor")).toBeNull();
 
   await page.getByRole("switch", { name: "바로가기만 보기" }).click();
@@ -145,7 +181,7 @@ test("mobile home searches three pages, renders a body match, and resets for a n
   const search = page.getByPlaceholder("링크 · 요약 · 태그 검색…");
   await search.fill(MANY_LINKS_QUERY);
   await expect(cards(page).first()).toContainText("여행 기록 02");
-  await finishList(page, 65);
+  await finishList(page, LINK_COUNT);
   await expect(cards(page).last()).toContainText(BODY_MATCH_TEXT);
   const lastTitle = cards(page).last().getByTestId("link-card-title");
   await lastTitle.scrollIntoViewIfNeeded();
@@ -272,6 +308,8 @@ test("an empty folder shows its empty message after the first response", async (
 test("next-page loading and failures preserve the cards and scroll, and retry the same cursor in dark mode", async ({
   page,
 }) => {
+  const pageSize = defaultPageSize();
+  const nextPageCursor = `page:${pageSize}`;
   let release: () => void = () => {};
   const pending = new Promise<void>((resolve) => {
     release = resolve;
@@ -286,13 +324,13 @@ test("next-page loading and failures preserve the cards and scroll, and retry th
     },
   });
   await page.goto(FOLDER_ROUTE);
-  await expect(cards(page)).toHaveCount(30);
+  await expect(cards(page)).toHaveCount(pageSize);
   await expect
     .poll(() => page.locator("html").evaluate((el) => el.classList.contains("dark")))
     .toBe(true);
   await scrollNearEnd(page);
   await expect(page.getByLabel("불러오는 중", { exact: true })).toBeVisible();
-  await expect(cards(page)).toHaveCount(30);
+  await expect(cards(page)).toHaveCount(pageSize);
   const view = await scroller(cards(page));
   await view.evaluate(async (node) => {
     node.scrollTop -= 250;
@@ -303,7 +341,7 @@ test("next-page loading and failures preserve the cards and scroll, and retry th
 
   release();
   await expect(page.getByText(ERROR_TITLE)).toBeVisible();
-  await expect(cards(page)).toHaveCount(30);
+  await expect(cards(page)).toHaveCount(pageSize);
   expect(await view.evaluate((node) => node.scrollTop)).toBeCloseTo(before, 0);
   expect(requests.filter((params) => params.has("cursor"))).toHaveLength(1);
 
@@ -313,12 +351,12 @@ test("next-page loading and failures preserve the cards and scroll, and retry th
   await expect(page.getByText(ERROR_TITLE)).toBeVisible();
   fail = false;
   await retry.click();
-  await expect(cards(page)).toHaveCount(60);
+  await expect(cards(page)).toHaveCount(Math.min(2 * pageSize, LINK_COUNT));
   expect(
     requests.filter((params) => params.has("cursor")).map((params) => params.get("cursor")),
-  ).toEqual(["page:30", "page:30", "page:30"]);
-  await scrollNearEnd(page);
-  await expect(cards(page)).toHaveCount(65);
-  await expect(cards(page).filter({ hasText: "여행 기록 31" })).toHaveCount(1);
+  ).toEqual([nextPageCursor, nextPageCursor, nextPageCursor]);
+  if (2 * pageSize < LINK_COUNT) await scrollNearEnd(page);
+  await expect(cards(page)).toHaveCount(LINK_COUNT);
+  await expect(cards(page).filter({ hasText: `여행 기록 ${pageSize + 1}` })).toHaveCount(1);
   await expect(retry).toHaveCount(0);
 });

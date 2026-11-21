@@ -10,6 +10,8 @@ import { PaginationFooter } from "@/components/ui/pagination-footer";
 import { useFoldersQuery } from "@/features/folders/queries";
 import { HomeEmptyState } from "@/features/imports/components/flow/home-empty-state";
 import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
+import { useLinkCardSize } from "@/features/links/hooks/use-link-card-size";
+import { getLinkCardPageSize } from "@/features/links/lib/link-card-size";
 import { DEFAULT_LINK_SORT, readLinkSort, toLinkListParams } from "@/features/links/lib/link-sort";
 import { useLinkPagesQuery } from "@/features/links/queries";
 import { useShellActions } from "@/features/navigation/hooks/use-shell-actions";
@@ -32,6 +34,7 @@ const UNCATEGORIZED_FOLDER_VALUE = "0";
 
 function MobileHomeScreen() {
   const router = useRouter();
+  const { isWideView, linkCardSize } = useLinkCardSize();
   const foldersQuery = useFoldersQuery({ size: 15 });
   const memoryKey = useListMemoryKey("mobile");
   const [selectedFolder, setSelectedFolder] = useRememberedState<string>(
@@ -91,7 +94,7 @@ function MobileHomeScreen() {
       ...toLinkListParams(sort, favoriteOnly),
       folderId,
       query: trimmedSearchQuery || undefined,
-      size: 30,
+      size: getLinkCardPageSize(linkCardSize, isWideView),
     },
     !isDebouncing,
   );
