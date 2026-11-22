@@ -44,6 +44,7 @@ import { useSearchDialog } from "@/stores/search-dialog";
 import { useAnySheetOpen } from "@/stores/sheet-tracker";
 
 import { useAddLinkSheet } from "../hooks/use-add-link-sheet";
+import { useDocumentTitle } from "../hooks/use-document-title";
 import { useLinkOverlayState } from "../hooks/use-link-overlay-state";
 import { type ShellActions, ShellActionsContext } from "../hooks/use-shell-actions";
 import { useShellRouteState } from "../hooks/use-shell-route-state";
@@ -65,6 +66,7 @@ const mobileTabItems = [
 ] satisfies React.ComponentProps<typeof BottomTabs>["items"];
 
 function ResponsiveShell({ children }: { children: React.ReactNode }) {
+  useDocumentTitle(true);
   const router = useRouter();
   const routeState = useShellRouteState();
   const wideInsets = useWideShellInsets();
