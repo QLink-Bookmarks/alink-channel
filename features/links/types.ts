@@ -215,6 +215,7 @@ type GetLinksParams = {
   cursor?: string;
   size?: number;
   isFavorite?: boolean;
+  isPublic?: boolean;
 };
 
 // A link preview holds at most one image: the stored main image (`thumbnailUrl`),
