@@ -39,7 +39,9 @@ for (const { isOwner, folderOwnerId, isPublic } of [
         "PUT /api/links/1/privacy": (route, request) => {
           const { isPublic } = request.postDataJSON() as { isPublic: boolean };
           state.details[link.id].turnsPublicAt = isPublic ? PUBLIC_AT : null;
-          return route.fulfill({ json: envelope(null) });
+          return route.fulfill({
+            json: envelope({ turnsPublicAt: state.details[link.id].turnsPublicAt }),
+          });
         },
       },
     });
@@ -49,6 +51,7 @@ for (const { isOwner, folderOwnerId, isPublic } of [
     const everyone = page.getByRole("radio", { name: "전체 공개" });
     const onlyMe = page.getByRole("radio", { name: "나만 보기" });
     if (isOwner !== true) {
+      await expect(page.getByRole("button", { name: /^공개 설정, / })).toHaveCount(0);
       await expect(page.getByText("수정하기", { exact: true })).toBeVisible();
       await expect(page.getByText("공개 설정", { exact: true })).toHaveCount(0);
       await expect(onlyMe).toHaveCount(0);
@@ -107,6 +110,78 @@ test("a private folder overrides stale public link details", async ({ page }) =>
   }
   await expect(onlyMe).toBeChecked();
   await expect(everyone).toBeDisabled();
+});
+
+test("keeps a rejected combined link edit intact and uses the toolbar for a privacy-only write", async ({
+  page,
+}) => {
+  const [folder] = makeFolders(1);
+  const link = makeLink({ id: 1, folderId: folder.id, folderName: folder.name });
+  let rejectCombined = true;
+  const state = await mockApi(page, {
+    folders: [{ ...folder, turnsPublicAt: PUBLIC_AT }],
+    links: [link],
+    details: { [link.id]: makeDetail(link, { isOwner: true, turnsPublicAt: null }) },
+    handlers: {
+      "PUT /api/links/1": (route, request) => {
+        if (rejectCombined)
+          return route.fulfill({ status: 422, json: { success: false, data: null } });
+        const { title, isPublic } = request.postDataJSON() as { title: string; isPublic: boolean };
+        state.details[link.id] = {
+          ...state.details[link.id],
+          title,
+          turnsPublicAt: isPublic ? PUBLIC_AT : null,
+        };
+        return route.fulfill({ json: envelope(state.details[link.id]) });
+      },
+      "PUT /api/links/1/privacy": (route, request) => {
+        const { isPublic } = request.postDataJSON() as { isPublic: boolean };
+        state.details[link.id].turnsPublicAt = isPublic ? PUBLIC_AT : null;
+        return route.fulfill({
+          json: envelope({ turnsPublicAt: state.details[link.id].turnsPublicAt }),
+        });
+      },
+    },
+  });
+
+  await page.goto(isWideProject() ? "/links?linkId=1" : "/links/1");
+  await page.getByTestId("link-detail-edit").click();
+  const title = page.getByRole("textbox", { name: "제목" });
+  const everyone = page.getByRole("radio", { name: "전체 공개" });
+  const save = page.getByRole("button", { name: "저장", exact: true });
+  await title.fill("이름과 함께 변경");
+  await everyone.click();
+  await save.click();
+  await expect(page.getByText("수정에 실패했어요.")).toBeVisible();
+  await expect(title).toHaveValue("이름과 함께 변경");
+  await expect(everyone).toBeChecked();
+  expect(state.details[link.id].turnsPublicAt).toBeNull();
+  expect(state.details[link.id].title).toBe(link.title);
+
+  rejectCombined = false;
+  await save.click();
+  await expect(title).toHaveCount(0);
+  const toolbar = page.getByTestId("link-detail-toolbar");
+  await toolbar.getByRole("button", { name: "공개 설정, 전체 공개" }).click();
+  const overlay = page.getByRole("group", { name: "공개 설정" });
+  await expect(overlay.getByRole("button", { name: "전체 공개", pressed: true })).toBeVisible();
+  const privateOption = overlay.getByRole("button", { name: "나만 보기" });
+  await privateOption.focus();
+  expect(state.requests.filter(({ method }) => method === "PUT")).toHaveLength(2);
+  await page.keyboard.press("Enter");
+  await expect(privateOption).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+  await expect(toolbar.getByRole("button", { name: "공개 설정, 나만 보기" })).toBeFocused();
+
+  const writes = state.requests.filter(({ method }) => method === "PUT");
+  expect(writes.map(({ path }) => path)).toEqual([
+    "/api/links/1",
+    "/api/links/1",
+    "/api/links/1/privacy",
+  ]);
+  expect(writes[0].body).toMatchObject({ title: "이름과 함께 변경", isPublic: true });
+  expect(writes[1].body).toEqual(writes[0].body);
+  expect(writes[2].body).toEqual({ isPublic: false });
 });
 
 test("keeps an explicit private link and its todo when the folder is reselected", async ({

@@ -88,7 +88,10 @@ async function setLinkFavorite(linkId: string | number, payload: SetLinkFavorite
 }
 
 async function setLinkPrivacy(linkId: string | number, payload: { isPublic: boolean }) {
-  return api.put<ApiEnvelope<null>, typeof payload>(`/api/links/${linkId}/privacy`, payload);
+  return api.put<ApiEnvelope<{ turnsPublicAt: string | null }>, typeof payload>(
+    `/api/links/${linkId}/privacy`,
+    payload,
+  );
 }
 
 async function copySharedFolderLink(linkId: string | number, payload: CopyLinkRequest) {

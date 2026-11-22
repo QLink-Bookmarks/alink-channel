@@ -251,6 +251,7 @@ function LinkDetailView({
   const [titleDraft, setTitleDraft] = React.useState("");
   const [summaryDraft, setSummaryDraft] = React.useState("");
   const [privacyDraft, setPrivacyDraft] = React.useState<boolean>();
+  const initialEditText = React.useRef({ title: "", summary: "" });
   const [isUnsavedEditOpen, setIsUnsavedEditOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   useLinkDetailExcerptRecheck(detail.id, detail.content);
@@ -279,7 +280,7 @@ function LinkDetailView({
   const canChangePrivacy = isLinkOwner && folderPublic === true;
   const savedPublic = typeof detail.turnsPublicAt === "string";
   const isPublic = folderPublic === true && (privacyDraft ?? savedPublic);
-  const changedPrivacy = canChangePrivacy && isPublic !== savedPublic ? isPublic : undefined;
+  const changedPrivacy = isLinkOwner && privacyDraft !== savedPublic ? privacyDraft : undefined;
   const privacyMutation = useSetLinkPrivacyMutation(detail.id);
   const linkVisibility = folderPublic === true && savedPublic;
 
@@ -502,6 +503,10 @@ function LinkDetailView({
   );
 
   const openEditSheet = React.useCallback(() => {
+    initialEditText.current = {
+      title: detail.title.trim(),
+      summary: (detail.summary ?? "").trim(),
+    };
     setTitleDraft(detail.title);
     setSummaryDraft(detail.summary ?? "");
     setPrivacyDraft(undefined);
@@ -527,8 +532,8 @@ function LinkDetailView({
   }, [dismissLinkDetailToasts]);
 
   const isEditDirty =
-    titleDraft.trim() !== detail.title.trim() ||
-    summaryDraft.trim() !== (detail.summary ?? "").trim() ||
+    titleDraft.trim() !== initialEditText.current.title ||
+    summaryDraft.trim() !== initialEditText.current.summary ||
     changedPrivacy !== undefined;
 
   const handleSaveEdit = React.useCallback(async () => {
@@ -549,13 +554,17 @@ function LinkDetailView({
     isSavingEditRef.current = true;
     setIsSavingEdit(true);
     try {
-      const summary = summaryDraft.trim() || null;
-      const fieldsChanged =
-        nextTitle !== detail.title.trim() || summary !== ((detail.summary ?? "").trim() || null);
-      if (changedPrivacy !== undefined && !fieldsChanged) {
+      const summary = summaryDraft.trim();
+      const titleChanged = nextTitle !== initialEditText.current.title;
+      const summaryChanged = summary !== initialEditText.current.summary;
+      if (changedPrivacy !== undefined && !titleChanged && !summaryChanged) {
         await privacyMutation.mutateAsync(changedPrivacy);
       } else {
-        await updateLinkFields({ isPublic: changedPrivacy, summary, title: nextTitle });
+        await updateLinkFields({
+          isPublic: changedPrivacy,
+          ...(titleChanged ? { title: nextTitle } : {}),
+          ...(summaryChanged ? { summary: summary || null } : {}),
+        });
       }
       setIsUnsavedEditOpen(false);
       setEditSheetOpen(false);
@@ -583,8 +592,6 @@ function LinkDetailView({
   }, [
     changedPrivacy,
     detail.id,
-    detail.summary,
-    detail.title,
     privacyMutation,
     setEditSheetOpen,
     showToast,

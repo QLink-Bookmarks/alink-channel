@@ -15,6 +15,7 @@ import { getLinkDetailQueryKey, invalidateLinkListAndSearchQueries } from "./que
 import type {
   CopyLinkRequest,
   CreateLinkRequest,
+  LinkDetail,
   PatchLinkRequest,
   SetLinkFavoriteRequest,
   UpdateLinkRequest,
@@ -51,10 +52,14 @@ function useCreateLinkMutation() {
 
 function useUpdateLinkMutation(linkId: string | number) {
   const invalidateLinkQueries = useInvalidateLinkQueries();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: UpdateLinkRequest) => updateLink(linkId, payload),
-    onSuccess: () => {
+    onSuccess: (_response, payload) => {
       invalidateLinkQueries(linkId);
+      if (payload.isPublic !== undefined) {
+        void invalidatePublicLinkQueries(queryClient, linkId);
+      }
     },
   });
 }
@@ -107,16 +112,35 @@ function useSetLinkFavoriteMutation() {
 
 function useSetLinkPrivacyMutation(linkId: number) {
   const queryClient = useQueryClient();
+  const queryKey = getLinkDetailQueryKey(linkId);
   return useMutation({
     mutationFn: (isPublic: boolean) => setLinkPrivacy(linkId, { isPublic }),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: getLinkDetailQueryKey(linkId) }),
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey });
+    },
+    onSuccess: async (response) => {
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      queryClient.setQueryData<LinkDetail>(
+        queryKey,
+        (detail) => detail && { ...detail, turnsPublicAt: response.data.turnsPublicAt },
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey }),
         invalidateLinkListAndSearchQueries(queryClient),
-        queryClient.invalidateQueries({ queryKey: ["resource-read", "links", linkId] }),
-        queryClient.invalidateQueries({ queryKey: ["folder-read"] }),
-      ]),
+        invalidatePublicLinkQueries(queryClient, linkId),
+      ]);
+    },
   });
+}
+
+function invalidatePublicLinkQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  linkId: number | string,
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["resource-read", "links", Number(linkId)] }),
+    queryClient.invalidateQueries({ queryKey: ["folder-read"] }),
+  ]);
 }
 
 export {

@@ -120,7 +120,7 @@ type LinkDetailContent = {
 };
 
 type LinkDetail = {
-  turnsPublicAt?: string | null;
+  turnsPublicAt: string | null;
   isOwner?: boolean;
   id: number;
   url: string;
@@ -179,7 +179,7 @@ type LinkTodoCounts = {
 
 type LinkListItem = {
   id: number;
-  turnsPublicAt?: string | null;
+  turnsPublicAt: string | null;
   folderId?: number | null;
   folderName?: string | null;
   folderEmoji?: string | null;
