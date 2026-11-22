@@ -31,6 +31,7 @@ type TodoItemProps = {
   variant?: TodoItemVariant;
   text: string;
   done?: boolean;
+  readOnly?: boolean;
   /** Pre-formatted schedule line (e.g. "06/04 09:36 (지남)" or "매주 월·목 오전 8:00"). */
   reminderLabel?: string | null;
   /** Picks the schedule icon on the display variant: an alarm clock or a repeat arrow. */
@@ -97,6 +98,7 @@ function TodoItem({
   variant = "row",
   text,
   done,
+  readOnly = false,
   reminderLabel,
   scheduleKind = "once",
   overdue,
@@ -112,6 +114,7 @@ function TodoItem({
   onPress,
 }: TodoItemProps) {
   if (variant === "display") {
+    const CardBody = readOnly ? View : Pressable;
     const domain = linkUrl ? getDomainFromUrl(linkUrl) : null;
     const hasLinkRow = Boolean(linkUrl || linkTitle);
     const isOverdue = Boolean(overdue && !done);
@@ -122,6 +125,7 @@ function TodoItem({
       isShared && SHARED_LABEL,
       linkLabel,
       pressHint,
+      readOnly && (done ? "완료" : "미완료"),
     ]);
 
     // The checkbox sits over the card instead of inside its press target, so it stays its
@@ -142,6 +146,8 @@ function TodoItem({
             focused before the card, and above the card's press target. */}
         <View className="absolute left-4 top-[15px] z-10">
           <Checkbox
+            aria-hidden={readOnly || undefined}
+            disabled={readOnly}
             accessibilityLabel={getTodoDoneToggleLabel(text, done ?? false)}
             checked={done ?? false}
             shape="round"
@@ -149,11 +155,11 @@ function TodoItem({
             onCheckedChange={(value) => onToggle?.(value === true)}
           />
         </View>
-        <Pressable
+        <CardBody
           accessibilityLabel={cardLabel}
-          accessibilityRole="button"
+          accessibilityRole={readOnly ? undefined : "button"}
           className="grow web:outline-none"
-          onPress={onPress}
+          onPress={readOnly ? undefined : onPress}
           {...cardPressDataProps}
         >
           {/* grow, not flex-1: native flex:1 uses basis 0, which collapses this content-sized card on relayout (#15). */}
@@ -218,7 +224,7 @@ function TodoItem({
               </Text>
             </View>
           ) : null}
-        </Pressable>
+        </CardBody>
       </View>
     );
   }

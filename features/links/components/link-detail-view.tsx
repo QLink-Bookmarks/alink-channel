@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, BackHandler, Pressable, View } from "react-native";
 
 import { AppHeader } from "@/components/layout/app-header";
 import { Sheet } from "@/components/layout/sheet";
@@ -55,6 +55,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { LinkDetailActionsSection } from "./link-detail-actions-section";
 import { LinkDetailAiSurface } from "./link-detail-ai-surface";
+import { LinkDetailBody } from "./link-detail-body";
 import { LinkDetailHead } from "./link-detail-head";
 import { LinkDetailMyNotes, type LinkFieldsUpdate } from "./link-detail-my-notes";
 import { FOCUS_RING_CLASS_NAME } from "./link-detail-parts";
@@ -695,65 +696,48 @@ function LinkDetailView({
   );
 
   const body = (
-    <ScrollView
-      // iOS: the keyboard insets the scroll area, so the action editor's 저장 can be
-      // scrolled above it while a title is being typed.
-      automaticallyAdjustKeyboardInsets
-      className={cn("flex-1", isPanel ? "bg-surface" : "bg-background")}
-      contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-      testID="link-detail"
-    >
-      <View
-        className={cn(
-          isPanel
-            ? "gap-4 px-5 pb-8 pt-2"
-            : "w-full max-w-[600px] gap-3.5 self-center px-4 pb-10 pt-3",
-        )}
+    <LinkDetailBody mode={mode}>
+      {isPanel ? toolbar : null}
+      <LinkDetailHead
+        faviconUrl={detail.faviconUrl}
+        isVideo={detail.isVideo}
+        mode={mode}
+        status={detail.status}
+        thumbnailUrl={detail.thumbnailUrl}
+        title={detail.title}
+        url={detail.url}
+        workModel={detail.workModel}
+      />
+      <LinkDetailAiSurface
+        excerpt={detail.content?.excerpt ?? null}
+        status={detail.status}
+        summary={detail.summary}
+        url={detail.url}
+        workModel={detail.workModel}
+      />
+      <LinkDetailMyNotes
+        key={detail.id}
+        folderEmoji={detail.folderEmoji}
+        folderName={detail.folderName}
+        isEditingActions={isEditingActions}
+        linkId={detail.id}
+        memo={detail.memo}
+        tags={tags}
+        onOpenFolderMove={handleOpenFolderMove}
+        onUpdateLink={handleUpdateNotes}
       >
-        {isPanel ? toolbar : null}
-        <LinkDetailHead
-          faviconUrl={detail.faviconUrl}
-          isVideo={detail.isVideo}
-          mode={mode}
-          status={detail.status}
-          thumbnailUrl={detail.thumbnailUrl}
-          title={detail.title}
-          url={detail.url}
-          workModel={detail.workModel}
-        />
-        <LinkDetailAiSurface
-          excerpt={detail.content?.excerpt ?? null}
-          status={detail.status}
-          summary={detail.summary}
-          url={detail.url}
-          workModel={detail.workModel}
-        />
-        <LinkDetailMyNotes
+        <LinkDetailActionsSection
           key={detail.id}
-          folderEmoji={detail.folderEmoji}
-          folderName={detail.folderName}
-          isEditingActions={isEditingActions}
           linkId={detail.id}
-          memo={detail.memo}
-          tags={tags}
-          onOpenFolderMove={handleOpenFolderMove}
-          onUpdateLink={handleUpdateNotes}
-        >
-          <LinkDetailActionsSection
-            key={detail.id}
-            linkId={detail.id}
-            mode={mode}
-            todos={todos}
-            onEditingChange={setIsEditingActions}
-          />
-        </LinkDetailMyNotes>
-        <View className="mt-1 border-t border-border-soft pt-3">
-          <DeleteLinkButton onPress={() => setIsDeleteDialogOpen(true)} />
-        </View>
+          mode={mode}
+          todos={todos}
+          onEditingChange={setIsEditingActions}
+        />
+      </LinkDetailMyNotes>
+      <View className="mt-1 border-t border-border-soft pt-3">
+        <DeleteLinkButton onPress={() => setIsDeleteDialogOpen(true)} />
       </View>
-    </ScrollView>
+    </LinkDetailBody>
   );
 
   return (

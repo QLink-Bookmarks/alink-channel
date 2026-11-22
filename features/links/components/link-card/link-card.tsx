@@ -11,6 +11,8 @@ import { HighlightedText } from "../snippet-text/highlighted-text";
 import { SnippetText, getSnippetLabel } from "../snippet-text/snippet-text";
 import { TodoCountBadge } from "./todo-count-badge";
 
+import { type Href, Link } from "expo-router";
+
 type LinkCardStatusVariant = "progress" | "success" | "error" | null;
 
 const statusVariantClasses: Record<NonNullable<LinkCardStatusVariant>, string> = {
@@ -48,6 +50,7 @@ type LinkCardProps = {
   trailingHoverActions?: React.ReactNode;
   /** Pressing anywhere but the image cell, e.g. to open the detail. */
   onPress?: () => void;
+  bodyHref?: Href;
   /** Pressing the image cell, e.g. to open the original link. Falls back to `onPress`. */
   onImagePress?: () => void;
 };
@@ -79,11 +82,106 @@ function LinkCard({
   bookmarkPinned,
   trailingHoverActions,
   onPress,
+  bodyHref,
   onImagePress,
 }: LinkCardProps) {
   // While searching, the context says why the card matched; the domain is left out because
   // the image cell already reads it.
   const snippetLabel = snippet ? getSnippetLabel(snippet.text) : "";
+  const body = (
+    <Pressable
+      // No button role: the todo counts inside are a tooltip trigger, and a button must not
+      // contain another button on web.
+      accessibilityRole={bodyHref ? "link" : undefined}
+      accessibilityHint="상세 열기"
+      accessibilityLabel={snippetLabel ? `${title}, ${snippetLabel}` : title}
+      className="grow gap-1.5 px-3 pb-3 pt-2.5"
+      testID="link-card-body"
+      onPress={onPress}
+    >
+      {highlightQuery?.trim() ? (
+        <HighlightedText
+          className="h-9 text-[13px] font-semibold leading-[18px] text-foreground"
+          numberOfLines={2}
+          query={highlightQuery}
+          testID="link-card-title"
+          text={title}
+        />
+      ) : (
+        <Text
+          className="h-9 text-[13px] font-semibold leading-[18px] text-foreground"
+          numberOfLines={2}
+          testID="link-card-title"
+        >
+          {title}
+        </Text>
+      )}
+      <View className="h-[18px] min-w-0 flex-row items-center justify-between gap-2">
+        <Text
+          className="min-w-[25%] flex-1 text-[11px] text-muted-foreground"
+          numberOfLines={1}
+        >
+          {domain}
+        </Text>
+        {statusLabel ? (
+          <Text
+            className={cn(
+              "min-w-0 shrink text-[11px] font-semibold",
+              statusVariant ? statusVariantClasses[statusVariant] : "text-muted-foreground",
+            )}
+            numberOfLines={1}
+            testID="link-card-status"
+          >
+            {statusLabel}
+          </Text>
+        ) : null}
+      </View>
+      {snippet ? (
+        <SnippetText
+          className="text-xs leading-[18px] text-muted-foreground"
+          highlights={snippet.highlights}
+          numberOfLines={2}
+          testID="link-card-snippet"
+          text={snippet.text}
+        />
+      ) : excerpt ? (
+        <Text
+          className="text-xs leading-[18px] text-muted-foreground"
+          numberOfLines={1}
+          testID="link-card-excerpt"
+        >
+          {excerpt}
+        </Text>
+      ) : null}
+      <View className="mt-auto h-5 min-w-0 flex-row items-center gap-2">
+        {/* Tags that do not fit wrap out of the fixed-height row instead of being cut. */}
+        <View
+          className="h-5 min-w-0 flex-1 flex-row flex-wrap content-start items-center gap-1.5 overflow-hidden"
+          testID="link-card-tags"
+        >
+          {tags.map((tag) => (
+            <View
+              key={tag}
+              className="max-w-full shrink rounded-lg border border-border-soft bg-surface-elevated px-1.5 py-px"
+            >
+              <Text
+                className="text-xs font-medium text-muted-foreground"
+                numberOfLines={1}
+              >
+                {formatTagLabel(tag)}
+              </Text>
+            </View>
+          ))}
+        </View>
+        {todoCounts ? (
+          <TodoCountBadge
+            summary={todoCounts}
+            onPress={onPress}
+          />
+        ) : null}
+      </View>
+    </Pressable>
+  );
   return (
     <View
       className={cn(
@@ -97,7 +195,7 @@ function LinkCard({
     >
       <Pressable
         accessibilityLabel={`원본 열기, ${domain}`}
-        accessibilityRole="link"
+        accessibilityRole={bodyHref && !onImagePress ? undefined : "link"}
         className="border-b border-border-soft"
         testID="link-card-image"
         onPress={onImagePress ?? onPress}
@@ -111,97 +209,16 @@ function LinkCard({
           thumbnailAsset={thumbnailAsset}
         />
       </Pressable>
-      <Pressable
-        // No button role: the todo counts inside are a tooltip trigger, and a button must not
-        // contain another button on web.
-        accessibilityHint="상세 열기"
-        accessibilityLabel={snippetLabel ? `${title}, ${snippetLabel}` : title}
-        className="grow gap-1.5 px-3 pb-3 pt-2.5"
-        testID="link-card-body"
-        onPress={onPress}
-      >
-        {highlightQuery?.trim() ? (
-          <HighlightedText
-            className="h-9 text-[13px] font-semibold leading-[18px] text-foreground"
-            numberOfLines={2}
-            query={highlightQuery}
-            testID="link-card-title"
-            text={title}
-          />
-        ) : (
-          <Text
-            className="h-9 text-[13px] font-semibold leading-[18px] text-foreground"
-            numberOfLines={2}
-            testID="link-card-title"
-          >
-            {title}
-          </Text>
-        )}
-        <View className="h-[18px] min-w-0 flex-row items-center justify-between gap-2">
-          <Text
-            className="min-w-[25%] flex-1 text-[11px] text-muted-foreground"
-            numberOfLines={1}
-          >
-            {domain}
-          </Text>
-          {statusLabel ? (
-            <Text
-              className={cn(
-                "min-w-0 shrink text-[11px] font-semibold",
-                statusVariant ? statusVariantClasses[statusVariant] : "text-muted-foreground",
-              )}
-              numberOfLines={1}
-              testID="link-card-status"
-            >
-              {statusLabel}
-            </Text>
-          ) : null}
-        </View>
-        {snippet ? (
-          <SnippetText
-            className="text-xs leading-[18px] text-muted-foreground"
-            highlights={snippet.highlights}
-            numberOfLines={2}
-            testID="link-card-snippet"
-            text={snippet.text}
-          />
-        ) : excerpt ? (
-          <Text
-            className="text-xs leading-[18px] text-muted-foreground"
-            numberOfLines={1}
-            testID="link-card-excerpt"
-          >
-            {excerpt}
-          </Text>
-        ) : null}
-        <View className="mt-auto h-5 min-w-0 flex-row items-center gap-2">
-          {/* Tags that do not fit wrap out of the fixed-height row instead of being cut. */}
-          <View
-            className="h-5 min-w-0 flex-1 flex-row flex-wrap content-start items-center gap-1.5 overflow-hidden"
-            testID="link-card-tags"
-          >
-            {tags.map((tag) => (
-              <View
-                key={tag}
-                className="max-w-full shrink rounded-lg border border-border-soft bg-surface-elevated px-1.5 py-px"
-              >
-                <Text
-                  className="text-xs font-medium text-muted-foreground"
-                  numberOfLines={1}
-                >
-                  {formatTagLabel(tag)}
-                </Text>
-              </View>
-            ))}
-          </View>
-          {todoCounts ? (
-            <TodoCountBadge
-              summary={todoCounts}
-              onPress={onPress}
-            />
-          ) : null}
-        </View>
-      </Pressable>
+      {bodyHref ? (
+        <Link
+          href={bodyHref}
+          asChild
+        >
+          {body}
+        </Link>
+      ) : (
+        body
+      )}
       {bookmarkHoverAction ? (
         <View
           className={cn(
