@@ -75,12 +75,15 @@ function ResourceVisit({
       if (!authToken && ("isShared" in response.data || "sourceType" in response.data)) {
         throw new Error("Unexpected authenticated resource response");
       }
-      return response.data;
+      const data = response.data;
+      if ("isShared" in data || "sourceType" in data) return { mode: "app" } as const;
+      if ("todos" in data) return { mode: "link", data } as const;
+      return { mode: "folder", data } as const;
     },
   });
 
-  const data = access.data;
-  const canUseApp = Boolean(authToken && data && ("isShared" in data || "sourceType" in data));
+  const resource = access.data;
+  const canUseApp = resource?.mode === "app";
   React.useEffect(() => {
     if (!focused || canUseApp) return;
     const handlePageShow = (event: PageTransitionEvent) => {
@@ -109,8 +112,8 @@ function ResourceVisit({
           name="robots"
           content="noindex"
         />
-        {data && access.isSuccess ? (
-          <title>{`${"title" in data ? data.title : data.name} · ALink`}</title>
+        {access.isSuccess && resource && resource.mode !== "app" ? (
+          <title>{`${resource.mode === "link" ? resource.data.title : resource.data.name} · ALink`}</title>
         ) : null}
       </Head>
       {!hasHydrated || access.isPending ? (
@@ -129,22 +132,20 @@ function ResourceVisit({
             description="삭제되었거나 접근 권한이 없어요."
           />
         </ScrollView>
-      ) : access.isError || !data ? (
+      ) : access.isError || !resource ? (
         <LoadErrorState
           title={kind === "folders" ? "폴더를 불러오지 못했어요" : "링크를 불러오지 못했어요"}
           isRetrying={access.isFetching}
           onRetry={() => void access.refetch()}
         />
-      ) : "todos" in data ? (
-        "sourceType" in data ? null : (
-          <ReadOnlyLinkScreen link={data} />
-        )
-      ) : (
+      ) : resource.mode === "link" ? (
+        <ReadOnlyLinkScreen link={resource.data} />
+      ) : resource.mode === "folder" ? (
         <ReadOnlyFolderScreen
-          folder={data}
+          folder={resource.data}
           authToken={authToken}
         />
-      )}
+      ) : null}
     </>
   );
 }
