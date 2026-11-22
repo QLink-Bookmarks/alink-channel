@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ScrollView } from "react-native";
+import { ScrollView, View, type ViewStyle } from "react-native";
 
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -7,17 +7,53 @@ import { LoadErrorState } from "@/components/ui/load-error-state";
 import { useAgreementStatus } from "@/features/agreements/hooks/use-agreement-status";
 import { getFolderDetail } from "@/features/folders/api";
 import { ReadOnlyFolderScreen } from "@/features/folders/components/read-only-folder-screen";
+import { usePublicFolderListQuery } from "@/features/folders/public-queries";
 import { getLinkAccess } from "@/features/links/api";
 import { ReadOnlyLinkScreen } from "@/features/links/components/read-only-link-screen";
 import { resourceReadOptions } from "@/features/navigation/lib/resource-read";
+import { getNativeThemeVars } from "@/lib/theme-vars";
 import { useAuthStore } from "@/stores/auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { isAxiosError } from "axios";
 import { useIsFocused, usePathname } from "expo-router";
 import Head from "expo-router/head";
 
 const DETAIL_PATH = /^\/(folders|links)\/(\d+)\/?$/;
+const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
+
+function subscribeToSystemTheme(onChange: () => void) {
+  const preference = window.matchMedia(COLOR_SCHEME_QUERY);
+  preference.addEventListener("change", onChange);
+  return () => preference.removeEventListener("change", onChange);
+}
+
+function ReadOnlyTheme({
+  useSystemTheme,
+  children,
+}: {
+  useSystemTheme: boolean;
+  children: React.ReactNode;
+}) {
+  const isDark = React.useSyncExternalStore(
+    subscribeToSystemTheme,
+    () => window.matchMedia(COLOR_SCHEME_QUERY).matches,
+    () => false,
+  );
+  const theme = useSystemTheme ? (isDark ? "dark" : "light") : undefined;
+  return (
+    <View
+      className={theme === "dark" ? "dark flex-1" : "flex-1"}
+      style={theme ? (getNativeThemeVars(theme, "gray") as ViewStyle) : undefined}
+    >
+      {children}
+    </View>
+  );
+}
+
+function isUnavailable(error: unknown) {
+  return isAxiosError(error) && error.response?.status === 404;
+}
 
 function ResourceAccess({ children }: { children: React.ReactNode }) {
   const match = DETAIL_PATH.exec(usePathname());
@@ -58,15 +94,25 @@ function ResourceVisit({
   const readToken = needsAgreement ? null : authToken;
   const focused = useIsFocused();
   const visit = React.useId();
+  const queryClient = useQueryClient();
   const [browserVisit, advanceBrowserVisit] = React.useReducer((value) => value + 1, 0);
   const [session, setSession] = React.useState({ authToken, version: 0 });
+  const [revokedVisit, setRevokedVisit] = React.useState<string>();
   if (session.authToken !== authToken) {
     setSession({ authToken, version: session.version + 1 });
   }
 
+  const listVisit = `${visit}:${session.version}:${browserVisit}:${needsAgreement}`;
+  const resourceKey = ["resource-read", kind, id, listVisit] as const;
+  const wasRevoked = revokedVisit === listVisit;
   const access = useQuery({
-    enabled: hasHydrated && focused && !waitingForAgreement && session.authToken === authToken,
-    queryKey: ["resource-read", kind, id, visit, session.version, browserVisit, needsAgreement],
+    enabled:
+      hasHydrated &&
+      focused &&
+      !waitingForAgreement &&
+      !wasRevoked &&
+      session.authToken === authToken,
+    queryKey: resourceKey,
     gcTime: 0,
     retry: false,
     refetchOnWindowFocus: false,
@@ -88,6 +134,36 @@ function ResourceVisit({
 
   const resource = access.data;
   const canUseApp = resource?.mode === "app";
+  const readFolderLists =
+    focused &&
+    !waitingForAgreement &&
+    !wasRevoked &&
+    access.isSuccess &&
+    resource?.mode === "folder";
+  const links = usePublicFolderListQuery(id, listVisit, "links", readFolderLists);
+  const todos = usePublicFolderListQuery(id, listVisit, "todos", readFolderLists);
+  const listUnavailable =
+    readFolderLists && (isUnavailable(links.error) || isUnavailable(todos.error));
+  if (listUnavailable) setRevokedVisit(listVisit);
+  const unavailable = wasRevoked || listUnavailable || isUnavailable(access.error);
+  const publicTitle =
+    !unavailable && access.isSuccess && resource?.mode !== "app"
+      ? resource?.mode === "link"
+        ? resource.data.title
+        : resource?.data.name
+      : undefined;
+
+  React.useLayoutEffect(() => {
+    if (!focused || canUseApp) return;
+    document.title = publicTitle ? `${publicTitle} · ALink` : "ALink";
+  }, [canUseApp, focused, publicTitle]);
+
+  React.useEffect(() => {
+    if (!wasRevoked) return;
+    queryClient.removeQueries({ queryKey: ["resource-read", kind, id, listVisit], exact: true });
+    queryClient.removeQueries({ queryKey: ["folder-read", id, listVisit] });
+  }, [id, kind, listVisit, queryClient, wasRevoked]);
+
   React.useEffect(() => {
     if (!focused || canUseApp) return;
     const handlePageShow = (event: PageTransitionEvent) => {
@@ -106,22 +182,18 @@ function ResourceVisit({
 
   if (!focused) return null;
   if (waitingForAgreement) return children;
-  const unavailable = isAxiosError(access.error) && access.error.response?.status === 404;
   if (canUseApp && access.isSuccess) return children;
   if (unavailable && !readToken) return children;
 
   return (
-    <>
+    <ReadOnlyTheme useSystemTheme={!authToken}>
       <Head>
         <meta
           name="robots"
           content="noindex"
         />
-        {access.isSuccess && resource && resource.mode !== "app" ? (
-          <title>{`${resource.mode === "link" ? resource.data.title : resource.data.name} · ALink`}</title>
-        ) : null}
       </Head>
-      {!hasHydrated || access.isPending ? (
+      {!hasHydrated || (!unavailable && access.isPending) ? (
         <ActivityIndicator
           size="large"
           className="flex-1 py-16"
@@ -148,10 +220,11 @@ function ResourceVisit({
       ) : resource.mode === "folder" ? (
         <ReadOnlyFolderScreen
           folder={resource.data}
-          authToken={readToken}
+          links={links}
+          todos={todos}
         />
       ) : null}
-    </>
+    </ReadOnlyTheme>
   );
 }
 

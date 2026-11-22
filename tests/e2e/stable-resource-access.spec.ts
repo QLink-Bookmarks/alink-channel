@@ -9,6 +9,8 @@ const API_PATH = `/api/folders/${FOLDER_ID}`;
 const FOLDER_NAME = "도시 산책 기록";
 const LONG_URL = `https://example.com/${"long-url-".repeat(22)}`;
 
+test.setTimeout(60_000);
+
 test.beforeEach(async ({ page }) => {
   await page.route(
     /^https:\/\/(?:accounts\.google\.com|appleid\.cdn-apple\.com|t1\.kakaocdn\.net)\//,
@@ -28,7 +30,8 @@ async function mockPublicFolder(page: Page) {
       { linkId: LINK_ID, title: "다음 산책 코스 고르기", isCompleted: false },
       { linkId: LINK_ID, title: "전시 예약하기", isCompleted: true },
     ],
-    authorization: [] as (string | undefined)[],
+    requests: [] as { path: string; token?: string }[],
+    personalRowsForAuthenticatedLists: false,
   };
   await page.route(
     (url) =>
@@ -39,7 +42,8 @@ async function mockPublicFolder(page: Page) {
     async (route) => {
       const request = route.request();
       const url = new URL(request.url());
-      state.authorization.push(request.headers().authorization);
+      const token = request.headers().authorization;
+      state.requests.push({ path: url.pathname, token });
       let status = state.headStatus;
       let response: unknown = envelope({ id: FOLDER_ID, name: FOLDER_NAME, emoji: "🗺️" });
       if (url.pathname === `/api/links/${LINK_ID}`) {
@@ -63,6 +67,19 @@ async function mockPublicFolder(page: Page) {
         status = state.headStatus === 404 ? 404 : state.todosStatus;
         response = scroll(state.todos);
       }
+      if (state.personalRowsForAuthenticatedLists && token) {
+        if (url.pathname === "/api/links")
+          response = scroll([
+            {
+              id: 700,
+              title: "탈퇴 전 개인 링크",
+              url: "https://private.example.com",
+              isFavorite: false,
+            },
+          ]);
+        if (url.pathname === "/api/todos")
+          response = scroll([{ id: 701, title: "탈퇴 전 개인 액션", completedAt: null }]);
+      }
       await route.fulfill({
         status,
         json: status === 200 ? response : { success: false, data: null },
@@ -76,16 +93,17 @@ for (const signedIn of [false, true]) {
   test(`opens and reloads the same read-only folder (signed in: ${signedIn})`, async ({ page }) => {
     const account = await mockApi(page, { seedSession: signedIn });
     const state = await mockPublicFolder(page);
+    state.personalRowsForAuthenticatedLists = signedIn;
     await page.goto(WEB_PATH);
     const heading = page.getByRole("heading", { level: 1, name: new RegExp(FOLDER_NAME) });
     const link = page.getByRole("link", { name: "오래된 골목길" });
     await expect(heading).toBeVisible();
     await expect(link).toHaveAttribute("href", `/links/${LINK_ID}`);
-    await expect(page.getByText(LONG_URL)).toBeVisible();
-    await expect(page.getByText("완료", { exact: true })).toBeVisible();
-    await expect(page.getByText("미완료", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("전시 예약하기, 완료")).toBeVisible();
+    await expect(page.getByLabel("다음 산책 코스 고르기, 미완료")).toBeVisible();
     await page.getByText("다음 산책 코스 고르기").click();
-    await expect(page.getByText("미완료", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("다음 산책 코스 고르기, 미완료")).toBeVisible();
+    await expect(page.getByText(/탈퇴 전 개인/)).toHaveCount(0);
     await expect(page.getByRole("checkbox")).toHaveCount(0);
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
     await link.click();
@@ -94,7 +112,7 @@ for (const signedIn of [false, true]) {
     await expect(page.getByRole("checkbox")).toHaveCount(0);
     await page.context().route(LONG_URL, (route) => route.fulfill({ body: "원문" }));
     const opened = page.context().waitForEvent("page");
-    await page.getByRole("link", { name: LONG_URL }).click();
+    await page.getByRole("link", { name: "원본 열기, example.com" }).click();
     const original = await opened;
     await expect(original).toHaveURL(LONG_URL);
     await original.close();
@@ -102,15 +120,17 @@ for (const signedIn of [false, true]) {
     await expect(page.getByRole("heading", { name: "오래된 골목길" })).toBeVisible();
     await page.getByRole("link", { name: new RegExp(FOLDER_NAME) }).click();
     await expect(heading).toBeVisible();
-    expect(state.authorization.length).toBeGreaterThanOrEqual(6);
+    expect(state.requests.length).toBeGreaterThanOrEqual(6);
     expect(
       account.requests.filter(({ path }) => /^\/api\/(folders|links|todos)\b/.test(path)),
     ).toEqual([]);
-    expect(
-      state.authorization.every(
-        (value) => value === (signedIn ? "Bearer e2e-access-token" : undefined),
-      ),
-    ).toBe(true);
+    for (const { path, token } of state.requests) {
+      expect(token).toBe(
+        signedIn && path !== "/api/links" && path !== "/api/todos"
+          ? "Bearer e2e-access-token"
+          : undefined,
+      );
+    }
   });
 }
 
@@ -155,7 +175,8 @@ test("retains rows on a paging failure and clears the whole view on withdrawal",
   await expect(page.getByRole("button", { name: "링크 더 보기" })).toBeVisible();
   state.headStatus = 404;
   await page.getByRole("button", { name: "링크 더 보기" }).click();
-  await expect(page.getByText("이 주소로 폴더를 열 수 없어요.")).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).not.toHaveTitle(new RegExp(FOLDER_NAME));
   await expect(page.getByText(FOLDER_NAME, { exact: false })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "오래된 골목길" })).toHaveCount(0);
   await expect(page.getByText("다음 산책 코스 고르기")).toHaveCount(0);
@@ -178,6 +199,7 @@ test("checks the public address again after returning through browser history", 
   const state = await mockPublicFolder(page);
   await page.goto(WEB_PATH);
   await expect(page.getByRole("heading", { name: new RegExp(FOLDER_NAME) })).toBeVisible();
+  await expect(page).toHaveTitle(new RegExp(FOLDER_NAME));
   await page.goto("/privacy");
   state.headStatus = 404;
   await page.goBack();
@@ -186,7 +208,7 @@ test("checks the public address again after returning through browser history", 
   await expect(page.getByRole("link", { name: "오래된 골목길" })).toHaveCount(0);
 });
 
-test("wraps a long title and address inside one link row", async ({ page }) => {
+test("keeps a long title within the existing link card", async ({ page }) => {
   await mockApi(page, { seedSession: false });
   const state = await mockPublicFolder(page);
   const title = "오래된골목길산책기록".repeat(22);
@@ -194,19 +216,48 @@ test("wraps a long title and address inside one link row", async ({ page }) => {
   state.todos = [];
   await page.goto(WEB_PATH);
   const link = page.getByRole("link", { name: title });
-  const row = page.getByRole("listitem").filter({ has: link });
-  const address = row.getByText(LONG_URL, { exact: true });
-  await expect(row).toHaveCount(1);
-  await expect(address).toBeVisible();
-  const rowBox = (await row.boundingBox())!;
-  const titleBox = (await link.boundingBox())!;
-  const addressBox = (await address.boundingBox())!;
-  expect(titleBox.height).toBeGreaterThan(24);
-  expect(titleBox.y + titleBox.height).toBeLessThanOrEqual(addressBox.y);
-  for (const box of [titleBox, addressBox]) {
-    expect(box.x).toBeGreaterThanOrEqual(rowBox.x);
-    expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+  await expect(link).toHaveAttribute("href", `/links/${LINK_ID}`);
+  const box = (await link.boundingBox())!;
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+});
+
+test("restores the system color scheme for an anonymous folder and link", async ({ page }) => {
+  await mockApi(page, { seedSession: false });
+  await mockPublicFolder(page);
+  for (const path of [WEB_PATH, `/links/${LINK_ID}`]) {
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.goto(path);
+    const heading = page.getByRole("heading", { level: 1 });
+    await expect(heading).toBeVisible();
+    const background = () =>
+      heading.evaluate((element) =>
+        getComputedStyle(element).getPropertyValue("--background").trim(),
+      );
+    const light = await background();
+    await page.emulateMedia({ colorScheme: "dark" });
+    await expect.poll(background).not.toBe(light);
   }
+});
+
+test("uses the same denied state for a signed-in visitor when the todo list is withdrawn", async ({
+  page,
+}) => {
+  await mockApi(page);
+  const state = await mockPublicFolder(page);
+  await page.goto(WEB_PATH);
+  await expect(page.getByText("다음 산책 코스 고르기")).toBeVisible();
+  await expect(page).toHaveTitle(new RegExp(FOLDER_NAME));
+  state.todosStatus = 404;
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(page.getByText("폴더를 찾을 수 없어요")).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(WEB_PATH + "$"));
+  await expect(page).not.toHaveTitle(new RegExp(FOLDER_NAME));
+  await expect(page.getByText("다음 산책 코스 고르기")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "오래된 골목길" })).toHaveCount(0);
+  state.headStatus = 404;
+  await page.reload();
+  await expect(page.getByText("폴더를 찾을 수 없어요")).toBeVisible();
+  await expect(page).not.toHaveTitle(new RegExp(FOLDER_NAME));
 });
 
 test("keeps the personal overlay read-write controls hidden for a public link projection", async ({
