@@ -13,7 +13,7 @@ async function openLanding(page: Page) {
     (url) => url.pathname.startsWith("/api/") && !url.host.startsWith("localhost:"),
     (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }),
   );
-  await page.goto("/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.getByText("웹으로 시작하기").first()).toBeVisible({ timeout: 30_000 });
 }
 
@@ -30,7 +30,9 @@ test.describe("2.0.0 landing slides", () => {
     await openLanding(page);
     await scrollThrough(page);
 
-    const subjects = page.getByText(/^(All Around|Archive|AI|Ask & Access|Action|Amigo)$/);
+    const subjects = page
+      .getByRole("region")
+      .getByText(/^(All Around|Archive|AI|Ask & Access|Action|Amigo)$/);
     await expect(subjects).toHaveText(SUBJECTS);
     await expect(page.getByText("All Around")).toHaveCount(0);
     await expect(page.getByText("이게 여기 있었나?")).toHaveCount(0);

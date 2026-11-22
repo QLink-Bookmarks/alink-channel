@@ -64,6 +64,9 @@ async function setUp(
     profileFailures?: number;
     consentFailures?: number;
     signInFailures?: number;
+    cancelPopupOnce?: boolean;
+    connectionSessionExpired?: boolean;
+    callbackResponse?: Promise<void>;
   } = {},
 ) {
   let agreed = !options.needsConsent;
@@ -71,6 +74,8 @@ async function setUp(
   let profileFailures = options.profileFailures ?? 0;
   let signInFailures = options.signInFailures ?? 0;
   const invite = { folderId: "4", token: "original-invite-token" };
+  // Expo's development LogBox can cover the mobile agreement controls.
+  await page.addLocatorHandler(page.locator("#error-toast button"), (dismiss) => dismiss.click());
   await page.addInitScript(
     ({ pendingInvite, pendingShare }) => {
       if (!sessionStorage.getItem("entry-fixtures")) {
@@ -85,8 +90,8 @@ async function setUp(
           isInitialized: () => true,
           Auth: {
             setAccessToken: () => {},
-            authorize: ({ state }: { state: string }) => {
-              location.href = "/__e2e__/provider?kakao=" + encodeURIComponent(state);
+            authorize: ({ state, redirectUri }: { state: string; redirectUri: string }) => {
+              location.href = "/__e2e__/provider?" + new URLSearchParams({ state, redirectUri });
             },
           },
         },
@@ -96,35 +101,56 @@ async function setUp(
     { pendingInvite: options.invite && invite, pendingShare: options.share && sharedUrl },
   );
   await page.route(kakaoSdk, (route) => route.abort());
-  await page.route("https://appleid.cdn-apple.com/**", (route) => route.abort());
-  await page.route("https://kauth.kakao.com/oauth/token", (route) =>
-    json(route, { access_token: "kakao-token", token_type: "bearer", expires_in: 3600 }),
+  await page.route("https://appleid.cdn-apple.com/**", (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: `let cancel = ${Boolean(options.cancelPopupOnce)};
+      window.AppleID = { auth: {
+        init: (config) => { if (!config.usePopup) throw Error("Expected an Apple popup"); },
+        signIn: async () => {
+          if (cancel) { cancel = false; throw { error: "popup_closed_by_user" }; }
+          return { authorization: { id_token: "apple-token" } };
+        },
+      } };`,
+    }),
   );
+  await page.route("https://kauth.kakao.com/oauth/token", (route) => {
+    const body = new URLSearchParams(route.request().postData() ?? "");
+    expect(body.get("redirect_uri")).toBe(new URL("/auth/callback", page.url()).href);
+    return json(route, { access_token: "kakao-token", token_type: "bearer", expires_in: 3600 });
+  });
   await page.route(googleSdk, (route) =>
     route.fulfill({
       contentType: "application/javascript",
-      body: `window.google = { accounts: { oauth2: { initTokenClient: ({ callback }) => ({
-      requestAccessToken: () => callback({ access_token: "google-token" }),
+      body: `let cancelGoogle = ${Boolean(options.cancelPopupOnce)};
+      window.google = { accounts: { oauth2: { initTokenClient: ({ callback, error_callback }) => ({
+      requestAccessToken: () => {
+        if (cancelGoogle) { cancelGoogle = false; error_callback({ type: "popup_closed" }); }
+        else callback({ access_token: "google-token" });
+      },
     }) } } };`,
     }),
   );
   await page.route("https://nid.naver.com/oauth2.0/authorize?*", (route) => {
     const requestUrl = new URL(route.request().url());
     const callback = requestUrl.searchParams.get("redirect_uri");
+    expect(callback).toBe(new URL("/auth/callback", page.url()).href);
     const state = encodeURIComponent(requestUrl.searchParams.get("state") ?? "");
     return providerPage(
       route,
-      `${callback}/#access_token=naver-token&state=${state}`,
-      `${callback}/#error=access_denied&state=${state}`,
+      `${callback}#access_token=naver-token&state=${state}`,
+      `${callback}#error=access_denied&state=${state}`,
     );
   });
   await page.route("**/__e2e__/provider?*", (route) => {
     const params = new URL(route.request().url()).searchParams;
-    const state = encodeURIComponent(params.get("kakao") ?? "");
+    const state = encodeURIComponent(params.get("state") ?? "");
+    const callback = params.get("redirectUri");
+    expect(callback).toBe(new URL("/auth/callback", route.request().url()).href);
     return providerPage(
       route,
-      `/?code=e2e-code&state=${state}`,
-      `/?error=access_denied&state=${state}`,
+      `${callback}?code=e2e-code&state=${state}`,
+      `${callback}?error=access_denied&state=${state}`,
     );
   });
 
@@ -141,7 +167,8 @@ async function setUp(
         }
         return json(route, { success: false, data: null }, 401);
       },
-      "POST /api/auth/sign": (route) => {
+      "POST /api/auth/sign": async (route) => {
+        await options.callbackResponse;
         if (signInFailures-- > 0) return json(route, { success: false, data: null }, 400);
         return json(route, envelope({ accessToken: "new-access-token" }), 201);
       },
@@ -169,7 +196,12 @@ async function setUp(
         options.invite === "failure"
           ? json(route, { success: false, data: null, error: { message: "만료된 초대" } }, 400)
           : json(route, envelope({ folderId: 4 })),
-      "POST /api/auth/connection": (route) => json(route, envelope({ id: 9 }), 201),
+      "POST /api/auth/connection": async (route) => {
+        await options.callbackResponse;
+        return options.connectionSessionExpired
+          ? json(route, { success: false, error: { code: "AUTH_401_0001" } }, 401)
+          : json(route, envelope({ id: 9 }), 201);
+      },
     },
   });
 }
@@ -486,7 +518,9 @@ for (const provider of ["카카오로 계속하기", "네이버로 계속하기"
     await expectHome(page);
     await page.goto(callbackAddress);
     await expect(page).toHaveURL("/");
-    await expect(page.getByText(landing, { exact: true }).first()).toBeVisible();
+    await expect(
+      page.getByText(landing, { exact: true }).filter({ visible: true }).first(),
+    ).toBeVisible();
     expect(state.requests.filter(({ path }) => path === "/api/auth/sign")).toHaveLength(1);
 
     if (provider === "네이버로 계속하기") {
@@ -499,12 +533,24 @@ for (const provider of ["카카오로 계속하기", "네이버로 계속하기"
 
       await page.goto(callbackAddress);
       await expect(page).toHaveURL("/");
-      await expect(page.getByText(landing, { exact: true }).first()).toBeVisible();
+      await expect(
+        page.getByText(landing, { exact: true }).filter({ visible: true }).first(),
+      ).toBeVisible();
       const connections = () =>
         state.requests.filter(({ path }) => path === "/api/auth/connection");
       expect(connections()).toHaveLength(0);
 
+      const rootReturn = new URL(currentCallback!);
+      rootReturn.pathname = "/";
+      await page.goto(rootReturn.href);
+      await expect(page.getByText(landing, { exact: true }).first()).toBeVisible();
+      await page.reload();
+      await expect(page).toHaveURL(rootReturn.href);
+      await expect(page.getByText(landing, { exact: true }).first()).toBeVisible();
+      expect(connections()).toHaveLength(0);
+
       await page.goto(currentCallback!);
+      await expect(page).toHaveURL("/settings");
       await expect(page.getByText("계정을 연결했어요.")).toBeVisible();
       expect(connections().map(({ body }) => body)).toEqual([
         { provider: "KAKAO", token: "kakao-token", platform: "WEB" },
@@ -532,15 +578,185 @@ test("cancelled and failed external login can retry the original flow", async ({
   await expectDestination(page, isMobile);
 });
 
-test("account connection from Settings shows the outcome and goes home", async ({ page }) => {
-  await setUp(page);
-  await page.goto("/settings");
-  await page.getByLabel("계정 연결 추가").click();
-  await page.getByText("카카오 계정 연결", { exact: true }).click();
-  await page.getByRole("link", { name: "인증 완료" }).click();
-  await expect(page.getByText("계정을 연결했어요.")).toBeVisible();
-  await expectHome(page);
+test("a fresh tab with an unsolicited callback cleans the URL and opens landing", async ({
+  page,
+}) => {
+  const state = await setUp(page, { guest: true });
+  await page.goto("/privacy");
+  await page.goto("/auth/callback?code=unsolicited&state=kakao:unknown");
+  await expect(page).toHaveURL("/");
+  await expect(
+    page.getByText(landing, { exact: true }).filter({ visible: true }).first(),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page).toHaveURL("/");
+  await page.goBack();
+  await expect(page).toHaveURL("/privacy");
+  expect(state.requests.filter(({ path }) => path === "/api/auth/sign")).toHaveLength(0);
 });
+
+for (const provider of ["카카오", "네이버"]) {
+  test(`${provider} redirect connection returns to Settings on cancel and success`, async ({
+    page,
+  }) => {
+    const state = await setUp(page);
+    await page.goto("/settings");
+    const connections = () => state.requests.filter(({ path }) => path === "/api/auth/connection");
+
+    for (const result of ["인증 취소", "인증 완료"]) {
+      await page.getByLabel("계정 연결 추가").click();
+      await page.getByText(`${provider} 계정 연결`, { exact: true }).click();
+      await page.getByRole("link", { name: result }).click();
+      await expect(page).toHaveURL("/settings");
+      await expect(page.getByLabel("계정 연결 추가")).toBeVisible();
+      if (result === "인증 취소") {
+        expect(connections()).toHaveLength(0);
+        await expect(page.getByText("연결에 실패했어요.")).toHaveCount(0);
+      }
+    }
+    await expect(page.getByText("계정을 연결했어요.")).toBeVisible();
+    expect(connections()).toHaveLength(1);
+    await page.reload();
+    await expect(page).toHaveURL("/settings");
+    await expect(page.getByText("계정을 연결했어요.")).toHaveCount(0);
+    expect(connections()).toHaveLength(1);
+  });
+}
+
+for (const { session, expiredAtApi } of [
+  { session: "missing at callback", expiredAtApi: false },
+  { session: "rejected by the connection API", expiredAtApi: true },
+]) {
+  test(`a connection session ${session} shows failure after reauthentication in Settings`, async ({
+    page,
+  }) => {
+    const state = await setUp(page, { guest: true, connectionSessionExpired: expiredAtApi });
+    await page.addInitScript(() => {
+      if (!sessionStorage.getItem("connection-session-seeded")) {
+        sessionStorage.setItem("connection-session-seeded", "1");
+        sessionStorage.setItem("qlink-auth", JSON.stringify({ accessToken: "expired-session" }));
+      }
+    });
+    await page.goto("/settings");
+    await page.getByLabel("계정 연결 추가").click();
+    await page.getByText("카카오 계정 연결", { exact: true }).click();
+
+    const providerReturn = page.getByRole("link", { name: "인증 완료" });
+    await expect(providerReturn).toBeVisible();
+    if (!expiredAtApi) await page.evaluate(() => sessionStorage.removeItem("qlink-auth"));
+    const kakaoExchanges: string[] = [];
+    page.on("request", (request) => {
+      if (request.url() === "https://kauth.kakao.com/oauth/token") {
+        kakaoExchanges.push(request.method());
+      }
+    });
+    await providerReturn.click();
+    await expect(page).toHaveURL("/login");
+    await expect(page.getByText("연결에 실패했어요.")).toHaveCount(0);
+    const connectionPath = "/api/auth/connection";
+    const authRequests = () =>
+      state.requests
+        .filter(({ path }) => path === connectionPath || path === refreshPath)
+        .map(({ path }) => path);
+    const expectedRequests = expiredAtApi ? [connectionPath, refreshPath] : [refreshPath];
+    expect(authRequests()).toEqual(expectedRequests);
+
+    // Complete reauthentication through a full-page provider redirect.
+    await page.getByText("네이버로 계속하기", { exact: true }).click();
+    await page.getByRole("link", { name: "인증 완료" }).click();
+    await expect(page).toHaveURL("/settings");
+    await expect(page.getByLabel("계정 연결 추가")).toBeVisible();
+    await expect(page.getByText("연결에 실패했어요.")).toBeVisible();
+    expect(kakaoExchanges).toHaveLength(expiredAtApi ? 1 : 0);
+    expect(authRequests()).toEqual(expectedRequests);
+
+    await page.reload();
+    await expect(page.getByLabel("계정 연결 추가")).toBeVisible();
+    await expect(page.getByText("연결에 실패했어요.")).toHaveCount(0);
+  });
+}
+
+for (const { mode, provider, apiPath } of [
+  { mode: "login", provider: "네이버로 계속하기", apiPath: "/api/auth/sign" },
+  { mode: "connect", provider: "카카오 계정 연결", apiPath: "/api/auth/connection" },
+]) {
+  test(`the ${mode} callback scrubs credentials and does not replay on reload during a request`, async ({
+    page,
+  }) => {
+    const response = deferred();
+    try {
+      const guest = mode === "login";
+      const state = await setUp(page, { guest, callbackResponse: response.promise });
+      await page.goto(guest ? destination : "/settings");
+      if (!guest) await page.getByLabel("계정 연결 추가").click();
+      await page.getByText(provider, { exact: true }).click();
+      await page.getByRole("link", { name: "인증 완료" }).click();
+
+      const requests = () => state.requests.filter(({ path }) => path === apiPath).length;
+      await expect.poll(requests).toBe(1);
+      await expect(page).toHaveURL("/auth/callback");
+      await expect(page.getByText(checking).filter({ visible: true })).toBeVisible();
+      await page.reload();
+      await expect(page).toHaveURL("/");
+      await expect(
+        page.getByText(landing, { exact: true }).filter({ visible: true }).first(),
+      ).toBeVisible();
+      expect(requests()).toBe(1);
+    } finally {
+      response.release();
+    }
+  });
+}
+
+for (const provider of ["Apple", "Google"]) {
+  test(`${provider} popup login retries after closure and resumes the protected destination`, async ({
+    page,
+    isMobile,
+  }) => {
+    const state = await setUp(page, { guest: true, needsConsent: true, cancelPopupOnce: true });
+    await page.goto(destination);
+    const button = page.getByText(`${provider}로 계속하기`, { exact: true });
+    await button.click();
+    await expect(page).toHaveURL("/login");
+    await expect(page.getByText("로그인에 실패했어요")).toHaveCount(0);
+    expect(state.requests.filter(({ path }) => path === "/api/auth/sign")).toHaveLength(0);
+    await button.click();
+    await agree(page);
+    await expectDestination(page, isMobile);
+    expect(
+      state.requests.filter(({ path }) => path === "/api/auth/sign").map(({ body }) => body),
+    ).toEqual([
+      {
+        provider: provider.toUpperCase(),
+        token: `${provider.toLowerCase()}-token`,
+        platform: "WEB",
+      },
+    ]);
+  });
+
+  test(`${provider} popup connection retries after closure and stays on Settings`, async ({
+    page,
+  }) => {
+    const state = await setUp(page, { cancelPopupOnce: true });
+    await page.goto("/settings");
+    await page.getByLabel("계정 연결 추가").click();
+    const button = page.getByText(`${provider}로 계속하기`, { exact: true });
+    await button.click();
+    await expect(page.getByText("계정 연결", { exact: true }).first()).toBeVisible();
+    const connections = () => state.requests.filter(({ path }) => path === "/api/auth/connection");
+    expect(connections()).toHaveLength(0);
+    await button.click();
+    await expect(page.getByText("계정을 연결했어요.")).toBeVisible();
+    await expect(page).toHaveURL("/settings");
+    expect(connections().map(({ body }) => body)).toEqual([
+      {
+        provider: provider.toUpperCase(),
+        token: `${provider.toLowerCase()}-token`,
+        platform: "WEB",
+      },
+    ]);
+  });
+}
 
 for (const [invite, share] of [
   ["success", false],
