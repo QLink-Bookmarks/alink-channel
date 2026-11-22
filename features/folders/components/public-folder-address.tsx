@@ -8,13 +8,13 @@ import { getWebAppOrigin } from "@/lib/app-variant";
 import * as Clipboard from "expo-clipboard";
 import { Link } from "expo-router";
 
-function PublicFolderAddress({ publicId }: { publicId: string }) {
+function PublicFolderAddress({ folderId }: { folderId: number }) {
   const [status, setStatus] = React.useState<"copied" | "failed">();
   const origin =
     process.env.EXPO_OS === "web" && typeof window !== "undefined"
       ? window.location.origin
       : getWebAppOrigin();
-  const url = `${origin}/public/folders/${encodeURIComponent(publicId)}`;
+  const url = `${origin}/folders/${folderId}`;
 
   const handleCopy = async () => {
     try {

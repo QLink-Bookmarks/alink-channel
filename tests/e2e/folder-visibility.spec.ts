@@ -12,8 +12,6 @@ import {
 } from "./support/mock-api";
 
 const FOLDER_ID = 1;
-const ORIGINAL_ADDRESS = "857efcec-99fe-4d0f-a6e1-74ffdb2534c4";
-const NEW_ADDRESS = "f6b87245-02ff-40fc-91ca-0ab6968b1ddb";
 const PUBLISH_TITLE = "폴더를 전체 공개할까요?";
 const FOLDER_INPUT = "예: 디자인 레퍼런스";
 
@@ -26,7 +24,7 @@ test("a new folder defaults to private and returns its public address without co
     folders: [],
     handlers: {
       "GET /api/folders/1/privacy": (route) =>
-        route.fulfill({ json: envelope({ isPublic: true, publicId: ORIGINAL_ADDRESS }) }),
+        route.fulfill({ json: envelope({ isPublic: true }) }),
     },
   });
   await page.goto(isWideProject() ? "/home" : "/folders");
@@ -43,7 +41,7 @@ test("a new folder defaults to private and returns its public address without co
   expect(
     state.requests.filter(({ path, method }) => path === "/api/folders" && method === "POST"),
   ).toHaveLength(1);
-  const address = new URL(`/public/folders/${ORIGINAL_ADDRESS}`, page.url()).href;
+  const address = new URL(`/folders/${FOLDER_ID}`, page.url()).href;
   await expect(page.getByText(address, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "주소 복사" }).click();
   await expect(page.getByText("공개 주소를 복사했어요.")).toBeVisible();
@@ -165,32 +163,27 @@ async function mockFolderOwner(
   theme: "light" | "dark",
   failures: { beforeWrite?: boolean; afterWrite?: boolean } = {},
 ) {
-  let publicId: string | null = null;
-  let previousAddress: string | null = null;
+  let isPublic = false;
   const [folder] = makeFolders(1);
   const state = await mockApi(page, {
     folders: [{ ...folder, isShared: true }],
     handlers: {
       "GET /api/users/me/settings": settingsHandler(theme, "gray"),
       [`GET /api/folders/${FOLDER_ID}/privacy`]: (route) =>
-        route.fulfill({ json: envelope({ isPublic: publicId !== null, publicId }) }),
+        route.fulfill({ json: envelope({ isPublic }) }),
       [`PUT /api/folders/${FOLDER_ID}`]: (route, request) => {
         const data = request.postDataJSON() as { isPublic?: boolean };
         if (failures.beforeWrite) {
           failures.beforeWrite = false;
           return route.fulfill({ status: 503, json: { success: false, data: null } });
         }
-        if (data.isPublic === true && !publicId) {
-          publicId = previousAddress ? NEW_ADDRESS : ORIGINAL_ADDRESS;
-          previousAddress = publicId;
-        }
-        if (data.isPublic === false) publicId = null;
+        if (data.isPublic !== undefined) isPublic = data.isPublic;
         if (failures.afterWrite) {
           failures.afterWrite = false;
           return route.abort("failed");
         }
         return route.fulfill({
-          json: envelope({ id: FOLDER_ID, isPublic: publicId !== null, publicId }),
+          json: envelope({ id: FOLDER_ID, isPublic }),
         });
       },
     },
@@ -230,12 +223,12 @@ test("preserves the folder draft on failure and reloads a committed change after
 
 test("reads current visibility when the folder form is reopened immediately", async ({ page }) => {
   const [folder] = makeFolders(1);
-  let publicId: string | null = ORIGINAL_ADDRESS;
+  let isPublic = true;
   const state = await mockApi(page, {
     folders: [{ ...folder, isPublic: true }],
     handlers: {
       [`GET /api/folders/${FOLDER_ID}/privacy`]: (route) =>
-        route.fulfill({ json: envelope({ isPublic: publicId !== null, publicId }) }),
+        route.fulfill({ json: envelope({ isPublic }) }),
     },
   });
 
@@ -245,7 +238,7 @@ test("reads current visibility when the folder form is reopened immediately", as
   await form.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("radio", { name: "전체 공개" })).toHaveCount(0);
 
-  publicId = null;
+  isPublic = false;
   const reopened = await openEdit(page);
   await expect(reopened.getByRole("radio", { name: "나만 보기" })).toBeChecked();
   await expect(reopened.getByRole("link", { name: "공개 페이지 열기" })).toHaveCount(0);
@@ -255,7 +248,7 @@ test("reads current visibility when the folder form is reopened immediately", as
 });
 
 for (const theme of ["light", "dark"] as const) {
-  test(`publishes only after confirmation, preserves collaboration and replaces withdrawn addresses in ${theme}`, async ({
+  test(`publishes only after confirmation, preserves collaboration and keeps the folder address through republication in ${theme}`, async ({
     page,
   }) => {
     const writes = await mockFolderOwner(page, theme);
@@ -287,10 +280,7 @@ for (const theme of ["light", "dark"] as const) {
       { name: "협업 이름 초안", emoji: "📁", isShared: true, isPublic: true },
     ]);
     const firstAddress = page.getByRole("link", { name: "공개 페이지 열기" });
-    await expect(firstAddress).toHaveAttribute(
-      "href",
-      new RegExp(`/public/folders/${ORIGINAL_ADDRESS}$`),
-    );
+    await expect(firstAddress).toHaveAttribute("href", new RegExp(`/folders/${FOLDER_ID}$`));
     await page.getByRole("button", { name: "완료", exact: true }).click();
 
     const publicForm = await openEdit(page);
@@ -307,10 +297,7 @@ for (const theme of ["light", "dark"] as const) {
     });
 
     const cancelRevokeForm = await openEdit(page);
-    await expect(firstAddress).toHaveAttribute(
-      "href",
-      new RegExp(`/public/folders/${ORIGINAL_ADDRESS}$`),
-    );
+    await expect(firstAddress).toHaveAttribute("href", new RegExp(`/folders/${FOLDER_ID}$`));
     await cancelRevokeForm.getByRole("radio", { name: "나만 보기" }).click();
     await cancelRevokeForm.getByRole("button", { name: "취소" }).click();
     await expect(firstAddress).toHaveCount(0);
@@ -319,7 +306,9 @@ for (const theme of ["light", "dark"] as const) {
     await expect(revokeForm.getByRole("radio", { name: "전체 공개" })).toBeChecked();
     await revokeForm.getByRole("radio", { name: "나만 보기" }).click();
     await revokeForm.getByRole("button", { name: "저장" }).click();
-    await expect(page.getByText("공개를 껐어요. 이전 주소는 더 이상 열리지 않아요.")).toBeVisible();
+    await expect(
+      page.getByText("공개를 껐어요. 이제 권한이 있는 사람만 폴더를 열 수 있어요."),
+    ).toBeVisible();
     await expect(firstAddress).toHaveCount(0);
     await page.getByRole("button", { name: "완료", exact: true }).click();
 
@@ -327,10 +316,7 @@ for (const theme of ["light", "dark"] as const) {
     await republishForm.getByRole("radio", { name: "전체 공개" }).click();
     await republishForm.getByRole("button", { name: "저장" }).click();
     await confirmation.getByRole("button", { name: "전체 공개" }).click();
-    await expect(firstAddress).toHaveAttribute(
-      "href",
-      new RegExp(`/public/folders/${NEW_ADDRESS}$`),
-    );
+    await expect(firstAddress).toHaveAttribute("href", new RegExp(`/folders/${FOLDER_ID}$`));
     expect(writes()).toHaveLength(4);
   });
 }

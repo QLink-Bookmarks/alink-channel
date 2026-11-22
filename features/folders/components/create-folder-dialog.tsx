@@ -115,7 +115,10 @@ function CreateFolderDialog({
   const body = created ? (
     <View className="gap-3">
       <Text role="status">폴더를 만들었어요.</Text>
-      <FolderPrivacyDetails query={privacy} />
+      <FolderPrivacyDetails
+        folderId={created.id}
+        query={privacy}
+      />
       <Button onPress={() => handleOpenChange(false)}>
         <Text>완료</Text>
       </Button>
@@ -273,11 +276,12 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
       }
       queryClient.setQueryData(folderQueryKeys.privacy(folder.id), {
         isPublic: response.data.isPublic,
-        publicId: response.data.publicId,
       });
       setDraftPrivacy(undefined);
       setNotice(
-        change ? "폴더를 전체 공개했어요." : "공개를 껐어요. 이전 주소는 더 이상 열리지 않아요.",
+        change
+          ? "폴더를 전체 공개했어요."
+          : "공개를 껐어요. 이제 권한이 있는 사람만 폴더를 열 수 있어요.",
       );
       requestAnimationFrame(() => resultNotice.current?.focus());
     } catch {
@@ -302,7 +306,10 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
       >
         <Text role="status">{notice}</Text>
       </View>
-      <FolderPrivacyDetails query={privacy} />
+      <FolderPrivacyDetails
+        folderId={folder.id}
+        query={privacy}
+      />
       <Button onPress={() => handleOpenChange(false)}>
         <Text>완료</Text>
       </Button>
@@ -324,7 +331,10 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
             isPublic={isPublic}
             onChange={setDraftPrivacy}
           />
-          <FolderPrivacyDetails query={privacy} />
+          <FolderPrivacyDetails
+            folderId={folder.id}
+            query={privacy}
+          />
         </View>
       }
       name={name}
@@ -426,7 +436,13 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
   );
 }
 
-function FolderPrivacyDetails({ query }: { query: ReturnType<typeof useFolderPrivacyQuery> }) {
+function FolderPrivacyDetails({
+  folderId,
+  query,
+}: {
+  folderId: number;
+  query: ReturnType<typeof useFolderPrivacyQuery>;
+}) {
   if (query.isFetching) {
     return <Text className="text-xs text-muted-foreground">공개 설정을 확인하는 중이에요.</Text>;
   }
@@ -444,10 +460,10 @@ function FolderPrivacyDetails({ query }: { query: ReturnType<typeof useFolderPri
       </View>
     );
   }
-  return query.data?.isPublic && query.data.publicId ? (
+  return query.data?.isPublic ? (
     <PublicFolderAddress
-      key={query.data.publicId}
-      publicId={query.data.publicId}
+      key={folderId}
+      folderId={folderId}
     />
   ) : null;
 }
