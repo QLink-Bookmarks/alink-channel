@@ -4,6 +4,7 @@ import { ScrollView } from "react-native";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadErrorState } from "@/components/ui/load-error-state";
+import { useAgreementStatus } from "@/features/agreements/hooks/use-agreement-status";
 import { getFolderDetail } from "@/features/folders/api";
 import { ReadOnlyFolderScreen } from "@/features/folders/components/read-only-folder-screen";
 import { getLinkAccess } from "@/features/links/api";
@@ -52,6 +53,9 @@ function ResourceVisit({
 }) {
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const authToken = useAuthStore((state) => state.accessToken);
+  const { hasResolved, needsAgreement } = useAgreementStatus();
+  const waitingForAgreement = Boolean(authToken && !hasResolved);
+  const readToken = needsAgreement ? null : authToken;
   const focused = useIsFocused();
   const visit = React.useId();
   const [browserVisit, advanceBrowserVisit] = React.useReducer((value) => value + 1, 0);
@@ -61,18 +65,18 @@ function ResourceVisit({
   }
 
   const access = useQuery({
-    enabled: hasHydrated && focused && session.authToken === authToken,
-    queryKey: ["resource-read", kind, id, visit, session.version, browserVisit],
+    enabled: hasHydrated && focused && !waitingForAgreement && session.authToken === authToken,
+    queryKey: ["resource-read", kind, id, visit, session.version, browserVisit, needsAgreement],
     gcTime: 0,
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     queryFn: async ({ signal }) => {
-      const options = resourceReadOptions(authToken, signal);
+      const options = resourceReadOptions(readToken, signal);
       const response =
         kind === "folders" ? await getFolderDetail(id, options) : await getLinkAccess(id, options);
       if (!response.success || !response.data) throw new Error("Invalid resource response");
-      if (!authToken && ("isShared" in response.data || "sourceType" in response.data)) {
+      if (!readToken && ("isShared" in response.data || "sourceType" in response.data)) {
         throw new Error("Unexpected authenticated resource response");
       }
       const data = response.data;
@@ -101,9 +105,10 @@ function ResourceVisit({
   }, [canUseApp, focused]);
 
   if (!focused) return null;
+  if (waitingForAgreement) return children;
   const unavailable = isAxiosError(access.error) && access.error.response?.status === 404;
   if (canUseApp && access.isSuccess) return children;
-  if (unavailable && !authToken) return children;
+  if (unavailable && !readToken) return children;
 
   return (
     <>
@@ -143,7 +148,7 @@ function ResourceVisit({
       ) : resource.mode === "folder" ? (
         <ReadOnlyFolderScreen
           folder={resource.data}
-          authToken={authToken}
+          authToken={readToken}
         />
       ) : null}
     </>
