@@ -47,7 +47,12 @@ import {
   useUpdateLinkMutation,
 } from "@/features/links/mutations";
 import { getLinkDetailQueryKey, useLinkDetailExcerptRecheck } from "@/features/links/queries";
-import type { LinkDetail, LinkDetailResponse, UpdateLinkRequest } from "@/features/links/types";
+import type {
+  LinkDetail,
+  PatchLinkResponse,
+  UpdateLinkRequest,
+  UpdateLinkResponse,
+} from "@/features/links/types";
 import { reportError } from "@/lib/error-reporting";
 import { cn } from "@/lib/utils";
 import type { FolderSection } from "@/stores/folder-navigation";
@@ -168,7 +173,7 @@ function mergeLinkDetail(base: LinkDetail, incoming: Partial<LinkDetail>): LinkD
     folderId: incoming.folderId ?? base.folderId ?? null,
     folderEmoji: incoming.folderEmoji ?? base.folderEmoji ?? null,
     folderName: incoming.folderName ?? base.folderName ?? null,
-    // The PUT response does not echo the preview fields; the request resent them unchanged.
+    // Write responses may omit preview fields; keep the values from the detail.
     thumbnailUrl: incoming.thumbnailUrl ?? base.thumbnailUrl ?? null,
     faviconUrl: incoming.faviconUrl ?? base.faviconUrl ?? null,
     isVideo: incoming.isVideo ?? base.isVideo ?? false,
@@ -289,9 +294,9 @@ function LinkDetailView({
   };
 
   const handleDetailUpdated = React.useCallback(
-    (response: LinkDetailResponse) => {
+    (response: UpdateLinkResponse | PatchLinkResponse) => {
       queryClient.setQueryData<LinkDetail>(getLinkDetailQueryKey(detail.id), (currentDetail) =>
-        mergeLinkDetail(currentDetail ?? detail, response.data as Partial<LinkDetail>),
+        mergeLinkDetail(currentDetail ?? detail, response.data),
       );
       // Cards show the title, tags and star, so the link lists follow the detail.
       void queryClient.invalidateQueries({ queryKey: ["links", "list"] });

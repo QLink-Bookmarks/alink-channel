@@ -12,13 +12,14 @@ import type {
   GetLinksParams,
   GetLinksResponse,
   LinkDetail,
-  LinkDetailResponse,
   LinkPreviewResponse,
   PatchLinkRequest,
+  PatchLinkResponse,
   PublicLinkDetail,
   SetLinkFavoriteRequest,
   SetLinkFavoriteResponse,
   UpdateLinkRequest,
+  UpdateLinkResponse,
 } from "./types";
 
 async function createLink(payload: CreateLinkRequest) {
@@ -69,11 +70,11 @@ async function getLinkPreview(url: string, config: { timeout?: number } = {}) {
 }
 
 async function updateLink(linkId: string | number, payload: UpdateLinkRequest) {
-  return api.put<LinkDetailResponse, UpdateLinkRequest>(`/api/links/${linkId}`, payload);
+  return api.put<UpdateLinkResponse, UpdateLinkRequest>(`/api/links/${linkId}`, payload);
 }
 
 async function patchLink(linkId: string | number, payload: PatchLinkRequest) {
-  return api.patch<LinkDetailResponse, PatchLinkRequest>(`/api/links/${linkId}`, payload);
+  return api.patch<PatchLinkResponse, PatchLinkRequest>(`/api/links/${linkId}`, payload);
 }
 
 async function deleteLink(linkId: string | number) {

@@ -153,7 +153,19 @@ type ApiEnvelope<TData> = {
   } | null;
 };
 
-type LinkDetailResponse = ApiEnvelope<LinkDetail>;
+type UpdateLinkResponse = ApiEnvelope<
+  Pick<LinkDetail, "isPublic" | "sourceType" | "tags" | "thumbnailUrl" | "title" | "url"> & {
+    folderId: number | null;
+    memo: string | null;
+    summary: string | null;
+  }
+>;
+type PatchLinkResponse = ApiEnvelope<
+  Pick<LinkDetail, "isPublic" | "tags" | "todos"> & {
+    folderId: number | null;
+    memo: string | null;
+  }
+>;
 type PublicLinkDetail = {
   id: number;
   folderId: number;
@@ -261,9 +273,9 @@ export type {
   GetLinksResponse,
   LinkDetail,
   LinkDetailContent,
-  LinkDetailResponse,
   LinkListItem,
   PatchLinkRequest,
+  PatchLinkResponse,
   LinkTodoCounts,
   LinkOrderKey,
   LinkScrollResponse,
@@ -274,4 +286,5 @@ export type {
   SetLinkFavoriteResponse,
   SourceType,
   UpdateLinkRequest,
+  UpdateLinkResponse,
 };
