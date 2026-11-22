@@ -17,6 +17,8 @@ describe("validateReturnDestination", () => {
     ["/privacy", null],
     ["/public/folders/123", null],
     ["/folders/0?linkId=7&code=abc", "/folders/0?linkId=7"],
+    ["/folders/3?linkId=0&unapproved=1", "/folders/3"],
+    ["/folders/3?linkId=9007199254740992", "/folders/3"],
     ["/links?linkId=9&linkId=10", "/links?linkId=9"],
     [
       "/home?linkUrl=https%3A%2F%2Fexample.com%2F%3Fx%3D1",

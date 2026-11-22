@@ -11,8 +11,9 @@ import type { ThemeMode } from "@/lib/theme";
 import { getNativeThemeVars } from "@/lib/theme-vars";
 
 import { rememberReturnDestination } from "../lib/return-destination";
+import { readParamValue } from "../routes";
 
-import { usePathname, useRouter } from "expo-router";
+import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { LogIn, Menu } from "lucide-react-native/icons";
 
 function GuestResourceNavigation({
@@ -23,12 +24,15 @@ function GuestResourceNavigation({
   theme: ThemeMode;
 }) {
   const pathname = usePathname();
+  const { linkId } = useGlobalSearchParams();
   const router = useRouter();
   const isWide = useWideView();
   const insets = useSafeAreaInsets();
 
   const handleLoginPress = () => {
-    rememberReturnDestination(pathname);
+    const overlayId = readParamValue(linkId);
+    const query = overlayId ? new URLSearchParams({ linkId: overlayId }).toString() : "";
+    rememberReturnDestination(query ? `${pathname}?${query}` : pathname);
     router.push("/login");
   };
 

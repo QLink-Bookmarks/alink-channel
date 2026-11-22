@@ -434,11 +434,19 @@ for (const resource of ["/folders/3", "/links/7"] as const) {
   });
 }
 
-for (const resource of ["/folders/3", "/links/7"] as const) {
-  test(`public sidebar starts login on activation and returns through the callback to ${resource}`, async ({
+for (const { entry, expectedReturn } of [
+  { entry: "/folders/3", expectedReturn: "/folders/3" },
+  { entry: "/links/7", expectedReturn: "/links/7" },
+  { entry: destination, expectedReturn: destination },
+  { entry: `${destination}&unapproved=1`, expectedReturn: destination },
+  { entry: "/folders/3?linkId=invalid&unapproved=1", expectedReturn: "/folders/3" },
+]) {
+  test(`public sidebar starts login on activation and returns through the callback from ${entry}`, async ({
     page,
     isMobile,
   }) => {
+    const resource = entry.split("?")[0];
+    const opensOverlay = expectedReturn === destination;
     const state = await setUp(page, { guest: true });
     const folderRead = { id: folder.id, name: folder.name, emoji: folder.emoji };
     const linkRead = {
@@ -455,7 +463,9 @@ for (const resource of ["/folders/3", "/links/7"] as const) {
       (url) => url.pathname === `/api${resource}`,
       (route) => {
         expect(route.request().method()).toBe("GET");
-        accessTokens.push(route.request().headers().authorization);
+        const token = route.request().headers().authorization;
+        accessTokens.push(token);
+        if (opensOverlay && token) return route.fallback();
         return json(route, envelope(resource.startsWith("/links") ? linkRead : folderRead));
       },
     );
@@ -465,7 +475,9 @@ for (const resource of ["/folders/3", "/links/7"] as const) {
         url.searchParams.get("folderId") === String(folder.id),
       (route) => {
         expect(route.request().method()).toBe("GET");
-        expect(route.request().headers().authorization).toBeUndefined();
+        const token = route.request().headers().authorization;
+        if (opensOverlay && token) return route.fallback();
+        expect(token).toBeUndefined();
         return json(
           route,
           envelope({ contents: [], isEmpty: true, hasNext: false, nextCursor: null }),
@@ -473,7 +485,7 @@ for (const resource of ["/folders/3", "/links/7"] as const) {
       },
     );
 
-    await page.goto(resource);
+    await page.goto(entry);
     const heading = page.getByRole("heading", {
       name: new RegExp(resource.startsWith("/links") ? link.title : folder.name),
     });
@@ -505,33 +517,38 @@ for (const resource of ["/folders/3", "/links/7"] as const) {
       await expect(sidebarLogin).toBeFocused();
     }
     await expect(sidebarLogin).toBeVisible();
-    await expect(page).toHaveURL(resource);
+    await expect(page).toHaveURL(entry);
     const getReturnDestination = () =>
       page.evaluate(() => sessionStorage.getItem("qlink-return-destination"));
     expect(await getReturnDestination()).toBeNull();
     expect(state.requests.filter(({ path }) => path === "/api/auth/sign")).toHaveLength(0);
+    const privateRequests = () =>
+      state.requests.filter(({ path }) => /^\/api\/(folders|links|todos)\b/.test(path));
+    expect(privateRequests()).toEqual([]);
 
     if (isMobile) await sidebarLogin.click();
     else await page.keyboard.press("Enter");
     await expect(page).toHaveURL("/login");
     await expect(page.getByText(login, { exact: true })).toBeVisible();
-    expect(await getReturnDestination()).toBe(resource);
+    expect(await getReturnDestination()).toBe(expectedReturn);
     await page.reload();
     await page.getByText("네이버로 계속하기", { exact: true }).click();
     const callback = page.getByRole("link", { name: "인증 완료" });
     expect(new URL((await callback.getAttribute("href"))!).pathname).toBe("/auth/callback");
     await callback.click();
-    await expect(page).toHaveURL(resource);
-    await expect(heading).toBeVisible();
+    if (opensOverlay) {
+      await expectDestination(page, isMobile);
+    } else {
+      await expect(page).toHaveURL(expectedReturn);
+      await expect(heading).toBeVisible();
+      expect(privateRequests()).toEqual([]);
+    }
     expect(await getReturnDestination()).toBeNull();
     await expect(openSidebar).toHaveCount(0);
     await expect(page.getByRole("button", { name: "로그인", exact: true })).toHaveCount(0);
     expect(accessTokens).toContain(undefined);
     expect(accessTokens).toContain("Bearer new-access-token");
     expect(state.requests.filter(({ path }) => path === "/api/auth/sign")).toHaveLength(1);
-    expect(
-      state.requests.filter(({ path }) => /^\/api\/(folders|links|todos)\b/.test(path)),
-    ).toEqual([]);
   });
 }
 
