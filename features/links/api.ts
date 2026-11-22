@@ -42,10 +42,11 @@ function getPublicFolderLinks(
   folderId: number,
   cursor: string | undefined,
   read: ApiRequestConfig,
+  isPublic?: boolean,
 ) {
   return api.get<ApiEnvelope<PublicFolderPage<PublicFolderLists["links"]>>>("/api/links", {
     ...read,
-    params: { folderId, cursor },
+    params: { folderId, cursor, isPublic },
   });
 }
 

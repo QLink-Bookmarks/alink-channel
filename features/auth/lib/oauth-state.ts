@@ -13,7 +13,7 @@ function beginOauthAttempt(provider: OauthProvider, mode: OauthMode): string {
   return state;
 }
 
-function consumeOauthAttempt(
+function getOauthAttempt(
   provider: OauthProvider,
   returnedState: string | null,
 ): OauthAttempt | null {
@@ -29,12 +29,22 @@ function consumeOauthAttempt(
     )
       return null;
 
-    sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
     return { provider, mode: attempt.mode, state: returnedState };
   } catch {
     return null;
   }
 }
 
-export { beginOauthAttempt, consumeOauthAttempt };
+function consumeOauthAttempt(provider: OauthProvider, returnedState: string): OauthAttempt | null {
+  const attempt = getOauthAttempt(provider, returnedState);
+  if (!attempt) return null;
+  try {
+    sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
+    return attempt;
+  } catch {
+    return null;
+  }
+}
+
+export { beginOauthAttempt, consumeOauthAttempt, getOauthAttempt };
 export type { OauthMode };

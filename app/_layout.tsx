@@ -100,6 +100,9 @@ function AppStack() {
 
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
+      <Stack.Protected guard={process.env.EXPO_OS === "web"}>
+        <Stack.Screen name="auth/callback" />
+      </Stack.Protected>
       <Stack.Screen name="invite" />
       <Stack.Screen name="privacy" />
       <Stack.Screen

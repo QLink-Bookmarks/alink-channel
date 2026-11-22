@@ -380,9 +380,16 @@ test.describe("tab session record", () => {
 
   test("a social login return does not call the refresh endpoint", async ({ page }) => {
     const { refreshCalls } = await openNewTab(page, "success");
+    await page.addInitScript(() => {
+      sessionStorage.setItem(
+        "qlink.oauth.attempt",
+        JSON.stringify({ provider: "kakao", mode: "login", state: "kakao:pending" }),
+      );
+    });
 
-    await page.goto("/?code=abc&state=kakao:unknown");
-    await expect(landingScreen(page)).toBeVisible();
+    await page.goto("/auth/callback?error=access_denied&state=kakao:pending");
+    await expect(page).toHaveURL("/login");
+    await expect(page.getByText(LOGIN).filter({ visible: true }).first()).toBeVisible();
 
     expect(refreshCalls()).toBe(0);
   });
