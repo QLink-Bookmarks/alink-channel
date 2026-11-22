@@ -15,6 +15,7 @@ import { getLinkDetailQueryKey, invalidateLinkListAndSearchQueries } from "./que
 import type {
   CopyLinkRequest,
   CreateLinkRequest,
+  LinkDetail,
   PatchLinkRequest,
   SetLinkFavoriteRequest,
   UpdateLinkRequest,
@@ -111,14 +112,21 @@ function useSetLinkFavoriteMutation() {
 
 function useSetLinkPrivacyMutation(linkId: number) {
   const queryClient = useQueryClient();
+  const queryKey = getLinkDetailQueryKey(linkId);
   return useMutation({
     mutationFn: (isPublic: boolean) => setLinkPrivacy(linkId, { isPublic }),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: getLinkDetailQueryKey(linkId) }),
+    onSuccess: async (response) => {
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      queryClient.setQueryData<LinkDetail>(
+        queryKey,
+        (detail) => detail && { ...detail, turnsPublicAt: response.data.turnsPublicAt },
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey }),
         invalidateLinkListAndSearchQueries(queryClient),
         invalidatePublicLinkQueries(queryClient, linkId),
-      ]),
+      ]);
+    },
   });
 }
 

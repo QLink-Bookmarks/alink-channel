@@ -53,7 +53,10 @@ async function updateFolder(id: number, payload: UpdateFolderRequest) {
 }
 
 async function setFolderPrivacy(id: number, payload: { isPublic: boolean }) {
-  return api.put<ApiEnvelope<null>, typeof payload>(`/api/folders/${id}/privacy`, payload);
+  return api.put<ApiEnvelope<{ turnsPublicAt: string | null }>, typeof payload>(
+    `/api/folders/${id}/privacy`,
+    payload,
+  );
 }
 
 async function getFolderDetail(id: number, read: ApiRequestConfig) {

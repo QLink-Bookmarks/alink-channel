@@ -18,6 +18,7 @@ import type {
   CreateFolderInvitationRequest,
   CreateFolderRequest,
   DeleteFolderParams,
+  Folder,
   UpdateFolderRequest,
 } from "./types";
 
@@ -63,10 +64,19 @@ function useUpdateFolderMutation() {
 
 function useSetFolderPrivacyMutation() {
   const invalidate = useInvalidateFolderWrites();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, isPublic }: { id: number; isPublic: boolean }) =>
       setFolderPrivacy(id, { isPublic }),
-    onSuccess: (_response, { id }) => invalidate(id, true),
+    onSuccess: async (response, { id }) => {
+      const queryKey = folderQueryKeys.detail(id);
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      queryClient.setQueryData<Folder>(
+        queryKey,
+        (folder) => folder && { ...folder, turnsPublicAt: response.data.turnsPublicAt },
+      );
+      await invalidate(id, true);
+    },
   });
 }
 

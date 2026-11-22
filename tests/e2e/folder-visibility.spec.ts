@@ -100,7 +100,9 @@ for (const { isOwner, folderOwnerId, isPublic } of [
         "PUT /api/links/1/privacy": (route, request) => {
           const { isPublic } = request.postDataJSON() as { isPublic: boolean };
           state.details[link.id].turnsPublicAt = isPublic ? PUBLIC_AT : null;
-          return route.fulfill({ json: envelope(null) });
+          return route.fulfill({
+            json: envelope({ turnsPublicAt: state.details[link.id].turnsPublicAt }),
+          });
         },
       },
     });
@@ -196,7 +198,9 @@ test("keeps a rejected combined link edit intact and uses the toolbar for a priv
       "PUT /api/links/1/privacy": (route, request) => {
         const { isPublic } = request.postDataJSON() as { isPublic: boolean };
         state.details[link.id].turnsPublicAt = isPublic ? PUBLIC_AT : null;
-        return route.fulfill({ json: envelope(null) });
+        return route.fulfill({
+          json: envelope({ turnsPublicAt: state.details[link.id].turnsPublicAt }),
+        });
       },
     },
   });
@@ -264,7 +268,7 @@ async function mockFolderOwner(
       [`PUT /api/folders/${FOLDER_ID}/privacy`]: (route, request) => {
         const body = request.postDataJSON() as { isPublic: boolean };
         turnsPublicAt = body.isPublic ? PUBLIC_AT : null;
-        return route.fulfill({ json: envelope(null) });
+        return route.fulfill({ json: envelope({ turnsPublicAt }) });
       },
       [`PUT /api/folders/${FOLDER_ID}`]: (route, request) => {
         const data = request.postDataJSON() as { isPublic?: boolean };
