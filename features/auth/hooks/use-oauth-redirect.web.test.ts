@@ -114,6 +114,22 @@ describe("useOauthRedirect (web)", () => {
     );
   });
 
+  it("preserves the failure through reauthentication if the connection API clears the session", async () => {
+    mockedExchangeKakao.mockImplementationOnce(async () => {
+      (useAuthStore.getState as jest.Mock).mockReturnValue({ accessToken: null });
+      return { kind: "error", provider: "KAKAO", reason: "unknown" };
+    });
+
+    const { result } = startRedirect(
+      `https://app.test/auth/callback?code=c1&state=${KAKAO_STATE}`,
+      "connect",
+    );
+
+    await waitFor(() => expect(result.current).toBe("connect"));
+    expect(stageExpiredConnectOutcome).toHaveBeenCalledWith("KAKAO");
+    expect(stageRedirectConnectOutcome).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["the Kakao exchange throws", () => mockedExchangeKakao.mockRejectedValue(new Error("x"))],
     ["Kakao returns no token", () => mockedExchangeKakao.mockResolvedValue(null)],

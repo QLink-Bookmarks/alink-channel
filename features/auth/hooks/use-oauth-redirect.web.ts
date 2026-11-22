@@ -59,7 +59,12 @@ function useOauthRedirect() {
         if (attempt.mode === "login") notifyLoginFailed();
       } finally {
         if (attempt.mode === "connect" && error !== "access_denied") {
-          stageRedirectConnectOutcome(outcome ?? connectFailed(provider));
+          const feedback = outcome ?? connectFailed(provider);
+          if (feedback.kind === "error" && !useAuthStore.getState().accessToken) {
+            stageExpiredConnectOutcome(provider);
+          } else {
+            stageRedirectConnectOutcome(feedback);
+          }
         }
         setResult(attempt.mode);
       }
