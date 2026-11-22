@@ -16,6 +16,7 @@ function useLinkOverlayState({
 }) {
   const router = useRouter();
   const linkDetailQuery = useLinkDetailQuery(overlayLinkId);
+  const notFound = linkDetailQuery.isError && isLinkNotFound(linkDetailQuery.error);
 
   const handleOpenChange = React.useCallback(
     (open: boolean) => {
@@ -29,12 +30,12 @@ function useLinkOverlayState({
   );
 
   return {
-    detail: linkDetailQuery.data,
+    detail: notFound ? undefined : linkDetailQuery.data,
     error: linkDetailQuery.isError,
     handleOpenChange,
     isLoading: linkDetailQuery.isLoading,
     isOpen: isWideView && Boolean(overlayLinkId),
-    notFound: linkDetailQuery.isError && isLinkNotFound(linkDetailQuery.error),
+    notFound,
   };
 }
 

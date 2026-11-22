@@ -142,8 +142,6 @@ function AppStack() {
 
       <Stack.Screen name="privacy" />
 
-      <Stack.Screen name="public/folders/[publicId]" />
-
       <Stack.Protected guard={isAuthenticated}>
         <Stack.Protected guard={needsAgreement}>
           <Stack.Screen

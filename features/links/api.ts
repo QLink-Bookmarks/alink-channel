@@ -1,6 +1,9 @@
-import { api } from "@/lib/api-client";
+import type { PublicFolderLists, PublicFolderPage } from "@/features/folders/types";
+import { type ApiRequestConfig, api } from "@/lib/api-client";
 
+import { LinkAccessDenied } from "./lib/is-link-not-found";
 import type {
+  ApiEnvelope,
   CopyLinkRequest,
   CopyLinkResponse,
   CreateLinkRequest,
@@ -8,9 +11,11 @@ import type {
   DeleteLinkResponse,
   GetLinksParams,
   GetLinksResponse,
+  LinkDetail,
   LinkDetailResponse,
   LinkPreviewResponse,
   PatchLinkRequest,
+  PublicLinkDetail,
   SetLinkFavoriteRequest,
   SetLinkFavoriteResponse,
   UpdateLinkRequest,
@@ -21,7 +26,27 @@ async function createLink(payload: CreateLinkRequest) {
 }
 
 async function getLinkDetail(linkId: string | number) {
-  return api.get<LinkDetailResponse>(`/api/links/${linkId}`);
+  const response = await api.get<ApiEnvelope<LinkDetail | PublicLinkDetail>>(
+    `/api/links/${linkId}`,
+  );
+  const detail = response.data;
+  if (!detail || !("sourceType" in detail)) throw new LinkAccessDenied();
+  return { ...response, data: detail };
+}
+
+function getLinkAccess(linkId: number, read: ApiRequestConfig) {
+  return api.get<ApiEnvelope<LinkDetail | PublicLinkDetail>>(`/api/links/${linkId}`, read);
+}
+
+function getPublicFolderLinks(
+  folderId: number,
+  cursor: string | undefined,
+  read: ApiRequestConfig,
+) {
+  return api.get<ApiEnvelope<PublicFolderPage<PublicFolderLists["links"]>>>("/api/links", {
+    ...read,
+    params: { folderId, cursor },
+  });
 }
 
 async function getLinks(params: GetLinksParams = {}) {
@@ -70,6 +95,8 @@ export {
   createLink,
   deleteLink,
   getLinkDetail,
+  getLinkAccess,
+  getPublicFolderLinks,
   getLinkPreview,
   getLinks,
   patchLink,

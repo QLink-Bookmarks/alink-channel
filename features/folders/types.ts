@@ -105,12 +105,12 @@ type UpdateFolderRequest = {
   isShared?: boolean | null;
 };
 
-type FolderPrivacy = { isPublic: boolean; publicId: string | null };
+type FolderPrivacy = { isPublic: boolean };
 type UpdateFolderResponse = ApiEnvelope<{ id: number } & FolderPrivacy>;
-type PublicFolder = { name: string; emoji: string | null };
+type PublicFolder = { id: number; name: string; emoji: string | null };
 type PublicFolderLists = {
-  links: { title: string; url: string };
-  todos: { title: string; isCompleted: boolean };
+  links: { id: number; title: string; url: string };
+  todos: { linkId: number; title: string; isCompleted: boolean };
 };
 type PublicFolderPage<T> = {
   isEmpty: boolean;

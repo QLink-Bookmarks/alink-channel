@@ -3,14 +3,25 @@ import { View } from "react-native";
 import { useAgreementStatus } from "@/features/agreements/hooks/use-agreement-status";
 import { CheckingScreen } from "@/features/auth/components/auth-splash-screen";
 import { ImportFlowHost } from "@/features/imports/components/flow/import-flow-host";
+import { ResourceAccess } from "@/features/navigation/components/resource-access";
 import { ResponsiveShell } from "@/features/navigation/components/responsive-shell";
 import { useWideViewState } from "@/lib/hooks/use-wide-view";
 import { useAuthStore } from "@/stores/auth";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 
-import { type Href, Redirect, Slot } from "expo-router";
+import { type Href, Navigator, Redirect } from "expo-router";
 
 export default function PagesLayout() {
+  return (
+    <Navigator>
+      <ResourceAccess>
+        <PrivatePagesLayout />
+      </ResourceAccess>
+    </Navigator>
+  );
+}
+
+function PrivatePagesLayout() {
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const accessToken = useAuthStore((state) => state.accessToken);
   const { needsAgreement, hasResolved } = useAgreementStatus();
@@ -36,7 +47,7 @@ export default function PagesLayout() {
   return (
     <BottomSheetModalProvider>
       <ResponsiveShell>
-        <Slot />
+        <Navigator.Slot />
       </ResponsiveShell>
       <ImportFlowHost />
     </BottomSheetModalProvider>

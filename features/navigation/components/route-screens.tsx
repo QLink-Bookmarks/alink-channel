@@ -195,10 +195,14 @@ function LinkDetailRouteScreen() {
     return <LinkDetailScreen linkId={linkId} />;
   }
 
-  // Wide view shows the detail as an overlay over the list, so a direct
-  // /links/[id] hit redirects to the canonical overlay URL (which renders the
-  // link, or a "찾으시는 링크가 없어요" state if it doesn't exist).
-  return <Redirect href={(linkId ? `/links?linkId=${linkId}` : "/links") as Href} />;
+  return (
+    <LinkListView
+      title="전체 보기"
+      icon={BookCopyIcon}
+      basePath="/links"
+      activeLinkId={linkId ? Number(linkId) : undefined}
+    />
+  );
 }
 
 function SettingsRouteScreen() {

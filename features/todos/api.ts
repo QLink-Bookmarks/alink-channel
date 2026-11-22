@@ -1,4 +1,6 @@
-import { api } from "@/lib/api-client";
+import type { PublicFolderLists, PublicFolderPage } from "@/features/folders/types";
+import type { ApiEnvelope } from "@/features/links/types";
+import { type ApiRequestConfig, api } from "@/lib/api-client";
 
 import type {
   CompleteTodoRequest,
@@ -15,6 +17,17 @@ import type {
 
 async function getTodos(params: GetTodosParams = {}) {
   return api.get<GetTodosResponse>("/api/todos", { params });
+}
+
+function getPublicFolderTodos(
+  folderId: number,
+  cursor: string | undefined,
+  read: ApiRequestConfig,
+) {
+  return api.get<ApiEnvelope<PublicFolderPage<PublicFolderLists["todos"]>>>("/api/todos", {
+    ...read,
+    params: { folderId, cursor },
+  });
 }
 
 async function getTodoCounts() {
@@ -40,4 +53,12 @@ async function toggleTodoCompleted(todoId: number | string, payload: CompleteTod
   );
 }
 
-export { createTodo, deleteTodo, getTodoCounts, getTodos, toggleTodoCompleted, updateTodo };
+export {
+  createTodo,
+  deleteTodo,
+  getPublicFolderTodos,
+  getTodoCounts,
+  getTodos,
+  toggleTodoCompleted,
+  updateTodo,
+};

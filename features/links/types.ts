@@ -156,6 +156,15 @@ type ApiEnvelope<TData> = {
 };
 
 type LinkDetailResponse = ApiEnvelope<LinkDetail>;
+type PublicLinkDetail = {
+  id: number;
+  folderId: number;
+  folderName: string;
+  folderEmoji: string | null;
+  title: string;
+  url: string;
+  todos: { title: string; isCompleted: boolean }[];
+};
 type DeleteLinkResponse = ApiEnvelope<null>;
 
 /**
@@ -234,6 +243,7 @@ type LinkPreviewResponse = ApiEnvelope<{
 }>;
 
 export type {
+  PublicLinkDetail,
   ApiEnvelope,
   CopyLinkRequest,
   CopyLinkResponse,

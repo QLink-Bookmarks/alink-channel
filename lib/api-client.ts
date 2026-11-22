@@ -126,7 +126,7 @@ apiClient.interceptors.response.use(
       throw error;
     }
     const retryable = error.config as ApiRequestConfig & { __retriedAuth?: boolean };
-    if (retryable.__retriedAuth) {
+    if (retryable.__retriedAuth || retryable.authToken === null) {
       throw error;
     }
     if (!isAuth401(error)) {
