@@ -2,7 +2,6 @@ import { useAgreementStatus } from "@/features/agreements/hooks/use-agreement-st
 import { OnboardingGate } from "@/features/onboarding/components/onboarding-gate";
 import { useOnboardingStore } from "@/stores/onboarding";
 
-import { useAppEntry } from "../hooks/use-app-entry";
 import { AgreementRetryScreen, CheckingScreen } from "./access-status-screen";
 import { LoginPrompt } from "./login-prompt";
 
@@ -16,14 +15,12 @@ function AppEntryScreen({ nativeRoot = false }: { nativeRoot?: boolean }) {
     useAgreementStatus();
   const canEnter = !nativeRoot || (onboardingReady && onboardingCompleted);
 
-  useAppEntry(canEnter && hasResolved && !needsAgreement);
-
   if (nativeRoot && !onboardingReady) return <CheckingScreen />;
   if (!canEnter) return <OnboardingGate onDone={completeOnboarding} />;
   if (!hasHydrated) return <CheckingScreen />;
   if (!isAuthenticated) return nativeRoot ? <LoginPrompt /> : <Redirect href="/login" />;
   if (isError) return <AgreementRetryScreen onRetry={retry} />;
-  if (hasResolved && needsAgreement) return <Redirect href="/agreements" />;
+  if (hasResolved) return <Redirect href={needsAgreement ? "/agreements" : "/home"} />;
   return <CheckingScreen />;
 }
 

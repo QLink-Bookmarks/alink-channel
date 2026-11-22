@@ -123,7 +123,7 @@ async function expectNoReloginToast(page: Page) {
 }
 
 test.describe("new tab in a signed-in browser", () => {
-  test("/app shows the checking screen, then home, without visiting landing or login", async ({
+  test("/home shows the checking screen, then home, without visiting landing or login", async ({
     page,
   }) => {
     let release: () => void = () => {};
@@ -136,7 +136,7 @@ test.describe("new tab in a signed-in browser", () => {
     });
     await recordTexts(page, [LANDING, LOGIN]);
 
-    await page.goto("/app");
+    await page.goto("/home");
     await expect(page.getByText(CHECKING, { exact: true })).toBeVisible();
     release();
 
@@ -150,8 +150,8 @@ test.describe("new tab in a signed-in browser", () => {
   test("reloading the restored tab several times makes no refresh call", async ({ page }) => {
     const { refreshCalls } = await openNewTab(page, "success");
 
-    await page.goto("/app");
-    await expect(page).toHaveURL(/\/home$/);
+    await page.goto("/home");
+    await expect(homeScreen(page)).toBeVisible();
     for (let count = 0; count < 3; count += 1) {
       await page.reload();
       await expect(homeScreen(page)).toBeVisible();
@@ -205,10 +205,12 @@ test.describe("new tab in a signed-in browser", () => {
     await openNewTab(page, "success");
     await openNewTab(second, "success");
 
-    await Promise.all([page.goto("/app"), second.goto("/app")]);
+    await Promise.all([page.goto("/home"), second.goto("/home")]);
 
     await expect(page).toHaveURL(/\/home$/);
     await expect(second).toHaveURL(/\/home$/);
+    await expect(homeScreen(page)).toBeVisible();
+    await expect(homeScreen(second)).toBeVisible();
     await second.close();
   });
 
@@ -252,7 +254,7 @@ test.describe("new tab in a signed-in browser", () => {
       },
     });
 
-    await page.goto("/app");
+    await page.goto("/home");
 
     await expect(page).toHaveURL(/\/agreements$/);
   });
@@ -262,9 +264,10 @@ test.describe("new tab in a signed-in browser", () => {
     const page = await context.newPage();
     const { refreshCalls } = await openNewTab(page, "success");
 
-    await page.goto("/app");
+    await page.goto("/home");
 
     await expect(page).toHaveURL(/\/home$/);
+    await expect(homeScreen(page)).toBeVisible();
     expect(refreshCalls()).toBe(1);
     await context.close();
   });
@@ -312,7 +315,7 @@ test.describe("new tab when the refresh does not succeed", () => {
     let reply: RefreshReply = "offline";
     await openNewTab(page, (route) => fulfillRefresh(route, reply));
 
-    await page.goto("/app");
+    await page.goto("/home");
     await expect(page).toHaveURL("/login");
     reply = "success";
     await page.reload();
@@ -336,7 +339,7 @@ test.describe("new tab when the refresh does not succeed", () => {
     page.on("requestfailed", (request) => failed.push(request.url()));
     page.on("requestfinished", (request) => finished.push(request.url()));
 
-    await page.goto("/app");
+    await page.goto("/home");
     await expect(page).toHaveURL("/login", { timeout: 8_000 });
     answer();
 

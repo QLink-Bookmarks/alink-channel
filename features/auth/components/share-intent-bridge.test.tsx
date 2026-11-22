@@ -46,7 +46,10 @@ beforeEach(() => {
 it("resumes a new share once when the protected screen's agreement check finishes", () => {
   const { rerender } = render(<ShareIntentBridge />);
   expect(mockResetShareIntent).toHaveBeenCalledTimes(1);
-  expect(useShareIntentStore.getState().pending).toEqual({ url: mockShareIntent.webUrl });
+  expect(useShareIntentStore.getState().pending).toEqual({
+    url: mockShareIntent.webUrl,
+    live: true,
+  });
   expect(mockPush).not.toHaveBeenCalled();
 
   mockHasShareIntent = false;
@@ -56,7 +59,7 @@ it("resumes a new share once when the protected screen's agreement check finishe
   mockHasResolved = true;
   rerender(<ShareIntentBridge />);
   expect(mockPush).toHaveBeenCalledTimes(1);
-  expect(mockPush).toHaveBeenCalledWith("/app");
+  expect(mockPush).toHaveBeenCalledWith("/home");
 
   mockHasResolved = false;
   rerender(<ShareIntentBridge />);

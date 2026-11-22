@@ -4,6 +4,7 @@ import { ScrollView, View } from "react-native";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
+import { goHomeAfterInvite } from "@/features/auth/hooks/use-home-entry";
 
 import { useAcceptFolderInvitationMutation } from "../mutations";
 
@@ -95,7 +96,7 @@ function InviteAcceptScreen({ folderId, token, onAccepted, onFailed }: InviteAcc
   }, [acceptedFolderId, router]);
 
   const handleGoHome = React.useCallback(() => {
-    router.replace("/home" as Href);
+    goHomeAfterInvite(router);
   }, [router]);
 
   return (

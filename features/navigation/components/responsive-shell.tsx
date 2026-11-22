@@ -149,7 +149,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
       setHasOpenedAddLinkSheet(true);
       openAddLinkSheet();
     }
-    router.setParams(pendingShareUrl ? { pendingShareUrl: "" } : { linkUrl: "" });
+    router.setParams(pendingShareUrl ? { pendingShareUrl: undefined } : { linkUrl: undefined });
   }, [linkUrlParam, openAddLinkSheet, pendingShareUrl, routeState.isWideView, router]);
 
   React.useEffect(() => {
