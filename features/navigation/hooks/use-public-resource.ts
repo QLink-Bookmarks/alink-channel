@@ -12,6 +12,7 @@ type PublicResourceVisit = {
   visit: string;
   headerAction?: React.ReactNode;
   isGuest: boolean;
+  linkReadToken: string | null;
   revoke: () => void;
 };
 

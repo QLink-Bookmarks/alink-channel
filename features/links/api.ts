@@ -41,7 +41,7 @@ function getLinkAccess(linkId: number, read: ApiRequestConfig) {
 }
 
 function getPublicFolderLinks(
-  params: Pick<GetLinksParams, "folderId" | "cursor" | "order" | "size">,
+  params: Pick<GetLinksParams, "folderId" | "cursor" | "orderKey" | "order" | "size">,
   read: ApiRequestConfig,
 ) {
   return api.get<ApiEnvelope<PublicFolderPage<PublicLinkListItem>>>("/api/links", {

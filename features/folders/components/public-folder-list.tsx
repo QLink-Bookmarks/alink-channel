@@ -4,37 +4,34 @@ import type { ScrollView } from "react-native";
 import type { LinkListBodyProps } from "@/features/home/components/link-list-body";
 import { ReadOnlyLinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
 import type { LinkCardSize } from "@/features/links/lib/link-card-size";
-import { LINK_SORT_CRITERIA } from "@/features/links/lib/link-sort";
+import type { LinkSort } from "@/features/links/lib/link-sort";
 import { useCursorPagination } from "@/lib/hooks/use-cursor-pagination";
-import type { SortDirection } from "@/lib/list-sort";
 
 import type { usePublicFolderLinksQuery } from "../public-queries";
 import type { PublicFolder } from "../types";
 
-const PUBLIC_SORT_CRITERIA = LINK_SORT_CRITERIA.filter(({ key }) => key === "created_at");
-
 function PublicFolderList({
   folder,
   links,
-  order,
+  sort,
   isWide,
   activeLinkId,
   linkCardSize,
-  onOrderChange,
+  onSortChange,
   render,
 }: {
   folder: PublicFolder;
   links: ReturnType<typeof usePublicFolderLinksQuery>;
-  order: SortDirection;
+  sort: LinkSort;
   isWide: boolean;
   activeLinkId?: number;
   linkCardSize: LinkCardSize;
-  onOrderChange: (order: SortDirection) => void;
+  onSortChange: (sort: LinkSort) => void;
   render: (props: LinkListBodyProps) => React.ReactNode;
 }) {
   const scrollRef = useRef<ScrollView>(null);
   const pagination = useCursorPagination(links, {
-    scroll: { contentKey: order, ref: scrollRef },
+    scroll: { contentKey: `${sort.key}:${sort.direction}`, ref: scrollRef },
   });
   const rows = links.data?.pages.flatMap((page) => page.contents) ?? [];
   const isComplete = links.isSuccess && !links.hasNextPage;
@@ -48,9 +45,8 @@ function PublicFolderList({
     filter: {
       coverLabel: "정렬",
       coverMode: isWide ? "content" : "fill",
-      criteria: PUBLIC_SORT_CRITERIA,
-      sort: { key: "created_at", direction: order },
-      onSortChange: ({ direction }) => onOrderChange(direction),
+      sort,
+      onSortChange,
     },
     isLoadError: links.isError && !links.data,
     isEmpty: isComplete && rows.length === 0,

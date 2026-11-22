@@ -7,7 +7,7 @@ function usePublicFolderLinksQuery(
   folderId: number,
   visit: string,
   enabled: boolean,
-  options: Pick<GetLinksParams, "order" | "size">,
+  options: Pick<GetLinksParams, "orderKey" | "order" | "size">,
 ) {
   return useInfiniteQuery({
     enabled,

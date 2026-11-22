@@ -44,6 +44,7 @@ function DetailPanelBody({
   error,
   notFound,
   isLoading,
+  observeAuthenticatedDetail,
   style,
   onDeleted,
   onOpenChange,
@@ -54,6 +55,7 @@ function DetailPanelBody({
   error?: boolean;
   notFound?: boolean;
   isLoading?: boolean;
+  observeAuthenticatedDetail?: boolean;
   onDeleted?: () => void;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -77,6 +79,7 @@ function DetailPanelBody({
         <LinkDetailResourceContent
           detail={detail}
           mode="panel"
+          observeAuthenticatedDetail={observeAuthenticatedDetail}
           onClose={() => onOpenChange?.(false)}
           onDeleted={onDeleted}
         />
@@ -149,6 +152,7 @@ function DetailPanel({
   isLoading,
   mode = "inline",
   overlayWithinParent,
+  observeAuthenticatedDetail,
   onDeleted,
   onOpenChange,
 }: {
@@ -160,6 +164,7 @@ function DetailPanel({
   isLoading?: boolean;
   mode?: "inline" | "overlay";
   overlayWithinParent?: boolean;
+  observeAuthenticatedDetail?: boolean;
   onDeleted?: () => void;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -205,6 +210,7 @@ function DetailPanel({
                 error={error}
                 notFound={notFound}
                 isLoading={isLoading}
+                observeAuthenticatedDetail={observeAuthenticatedDetail}
                 onDeleted={onDeleted}
                 onOpenChange={onOpenChange}
               />
@@ -226,6 +232,7 @@ function DetailPanel({
         error={error}
         notFound={notFound}
         isLoading={isLoading}
+        observeAuthenticatedDetail={observeAuthenticatedDetail}
         onDeleted={onDeleted}
         onOpenChange={onOpenChange}
       />

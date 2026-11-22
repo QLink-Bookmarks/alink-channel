@@ -22,8 +22,8 @@ import { LinkDetailResourceContent } from "@/features/links/components/link-deta
 import { LinkDetailScreen } from "@/features/links/components/link-detail-screen";
 import { useLinkCardSize } from "@/features/links/hooks/use-link-card-size";
 import { getLinkCardPageSize } from "@/features/links/lib/link-card-size";
+import { DEFAULT_LINK_SORT, toLinkListParams } from "@/features/links/lib/link-sort";
 import type { LinkDetail, PublicLinkDetail } from "@/features/links/types";
-import type { SortDirection } from "@/lib/list-sort";
 import { requestLeave } from "@/stores/leave-guard";
 import { useQuery } from "@tanstack/react-query";
 
@@ -221,8 +221,10 @@ function PublicFolderController({
   const router = useRouter();
   const { isWideView, linkCardSize } = useLinkCardSize();
   const cardSize = visit.isGuest ? "small" : linkCardSize;
-  const [order, setOrder] = React.useState<SortDirection>("desc");
+  const [sort, setSort] = React.useState(DEFAULT_LINK_SORT);
+  const { orderKey, order } = toLinkListParams(sort, false);
   const links = usePublicFolderLinksQuery(folder.id, visit.visit, true, {
+    orderKey,
     order,
     size: getLinkCardPageSize(cardSize, isWideView),
   });
@@ -235,10 +237,13 @@ function PublicFolderController({
     refetchOnReconnect: false,
     queryKey: ["folder-read", folder.id, visit.visit, "link", overlayId],
     queryFn: async ({ signal }) => {
-      const { success, data } = await getLinkAccess(overlayId, resourceReadOptions(null, signal));
-      return success && data && !("sourceType" in data) && data.folderId === folder.id
-        ? data
-        : null;
+      const { success, data } = await getLinkAccess(
+        overlayId,
+        resourceReadOptions(visit.linkReadToken, signal),
+      );
+      if (!success || !data || data.folderId !== folder.id) return null;
+      if (!visit.linkReadToken && "sourceType" in data) return null;
+      return data;
     },
   });
   const revoke = visit.revoke;
@@ -261,18 +266,20 @@ function PublicFolderController({
       isLoading: overlay.isPending,
       notFound: selected === null || isUnavailableResource(overlay.error),
       error: overlay.isError,
-      onOpenChange: handleClose,
+      onOpenChange: () => requestLeave(handleClose),
+      onDeleted: handleClose,
+      observeAuthenticatedDetail: true,
       detail: selected ?? undefined,
     },
     list: {
       publicList: {
         folder,
         links,
-        order,
+        sort,
         isWide: isWideView,
         linkCardSize: cardSize,
         activeLinkId: selected?.id,
-        onOrderChange: setOrder,
+        onSortChange: setSort,
       },
     },
   });

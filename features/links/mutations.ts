@@ -33,6 +33,14 @@ function useInvalidateLinkQueries() {
           queryKey: getLinkDetailQueryKey(linkId),
           refetchType: options.isDeleted ? "none" : "active",
         });
+        if (options.isDeleted) {
+          void queryClient.invalidateQueries({
+            queryKey: ["folder-read"],
+            predicate: (query) => query.queryKey[3] !== "link",
+          });
+        } else {
+          void invalidatePublicLinkQueries(queryClient, linkId);
+        }
       }
       void invalidateLinkListAndSearchQueries(queryClient);
     },

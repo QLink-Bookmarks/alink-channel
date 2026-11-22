@@ -154,7 +154,7 @@ for (const signedIn of [false, true]) {
     ).toEqual([]);
     for (const { path, token } of state.requests) {
       expect(token).toBe(
-        signedIn && (path === API_PATH || (isMobile && path === `/api/links/${LINK_ID}`))
+        signedIn && (path === API_PATH || path === `/api/links/${LINK_ID}`)
           ? "Bearer e2e-access-token"
           : undefined,
       );

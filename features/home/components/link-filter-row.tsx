@@ -34,7 +34,6 @@ type LinkFilterRowProps = {
   onSortChange: (next: LinkSort) => void;
   favoriteOnly?: boolean;
   onFavoriteOnlyChange?: (next: boolean) => void;
-  criteria?: typeof LINK_SORT_CRITERIA;
   coverMode: FilterCoverMode;
   coverLabel?: string;
   className?: string;
@@ -91,7 +90,6 @@ function LinkFilterRow({
   onSortChange,
   favoriteOnly = false,
   onFavoriteOnlyChange,
-  criteria = LINK_SORT_CRITERIA,
   coverMode,
   coverLabel = "정렬·필터",
   className,
@@ -159,7 +157,7 @@ function LinkFilterRow({
             </FilterCoverPart>
           ) : null}
           <SortCriterionChips
-            criteria={criteria}
+            criteria={LINK_SORT_CRITERIA}
             value={sort}
             onValueChange={onSortChange}
           />

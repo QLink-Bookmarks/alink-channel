@@ -12,7 +12,7 @@ import { getExcerptRecheckDelay } from "./lib/excerpt-recheck";
 import { isLinkNotFound } from "./lib/is-link-not-found";
 import { extractLinkPreview } from "./lib/link-preview/extract-link-preview";
 import { isPreviewableUrl } from "./lib/link-preview/link-preview-result";
-import type { GetLinksParams, LinkDetailContent } from "./types";
+import type { GetLinksParams, LinkDetail, LinkDetailContent } from "./types";
 
 const LINK_PREVIEW_TYPING_DEBOUNCE_MS = 500;
 const FIRST_LINK_PAGE_RETRY_LIMIT = 3;
@@ -104,7 +104,7 @@ function useLinkPreviewQuery(url: string, { immediate }: LinkPreviewQueryOptions
   };
 }
 
-function useLinkDetailQuery(linkId?: string | number | null) {
+function useLinkDetailQuery(linkId?: string | number | null, initialData?: LinkDetail) {
   return useQuery({
     enabled: Boolean(linkId),
     retry: (failureCount, error) => !isLinkNotFound(error) && failureCount < 3,
@@ -113,6 +113,8 @@ function useLinkDetailQuery(linkId?: string | number | null) {
       return response.data;
     },
     queryKey: getLinkDetailQueryKey(linkId),
+    initialData,
+    initialDataUpdatedAt: initialData ? 0 : undefined,
   });
 }
 

@@ -234,3 +234,154 @@ for (const member of [true, false]) {
     }
   });
 }
+
+test("public folder applies both sorts and passes the corresponding cursor unchanged", async ({
+  page,
+}) => {
+  await mockApi(page, { seedSession: false });
+  await page.route(`**/api/folders/${folder.id}`, (route) =>
+    route.fulfill({ json: envelope({ id: folder.id, name: folder.name, emoji: folder.emoji }) }),
+  );
+  const requests: [string, string, string | null][] = [];
+  await page.route(
+    (url) => url.pathname === "/api/links",
+    (route) => {
+      const request = route.request();
+      const params = new URL(request.url()).searchParams;
+      const key = params.get("orderKey")!;
+      const order = params.get("order")!;
+      const cursor = params.get("cursor");
+      requests.push([key, order, cursor]);
+      expect(request.headers().authorization).toBeUndefined();
+      expect(params.get("folderId")).toBe(String(folder.id));
+      expect(params.has("isFavorite")).toBe(false);
+      const ascending =
+        key === "title" ? [publicRows[2], publicRows[0], publicRows[1]] : [...publicRows].reverse();
+      const rows = order === "asc" ? ascending : ascending.reverse();
+      const nextCursor = `opaque+${key}/${order}=`;
+      if (cursor !== null) expect(cursor).toBe(nextCursor);
+      return route.fulfill({
+        json: cursor ? scroll(rows.slice(1)) : scroll(rows.slice(0, 1), nextCursor),
+      });
+    },
+  );
+
+  await page.goto(`/folders/${folder.id}`);
+  const list = page.getByTestId("link-list-body");
+  const filter = list.getByTestId("link-filter-row-button");
+  const titles = list.getByTestId("link-card-title");
+  const expectSort = async (key: string, order: string, expected: number[]) => {
+    await expect(titles).toHaveText(expected.map((index) => publicRows[index].title));
+    expect(requests.filter(([k, o]) => k === key && o === order)).toEqual([
+      [key, order, null],
+      [key, order, `opaque+${key}/${order}=`],
+    ]);
+  };
+  const choose = async (name: RegExp) => {
+    if ((await filter.getAttribute("aria-expanded")) !== "true") await filter.click();
+    await list.getByRole("radio", { name }).click();
+  };
+  await expectSort("created_at", "desc", [0, 1, 2]);
+  await choose(/저장일/);
+  await expectSort("created_at", "asc", [2, 1, 0]);
+  await choose(/제목/);
+  await expectSort("title", "asc", [2, 0, 1]);
+  await choose(/제목/);
+  await expectSort("title", "desc", [1, 0, 2]);
+});
+
+for (const role of ["guest", "outsider", "former-member-owner"] as const) {
+  test(`public folder card and direct link agree on link ownership for ${role}`, async ({
+    page,
+    isMobile,
+  }) => {
+    const canEdit = role === "former-member-owner";
+    const requested: { path: string; token?: string; method: string }[] = [];
+    const account = await mockApi(page, { seedSession: role !== "guest", folders: [] });
+    const folderPath = `/folders/${folder.id}`;
+    const linkPath = `/links/${publicVideo.id}`;
+    await page.route(`**/api${folderPath}`, (route) =>
+      route.fulfill({ json: envelope({ id: folder.id, name: folder.name, emoji: folder.emoji }) }),
+    );
+    const title = publicVideo.title;
+    let favorite = false;
+    await page.route(
+      (url) =>
+        url.pathname === "/api/links" && url.searchParams.get("folderId") === String(folder.id),
+      (route) => {
+        expect(route.request().headers().authorization).toBeUndefined();
+        return route.fulfill({ json: scroll([{ ...publicRows[0], title }]) });
+      },
+    );
+    await page.route(`**/api${linkPath}/favorite`, (route) => {
+      const request = route.request();
+      requested.push({
+        method: request.method(),
+        path: `/api${linkPath}/favorite`,
+        token: request.headers().authorization,
+      });
+      expect(canEdit).toBe(true);
+      expect(request.headers().authorization).toBe("Bearer e2e-access-token");
+      favorite = request.postDataJSON().isFavorite;
+      return route.fulfill({ json: envelope(null) });
+    });
+    await page.route(`**/api${linkPath}`, (route) => {
+      const { method, path, token } = {
+        method: route.request().method(),
+        path: new URL(route.request().url()).pathname,
+        token: route.request().headers().authorization,
+      };
+      requested.push({ method, path, token });
+      const data =
+        canEdit && token
+          ? {
+              ...details[publicVideo.id],
+              title,
+              isOwner: true,
+              isFavorite: favorite,
+              content: { excerpt, isPending: false },
+            }
+          : {
+              ...publicVideo,
+              ...folderFields,
+              title,
+              content: { excerpt },
+              todos: [{ title: action, isCompleted: false }],
+            };
+      return route.fulfill({ json: envelope(data) });
+    });
+    await page.goto(folderPath);
+    const list = page.getByTestId("link-list-body");
+    await list.getByTestId("link-card-body").click();
+    await expect(page).toHaveURL(isMobile ? linkPath : `${folderPath}?linkId=${publicVideo.id}`);
+    const detail = page.getByTestId("link-detail");
+    const edit = page.getByTestId("link-detail-edit");
+    const toolbar = page.getByTestId("link-detail-toolbar");
+    await expect(detail.getByTestId("link-detail-title")).toHaveText(title);
+    await expect(edit).toHaveCount(canEdit ? 1 : 0);
+    await expect(detail.getByText("회원만 보는 메모")).toHaveCount(canEdit ? 1 : 0);
+    if (canEdit) {
+      await toolbar.getByRole("button", { name: "바로가기 추가" }).click();
+      await expect(toolbar.getByRole("button", { name: "바로가기 해제" })).toBeVisible();
+    }
+    if (isMobile) await page.getByRole("button", { name: "뒤로" }).click();
+    else await detail.getByRole("button", { name: "닫기" }).click();
+    await expect(page).toHaveURL(folderPath);
+    await expect(list.getByTestId("link-card-title")).toHaveText(title);
+    await page.goto(linkPath);
+    await expect(detail.getByTestId("link-detail-title")).toHaveText(title);
+    await expect(edit).toHaveCount(canEdit ? 1 : 0);
+    await expect(toolbar.getByRole("button", { name: "바로가기 해제" })).toHaveCount(
+      canEdit ? 1 : 0,
+    );
+    expect(requested.filter(({ method }) => method === "PUT")).toHaveLength(canEdit ? 1 : 0);
+    for (const request of requested) {
+      expect(request.token).toBe(role === "guest" ? undefined : "Bearer e2e-access-token");
+    }
+    if (!canEdit) {
+      expect(
+        account.requests.filter(({ path }) => /^\/api\/(?:folders|links|todos)(?:\/|$)/.test(path)),
+      ).toEqual([]);
+    }
+  });
+}

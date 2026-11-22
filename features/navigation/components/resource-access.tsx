@@ -180,7 +180,14 @@ function ResourceVisit({
   const renderRoute = (headerAction?: React.ReactNode) =>
     resource && resource.mode !== "app" ? (
       <PublicResourceContext
-        value={{ resource, visit: listVisit, isGuest: Boolean(guestTheme), headerAction, revoke }}
+        value={{
+          resource,
+          visit: listVisit,
+          isGuest: Boolean(guestTheme),
+          linkReadToken: readToken,
+          headerAction,
+          revoke,
+        }}
       >
         {children}
       </PublicResourceContext>
