@@ -183,10 +183,12 @@ function FolderVisibilityAction({ folder }: { folder: Folder }) {
   const [open, setOpen] = React.useState(false);
   const [confirming, setConfirming] = React.useState(false);
   const mutation = useSetFolderPrivacyMutation();
-  const detail = useFolderDetailQuery(folder.id, open || confirming || mutation.isPending);
+  const readsDetail = open || confirming || mutation.isPending;
+  const detail = useFolderDetailQuery(folder.id, readsDetail);
   const trigger = React.useRef<TriggerRef>(null);
   const isPublic =
-    typeof (detail.data ? detail.data.turnsPublicAt : folder.turnsPublicAt) === "string";
+    typeof (readsDetail && detail.data ? detail.data.turnsPublicAt : folder.turnsPublicAt) ===
+    "string";
   const canChange =
     detail.isSuccess && detail.data.turnsPublicAt !== undefined && !detail.isFetching;
 

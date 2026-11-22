@@ -245,6 +245,61 @@ test("keeps a rejected combined link edit intact and uses the toolbar for a priv
   expect(writes[2].body).toEqual({ isPublic: false });
 });
 
+test("keeps link field edits after the current folder becomes private", async ({ page }) => {
+  const [folder] = makeFolders(1);
+  const link = makeLink({ id: 1, folderId: folder.id, folderName: folder.name });
+  let folderTurnsPublicAt: string | null = PUBLIC_AT;
+  const state = await mockApi(page, {
+    links: [link],
+    details: { [link.id]: makeDetail(link, { isOwner: true, turnsPublicAt: null }) },
+    handlers: {
+      "GET /api/folders": (route) =>
+        route.fulfill({ json: scroll([{ ...folder, turnsPublicAt: folderTurnsPublicAt }]) }),
+      "PUT /api/links/1": (route, request) => {
+        const body = request.postDataJSON() as {
+          title: string;
+          summary: string;
+          isPublic?: boolean;
+        };
+        if (body.isPublic === true)
+          return route.fulfill({ status: 422, json: { success: false, data: null } });
+        state.details[link.id] = {
+          ...state.details[link.id],
+          title: body.title,
+          summary: body.summary,
+        };
+        return route.fulfill({ json: envelope(state.details[link.id]) });
+      },
+    },
+  });
+  await page.goto(isWideProject() ? "/links?linkId=1" : "/links/1");
+  await page.getByTestId("link-detail-edit").click();
+  const title = page.getByRole("textbox", { name: "제목" });
+  const summary = page.getByPlaceholder("한 줄 요약을 입력해주세요");
+  const save = page.getByRole("button", { name: "저장", exact: true });
+  await title.fill("유지할 제목");
+  await summary.fill("유지할 요약");
+  await page.getByRole("radio", { name: "전체 공개" }).click();
+  folderTurnsPublicAt = null;
+  await save.click();
+  await expect(page.getByText("현재 폴더 상태에서는 링크를 전체 공개할 수 없어요.")).toBeVisible();
+  await expect(title).toHaveValue("유지할 제목");
+  await expect(summary).toHaveValue("유지할 요약");
+  await expect(save).toBeDisabled();
+  await page.getByRole("button", { name: "공개 변경 취소" }).click();
+  await save.click();
+  await expect(title).toHaveCount(0);
+  expect(state.requests.filter(({ method }) => method === "PUT").map(({ body }) => body)).toEqual([
+    expect.objectContaining({ title: "유지할 제목", summary: "유지할 요약", isPublic: true }),
+    expect.not.objectContaining({ isPublic: expect.anything() }),
+  ]);
+  expect(state.details[link.id]).toMatchObject({
+    title: "유지할 제목",
+    summary: "유지할 요약",
+    turnsPublicAt: null,
+  });
+});
+
 async function openEdit(page: Page) {
   await page.getByRole("button", { name: "폴더 수정", exact: true }).click();
   const scope = isWideProject() ? page.getByRole("dialog", { name: "폴더 수정" }) : page;
@@ -268,6 +323,7 @@ async function mockFolderOwner(
       [`PUT /api/folders/${FOLDER_ID}/privacy`]: (route, request) => {
         const body = request.postDataJSON() as { isPublic: boolean };
         turnsPublicAt = body.isPublic ? PUBLIC_AT : null;
+        state.folders[0].turnsPublicAt = turnsPublicAt;
         return route.fulfill({ json: envelope({ turnsPublicAt }) });
       },
       [`PUT /api/folders/${FOLDER_ID}`]: (route, request) => {
@@ -277,6 +333,7 @@ async function mockFolderOwner(
           return route.fulfill({ status: 503, json: { success: false, data: null } });
         }
         if (data.isPublic !== undefined) turnsPublicAt = data.isPublic ? PUBLIC_AT : null;
+        state.folders[0].turnsPublicAt = turnsPublicAt;
         if (failures.afterWrite) {
           failures.afterWrite = false;
           return route.abort("failed");

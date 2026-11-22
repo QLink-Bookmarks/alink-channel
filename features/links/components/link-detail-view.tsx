@@ -225,6 +225,7 @@ function LinkDetailView({
   const setFavoriteMutation = useSetLinkFavoriteMutation();
   const myProfileQuery = useMyProfileQuery();
   const foldersQuery = useFoldersQuery({ size: 15 });
+  const { refetch: refetchFolders } = foldersQuery;
   const copyLinkMutation = useCopyLinkMutation(detail.id);
   const patchLinkMutation = usePatchLinkMutation(detail.id);
   const showToast = useToastStore((state) => state.showToast);
@@ -281,6 +282,7 @@ function LinkDetailView({
   const savedPublic = typeof detail.turnsPublicAt === "string";
   const isPublic = folderPublic === true && (privacyDraft ?? savedPublic);
   const changedPrivacy = isLinkOwner && privacyDraft !== savedPublic ? privacyDraft : undefined;
+  const unavailablePrivacyDraft = privacyDraft === true && !canChangePrivacy;
   const privacyMutation = useSetLinkPrivacyMutation(detail.id);
   const linkVisibility = folderPublic === true && savedPublic;
 
@@ -537,7 +539,7 @@ function LinkDetailView({
     changedPrivacy !== undefined;
 
   const handleSaveEdit = React.useCallback(async () => {
-    if (isSavingEditRef.current) {
+    if (isSavingEditRef.current || unavailablePrivacyDraft) {
       return;
     }
     const nextTitle = titleDraft.trim();
@@ -576,6 +578,7 @@ function LinkDetailView({
         sourceKey: "link-detail-edit",
       });
     } catch (error: unknown) {
+      if (changedPrivacy === true) void refetchFolders();
       reportError(error, { area: "link-detail-view:edit", extra: { linkId: detail.id } });
       showToast({
         title: "수정에 실패했어요.",
@@ -593,10 +596,12 @@ function LinkDetailView({
     changedPrivacy,
     detail.id,
     privacyMutation,
+    refetchFolders,
     setEditSheetOpen,
     showToast,
     summaryDraft,
     titleDraft,
+    unavailablePrivacyDraft,
     updateLinkFields,
   ]);
 
@@ -679,7 +684,26 @@ function LinkDetailView({
 
   const isPanel = mode === "panel";
   let editVisibility: React.ReactNode = null;
-  if (isLinkOwner && folderPublic === undefined) {
+  if (unavailablePrivacyDraft) {
+    editVisibility = (
+      <View className="items-start gap-2">
+        <Text
+          accessibilityLiveRegion="polite"
+          className="text-sm text-muted-foreground"
+        >
+          현재 폴더 상태에서는 링크를 전체 공개할 수 없어요.
+        </Text>
+        <Button
+          disabled={isSavingEdit}
+          size="sm"
+          variant="outline"
+          onPress={() => setPrivacyDraft(undefined)}
+        >
+          <Text>공개 변경 취소</Text>
+        </Button>
+      </View>
+    );
+  } else if (isLinkOwner && folderPublic === undefined) {
     editVisibility = (
       <View className="gap-2">
         <Text className="text-sm font-semibold text-foreground">공개 설정</Text>
@@ -869,7 +893,7 @@ function LinkDetailView({
               summary={summaryDraft}
               visibility={editVisibility}
               saving={isSavingEdit}
-              canSave={isEditDirty}
+              canSave={isEditDirty && !unavailablePrivacyDraft}
               onChangeTitle={setTitleDraft}
               onChangeSummary={setSummaryDraft}
               onCancel={handleRequestCloseEdit}
@@ -890,7 +914,7 @@ function LinkDetailView({
               summary={summaryDraft}
               visibility={editVisibility}
               saving={isSavingEdit}
-              canSave={isEditDirty}
+              canSave={isEditDirty && !unavailablePrivacyDraft}
               onChangeTitle={setTitleDraft}
               onChangeSummary={setSummaryDraft}
               onCancel={handleRequestCloseEdit}
