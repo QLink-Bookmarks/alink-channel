@@ -1,18 +1,26 @@
-function hasNaverCallbackHash(hash: string) {
-  return new URLSearchParams(hash.slice(1)).has("access_token");
+const OAUTH_CALLBACK_PATH = "/auth/callback";
+
+function getOauthCallbackUrl(): string {
+  return new URL(OAUTH_CALLBACK_PATH, window.location.origin).href;
 }
 
-function hasOauthError(params: URLSearchParams) {
-  return params.has("error") && params.has("state");
+function readOauthCallback(url: URL) {
+  const hash = new URLSearchParams(url.hash.slice(1));
+  const isFragment = hash.has("access_token") || hash.has("error");
+  const params = isFragment ? hash : url.searchParams;
+  const state = params.get("state");
+  const error = params.get("error");
+  if (!state) return null;
+
+  if (state.startsWith("naver:")) {
+    const credential = isFragment ? params.get("access_token") : null;
+    if (credential || error) return { provider: "naver" as const, state, credential, error };
+  }
+  if (state.startsWith("kakao:") && !isFragment) {
+    const credential = params.get("code");
+    if (credential || error) return { provider: "kakao" as const, state, credential, error };
+  }
+  return null;
 }
 
-function hasOauthCallbackHash(hash: string) {
-  return hasNaverCallbackHash(hash) || hasOauthError(new URLSearchParams(hash.slice(1)));
-}
-
-function hasOauthCallback(location: Pick<Location, "search" | "hash">) {
-  const params = new URLSearchParams(location.search);
-  return params.has("code") || hasOauthError(params) || hasOauthCallbackHash(location.hash);
-}
-
-export { hasNaverCallbackHash, hasOauthCallback, hasOauthCallbackHash };
+export { OAUTH_CALLBACK_PATH, getOauthCallbackUrl, readOauthCallback };

@@ -8,7 +8,7 @@ import type { ConnectOutcome } from "../lib/connect-with-token";
 
 // Shared post-connect side effects: surface a toast at once, then refresh the
 // connected-provider list in the background. Used by the connect sheet/dialog
-// and the web redirect dispatcher.
+// and the settings route after a web redirect.
 function useConnectFeedback() {
   const queryClient = useQueryClient();
   const showToast = useToastStore((state) => state.showToast);

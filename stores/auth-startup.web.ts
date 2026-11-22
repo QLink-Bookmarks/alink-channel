@@ -1,4 +1,5 @@
-import { hasOauthCallback } from "@/features/auth/lib/oauth-callback";
+import { OAUTH_CALLBACK_PATH, readOauthCallback } from "@/features/auth/lib/oauth-callback";
+import { getOauthAttempt } from "@/features/auth/lib/oauth-state";
 
 import type { AuthTokens, StartupRefresh } from "./auth-tokens";
 
@@ -27,11 +28,12 @@ async function resolveStartupTokens(
   if (stored?.accessToken) {
     return { accessToken: stored.accessToken, refreshToken: null };
   }
-  if (
-    typeof window === "undefined" ||
-    (window.location.pathname === "/" && hasOauthCallback(window.location))
-  ) {
-    return null;
+  if (typeof window === "undefined") return null;
+  if (window.location.pathname === OAUTH_CALLBACK_PATH) {
+    const callback = readOauthCallback(new URL(window.location.href));
+    if (callback && getOauthAttempt(callback.provider, callback.state)?.mode === "login") {
+      return null;
+    }
   }
   const accessToken = await waitAtMost(
     refresher.then((refresh) => refresh()),
