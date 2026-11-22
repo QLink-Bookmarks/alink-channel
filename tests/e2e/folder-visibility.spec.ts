@@ -4,6 +4,7 @@ import { isWideProject } from "./support/helpers";
 import { envelope, makeDetail, makeFolders, makeLink, mockApi, scroll } from "./support/mock-api";
 
 const FOLDER_ID = 1;
+const PUBLIC_AT = "2026-11-22T10:00:00Z";
 
 for (const { isOwner, folderOwnerId, isPublic } of [
   { isOwner: true, folderOwnerId: 2, isPublic: false },
@@ -17,17 +18,28 @@ for (const { isOwner, folderOwnerId, isPublic } of [
     const [folder] = makeFolders(1);
     const link = makeLink({ id: 1, folderId: folder.id, folderName: folder.name });
     const state = await mockApi(page, {
-      folders: [{ ...folder, ownerId: folderOwnerId, isShared: true, isPublic: true }],
+      folders: [{ ...folder, ownerId: folderOwnerId, isShared: true, turnsPublicAt: PUBLIC_AT }],
       links: [link],
-      details: { [link.id]: makeDetail(link, { isOwner, isPublic }) },
+      details: {
+        [link.id]: makeDetail(link, { isOwner, turnsPublicAt: isPublic ? PUBLIC_AT : null }),
+      },
       handlers: {
         "PUT /api/links/1": (route, request) => {
           const { isPublic, title } = request.postDataJSON() as {
             isPublic: boolean;
             title: string;
           };
-          state.details[link.id] = { ...state.details[link.id], title, isPublic };
+          state.details[link.id] = {
+            ...state.details[link.id],
+            title,
+            turnsPublicAt: isPublic ? PUBLIC_AT : null,
+          };
           return route.fulfill({ json: envelope(state.details[link.id]) });
+        },
+        "PUT /api/links/1/privacy": (route, request) => {
+          const { isPublic } = request.postDataJSON() as { isPublic: boolean };
+          state.details[link.id].turnsPublicAt = isPublic ? PUBLIC_AT : null;
+          return route.fulfill({ json: envelope(null) });
         },
       },
     });
@@ -48,13 +60,19 @@ for (const { isOwner, folderOwnerId, isPublic } of [
     await everyone.click();
     await page.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.getByText("수정했어요.")).toBeVisible();
-    expect(state.details[link.id].isPublic).toBe(true);
+    expect(state.details[link.id].turnsPublicAt).toBe(PUBLIC_AT);
     await page.getByTestId("link-detail-edit").click();
     await expect(everyone).toBeChecked();
     await onlyMe.click();
     await page.getByRole("button", { name: "저장", exact: true }).click();
     await expect(onlyMe).toHaveCount(0);
-    expect(state.details[link.id].isPublic).toBe(false);
+    expect(state.details[link.id].turnsPublicAt).toBeNull();
+    expect(
+      state.requests.filter(({ method }) => method === "PUT").map(({ path, body }) => [path, body]),
+    ).toEqual([
+      ["/api/links/1/privacy", { isPublic: true }],
+      ["/api/links/1/privacy", { isPublic: false }],
+    ]);
   });
 }
 
@@ -67,11 +85,11 @@ test("a private folder overrides stale public link details", async ({ page }) =>
   });
   await mockApi(page, {
     links: [link],
-    details: { [link.id]: makeDetail(link, { isOwner: true, isPublic: true }) },
+    details: { [link.id]: makeDetail(link, { isOwner: true, turnsPublicAt: PUBLIC_AT }) },
     handlers: {
       "GET /api/folders": async (route) => {
         await folderResponse;
-        await route.fulfill({ json: scroll([{ ...folder, isPublic: false }]) });
+        await route.fulfill({ json: scroll([{ ...folder, turnsPublicAt: null }]) });
       },
     },
   });
@@ -97,8 +115,8 @@ test("keeps an explicit private link and its todo when the folder is reselected"
   const [folder, privateFolder] = makeFolders(2);
   const state = await mockApi(page, {
     folders: [
-      { ...folder, name: "공개 폴더", emoji: null, isPublic: true },
-      { ...privateFolder, name: "비공개 폴더", emoji: null, isPublic: false },
+      { ...folder, name: "공개 폴더", emoji: null, turnsPublicAt: PUBLIC_AT },
+      { ...privateFolder, name: "비공개 폴더", emoji: null, turnsPublicAt: null },
     ],
   });
   await page.goto("/home");
@@ -154,7 +172,7 @@ for (const kind of ["일반", "AI"] as const) {
     const [known, unknown] = makeFolders(2);
     const state = await mockApi(page, {
       folders: [
-        { ...known, name: "공개 상태 확인됨", emoji: null, isPublic: true },
+        { ...known, name: "공개 상태 확인됨", emoji: null, turnsPublicAt: PUBLIC_AT },
         { ...unknown, name: "공개 상태 미확인", emoji: null },
       ],
       handlers: {

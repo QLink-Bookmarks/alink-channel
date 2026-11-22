@@ -33,6 +33,7 @@ import {
   UNCATEGORIZED_PICKER_OPTION,
 } from "@/features/folders/components/folder-picker-list";
 import { VisibilityField } from "@/features/folders/components/visibility-field";
+import { VisibilityPopover } from "@/features/folders/components/visibility-popover";
 import { getMoveTargetFolderId } from "@/features/folders/lib/folder-pages";
 import { useFoldersQuery } from "@/features/folders/queries";
 import { buildShareText } from "@/features/links/lib/build-share-text";
@@ -42,6 +43,7 @@ import {
   useDeleteLinkMutation,
   usePatchLinkMutation,
   useSetLinkFavoriteMutation,
+  useSetLinkPrivacyMutation,
   useUpdateLinkMutation,
 } from "@/features/links/mutations";
 import { getLinkDetailQueryKey, useLinkDetailExcerptRecheck } from "@/features/links/queries";
@@ -267,11 +269,24 @@ function LinkDetailView({
     currentFolder.ownerId === myProfileQuery.data.id;
   const isLinkOwner = detail.isOwner === true;
   const canCopyFromSharedFolder = isSharedFolder && !isFolderOwner;
-  const folderPublic = detail.folderId == null ? false : currentFolder?.isPublic;
+  const folderTurnsPublicAt = currentFolder?.turnsPublicAt;
+  const folderPublic =
+    detail.folderId == null
+      ? false
+      : folderTurnsPublicAt === undefined
+        ? undefined
+        : folderTurnsPublicAt !== null;
   const canChangePrivacy = isLinkOwner && folderPublic === true;
-  const savedPublic = detail.isPublic === true;
+  const savedPublic = typeof detail.turnsPublicAt === "string";
   const isPublic = folderPublic === true && (privacyDraft ?? savedPublic);
   const changedPrivacy = canChangePrivacy && isPublic !== savedPublic ? isPublic : undefined;
+  const privacyMutation = useSetLinkPrivacyMutation(detail.id);
+  const linkVisibility = folderPublic === true && savedPublic;
+
+  const handleChangeLinkPrivacy = (next: boolean) => {
+    if (privacyMutation.isPending || next === linkVisibility) return;
+    privacyMutation.mutate(next);
+  };
 
   const handleDetailUpdated = React.useCallback(
     (response: LinkDetailResponse) => {
@@ -295,13 +310,13 @@ function LinkDetailView({
         buildUpdateLinkPayload(latest, overrides),
       );
       handleDetailUpdated(response);
+      const { isPublic: _visibility, ...fields } = overrides;
       // The merge keeps known values over nulls, so a cleared memo or summary is set here.
       queryClient.setQueryData<LinkDetail>(queryKey, (current) =>
         current
           ? {
               ...current,
-              ...overrides,
-              isPublic: response.data.isPublic ?? overrides.isPublic ?? current.isPublic,
+              ...fields,
             }
           : current,
       );
@@ -534,11 +549,14 @@ function LinkDetailView({
     isSavingEditRef.current = true;
     setIsSavingEdit(true);
     try {
-      await updateLinkFields({
-        ...(changedPrivacy === undefined ? {} : { isPublic: changedPrivacy }),
-        summary: summaryDraft.trim() ? summaryDraft.trim() : null,
-        title: nextTitle,
-      });
+      const summary = summaryDraft.trim() || null;
+      const fieldsChanged =
+        nextTitle !== detail.title.trim() || summary !== ((detail.summary ?? "").trim() || null);
+      if (changedPrivacy !== undefined && !fieldsChanged) {
+        await privacyMutation.mutateAsync(changedPrivacy);
+      } else {
+        await updateLinkFields({ isPublic: changedPrivacy, summary, title: nextTitle });
+      }
       setIsUnsavedEditOpen(false);
       setEditSheetOpen(false);
       showToast({
@@ -565,6 +583,9 @@ function LinkDetailView({
   }, [
     changedPrivacy,
     detail.id,
+    detail.summary,
+    detail.title,
+    privacyMutation,
     setEditSheetOpen,
     showToast,
     summaryDraft,
@@ -686,6 +707,17 @@ function LinkDetailView({
       mode={mode}
       refreshFailed={hasRefreshFailed}
       refreshing={isRefreshing}
+      visibility={
+        isLinkOwner ? (
+          <VisibilityPopover
+            canPublish={canChangePrivacy}
+            error={privacyMutation.isError ? "공개 설정을 저장하지 못했어요." : undefined}
+            isPublic={linkVisibility}
+            pending={privacyMutation.isPending || isSavingEdit}
+            onChange={handleChangeLinkPrivacy}
+          />
+        ) : undefined
+      }
       onClose={onClose}
       onCopy={handleOpenCopyFolder}
       onEdit={openEditSheet}

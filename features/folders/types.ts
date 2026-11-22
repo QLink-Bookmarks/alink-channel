@@ -5,7 +5,7 @@ type Folder = {
   id: number;
   ownerId?: number;
   ownerNickname?: string | null;
-  isPublic?: boolean;
+  turnsPublicAt?: string | null;
   name: string;
   emoji?: string | null;
   isShared: boolean;

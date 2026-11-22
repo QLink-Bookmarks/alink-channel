@@ -18,6 +18,7 @@ type LinkDetailToolbarProps = {
   isCopyPending: boolean;
   refreshing: boolean;
   refreshFailed: boolean;
+  visibility?: React.ReactNode;
   onToggleFavorite: () => void;
   onShare: () => void;
   onEdit: () => void;
@@ -35,6 +36,7 @@ function LinkDetailToolbar({
   isCopyPending,
   refreshing,
   refreshFailed,
+  visibility,
   onToggleFavorite,
   onShare,
   onEdit,
@@ -78,6 +80,7 @@ function LinkDetailToolbar({
           onPress={onEdit}
         />
       ) : null}
+      {visibility}
       {canCopy ? (
         <DetailToolbarButton
           accessibilityLabel="개인 폴더로 추가"
