@@ -731,7 +731,7 @@ for (const kind of [
       expect(createRequest()?.body).toHaveProperty("isPublic", false);
       return;
     }
-    await expect(page).toHaveURL(isWideProject() ? /\/links\?linkId=100$/ : /\/links\/100$/);
+    await expect(page).toHaveURL(isWideProject() ? /\/home\?linkId=100$/ : /\/links\/100$/);
     expect(createRequest()?.body).not.toHaveProperty("isPublic");
     const privacyRequests = state.requests.filter(
       ({ method, path }) => method === "PUT" && path === "/api/links/100/privacy",
