@@ -19,6 +19,7 @@ type AppHeaderTitleAlign = "center" | "start";
 function AppHeader({
   className,
   title,
+  titleAccessibilityRole,
   back,
   leftSlot,
   rightSlot,
@@ -29,6 +30,7 @@ function AppHeader({
   ...props
 }: React.ComponentProps<typeof View> & {
   title?: string;
+  titleAccessibilityRole?: "header";
   back?: boolean;
   leftSlot?: React.ReactNode;
   rightSlot?: React.ReactNode;
@@ -74,6 +76,8 @@ function AppHeader({
           {leftContent}
           {title ? (
             <Text
+              accessibilityRole={titleAccessibilityRole}
+              aria-level={titleAccessibilityRole ? 1 : undefined}
               testID="app-header-title"
               className="min-w-0 flex-1 text-left text-base font-semibold"
               numberOfLines={1}
@@ -87,6 +91,8 @@ function AppHeader({
           <View className="min-w-10 flex-row items-center">{leftContent}</View>
           {title ? (
             <Text
+              accessibilityRole={titleAccessibilityRole}
+              aria-level={titleAccessibilityRole ? 1 : undefined}
               testID="app-header-title"
               className="flex-1 text-center text-base font-semibold"
               numberOfLines={1}

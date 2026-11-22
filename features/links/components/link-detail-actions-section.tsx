@@ -15,6 +15,7 @@ import { type LeaveGuard, requestLeave, useLeaveGuard } from "@/stores/leave-gua
 import { useLinkTodoEdit } from "../hooks/use-link-todo-edit";
 import { getLinkTodoTitle, isLinkTodoDone } from "../lib/link-todo-save-plan";
 import type { LinkTodo } from "../types";
+import { LinkDetailActionList, LinkDetailActionSection } from "./link-detail-action-list";
 import { DetailRow, DetailRowAddButton } from "./link-detail-parts";
 import { UnsavedChangesDialog } from "./unsaved-changes-dialog";
 
@@ -181,12 +182,8 @@ function LinkDetailActionsSection({
   const nowMs = Date.now();
 
   return (
-    <View
-      className="gap-1 border-t border-border-soft py-2.5"
-      testID="link-detail-todos"
-    >
-      <View className="flex-row items-center justify-between gap-3">
-        <Text className="text-xs font-semibold leading-8 text-muted-foreground">액션</Text>
+    <LinkDetailActionSection
+      action={
         <DetailRowAddButton
           accessibilityLabel="액션 추가"
           align="end"
@@ -194,7 +191,8 @@ function LinkDetailActionsSection({
           testID="link-detail-todos-add"
           onPress={edit.startAdd}
         />
-      </View>
+      }
+    >
       {isEditing ? (
         <View
           className="gap-3"
@@ -259,10 +257,7 @@ function LinkDetailActionsSection({
           </View>
         </View>
       ) : (
-        <View
-          className="gap-2"
-          testID="link-detail-todo-list"
-        >
+        <LinkDetailActionList>
           {todos.map((todo) => (
             <LinkTodoCard
               key={todo.id}
@@ -272,9 +267,9 @@ function LinkDetailActionsSection({
               onToggleDone={edit.toggleDone}
             />
           ))}
-        </View>
+        </LinkDetailActionList>
       )}
-    </View>
+    </LinkDetailActionSection>
   );
 }
 

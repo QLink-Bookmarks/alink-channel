@@ -19,12 +19,14 @@ import {
   UNCATEGORIZED_PICKER_OPTION,
 } from "@/features/folders/components/folder-picker-list";
 import { getMoveTargetFolderId } from "@/features/folders/lib/folder-pages";
-import { mapLinkListItem } from "@/features/home/lib/link-card-mapper";
+import type { PublicFolderLists } from "@/features/folders/types";
+import { getDomainFromUrl, mapLinkListItem } from "@/features/home/lib/link-card-mapper";
 import { deleteLink, patchLink } from "@/features/links/api";
 import { LinkCard } from "@/features/links/components/link-card/link-card";
 import { LinkCardSkeleton } from "@/features/links/components/link-card/link-card-skeleton";
 import { useLinkCardSize } from "@/features/links/hooks/use-link-card-size";
 import { getLinkCardMinWidth } from "@/features/links/lib/link-card-size";
+import { isPreviewableUrl } from "@/features/links/lib/link-preview/link-preview-result";
 import { openLinkUrl } from "@/features/links/lib/open-link-url";
 import { useSetLinkFavoriteMutation } from "@/features/links/mutations";
 import { invalidateLinkListAndSearchQueries } from "@/features/links/queries";
@@ -37,6 +39,41 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, FolderOpen, Star, Trash2 } from "lucide-react-native/icons";
 
 const GRID_GAP = 12;
+const GRID_CLASS_NAME = "w-full flex-row flex-wrap";
+
+function useLinkGridLayout() {
+  const { isWideView, linkCardSize } = useLinkCardSize();
+  const { itemStyle, onLayout } = useGridColumns({
+    gap: GRID_GAP,
+    minItemWidth: getLinkCardMinWidth(linkCardSize, isWideView),
+  });
+  return { isWideView, itemStyle, onLayout };
+}
+
+function ReadOnlyLinkCardGrid({ links }: { links: PublicFolderLists["links"][] }) {
+  const { itemStyle, onLayout } = useLinkGridLayout();
+  return (
+    <View
+      className={GRID_CLASS_NAME}
+      style={{ gap: GRID_GAP }}
+      onLayout={onLayout}
+    >
+      {links.map(({ id, title, url }) => (
+        <View
+          key={id}
+          style={itemStyle}
+        >
+          <LinkCard
+            bodyHref={`/links/${id}`}
+            domain={getDomainFromUrl(url)}
+            title={title}
+            onImagePress={isPreviewableUrl(url) ? () => openLinkUrl(url) : undefined}
+          />
+        </View>
+      ))}
+    </View>
+  );
+}
 
 function HoverActionButton({
   icon,
@@ -128,11 +165,7 @@ function LinkCardGrid({
       patchLink(id, { folderId }),
   });
   const favoriteMutation = useSetLinkFavoriteMutation();
-  const { isWideView, linkCardSize } = useLinkCardSize();
-  const { itemStyle, onLayout } = useGridColumns({
-    gap: GRID_GAP,
-    minItemWidth: getLinkCardMinWidth(linkCardSize, isWideView),
-  });
+  const { isWideView, itemStyle, onLayout } = useLinkGridLayout();
 
   const handleBookmark = React.useCallback(
     async (item: LinkListItem) => {
@@ -205,7 +238,7 @@ function LinkCardGrid({
   return (
     <>
       <View
-        className={cn("w-full flex-row flex-wrap", className)}
+        className={cn(GRID_CLASS_NAME, className)}
         style={{ gap: GRID_GAP }}
         testID="link-card-grid"
         onLayout={onLayout}
@@ -325,5 +358,5 @@ function LinkCardGrid({
   );
 }
 
-export { LinkCardGrid };
+export { LinkCardGrid, ReadOnlyLinkCardGrid };
 export type { LinkCardGridProps };

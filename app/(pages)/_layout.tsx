@@ -1,5 +1,7 @@
 import { View } from "react-native";
 
+import { LoadErrorState } from "@/components/ui/load-error-state";
+import { accountQueryKeys } from "@/features/account/queries";
 import { useAgreementStatus } from "@/features/agreements/hooks/use-agreement-status";
 import { CheckingScreen } from "@/features/auth/components/auth-splash-screen";
 import { ImportFlowHost } from "@/features/imports/components/flow/import-flow-host";
@@ -8,6 +10,7 @@ import { ResponsiveShell } from "@/features/navigation/components/responsive-she
 import { useWideViewState } from "@/lib/hooks/use-wide-view";
 import { useAuthStore } from "@/stores/auth";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { type Href, Navigator, Redirect } from "expo-router";
 
@@ -24,7 +27,8 @@ export default function PagesLayout() {
 function PrivatePagesLayout() {
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const accessToken = useAuthStore((state) => state.accessToken);
-  const { needsAgreement, hasResolved } = useAgreementStatus();
+  const { needsAgreement, hasResolved, isError } = useAgreementStatus();
+  const queryClient = useQueryClient();
   const { isResolved: isWideViewResolved } = useWideViewState();
 
   // Logged-out visitors who deep-link into an app page (anything but root) land
@@ -35,6 +39,19 @@ function PrivatePagesLayout() {
   // Signed in but required consent still pending → force the agreements gate.
   if (hasHydrated && accessToken && hasResolved && needsAgreement) {
     return <Redirect href={"/agreements" as Href} />;
+  }
+
+  if (hasHydrated && accessToken && !hasResolved) {
+    return isError ? (
+      <LoadErrorState
+        title="이 영역을 불러오지 못했어요"
+        onRetry={() =>
+          void queryClient.invalidateQueries({ queryKey: accountQueryKeys.myProfile() })
+        }
+      />
+    ) : (
+      <CheckingScreen />
+    );
   }
 
   if (!isWideViewResolved) {
