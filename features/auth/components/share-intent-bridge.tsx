@@ -21,7 +21,7 @@ function ShareIntentBridge() {
 
     const url = shareIntent.webUrl ?? shareIntent.text;
     if (url) {
-      const share = { url };
+      const share: PendingShare = { url, live: true };
       liveShareRef.current = share;
       useShareIntentStore.getState().setPending(share);
     }
@@ -32,10 +32,10 @@ function ShareIntentBridge() {
     const share = liveShareRef.current;
     if (!share || pendingShare !== share) return;
     if (!hasResolved || needsAgreement) return;
-    if (["/", "/app", "/login", "/agreements", "/invite"].includes(pathname)) return;
+    if (["/", "/home", "/login", "/agreements", "/invite"].includes(pathname)) return;
 
     liveShareRef.current = null;
-    router.push("/app");
+    router.push("/home");
   }, [hasResolved, needsAgreement, pathname, pendingShare, router]);
 
   return null;

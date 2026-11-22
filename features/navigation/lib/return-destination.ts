@@ -38,7 +38,7 @@ function validateReturnDestination(value: string | null) {
 
 function rememberReturnDestination(value: string) {
   const destination = validateReturnDestination(value);
-  if (!destination) return;
+  if (!destination || destination === "/home") return;
   if (process.env.EXPO_OS === "web") {
     void SessionStorage.setItem(RETURN_DESTINATION_KEY, destination);
   } else {

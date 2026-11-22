@@ -41,7 +41,7 @@ function WebLanding() {
   const brandColors = useCycledBrandColors("light");
   const { height } = useWindowDimensions();
   const [active, setActive] = React.useState(0);
-  const goApp = React.useCallback(() => router.push("/app" as Href), [router]);
+  const goApp = React.useCallback(() => router.push("/home" as Href), [router]);
 
   const handleScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {

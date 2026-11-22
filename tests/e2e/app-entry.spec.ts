@@ -212,7 +212,7 @@ for (const status of ["guest", "agreed", "unagreed"] as const) {
         await page.getByText(landing, { exact: true }).first().click();
       } else {
         await page.goto("/privacy");
-        await page.goto("/app");
+        await page.goto("/home");
         await page.reload();
       }
       if (options.guest) await signIn(page);
@@ -222,15 +222,17 @@ for (const status of ["guest", "agreed", "unagreed"] as const) {
       await expect(page).toHaveURL(entry === "cta" ? "/" : "/privacy");
     });
   }
+}
 
-  test(`public folder address stays outside the gate for ${status}`, async ({ page }) => {
-    await setUp(page, options);
+for (const removedPath of ["/app", "/public/folders/116-preview"]) {
+  test(`removed address ${removedPath} stays on the not-found page`, async ({ page }) => {
+    await setUp(page, { guest: true });
     await page.goto("/privacy");
-    const publicFolder = "/public/folders/116-preview";
-    await page.goto(publicFolder);
+    await page.goto(removedPath);
+    await expect(page.getByText("페이지를 찾을 수 없어요")).toBeVisible();
     await page.reload();
-    await expect(page).toHaveURL(publicFolder);
-    await expect(page.getByText(login, { exact: true })).toHaveCount(0);
+    await expect(page).toHaveURL(removedPath);
+    await expect(page.getByText("페이지를 찾을 수 없어요")).toBeVisible();
     await page.goBack();
     await expect(page).toHaveURL("/privacy");
   });
@@ -241,14 +243,53 @@ test("app waits for session restoration without going through login or landing",
 }) => {
   const refresh = deferred();
   await setUp(page, { refresh: refresh.promise });
-  await page.goto("/app");
+  await page.goto("/home");
   await expect(page.getByText(checking)).toBeVisible();
-  await expect(page).toHaveURL("/app");
+  await expect(page).toHaveURL("/home");
   await expect(page.getByText(login, { exact: true })).toHaveCount(0);
   await expect(page.getByText(landing).filter({ visible: true })).toHaveCount(0);
   await expect(page.getByText(consent)).toHaveCount(0);
   refresh.release();
   await expectHome(page);
+});
+
+test("home waits for the restored session before opening a stored share once", async ({ page }) => {
+  const refresh = deferred();
+  await setUp(page, { refresh: refresh.promise, share: true });
+  await page.goto("/privacy");
+  await page.goto("/home");
+  const field = page.getByRole("textbox", { name: "URL", exact: true });
+  await expect(page.getByText(checking)).toBeVisible();
+  await expect(page).toHaveURL("/home");
+  await expect(field).toHaveCount(0);
+  refresh.release();
+  await expect(field).toHaveValue(sharedUrl);
+  await page.getByRole("button", { name: "닫기", exact: true }).last().click();
+  await expectHome(page);
+  await expect(field).toHaveCount(0);
+  await page.reload();
+  await expectHome(page);
+  await expect(field).toHaveCount(0);
+  await page.goBack();
+  await expect(page).toHaveURL("/privacy");
+});
+
+test("a stored share opens before the URL requested on home", async ({ page }) => {
+  await setUp(page, { guest: true, share: true });
+  const requestedUrl = "https://example.com/from-home";
+  await page.goto(`/home?linkUrl=${encodeURIComponent(requestedUrl)}`);
+  await signIn(page);
+  const field = page.getByRole("textbox", { name: "URL", exact: true });
+  await expect(field).toHaveValue(sharedUrl);
+  await page.getByRole("button", { name: "닫기", exact: true }).last().click();
+  await expect
+    .poll(() =>
+      field.evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value)),
+    )
+    .toEqual([requestedUrl]);
+  await page.getByRole("button", { name: "닫기", exact: true }).last().click();
+  await expectHome(page);
+  await expect(field).toHaveCount(0);
 });
 
 test("protects content while agreement is being checked and lets the user retry", async ({
@@ -331,7 +372,7 @@ test("guest resumes the original folder and overlay after reloading login", asyn
   await expectDestination(page, isMobile);
   await page.goBack();
   await expect(page).toHaveURL("/privacy");
-  await page.goto("/app");
+  await page.goto("/home");
   await expectHome(page);
 });
 
@@ -499,8 +540,11 @@ for (const [invite, share] of [
     expect(inviteRequests().map(({ body }) => body)).toEqual([
       { invitation: "original-invite-token" },
     ]);
-    await page.goto("/app");
     const sharedUrlField = page.getByRole("textbox", { name: "URL", exact: true });
+    if (!isAccepted) await expectHome(page);
+    await expect(sharedUrlField).toHaveCount(0);
+    await page.reload();
+    if (isAccepted) await page.goto("/home");
     if (share) {
       await expect(sharedUrlField).toHaveValue(sharedUrl);
       await page.getByRole("button", { name: "닫기", exact: true }).last().click();
@@ -510,7 +554,7 @@ for (const [invite, share] of [
       page.getByText(new RegExp(folder.name)).filter({ visible: true }).first(),
     ).toBeVisible();
     expect(inviteRequests()).toHaveLength(1);
-    await page.goto("/app");
+    await page.goto("/home");
     await expectHome(page);
     await expect(sharedUrlField).toHaveCount(0);
     if (!isAccepted) {
