@@ -74,8 +74,10 @@ async function setUp(
   let profileFailures = options.profileFailures ?? 0;
   let signInFailures = options.signInFailures ?? 0;
   const invite = { folderId: "4", token: "original-invite-token" };
-  // Expo's development LogBox can cover the mobile agreement controls.
-  await page.addLocatorHandler(page.locator("#error-toast button"), (dismiss) => dismiss.click());
+  // Dismiss Expo's development LogBox without moving focus or clicking through a modal.
+  await page.addLocatorHandler(page.locator("#error-toast button"), (dismiss) =>
+    dismiss.evaluate((button: HTMLButtonElement) => button.click()),
+  );
   await page.addInitScript(
     ({ pendingInvite, pendingShare }) => {
       if (!sessionStorage.getItem("entry-fixtures")) {
