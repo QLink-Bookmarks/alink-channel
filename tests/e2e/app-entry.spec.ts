@@ -227,7 +227,9 @@ async function expectHome(page: Page) {
 
 async function expectDestination(page: Page, isMobile: boolean) {
   await expect(page).toHaveURL(isMobile ? /\/links\/7$/ : /\/folders\/3\?linkId=7$/);
-  await expect(page.getByText(link.title, { exact: true }).first()).toBeVisible();
+  const detail = isMobile ? page : page.getByTestId("detail-panel");
+  if (!isMobile) await expect(detail.getByTestId("link-detail-close")).toBeVisible();
+  await expect(detail.getByText(link.title, { exact: true }).first()).toBeVisible();
 }
 
 for (const status of ["guest", "agreed", "unagreed"] as const) {
@@ -427,8 +429,128 @@ for (const resource of ["/folders/3", "/links/7"] as const) {
     await expect(page).toHaveURL(resource);
     const label = resource.startsWith("/links") ? link.title : new RegExp(folder.name);
     await expect(page.getByText(label).filter({ visible: true }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "로그인", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "사이드바 열기" })).toHaveCount(0);
     await page.reload();
     await expect(page).toHaveURL(resource);
+  });
+}
+
+for (const { entry, expectedReturn } of [
+  { entry: "/folders/3", expectedReturn: "/folders/3" },
+  { entry: "/links/7", expectedReturn: "/links/7" },
+  { entry: destination, expectedReturn: destination },
+  { entry: `${destination}&unapproved=1`, expectedReturn: destination },
+  { entry: "/folders/3?linkId=invalid&unapproved=1", expectedReturn: "/folders/3" },
+]) {
+  test(`public sidebar starts login on activation and returns through the callback from ${entry}`, async ({
+    page,
+    isMobile,
+  }) => {
+    const resource = entry.split("?")[0];
+    const opensOverlay = expectedReturn === destination;
+    const state = await setUp(page, { guest: true });
+    const folderRead = { id: folder.id, name: folder.name, emoji: folder.emoji };
+    const linkRead = {
+      id: link.id,
+      folderId: folder.id,
+      folderName: folder.name,
+      folderEmoji: folder.emoji,
+      title: link.title,
+      url: link.url,
+      todos: [],
+    };
+    const accessTokens: (string | undefined)[] = [];
+    await page.route(
+      (url) => url.pathname === `/api${resource}`,
+      (route) => {
+        expect(route.request().method()).toBe("GET");
+        const token = route.request().headers().authorization;
+        accessTokens.push(token);
+        if (opensOverlay && token) return route.fallback();
+        return json(route, envelope(resource.startsWith("/links") ? linkRead : folderRead));
+      },
+    );
+    await page.route(
+      (url) =>
+        ["/api/links", "/api/todos"].includes(url.pathname) &&
+        url.searchParams.get("folderId") === String(folder.id),
+      (route) => {
+        expect(route.request().method()).toBe("GET");
+        const token = route.request().headers().authorization;
+        if (opensOverlay && token) return route.fallback();
+        expect(token).toBeUndefined();
+        return json(
+          route,
+          envelope({ contents: [], isEmpty: true, hasNext: false, nextCursor: null }),
+        );
+      },
+    );
+
+    await page.goto(entry);
+    const heading = page.getByRole("heading", {
+      name: new RegExp(resource.startsWith("/links") ? link.title : folder.name),
+    });
+    await expect(heading).toBeVisible();
+    const sidebar = isMobile
+      ? page.getByRole("dialog", { name: "사이드바" })
+      : page.getByRole("navigation", { name: "사이드바" });
+    const openSidebar = page.getByRole("button", { name: "사이드바 열기" });
+    const sidebarLogin = sidebar.getByRole("button", { name: "로그인", exact: true });
+    if (isMobile) {
+      await expect(sidebarLogin).toHaveCount(0);
+      await page.getByRole("button", { name: "뒤로" }).focus();
+      await page.keyboard.press("Tab");
+      await expect(openSidebar).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(sidebarLogin).toBeFocused();
+      await expect
+        .poll(async () => (await sidebar.boundingBox())?.height ?? 0)
+        .toBeGreaterThanOrEqual(page.viewportSize()!.height - 1);
+      await page.keyboard.press("Escape");
+      await expect(sidebar).toHaveCount(0);
+      await expect(openSidebar).toBeFocused();
+      await openSidebar.click();
+      await sidebar.getByRole("button", { name: "닫기" }).click();
+      await expect(sidebar).toHaveCount(0);
+      await openSidebar.click();
+    } else {
+      await page.keyboard.press("Tab");
+      await expect(sidebarLogin).toBeFocused();
+    }
+    await expect(sidebarLogin).toBeVisible();
+    await expect(page).toHaveURL(entry);
+    const getReturnDestination = () =>
+      page.evaluate(() => sessionStorage.getItem("qlink-return-destination"));
+    expect(await getReturnDestination()).toBeNull();
+    expect(state.requests.filter(({ path }) => path === "/api/auth/sign")).toHaveLength(0);
+    const privateRequests = () =>
+      state.requests.filter(({ path }) => /^\/api\/(folders|links|todos)\b/.test(path));
+    expect(privateRequests()).toEqual([]);
+
+    if (isMobile) await sidebarLogin.click();
+    else await page.keyboard.press("Enter");
+    await expect(page).toHaveURL("/login");
+    await expect(page.getByText(login, { exact: true })).toBeVisible();
+    expect(await getReturnDestination()).toBe(expectedReturn);
+    await page.reload();
+    await page.getByText("네이버로 계속하기", { exact: true }).click();
+    const callback = page.getByRole("link", { name: "인증 완료" });
+    expect(new URL((await callback.getAttribute("href"))!).pathname).toBe("/auth/callback");
+    await callback.click();
+    if (opensOverlay) {
+      await expectDestination(page, isMobile);
+    } else {
+      await expect(page).toHaveURL(expectedReturn);
+      await expect(heading).toBeVisible();
+      expect(privateRequests()).toEqual([]);
+    }
+    expect(await getReturnDestination()).toBeNull();
+    await expect(openSidebar).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "로그인", exact: true })).toHaveCount(0);
+    expect(accessTokens).toContain(undefined);
+    expect(accessTokens).toContain("Bearer new-access-token");
+    expect(state.requests.filter(({ path }) => path === "/api/auth/sign")).toHaveLength(1);
   });
 }
 

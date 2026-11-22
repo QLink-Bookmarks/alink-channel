@@ -24,7 +24,8 @@ function validateReturnDestination(value: string | null) {
   const allowed = new URLSearchParams();
   if (LINK_OVERLAY_PATHS.includes(pathname) || pathname.startsWith("/folders/")) {
     const linkId = params.get("linkId");
-    if (linkId && /^\d+$/.test(linkId) && Number.isSafeInteger(Number(linkId))) {
+    const numericId = Number(linkId);
+    if (linkId && /^\d+$/.test(linkId) && Number.isSafeInteger(numericId) && numericId > 0) {
       allowed.set("linkId", linkId);
     }
   }

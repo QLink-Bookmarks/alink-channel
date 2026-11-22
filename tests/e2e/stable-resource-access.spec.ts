@@ -98,6 +98,10 @@ for (const signedIn of [false, true]) {
     const heading = page.getByRole("heading", { level: 1, name: new RegExp(FOLDER_NAME) });
     const link = page.getByRole("link", { name: "오래된 골목길" });
     await expect(heading).toBeVisible();
+    if (signedIn) {
+      await expect(page.getByRole("button", { name: "로그인", exact: true })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "사이드바 열기" })).toHaveCount(0);
+    }
     await expect(link).toHaveAttribute("href", `/links/${LINK_ID}`);
     await expect(page.getByLabel("전시 예약하기, 완료")).toBeVisible();
     await expect(page.getByLabel("다음 산책 코스 고르기, 미완료")).toBeVisible();
@@ -109,6 +113,10 @@ for (const signedIn of [false, true]) {
     await link.click();
     await expect(page).toHaveURL(new RegExp(`/links/${LINK_ID}$`));
     await expect(page.getByRole("heading", { name: "오래된 골목길" })).toBeVisible();
+    if (signedIn) {
+      await expect(page.getByRole("button", { name: "로그인", exact: true })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "사이드바 열기" })).toHaveCount(0);
+    }
     await expect(page.getByRole("checkbox")).toHaveCount(0);
     await page.context().route(LONG_URL, (route) => route.fulfill({ body: "원문" }));
     const opened = page.context().waitForEvent("page");
