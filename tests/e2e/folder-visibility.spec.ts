@@ -160,6 +160,26 @@ test("a private folder overrides stale public link details", async ({ page }) =>
   await expect(everyone).toBeDisabled();
 });
 
+test("does not infer link visibility from a public folder when the detail omits it", async ({
+  page,
+}) => {
+  const [folder] = makeFolders(1);
+  const link = makeLink({ id: 1, folderId: folder.id, folderName: folder.name });
+  const state = await mockApi(page, {
+    folders: [{ ...folder, isPublic: true }],
+    links: [link],
+    details: { [link.id]: makeDetail(link, { isOwner: true, isPublic: undefined }) },
+  });
+  await page.goto(isWideProject() ? "/links?linkId=1" : "/links/1");
+  await page.getByTestId("link-detail-edit").click();
+  await expect(page.getByText("링크 공개 상태를 확인할 수 없어요.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^공개 설정, / })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "전체 공개" })).toHaveCount(0);
+  expect(
+    state.requests.some(({ method, path }) => method === "PUT" && path.endsWith("/privacy")),
+  ).toBe(false);
+});
+
 for (const committed of [false, true]) {
   test(`reconciles a failed link privacy response after saving the title (committed: ${committed})`, async ({
     page,

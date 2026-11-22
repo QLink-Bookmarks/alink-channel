@@ -268,14 +268,14 @@ function LinkDetailView({
     currentFolder.ownerId === myProfileQuery.data.id;
   const isLinkOwner = detail.isOwner === true;
   const canCopyFromSharedFolder = isSharedFolder && !isFolderOwner;
+  const hasLinkVisibility = typeof detail.isPublic === "boolean";
   const folderPublic =
     detail.folderId == null
       ? false
       : typeof currentFolder?.isPublic === "boolean"
         ? currentFolder.isPublic
         : undefined;
-  const canChangePrivacy =
-    isLinkOwner && folderPublic === true && typeof detail.isPublic === "boolean";
+  const canChangePrivacy = isLinkOwner && folderPublic === true && hasLinkVisibility;
   const savedPublic = detail.isPublic === true;
   const isPublic = folderPublic === true && (privacyDraft ?? savedPublic);
   const changedPrivacy = isLinkOwner && privacyDraft !== savedPublic ? privacyDraft : undefined;
@@ -698,15 +698,17 @@ function LinkDetailView({
         </Button>
       </View>
     );
-  } else if (isLinkOwner && folderPublic === undefined) {
+  } else if (isLinkOwner && (folderPublic === undefined || !hasLinkVisibility)) {
+    const help =
+      folderPublic !== undefined
+        ? "링크 공개 상태를 확인할 수 없어요."
+        : foldersQuery.isFetching
+          ? "폴더 공개 상태를 확인하는 중이에요."
+          : "폴더 공개 상태를 확인할 수 없어요.";
     editVisibility = (
       <View className="gap-2">
         <Text className="text-sm font-semibold text-foreground">공개 설정</Text>
-        <Text className="text-xs text-muted-foreground">
-          {foldersQuery.isFetching
-            ? "폴더 공개 상태를 확인하는 중이에요."
-            : "폴더 공개 상태를 확인할 수 없어요."}
-        </Text>
+        <Text className="text-xs text-muted-foreground">{help}</Text>
       </View>
     );
   } else if (isLinkOwner) {
@@ -734,7 +736,7 @@ function LinkDetailView({
       refreshFailed={hasRefreshFailed}
       refreshing={isRefreshing}
       visibility={
-        isLinkOwner ? (
+        isLinkOwner && hasLinkVisibility ? (
           <VisibilityPopover
             canPublish={canChangePrivacy}
             error={privacyMutation.isError ? "공개 설정을 저장하지 못했어요." : undefined}

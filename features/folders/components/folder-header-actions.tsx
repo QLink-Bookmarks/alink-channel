@@ -192,10 +192,12 @@ function FolderVisibilityAction({
   const detail = useFolderDetailQuery(folder.id, readsDetail);
   const trigger = React.useRef<TriggerRef>(null);
   const latestFolder =
-    detail.data && detail.dataUpdatedAt >= folderUpdatedAt ? detail.data : folder;
+    typeof detail.data?.isPublic === "boolean" && detail.dataUpdatedAt >= folderUpdatedAt
+      ? detail.data
+      : folder;
   const isPublic = latestFolder.isPublic === true;
-  const canChange =
-    detail.isSuccess && typeof detail.data.isPublic === "boolean" && !detail.isFetching;
+  const hasVisibility = detail.isSuccess && typeof detail.data.isPublic === "boolean";
+  const canChange = hasVisibility && !detail.isFetching;
 
   const handleWrite = (next: boolean) => {
     if (mutation.isPending) return;
@@ -209,7 +211,7 @@ function FolderVisibilityAction({
         error={
           mutation.isError
             ? "공개 설정을 저장하지 못했어요."
-            : detail.isError
+            : detail.isError || (detail.isSuccess && !hasVisibility)
               ? "공개 설정을 확인하지 못했어요."
               : undefined
         }
