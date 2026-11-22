@@ -101,8 +101,8 @@ async function expectMobileDetail(page: Page, id: number) {
   await expect(detailTitle(page)).toHaveText(link.title);
 }
 
-async function expectWideOverlay(page: Page, id: number) {
-  await expect(page).toHaveURL(new RegExp(`/links\\?linkId=${id}$`));
+async function expectWideOverlay(page: Page, id: number, direct = false) {
+  await expect(page).toHaveURL(new RegExp(direct ? `/links/${id}$` : `/links\\?linkId=${id}$`));
   await expect(linkCards(page)).toHaveCount(1);
   await expect(detailTitle(page)).toHaveText(link.title);
 }
@@ -173,7 +173,7 @@ test.describe("signed in direct entry", () => {
   test("wide /links/:id opens all links with the detail overlay", async ({ page }) => {
     await page.setViewportSize(WIDE);
     await page.goto("/links/7");
-    await expectWideOverlay(page, 7);
+    await expectWideOverlay(page, 7, true);
     await expectNoDetour(page);
   });
 
@@ -265,7 +265,7 @@ test.describe("signed in direct entry", () => {
     await expectMobileDetail(page, 7);
 
     await page.setViewportSize({ width: 769, height: 800 });
-    await expectWideOverlay(page, 7);
+    await expectWideOverlay(page, 7, true);
 
     await page.setViewportSize({ width: 768, height: 800 });
     await expectMobileDetail(page, 7);

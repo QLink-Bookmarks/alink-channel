@@ -640,6 +640,17 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
           }),
         );
       }
+      const folderDetailMatch = path.match(/^\/api\/folders\/(\d+)$/);
+      if (method === "GET" && folderDetailMatch) {
+        const folder = state.folders.find((entry) => entry.id === Number(folderDetailMatch[1]));
+        if (!folder || !request.headers().authorization) {
+          const error = errorJson("FOLDER_404_0001", 404);
+          return json(error.body, error.status);
+        }
+        return json(
+          envelope({ ...folder, myLinkCounts: folder.myLinkCounts ?? folder.linkCounts }),
+        );
+      }
       if (method === "GET" && path === "/api/folders") {
         if (!readListSort(url, FOLDER_SORT_DEFAULTS)) {
           const error = errorJson("COMMON_INVALID_SORT_ORDER", 400);
@@ -834,7 +845,7 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
         const id = Number(detailMatch[1]);
         const detail = state.details[id];
         if (method === "GET") {
-          if (!detail) {
+          if (!detail || !request.headers().authorization) {
             return json(
               {
                 success: false,
