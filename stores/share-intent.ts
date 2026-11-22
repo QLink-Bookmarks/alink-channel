@@ -6,6 +6,7 @@ const STORAGE_KEY = "qlink-pending-share";
 
 type PendingShare = {
   url: string;
+  live?: true;
 };
 
 type ShareIntentState = {
@@ -48,7 +49,7 @@ function startShareIntentPersistence() {
       return;
     }
     if (state.pending) {
-      void SessionStorage.setItem(STORAGE_KEY, JSON.stringify(state.pending));
+      void SessionStorage.setItem(STORAGE_KEY, JSON.stringify({ url: state.pending.url }));
     } else {
       void SessionStorage.removeItem(STORAGE_KEY);
     }
