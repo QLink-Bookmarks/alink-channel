@@ -121,7 +121,7 @@ function ResourceVisit({
       }
       const data = response.data;
       if ("isShared" in data || "sourceType" in data) return { mode: "app" } as const;
-      if ("todos" in data) return { mode: "link", data } as const;
+      if ("folderId" in data) return { mode: "link", data } as const;
       return { mode: "folder", data } as const;
     },
   });

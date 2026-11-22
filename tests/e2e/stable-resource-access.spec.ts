@@ -25,10 +25,6 @@ async function mockPublicFolder(page: Page) {
     nextStatus: 200,
     links: [{ id: LINK_ID, title: "오래된 골목길", url: LONG_URL }],
     nextLinks: [] as { id: number; title: string; url: string }[],
-    todos: [
-      { linkId: LINK_ID, title: "다음 산책 코스 고르기", isCompleted: false },
-      { linkId: LINK_ID, title: "전시 예약하기", isCompleted: true },
-    ],
     requests: [] as { path: string; token?: string }[],
     personalRowsForAuthenticatedLists: false,
   };
@@ -44,7 +40,12 @@ async function mockPublicFolder(page: Page) {
       const token = request.headers().authorization;
       state.requests.push({ path: url.pathname, token });
       let status = state.headStatus;
-      let response: unknown = envelope({ id: FOLDER_ID, name: FOLDER_NAME, emoji: "🗺️" });
+      let response: unknown = envelope({
+        id: FOLDER_ID,
+        name: FOLDER_NAME,
+        emoji: "🗺️",
+        myLinkCounts: 0,
+      });
       if (url.pathname === `/api/links/${LINK_ID}`) {
         status = state.headStatus;
         response = envelope({
@@ -58,7 +59,7 @@ async function mockPublicFolder(page: Page) {
           faviconUrl: null,
           isVideo: false,
           content: { excerpt: null },
-          todos: state.todos.map(({ title, isCompleted }) => ({ title, isCompleted })),
+          todos: null,
         });
       } else if (url.pathname.endsWith("/links")) {
         const next = url.searchParams.has("cursor");
@@ -127,10 +128,10 @@ for (const signedIn of [false, true]) {
     await expect(detail.getByRole("heading", { name: "오래된 골목길" })).toBeVisible();
     const notes = detail.getByTestId("link-detail-my-notes");
     await expect(notes.getByTestId("link-detail-folder-row")).toBeVisible();
-    await expect(notes.getByLabel("전시 예약하기, 완료")).toBeVisible();
-    await expect(notes.getByLabel("다음 산책 코스 고르기, 미완료")).toBeVisible();
-    await notes.getByText("다음 산책 코스 고르기").click();
-    await expect(notes.getByLabel("다음 산책 코스 고르기, 미완료")).toBeVisible();
+    await expect(notes.getByTestId("link-detail-todos")).toHaveCount(0);
+    await expect(notes.getByText("액션", { exact: true })).toHaveCount(0);
+    await expect(notes.getByText("다음 산책 코스 고르기")).toHaveCount(0);
+    await expect(notes.getByText("전시 예약하기")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^공개 설정, / })).toHaveCount(0);
     if (signedIn) {
       await expect(page.getByRole("button", { name: "로그인", exact: true })).toHaveCount(0);
@@ -239,7 +240,6 @@ test("retains rows on a paging failure and clears the whole view on withdrawal",
   state.headStatus = 200;
   state.links = [];
   state.nextLinks = [];
-  state.todos = [];
   await page.goto(WEB_PATH);
   await expect(page.getByRole("heading", { name: new RegExp(FOLDER_NAME) })).toBeVisible();
   await expect(page.getByText("아직 공개한 링크가 없어요.")).toBeVisible();
@@ -267,7 +267,6 @@ test("keeps a long title within the existing link card", async ({ page, isMobile
   const state = await mockPublicFolder(page);
   const title = "오래된골목길산책기록".repeat(22);
   state.links = [{ id: LINK_ID, title, url: LONG_URL }];
-  state.todos = [];
   await page.goto(WEB_PATH);
   const link = page.getByRole("link", { name: title });
   await expect(link).toHaveAttribute(

@@ -182,7 +182,7 @@ type PublicLinkDetail = PublicLinkSource & {
   folderName: string;
   folderEmoji: string | null;
   content: { excerpt: string | null };
-  todos: { title: string; isCompleted: boolean }[];
+  todos: null;
 };
 type DeleteLinkResponse = ApiEnvelope<null>;
 

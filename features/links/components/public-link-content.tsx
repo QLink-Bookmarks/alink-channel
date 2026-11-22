@@ -1,5 +1,4 @@
 import type { PublicLinkDetail } from "../types";
-import { LinkDetailActionList, LinkDetailActionSection } from "./link-detail-action-list";
 import { LinkDetailContent } from "./link-detail-content";
 import { LinkDetailFolderRow } from "./link-detail-notes-layout";
 import { LinkDetailToolbarLayout } from "./link-detail-toolbar";
@@ -37,25 +36,11 @@ function PublicLinkContent({
       }
       onBack={onBack}
       notes={
-        <>
-          <LinkDetailFolderRow
-            name={link.folderName}
-            emoji={link.folderEmoji}
-            href={`/folders/${link.folderId}`}
-          />
-          {link.todos.length > 0 ? (
-            <LinkDetailActionSection>
-              <LinkDetailActionList
-                items={link.todos.map(({ title, isCompleted }, index) => ({
-                  id: index,
-                  text: title,
-                  done: isCompleted,
-                  readOnly: true,
-                }))}
-              />
-            </LinkDetailActionSection>
-          ) : null}
-        </>
+        <LinkDetailFolderRow
+          name={link.folderName}
+          emoji={link.folderEmoji}
+          href={`/folders/${link.folderId}`}
+        />
       }
     />
   );

@@ -160,7 +160,7 @@ export const PublicReadOnly: Story = {
       faviconUrl: null,
       isVideo: false,
       content: { excerpt: "일출을 볼 수 있는 전망대와 탐방로 시간표를 소개해요…" },
-      todos: [{ title: "여행 날짜 정하기", isCompleted: true }],
+      todos: null,
     },
   },
 };

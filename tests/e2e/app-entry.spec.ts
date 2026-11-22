@@ -450,7 +450,7 @@ for (const { entry, expectedReturn } of [
     const resource = entry.split("?")[0];
     const opensOverlay = expectedReturn === destination;
     const state = await setUp(page, { guest: true });
-    const folderRead = { id: folder.id, name: folder.name, emoji: folder.emoji };
+    const folderRead = { id: folder.id, name: folder.name, emoji: folder.emoji, myLinkCounts: 0 };
     const linkRead = {
       id: link.id,
       folderId: folder.id,
@@ -462,7 +462,7 @@ for (const { entry, expectedReturn } of [
       faviconUrl: null,
       isVideo: false,
       content: { excerpt: null },
-      todos: [],
+      todos: null,
     };
     const accessTokens: (string | undefined)[] = [];
     await page.route(
@@ -613,9 +613,9 @@ for (const { label, href, fromLink } of [
                 faviconUrl: null,
                 isVideo: false,
                 content: { excerpt: null },
-                todos: [],
+                todos: null,
               }
-            : { id: folder.id, name: folder.name, emoji: folder.emoji };
+            : { id: folder.id, name: folder.name, emoji: folder.emoji, myLinkCounts: 0 };
           return json(route, envelope(read));
         }
         return json(route, envelope({ contents: [], isEmpty: true, hasNext: false }));

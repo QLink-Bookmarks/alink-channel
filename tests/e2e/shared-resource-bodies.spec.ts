@@ -106,7 +106,7 @@ for (const member of [true, false]) {
             ...row,
             ...folderFields,
             content: { excerpt: savedExcerpt },
-            todos: id === publicVideo.id ? [{ title: action, isCompleted: false }] : [],
+            todos: null,
           }),
         });
       },
@@ -114,7 +114,12 @@ for (const member of [true, false]) {
     if (!member) {
       await page.route(`**/api/folders/${folder.id}`, (route) =>
         route.fulfill({
-          json: envelope({ id: folder.id, name: folder.name, emoji: folder.emoji }),
+          json: envelope({
+            id: folder.id,
+            name: folder.name,
+            emoji: folder.emoji,
+            myLinkCounts: 0,
+          }),
         }),
       );
       await page.route(
@@ -183,7 +188,8 @@ for (const member of [true, false]) {
     await expect(detail.getByTestId("link-thumbnail-hint-play")).toBeVisible();
     const notes = detail.getByTestId("link-detail-my-notes");
     await expect(detail.getByTestId("link-detail-excerpt-text")).toContainText(excerpt);
-    await expect(notes.getByTestId("link-detail-todos").getByText(action)).toBeVisible();
+    await expect(notes.getByTestId("link-detail-todos")).toHaveCount(member ? 1 : 0);
+    await expect(notes.getByText(action)).toHaveCount(member ? 1 : 0);
     await expect(notes.getByTestId("link-detail-todos-add")).toHaveCount(member ? 1 : 0);
     await expect(notes.getByText("회원만 보는 메모")).toHaveCount(member ? 1 : 0);
     const ordered = await detail
@@ -195,7 +201,7 @@ for (const member of [true, false]) {
       "link-detail-excerpt",
       "link-detail-my-notes",
       "link-detail-folder-row",
-      "link-detail-todos",
+      ...(member ? ["link-detail-todos"] : []),
     ];
     expect(ordered.filter((id) => ownBody.includes(id ?? ""))).toEqual(ownBody);
     const openedExcerpt = page.context().waitForEvent("page");
@@ -240,7 +246,9 @@ test("public folder applies both sorts and passes the corresponding cursor uncha
 }) => {
   await mockApi(page, { seedSession: false });
   await page.route(`**/api/folders/${folder.id}`, (route) =>
-    route.fulfill({ json: envelope({ id: folder.id, name: folder.name, emoji: folder.emoji }) }),
+    route.fulfill({
+      json: envelope({ id: folder.id, name: folder.name, emoji: folder.emoji, myLinkCounts: 0 }),
+    }),
   );
   const requests: [string, string, string | null][] = [];
   await page.route(
@@ -301,7 +309,9 @@ for (const role of ["guest", "outsider", "former-member-owner"] as const) {
     const folderPath = `/folders/${folder.id}`;
     const linkPath = `/links/${publicVideo.id}`;
     await page.route(`**/api${folderPath}`, (route) =>
-      route.fulfill({ json: envelope({ id: folder.id, name: folder.name, emoji: folder.emoji }) }),
+      route.fulfill({
+        json: envelope({ id: folder.id, name: folder.name, emoji: folder.emoji, myLinkCounts: 0 }),
+      }),
     );
     const title = publicVideo.title;
     let favorite = false;
@@ -346,7 +356,7 @@ for (const role of ["guest", "outsider", "former-member-owner"] as const) {
               ...folderFields,
               title,
               content: { excerpt },
-              todos: [{ title: action, isCompleted: false }],
+              todos: null,
             };
       return route.fulfill({ json: envelope(data) });
     });
@@ -398,7 +408,9 @@ for (const withdrawal of ["404", "public-projection"] as const) {
     let withdrawn = false;
     let reads = 0;
     await page.route(`**/api${folderPath}`, (route) =>
-      route.fulfill({ json: envelope({ id: folder.id, name: folder.name, emoji: folder.emoji }) }),
+      route.fulfill({
+        json: envelope({ id: folder.id, name: folder.name, emoji: folder.emoji, myLinkCounts: 0 }),
+      }),
     );
     await page.route(
       (url) =>
@@ -414,7 +426,7 @@ for (const withdrawal of ["404", "public-projection"] as const) {
         });
       }
       const data = withdrawn
-        ? { ...publicVideo, ...folderFields, content: { excerpt }, todos: [] }
+        ? { ...publicVideo, ...folderFields, content: { excerpt }, todos: null }
         : { ...details[publicVideo.id], isOwner: true };
       return route.fulfill({ json: envelope(data) });
     });

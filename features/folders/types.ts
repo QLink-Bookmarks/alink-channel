@@ -105,7 +105,7 @@ type UpdateFolderRequest = {
 };
 
 type UpdateFolderResponse = ApiEnvelope<{ id: number; isPublic: boolean }>;
-type PublicFolder = { id: number; name: string; emoji: string | null };
+type PublicFolder = { id: number; name: string; emoji: string | null; myLinkCounts: 0 };
 type PublicFolderPage<T> = {
   isEmpty: boolean;
   contents: T[];
