@@ -259,3 +259,18 @@ test("uses the same denied state for a signed-in visitor when the todo list is w
   await expect(page.getByText("폴더를 찾을 수 없어요")).toBeVisible();
   await expect(page).not.toHaveTitle(new RegExp(FOLDER_NAME));
 });
+
+test("keeps the personal overlay read-write controls hidden for a public link projection", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "The personal overlay opens on desktop");
+  await mockApi(page);
+  const state = await mockPublicFolder(page);
+  await page.goto(`/links?linkId=${LINK_ID}`);
+  await expect(page.getByText("찾으시는 링크가 없어요")).toBeVisible();
+  await expect(page.getByTestId("link-detail-edit")).toHaveCount(0);
+  await expect(page.getByText(state.links[0].title, { exact: true })).toHaveCount(0);
+  await page.goto(`/links/${LINK_ID}`);
+  await expect(page.getByRole("heading", { name: state.links[0].title })).toBeVisible();
+  await expect(page.getByTestId("link-detail-edit")).toHaveCount(0);
+});

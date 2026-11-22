@@ -9,6 +9,7 @@ import {
 
 import { getLinkDetail, getLinks } from "./api";
 import { getExcerptRecheckDelay } from "./lib/excerpt-recheck";
+import { isLinkNotFound } from "./lib/is-link-not-found";
 import { extractLinkPreview } from "./lib/link-preview/extract-link-preview";
 import { isPreviewableUrl } from "./lib/link-preview/link-preview-result";
 import type { GetLinksParams, LinkDetailContent } from "./types";
@@ -106,6 +107,7 @@ function useLinkPreviewQuery(url: string, { immediate }: LinkPreviewQueryOptions
 function useLinkDetailQuery(linkId?: string | number | null) {
   return useQuery({
     enabled: Boolean(linkId),
+    retry: (failureCount, error) => !isLinkNotFound(error) && failureCount < 3,
     queryFn: async () => {
       const response = await getLinkDetail(linkId as string | number);
       return response.data;

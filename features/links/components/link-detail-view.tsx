@@ -32,6 +32,7 @@ import {
   type FolderPickerSelection,
   UNCATEGORIZED_PICKER_OPTION,
 } from "@/features/folders/components/folder-picker-list";
+import { VisibilityField } from "@/features/folders/components/visibility-field";
 import { getMoveTargetFolderId } from "@/features/folders/lib/folder-pages";
 import { useFoldersQuery } from "@/features/folders/queries";
 import { buildShareText } from "@/features/links/lib/build-share-text";
@@ -65,13 +66,16 @@ import { type Href, useRouter } from "expo-router";
 import { Trash2 } from "lucide-react-native/icons";
 
 type ShareOutcome = "shared" | "copied" | "cancelled" | "failed";
+type LinkFieldsOverride = Partial<
+  Pick<UpdateLinkRequest, "isPublic" | "memo" | "summary" | "tags" | "title">
+>;
 
 const PERSONAL_FOLDER_SECTIONS: FolderSection[] = ["mine"];
 const DELETE_HIT_SLOP = 4;
 
 function buildUpdateLinkPayload(
   detail: LinkDetail,
-  overrides: Partial<Pick<UpdateLinkRequest, "memo" | "summary" | "tags" | "title">> = {},
+  overrides: LinkFieldsOverride = {},
 ): UpdateLinkRequest {
   // TODO: Switch link detail field updates to PATCH /api/links/{id} when the server exposes partial update support.
   // PUT replaces the whole link, so every preserved field (esp. folderId) must be
@@ -81,6 +85,7 @@ function buildUpdateLinkPayload(
     faviconUrl: detail.faviconUrl ?? null,
     folderId: detail.folderId ?? null,
     isVideo: detail.isVideo ?? false,
+    isPublic: overrides.isPublic,
     thumbnailUrl: detail.thumbnailUrl ?? null,
     memo: overrides.memo !== undefined ? overrides.memo : detail.memo,
     sourceType: detail.sourceType,
@@ -94,6 +99,7 @@ function buildUpdateLinkPayload(
 function LinkEditFields({
   title,
   summary,
+  visibility,
   onChangeTitle,
   onChangeSummary,
   onCancel,
@@ -103,6 +109,7 @@ function LinkEditFields({
 }: {
   title: string;
   summary: string;
+  visibility: React.ReactNode;
   onChangeTitle: (value: string) => void;
   onChangeSummary: (value: string) => void;
   onCancel: () => void;
@@ -131,6 +138,7 @@ function LinkEditFields({
           onChangeText={onChangeSummary}
         />
       </View>
+      {visibility}
       <View className="flex-row gap-3 pt-1">
         <Button
           className="h-11 flex-1"
@@ -240,6 +248,7 @@ function LinkDetailView({
   }, []);
   const [titleDraft, setTitleDraft] = React.useState("");
   const [summaryDraft, setSummaryDraft] = React.useState("");
+  const [privacyDraft, setPrivacyDraft] = React.useState<boolean>();
   const [isUnsavedEditOpen, setIsUnsavedEditOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   useLinkDetailExcerptRecheck(detail.id, detail.content);
@@ -256,7 +265,13 @@ function LinkDetailView({
     currentFolder?.ownerId != null &&
     myProfileQuery.data?.id != null &&
     currentFolder.ownerId === myProfileQuery.data.id;
-  const isMyOwnLink = !isSharedFolder || isFolderOwner;
+  const isLinkOwner = detail.isOwner === true;
+  const canCopyFromSharedFolder = isSharedFolder && !isFolderOwner;
+  const folderPublic = detail.folderId == null ? false : currentFolder?.isPublic;
+  const canChangePrivacy = isLinkOwner && folderPublic === true;
+  const savedPublic = detail.isPublic === true;
+  const isPublic = folderPublic === true && (privacyDraft ?? savedPublic);
+  const changedPrivacy = canChangePrivacy && isPublic !== savedPublic ? isPublic : undefined;
 
   const handleDetailUpdated = React.useCallback(
     (response: LinkDetailResponse) => {
@@ -272,7 +287,7 @@ function LinkDetailView({
   // PUT replaces the whole link: read the latest detail first, so a representative image
   // the server filled in after the detail opened (alink-backend#195) is sent back as is.
   const updateLinkFields = React.useCallback(
-    async (overrides: Partial<Pick<UpdateLinkRequest, "memo" | "summary" | "tags" | "title">>) => {
+    async (overrides: LinkFieldsOverride) => {
       const queryKey = getLinkDetailQueryKey(detail.id);
       await queryClient.refetchQueries({ exact: true, queryKey }, { throwOnError: true });
       const latest = queryClient.getQueryData<LinkDetail>(queryKey) ?? detail;
@@ -282,7 +297,13 @@ function LinkDetailView({
       handleDetailUpdated(response);
       // The merge keeps known values over nulls, so a cleared memo or summary is set here.
       queryClient.setQueryData<LinkDetail>(queryKey, (current) =>
-        current ? { ...current, ...overrides } : current,
+        current
+          ? {
+              ...current,
+              ...overrides,
+              isPublic: response.data.isPublic ?? overrides.isPublic ?? current.isPublic,
+            }
+          : current,
       );
     },
     [detail, handleDetailUpdated, queryClient, updateLinkMutation],
@@ -468,6 +489,7 @@ function LinkDetailView({
   const openEditSheet = React.useCallback(() => {
     setTitleDraft(detail.title);
     setSummaryDraft(detail.summary ?? "");
+    setPrivacyDraft(undefined);
     setEditSheetOpen(true);
   }, [detail.summary, detail.title, setEditSheetOpen]);
 
@@ -491,7 +513,8 @@ function LinkDetailView({
 
   const isEditDirty =
     titleDraft.trim() !== detail.title.trim() ||
-    summaryDraft.trim() !== (detail.summary ?? "").trim();
+    summaryDraft.trim() !== (detail.summary ?? "").trim() ||
+    changedPrivacy !== undefined;
 
   const handleSaveEdit = React.useCallback(async () => {
     if (isSavingEditRef.current) {
@@ -512,6 +535,7 @@ function LinkDetailView({
     setIsSavingEdit(true);
     try {
       await updateLinkFields({
+        ...(changedPrivacy === undefined ? {} : { isPublic: changedPrivacy }),
         summary: summaryDraft.trim() ? summaryDraft.trim() : null,
         title: nextTitle,
       });
@@ -538,7 +562,15 @@ function LinkDetailView({
       isSavingEditRef.current = false;
       setIsSavingEdit(false);
     }
-  }, [detail.id, setEditSheetOpen, showToast, summaryDraft, titleDraft, updateLinkFields]);
+  }, [
+    changedPrivacy,
+    detail.id,
+    setEditSheetOpen,
+    showToast,
+    summaryDraft,
+    titleDraft,
+    updateLinkFields,
+  ]);
 
   // Edits live in a modal, so the user can't scroll away and lose the save
   // action. If they try to dismiss with unsaved changes, confirm first.
@@ -618,12 +650,39 @@ function LinkDetailView({
   }, [handleBack, mode]);
 
   const isPanel = mode === "panel";
+  let editVisibility: React.ReactNode = null;
+  if (isLinkOwner && folderPublic === undefined) {
+    editVisibility = (
+      <View className="gap-2">
+        <Text className="text-sm font-semibold text-foreground">공개 설정</Text>
+        <Text className="text-xs text-muted-foreground">
+          {foldersQuery.isFetching
+            ? "폴더 공개 상태를 확인하는 중이에요."
+            : "폴더 공개 상태를 확인할 수 없어요."}
+        </Text>
+      </View>
+    );
+  } else if (isLinkOwner) {
+    editVisibility = (
+      <VisibilityField
+        disabled={!canChangePrivacy || isSavingEdit}
+        help={
+          folderPublic
+            ? "전체 공개 링크와 연결된 할 일은 공개 페이지에 표시돼요."
+            : "전체 공개 폴더에서만 링크를 공개할 수 있어요."
+        }
+        isPublic={isPublic}
+        onChange={setPrivacyDraft}
+      />
+    );
+  }
   const toolbar = (
     <LinkDetailToolbar
+      canCopy={canCopyFromSharedFolder}
+      canEdit={isLinkOwner || !canCopyFromSharedFolder}
       isCopyPending={copyLinkMutation.isPending}
       isEditing={isEditingActions}
       isFavorite={detail.isFavorite}
-      isMyOwnLink={isMyOwnLink}
       mode={mode}
       refreshFailed={hasRefreshFailed}
       refreshing={isRefreshing}
@@ -760,11 +819,16 @@ function LinkDetailView({
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>수정하기</DialogTitle>
-              <DialogDescription>제목과 한 줄 요약을 수정해요.</DialogDescription>
+              <DialogDescription>
+                {isLinkOwner
+                  ? "제목, 한 줄 요약과 공개 설정을 수정해요."
+                  : "제목과 한 줄 요약을 수정해요."}
+              </DialogDescription>
             </DialogHeader>
             <LinkEditFields
               title={titleDraft}
               summary={summaryDraft}
+              visibility={editVisibility}
               saving={isSavingEdit}
               canSave={isEditDirty}
               onChangeTitle={setTitleDraft}
@@ -785,6 +849,7 @@ function LinkDetailView({
             <LinkEditFields
               title={titleDraft}
               summary={summaryDraft}
+              visibility={editVisibility}
               saving={isSavingEdit}
               canSave={isEditDirty}
               onChangeTitle={setTitleDraft}

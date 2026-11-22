@@ -16,6 +16,7 @@ type CreateLinkTodoRequest = {
 };
 
 type CreateLinkRequest = {
+  isPublic?: boolean;
   url: string;
   title: string;
   summary?: string;
@@ -31,6 +32,7 @@ type CreateLinkRequest = {
 };
 
 type UpdateLinkRequest = {
+  isPublic?: boolean;
   url: string;
   title: string;
   summary?: string | null;
@@ -62,6 +64,7 @@ type CopyLinkResponse = ApiEnvelope<{
 }>;
 
 type PatchLinkRequest = {
+  isPublic?: boolean;
   // null = "없음" (remove from folder / AI auto-classify).
   folderId?: number | null;
   memo?: string | null;
@@ -117,6 +120,8 @@ type LinkDetailContent = {
 };
 
 type LinkDetail = {
+  isPublic?: boolean;
+  isOwner?: boolean;
   id: number;
   url: string;
   title: string;
