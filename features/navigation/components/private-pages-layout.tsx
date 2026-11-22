@@ -9,17 +9,15 @@ import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 
 import { ResponsiveShell } from "./responsive-shell";
 
-import { Navigator } from "expo-router";
-
-function PrivatePagesLayout() {
+function PrivatePagesLayout({ children }: { children: React.ReactNode }) {
   return (
     <ProtectedRoute>
-      <PagesShell />
+      <PagesShell>{children}</PagesShell>
     </ProtectedRoute>
   );
 }
 
-function PagesShell() {
+function PagesShell({ children }: { children: React.ReactNode }) {
   const { isResolved: isWideViewResolved } = useWideViewState();
   const isHomeEntryReady = useHomeEntry();
   if (!isHomeEntryReady) return <CheckingScreen />;
@@ -27,9 +25,7 @@ function PagesShell() {
 
   return (
     <BottomSheetModalProvider>
-      <ResponsiveShell>
-        <Navigator.Slot />
-      </ResponsiveShell>
+      <ResponsiveShell>{children}</ResponsiveShell>
       <ImportFlowHost />
     </BottomSheetModalProvider>
   );

@@ -23,7 +23,7 @@ type PaginationOptions = {
   scroll?: {
     contentKey: string;
     ref: React.RefObject<ScrollView | null>;
-    props: ListScrollViewProps;
+    props?: ListScrollViewProps;
   };
 };
 

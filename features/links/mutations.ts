@@ -8,12 +8,14 @@ import {
   deleteLink,
   patchLink,
   setLinkFavorite,
+  setLinkPrivacy,
   updateLink,
 } from "./api";
 import { getLinkDetailQueryKey, invalidateLinkListAndSearchQueries } from "./queries";
 import type {
   CopyLinkRequest,
   CreateLinkRequest,
+  LinkDetail,
   PatchLinkRequest,
   SetLinkFavoriteRequest,
   UpdateLinkRequest,
@@ -31,6 +33,14 @@ function useInvalidateLinkQueries() {
           queryKey: getLinkDetailQueryKey(linkId),
           refetchType: options.isDeleted ? "none" : "active",
         });
+        if (options.isDeleted) {
+          void queryClient.invalidateQueries({
+            queryKey: ["folder-read"],
+            predicate: (query) => query.queryKey[3] !== "link",
+          });
+        } else {
+          void invalidatePublicLinkQueries(queryClient, linkId);
+        }
       }
       void invalidateLinkListAndSearchQueries(queryClient);
     },
@@ -104,11 +114,46 @@ function useSetLinkFavoriteMutation() {
   });
 }
 
+function useSetLinkPrivacyMutation() {
+  const queryClient = useQueryClient();
+  const refreshVisibility = (id: number) =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: getLinkDetailQueryKey(id) }),
+      invalidateLinkListAndSearchQueries(queryClient),
+      invalidatePublicLinkQueries(queryClient, id),
+    ]);
+  return useMutation({
+    mutationFn: ({ id, isPublic }: { id: number; isPublic: boolean }) =>
+      setLinkPrivacy(id, { isPublic }),
+    onError: (_error, { id }) => refreshVisibility(id),
+    onSuccess: async (response, { id }) => {
+      const queryKey = getLinkDetailQueryKey(id);
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      queryClient.setQueryData<LinkDetail>(
+        queryKey,
+        (detail) => detail && { ...detail, isPublic: response.data.isPublic },
+      );
+      await refreshVisibility(id);
+    },
+  });
+}
+
+function invalidatePublicLinkQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  linkId: number | string,
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["resource-read", "links", Number(linkId)] }),
+    queryClient.invalidateQueries({ queryKey: ["folder-read"] }),
+  ]);
+}
+
 export {
   useCopyLinkMutation,
   useCreateLinkMutation,
   useDeleteLinkMutation,
   usePatchLinkMutation,
   useSetLinkFavoriteMutation,
+  useSetLinkPrivacyMutation,
   useUpdateLinkMutation,
 };

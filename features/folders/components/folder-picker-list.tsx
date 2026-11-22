@@ -112,7 +112,7 @@ function FolderPickerList({
             id: folder.id,
             label: folder.name,
             emoji: folder.emoji ?? null,
-            ...(folder.isPublic !== undefined ? { isPublic: folder.isPublic } : {}),
+            isPublic: folder.isPublic,
           })
         }
       />

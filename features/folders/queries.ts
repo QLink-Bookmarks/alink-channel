@@ -1,5 +1,7 @@
 import * as React from "react";
 
+import { resourceReadOptions } from "@/features/navigation/lib/resource-read";
+import { useAuthStore } from "@/stores/auth";
 import {
   type QueryClient,
   useInfiniteQuery,
@@ -7,9 +9,9 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
-import { getFolderMembers, getFolderPrivacy, getFolders } from "./api";
+import { getFolderDetail, getFolderMembers, getFolders } from "./api";
 import {
-  findFolderInPages,
+  findFolderEntryInPages,
   flattenFolderPages,
   getNextFolderCursor,
   isFolderId,
@@ -23,23 +25,29 @@ const FOLDER_LIST_SORT = { orderKey: "created_at", order: "desc" } as const;
 
 type FolderListParams = Pick<GetFoldersParams, "orderKey" | "order" | "query">;
 type FolderPagesParams = typeof FOLDER_LIST_SORT & { size: number };
+type TimestampedFolderPage = FolderScrollResponse & { fetchedAt: number };
 
 const folderQueryKeys = {
   all: ["folders"] as const,
   list: (params: FolderListParams) => ["folders", "list", params] as const,
   infinite: (params: FolderPagesParams) => ["folders", "infinite", params] as const,
   members: (id: number) => ["folders", "members", id] as const,
-  privacy: (id: number | null) => ["folders", "privacy", id] as const,
+  detail: (id: number | null) => ["folders", "detail", id] as const,
 };
 
-function useFolderPrivacyQuery(id: number | null) {
+function useFolderDetailQuery(id: number | null, enabled = true) {
+  const authToken = useAuthStore((state) => state.accessToken);
   return useQuery({
-    enabled: id != null,
+    enabled: enabled && id != null && Boolean(authToken),
     queryFn: async ({ signal }) => {
-      if (id == null) return null;
-      return (await getFolderPrivacy(id, signal)).data;
+      if (id == null || !authToken) throw new Error("Authenticated folder ID is required");
+      const response = await getFolderDetail(id, resourceReadOptions(authToken, signal));
+      if (!response.success || !response.data || !("isShared" in response.data)) {
+        throw new Error("Authenticated folder detail is unavailable");
+      }
+      return response.data;
     },
-    queryKey: folderQueryKeys.privacy(id),
+    queryKey: folderQueryKeys.detail(id),
     refetchOnMount: "always",
     retry: false,
     staleTime: 0,
@@ -90,7 +98,7 @@ function useRestartingFolderPagesQuery(options?: { enabled?: boolean }) {
   const queryClient = useQueryClient();
   const pagesQuery = useInfiniteQuery({
     enabled: options?.enabled ?? true,
-    getNextPageParam: (lastPage: FolderScrollResponse, _allPages, lastPageParam) => {
+    getNextPageParam: (lastPage: TimestampedFolderPage, _allPages, lastPageParam) => {
       const nextCursor = getNextFolderCursor(lastPage);
       return nextCursor === lastPageParam ? undefined : nextCursor;
     },
@@ -101,7 +109,7 @@ function useRestartingFolderPagesQuery(options?: { enabled?: boolean }) {
         cursor: pageParam,
         size: FOLDER_PAGE_SIZE,
       });
-      return response.data;
+      return { ...response.data, fetchedAt: Date.now() };
     },
     queryKey: folderQueryKeys.infinite({ ...FOLDER_LIST_SORT, size: FOLDER_PAGE_SIZE }),
   });
@@ -137,7 +145,8 @@ function useFolderQuery(id: number, options?: { enabled?: boolean }) {
   const { pagesQuery, isRestartPending } = useRestartingFolderPagesQuery({ enabled });
   const { fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, refetch } =
     pagesQuery;
-  const folder = enabled ? findFolderInPages(pagesQuery.data?.pages, id) : undefined;
+  const entry = enabled ? findFolderEntryInPages(pagesQuery.data?.pages, id) : undefined;
+  const folder = entry?.folder;
   const loadedPageCount = pagesQuery.data?.pages.length ?? 0;
   const hasPages = loadedPageCount > 0;
   const isError =
@@ -173,7 +182,14 @@ function useFolderQuery(id: number, options?: { enabled?: boolean }) {
     (!isValidId || (hasPages && !hasNextPage && !isFetchingNextPage));
   const isLoading = enabled && !folder && !isError && !isNotFound;
 
-  return { folder, isError, isLoading, isNotFound, retry };
+  return {
+    folder,
+    dataUpdatedAt: entry?.page.fetchedAt ?? 0,
+    isError,
+    isLoading,
+    isNotFound,
+    retry,
+  };
 }
 
 type FolderMembersQueryOptions = {
@@ -209,7 +225,7 @@ export {
   folderQueryKeys,
   useFolderMembersQuery,
   useFolderPagesQuery,
-  useFolderPrivacyQuery,
+  useFolderDetailQuery,
   useFolderQuery,
   useFoldersQuery,
 };

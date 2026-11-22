@@ -13,10 +13,12 @@ import { FullWindowOverlay as RNFullWindowOverlay } from "react-native-screens";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
-import type { LinkDetail } from "@/features/links/types";
+import { isLinkNotFound } from "@/features/links/lib/is-link-not-found";
+import { useLinkDetailQuery } from "@/features/links/queries";
+import type { LinkDetail, PublicLinkDetail } from "@/features/links/types";
 import { cn } from "@/lib/utils";
 
-import { LinkDetailView } from "../link-detail-view";
+import { LinkDetailResourceContent } from "../link-detail-resource-content";
 import { getDetailPanelWidth } from "./detail-panel-width";
 
 import { X } from "lucide-react-native/icons";
@@ -38,6 +40,17 @@ function useNativeOverlayStyle(): StyleProp<ViewStyle> {
   };
 }
 
+type DetailPanelBodyProps = {
+  className?: string;
+  style?: StyleProp<ViewStyle>;
+  detail?: LinkDetail | PublicLinkDetail;
+  error?: boolean;
+  notFound?: boolean;
+  isLoading?: boolean;
+  onDeleted?: () => void;
+  onOpenChange?: (open: boolean) => void;
+};
+
 function DetailPanelBody({
   className,
   detail,
@@ -47,16 +60,7 @@ function DetailPanelBody({
   style,
   onDeleted,
   onOpenChange,
-}: {
-  className?: string;
-  style?: StyleProp<ViewStyle>;
-  detail?: LinkDetail;
-  error?: boolean;
-  notFound?: boolean;
-  isLoading?: boolean;
-  onDeleted?: () => void;
-  onOpenChange?: (open: boolean) => void;
-}) {
+}: DetailPanelBodyProps) {
   return (
     <View
       className={cn(
@@ -74,7 +78,7 @@ function DetailPanelBody({
         />
       ) : detail && !notFound ? (
         // A failed refresh keeps the detail on screen; the view shows the failure itself.
-        <LinkDetailView
+        <LinkDetailResourceContent
           detail={detail}
           mode="panel"
           onClose={() => onOpenChange?.(false)}
@@ -117,6 +121,22 @@ function DetailPanelBody({
   );
 }
 
+function AuthenticatedDetailPanelBody({
+  detail,
+  ...props
+}: DetailPanelBodyProps & { detail: LinkDetail }) {
+  const query = useLinkDetailQuery(detail.id, detail);
+  const notFound = query.isError && isLinkNotFound(query.error);
+  return (
+    <DetailPanelBody
+      {...props}
+      detail={notFound ? undefined : (query.data ?? detail)}
+      notFound={notFound}
+      error={query.isError}
+    />
+  );
+}
+
 /**
  * Web: Esc closes the overlay, unless a dialog opened from the panel (folder move, edit,
  * delete confirmation, ...) is on top; that dialog handles its own Esc first.
@@ -148,16 +168,20 @@ function DetailPanel({
   notFound,
   isLoading,
   mode = "inline",
+  overlayWithinParent,
+  observeAuthenticatedDetail,
   onDeleted,
   onOpenChange,
 }: {
   className?: string;
   open: boolean;
-  detail?: LinkDetail;
+  detail?: LinkDetail | PublicLinkDetail;
   error?: boolean;
   notFound?: boolean;
   isLoading?: boolean;
   mode?: "inline" | "overlay";
+  overlayWithinParent?: boolean;
+  observeAuthenticatedDetail?: boolean;
   onDeleted?: () => void;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -169,16 +193,38 @@ function DetailPanel({
     return null;
   }
 
+  const bodyProps = {
+    className,
+    style: mode === "overlay" ? nativeOverlayStyle : undefined,
+    detail,
+    error,
+    notFound,
+    isLoading,
+    onDeleted,
+    onOpenChange,
+  };
+  const body =
+    observeAuthenticatedDetail && !notFound && detail && "sourceType" in detail ? (
+      <AuthenticatedDetailPanelBody
+        {...bodyProps}
+        detail={detail}
+      />
+    ) : (
+      <DetailPanelBody {...bodyProps} />
+    );
+
   if (mode === "overlay") {
     return (
       <FullWindowOverlay>
         <View
           className={cn(
             "bottom-0 left-0 right-0 top-0 flex",
-            Platform.select({
-              web: "fixed",
-              default: "absolute",
-            }),
+            overlayWithinParent
+              ? "absolute"
+              : Platform.select({
+                  web: "fixed",
+                  default: "absolute",
+                }),
           )}
         >
           <Pressable
@@ -194,16 +240,7 @@ function DetailPanel({
               exiting={SlideOutRight.duration(180)}
             >
               {/* The dimmed backdrop separates the layer, so the panel has no shadow. */}
-              <DetailPanelBody
-                className={className}
-                style={nativeOverlayStyle}
-                detail={detail}
-                error={error}
-                notFound={notFound}
-                isLoading={isLoading}
-                onDeleted={onDeleted}
-                onOpenChange={onOpenChange}
-              />
+              {body}
             </Animated.View>
           </View>
         </View>
@@ -216,15 +253,7 @@ function DetailPanel({
       entering={SlideInRight.duration(220)}
       exiting={SlideOutRight.duration(180)}
     >
-      <DetailPanelBody
-        className={className}
-        detail={detail}
-        error={error}
-        notFound={notFound}
-        isLoading={isLoading}
-        onDeleted={onDeleted}
-        onOpenChange={onOpenChange}
-      />
+      {body}
     </Animated.View>
   );
 }

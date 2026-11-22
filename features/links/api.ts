@@ -1,4 +1,4 @@
-import type { PublicFolderLists, PublicFolderPage } from "@/features/folders/types";
+import type { PublicFolderPage } from "@/features/folders/types";
 import { type ApiRequestConfig, api } from "@/lib/api-client";
 
 import { LinkAccessDenied } from "./lib/is-link-not-found";
@@ -12,13 +12,15 @@ import type {
   GetLinksParams,
   GetLinksResponse,
   LinkDetail,
-  LinkDetailResponse,
   LinkPreviewResponse,
   PatchLinkRequest,
+  PatchLinkResponse,
   PublicLinkDetail,
+  PublicLinkListItem,
   SetLinkFavoriteRequest,
   SetLinkFavoriteResponse,
   UpdateLinkRequest,
+  UpdateLinkResponse,
 } from "./types";
 
 async function createLink(payload: CreateLinkRequest) {
@@ -39,13 +41,12 @@ function getLinkAccess(linkId: number, read: ApiRequestConfig) {
 }
 
 function getPublicFolderLinks(
-  folderId: number,
-  cursor: string | undefined,
+  params: Pick<GetLinksParams, "folderId" | "cursor" | "orderKey" | "order" | "size">,
   read: ApiRequestConfig,
 ) {
-  return api.get<ApiEnvelope<PublicFolderPage<PublicFolderLists["links"]>>>("/api/links", {
+  return api.get<ApiEnvelope<PublicFolderPage<PublicLinkListItem>>>("/api/links", {
     ...read,
-    params: { folderId, cursor },
+    params,
   });
 }
 
@@ -68,11 +69,11 @@ async function getLinkPreview(url: string, config: { timeout?: number } = {}) {
 }
 
 async function updateLink(linkId: string | number, payload: UpdateLinkRequest) {
-  return api.put<LinkDetailResponse, UpdateLinkRequest>(`/api/links/${linkId}`, payload);
+  return api.put<UpdateLinkResponse, UpdateLinkRequest>(`/api/links/${linkId}`, payload);
 }
 
 async function patchLink(linkId: string | number, payload: PatchLinkRequest) {
-  return api.patch<LinkDetailResponse, PatchLinkRequest>(`/api/links/${linkId}`, payload);
+  return api.patch<PatchLinkResponse, PatchLinkRequest>(`/api/links/${linkId}`, payload);
 }
 
 async function deleteLink(linkId: string | number) {
@@ -82,6 +83,13 @@ async function deleteLink(linkId: string | number) {
 async function setLinkFavorite(linkId: string | number, payload: SetLinkFavoriteRequest) {
   return api.put<SetLinkFavoriteResponse, SetLinkFavoriteRequest>(
     `/api/links/${linkId}/favorite`,
+    payload,
+  );
+}
+
+async function setLinkPrivacy(linkId: string | number, payload: { isPublic: boolean }) {
+  return api.put<ApiEnvelope<{ isPublic: boolean }>, typeof payload>(
+    `/api/links/${linkId}/privacy`,
     payload,
   );
 }
@@ -101,5 +109,6 @@ export {
   getLinks,
   patchLink,
   setLinkFavorite,
+  setLinkPrivacy,
   updateLink,
 };

@@ -1,25 +1,13 @@
 import { getPublicFolderLinks } from "@/features/links/api";
-import type { ApiEnvelope } from "@/features/links/types";
+import type { GetLinksParams } from "@/features/links/types";
 import { resourceReadOptions } from "@/features/navigation/lib/resource-read";
-import { getPublicFolderTodos } from "@/features/todos/api";
-import type { ApiRequestConfig } from "@/lib/api-client";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
-import type { PublicFolderLists, PublicFolderPage } from "./types";
-
-const fetchPages: {
-  [K in keyof PublicFolderLists]: (
-    folderId: number,
-    cursor: string | undefined,
-    read: ApiRequestConfig,
-  ) => Promise<ApiEnvelope<PublicFolderPage<PublicFolderLists[K]>>>;
-} = { links: getPublicFolderLinks, todos: getPublicFolderTodos };
-
-function usePublicFolderListQuery<K extends keyof PublicFolderLists>(
+function usePublicFolderLinksQuery(
   folderId: number,
   visit: string,
-  list: K,
   enabled: boolean,
+  options: Pick<GetLinksParams, "orderKey" | "order" | "size">,
 ) {
   return useInfiniteQuery({
     enabled,
@@ -27,11 +15,10 @@ function usePublicFolderListQuery<K extends keyof PublicFolderLists>(
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    queryKey: ["folder-read", folderId, visit, list],
+    queryKey: ["folder-read", folderId, visit, options],
     queryFn: async ({ pageParam, signal }) => {
-      const response = await fetchPages[list](
-        folderId,
-        pageParam,
+      const response = await getPublicFolderLinks(
+        { ...options, folderId, cursor: pageParam },
         resourceReadOptions(null, signal),
       );
       if (!response.success || !response.data) throw new Error("Invalid public folder list");
@@ -45,4 +32,4 @@ function usePublicFolderListQuery<K extends keyof PublicFolderLists>(
   });
 }
 
-export { usePublicFolderListQuery };
+export { usePublicFolderLinksQuery };

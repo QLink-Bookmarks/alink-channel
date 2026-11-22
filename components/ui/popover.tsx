@@ -30,31 +30,35 @@ function PopoverContent({
   return (
     <PopoverPrimitive.Portal hostName={portalHost}>
       <FullWindowOverlay>
-        <PopoverPrimitive.Overlay style={Platform.select({ native: StyleSheet.absoluteFill })}>
-          <NativeOnlyAnimatedView
-            entering={FadeIn.duration(200)}
-            exiting={FadeOut}
-          >
-            <TextClassContext.Provider value="text-popover-foreground">
-              <PopoverPrimitive.Content
-                align={align}
-                sideOffset={sideOffset}
-                className={cn(
-                  "outline-hidden z-50 w-72 rounded-md border border-border bg-popover p-4 shadow-md shadow-black/5",
-                  Platform.select({
-                    web: cn(
-                      "origin-(--radix-popover-content-transform-origin) cursor-auto animate-in fade-in-0 zoom-in-95",
-                      props.side === "bottom" && "slide-in-from-top-2",
-                      props.side === "top" && "slide-in-from-bottom-2",
-                    ),
-                  }),
-                  className,
-                )}
-                {...props}
-              />
-            </TextClassContext.Provider>
-          </NativeOnlyAnimatedView>
-        </PopoverPrimitive.Overlay>
+        <PopoverPrimitive.Overlay
+          accessible={false}
+          style={Platform.select({ native: StyleSheet.absoluteFill })}
+        />
+        <NativeOnlyAnimatedView
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut}
+          pointerEvents="box-none"
+          style={StyleSheet.absoluteFill}
+        >
+          <TextClassContext.Provider value="text-popover-foreground">
+            <PopoverPrimitive.Content
+              align={align}
+              sideOffset={sideOffset}
+              className={cn(
+                "outline-hidden z-50 w-72 rounded-md border border-border bg-popover p-4 shadow-md shadow-black/5",
+                Platform.select({
+                  web: cn(
+                    "origin-(--radix-popover-content-transform-origin) cursor-auto animate-in fade-in-0 zoom-in-95",
+                    props.side === "bottom" && "slide-in-from-top-2",
+                    props.side === "top" && "slide-in-from-bottom-2",
+                  ),
+                }),
+                className,
+              )}
+              {...props}
+            />
+          </TextClassContext.Provider>
+        </NativeOnlyAnimatedView>
       </FullWindowOverlay>
     </PopoverPrimitive.Portal>
   );
