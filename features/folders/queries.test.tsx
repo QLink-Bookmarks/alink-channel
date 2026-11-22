@@ -192,6 +192,37 @@ describe("useFolderQuery", () => {
     expect(mockedGetFolders).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the selected folder page's timestamp when a different page is appended", async () => {
+    serve(makeFolders(45));
+    const client = createClient();
+    const now = jest.spyOn(Date, "now").mockReturnValue(1000);
+    try {
+      const folder = renderFolderQuery(40, client);
+      const pages = renderFolderPages(client);
+      await waitFor(() => expect(folder.result.current.folder?.id).toBe(40));
+      expect(folder.result.current.dataUpdatedAt).toBe(1000);
+
+      client.setQueryData(
+        folderQueryKeys.detail(40),
+        { turnsPublicAt: "2026-11-22T10:00:00Z" },
+        { updatedAt: 2000 },
+      );
+      now.mockReturnValue(3000);
+      await act(async () => {
+        await pages.result.current.fetchNextPage();
+      });
+
+      await waitFor(() => expect(pages.result.current.data?.pages).toHaveLength(2));
+      expect(pages.result.current.dataUpdatedAt).toBe(3000);
+      expect(folder.result.current.dataUpdatedAt).toBe(1000);
+      expect(client.getQueryState(folderQueryKeys.detail(40))?.dataUpdatedAt).toBeGreaterThan(
+        folder.result.current.dataUpdatedAt,
+      );
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it("reports not found only after the last page", async () => {
     serve(makeFolders(45));
 

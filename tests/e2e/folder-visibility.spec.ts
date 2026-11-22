@@ -433,6 +433,55 @@ test("publishes from the folder header only after confirmation", async ({ page }
   expect(writes()).toEqual([{ isPublic: true }]);
 });
 
+test("keeps the newer folder detail after the sidebar loads a different folder page", async ({
+  page,
+}) => {
+  test.skip(!isWideProject(), "the wide sidebar stays mounted on folder details");
+  const [first, second] = makeFolders(2).reverse();
+  let turnsPublicAt: string | null = null;
+  let releaseNextPage: () => void = () => {};
+  const nextPage = new Promise<void>((resolve) => {
+    releaseNextPage = resolve;
+  });
+  const state = await mockApi(page, {
+    folders: [first, second],
+    handlers: {
+      "GET /api/folders": async (route, request) => {
+        if (!new URL(request.url()).searchParams.has("cursor")) {
+          return route.fulfill({ json: scroll([{ ...first, turnsPublicAt: null }], "second") });
+        }
+        await nextPage;
+        return route.fulfill({ json: scroll([second]) });
+      },
+      [`GET /api/folders/${first.id}`]: (route) =>
+        route.fulfill({ json: envelope({ ...first, turnsPublicAt }) }),
+    },
+  });
+  try {
+    await page.goto(`/folders/${first.id}`);
+    const trigger = page.getByRole("button", { name: /^공개 설정, / });
+    await expect(trigger).toHaveAccessibleName("공개 설정, 나만 보기");
+    await expect
+      .poll(() =>
+        state.requests.some(
+          ({ path, search }) => path === "/api/folders" && search.includes("cursor=second"),
+        ),
+      )
+      .toBe(true);
+    turnsPublicAt = PUBLIC_AT;
+    await trigger.click();
+    const overlay = page.getByRole("group", { name: "공개 설정" });
+    await expect(overlay.getByRole("button", { name: "전체 공개", pressed: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(trigger).toHaveAccessibleName("공개 설정, 전체 공개");
+    releaseNextPage();
+    await expect(page.getByRole("button", { name: new RegExp(second.name) })).toBeVisible();
+    await expect(trigger).toHaveAccessibleName("공개 설정, 전체 공개");
+  } finally {
+    releaseNextPage();
+  }
+});
+
 for (const theme of ["light", "dark"] as const) {
   test(`publishes only after confirmation, preserves collaboration and keeps the folder address through republication in ${theme}`, async ({
     page,

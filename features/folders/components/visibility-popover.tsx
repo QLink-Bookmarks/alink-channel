@@ -71,9 +71,10 @@ function VisibilityPopover({
               <Pressable
                 key={value}
                 accessibilityLabel={label}
-                accessibilityRole="button"
-                accessibilityState={{ selected: checked }}
-                aria-pressed={checked}
+                role={isWeb ? "button" : "radio"}
+                accessibilityState={isWeb ? undefined : { checked }}
+                aria-pressed={isWeb ? checked : undefined}
+                aria-checked={isWeb ? undefined : checked}
                 className={cn(
                   "min-h-11 flex-row items-center gap-2 rounded-lg px-2 web:focus-visible:outline web:focus-visible:outline-2 web:focus-visible:-outline-offset-2 web:focus-visible:outline-ring",
                   checked && "bg-accent",

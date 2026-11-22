@@ -1,6 +1,6 @@
 import type { Folder } from "../types";
 import {
-  findFolderInPages,
+  findFolderEntryInPages,
   flattenFolderPages,
   getMoveTargetFolderId,
   getNextFolderCursor,
@@ -67,12 +67,13 @@ describe("splitFoldersBySection with a limit", () => {
   });
 });
 
-describe("findFolderInPages", () => {
+describe("findFolderEntryInPages", () => {
   it("finds a folder on any loaded page", () => {
     const pages = [page([folder(9)], "1"), page([folder(1)])];
-    expect(findFolderInPages(pages, 1)?.name).toBe("폴더 1");
-    expect(findFolderInPages(pages, 7)).toBeUndefined();
-    expect(findFolderInPages(undefined, 1)).toBeUndefined();
+    expect(findFolderEntryInPages(pages, 1)?.folder.name).toBe("폴더 1");
+    expect(findFolderEntryInPages(pages, 1)?.page).toBe(pages.at(-1));
+    expect(findFolderEntryInPages(pages, 7)).toBeUndefined();
+    expect(findFolderEntryInPages(undefined, 1)).toBeUndefined();
   });
 });
 

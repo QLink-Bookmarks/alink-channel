@@ -11,7 +11,7 @@ import {
 
 import { getFolderDetail, getFolderMembers, getFolders } from "./api";
 import {
-  findFolderInPages,
+  findFolderEntryInPages,
   flattenFolderPages,
   getNextFolderCursor,
   isFolderId,
@@ -25,6 +25,7 @@ const FOLDER_LIST_SORT = { orderKey: "created_at", order: "desc" } as const;
 
 type FolderListParams = Pick<GetFoldersParams, "orderKey" | "order" | "query">;
 type FolderPagesParams = typeof FOLDER_LIST_SORT & { size: number };
+type TimestampedFolderPage = FolderScrollResponse & { fetchedAt: number };
 
 const folderQueryKeys = {
   all: ["folders"] as const,
@@ -97,7 +98,7 @@ function useRestartingFolderPagesQuery(options?: { enabled?: boolean }) {
   const queryClient = useQueryClient();
   const pagesQuery = useInfiniteQuery({
     enabled: options?.enabled ?? true,
-    getNextPageParam: (lastPage: FolderScrollResponse, _allPages, lastPageParam) => {
+    getNextPageParam: (lastPage: TimestampedFolderPage, _allPages, lastPageParam) => {
       const nextCursor = getNextFolderCursor(lastPage);
       return nextCursor === lastPageParam ? undefined : nextCursor;
     },
@@ -108,7 +109,7 @@ function useRestartingFolderPagesQuery(options?: { enabled?: boolean }) {
         cursor: pageParam,
         size: FOLDER_PAGE_SIZE,
       });
-      return response.data;
+      return { ...response.data, fetchedAt: Date.now() };
     },
     queryKey: folderQueryKeys.infinite({ ...FOLDER_LIST_SORT, size: FOLDER_PAGE_SIZE }),
   });
@@ -144,7 +145,8 @@ function useFolderQuery(id: number, options?: { enabled?: boolean }) {
   const { pagesQuery, isRestartPending } = useRestartingFolderPagesQuery({ enabled });
   const { fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, refetch } =
     pagesQuery;
-  const folder = enabled ? findFolderInPages(pagesQuery.data?.pages, id) : undefined;
+  const entry = enabled ? findFolderEntryInPages(pagesQuery.data?.pages, id) : undefined;
+  const folder = entry?.folder;
   const loadedPageCount = pagesQuery.data?.pages.length ?? 0;
   const hasPages = loadedPageCount > 0;
   const isError =
@@ -180,7 +182,14 @@ function useFolderQuery(id: number, options?: { enabled?: boolean }) {
     (!isValidId || (hasPages && !hasNextPage && !isFetchingNextPage));
   const isLoading = enabled && !folder && !isError && !isNotFound;
 
-  return { folder, dataUpdatedAt: pagesQuery.dataUpdatedAt, isError, isLoading, isNotFound, retry };
+  return {
+    folder,
+    dataUpdatedAt: entry?.page.fetchedAt ?? 0,
+    isError,
+    isLoading,
+    isNotFound,
+    retry,
+  };
 }
 
 type FolderMembersQueryOptions = {
