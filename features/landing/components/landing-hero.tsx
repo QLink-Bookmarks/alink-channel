@@ -34,7 +34,7 @@ function ShareExtensionScene() {
     <View
       role="img"
       aria-label={SCENE_LABEL}
-      className="h-[clamp(320px,106vw,450px)] w-full max-w-[420px] flex-row items-center justify-center gap-3 self-center rounded-b-[9%] rounded-t-[38%] px-2 py-4 md:h-[clamp(440px,48vw,550px)] md:max-w-[660px] md:py-5 xl:gap-5"
+      className="h-[clamp(320px,106vw,450px)] w-full max-w-[420px] flex-row items-center justify-center gap-3 self-center rounded-b-[9%] rounded-t-[38%] px-2 py-4 md:h-[clamp(440px,48vw,550px)] md:max-w-[660px] md:gap-5 md:py-5"
       style={
         {
           backgroundImage:
