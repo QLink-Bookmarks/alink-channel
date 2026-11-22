@@ -21,7 +21,6 @@ export const LANDING_COLOR_VARS = {
   "--landing-stage-rose": "#EFD9E4",
   "--landing-stage-lavender": "#E1D1EF",
   "--landing-device-frame": "#28252D",
-  "--landing-device-surface": "#151219",
 };
 
 // Clear pastel wash per section so scrolling reads as moving between distinct
@@ -91,11 +90,11 @@ export function LandingSectionLink({
 export function StartButton({
   href,
   label,
-  className,
+  compact = false,
 }: {
   href: Href;
   label: string;
-  className?: string;
+  compact?: boolean;
 }) {
   return (
     <Link
@@ -104,17 +103,26 @@ export function StartButton({
     >
       <Pressable
         className={cn(
-          "relative h-12 items-center justify-center overflow-hidden rounded-2xl px-8 shadow-qlink-md active:opacity-95 web:transition-transform web:hover:scale-105",
+          "relative items-center justify-center active:opacity-95 web:transition-transform web:hover:scale-105",
+          compact
+            ? "h-11 min-w-11 shrink-0 rounded-xl px-2.5 md:h-12"
+            : "h-12 overflow-hidden rounded-2xl px-8 shadow-qlink-md",
           LANDING_FOCUS,
-          className,
         )}
       >
         <LinearGradient
           accent="pink"
-          style={{ bottom: 0, left: 0, position: "absolute", right: 0, top: 0 }}
+          className={cn(
+            "absolute inset-x-0",
+            compact ? "inset-y-1.5 rounded-xl shadow-qlink-md md:inset-y-2" : "inset-y-0",
+          )}
           pointerEvents="none"
         />
-        <Text className="text-base font-semibold text-primary-foreground">{label}</Text>
+        <Text
+          className={cn("font-semibold text-primary-foreground", compact ? "text-sm" : "text-base")}
+        >
+          {label}
+        </Text>
       </Pressable>
     </Link>
   );

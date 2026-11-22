@@ -3,10 +3,7 @@ import { View } from "react-native";
 import { AppStoreBadge } from "@/components/ui/app-store-badge";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
-import { getThemeTokens } from "@/lib/theme";
-import { getNativeThemeVars } from "@/lib/theme-vars";
 import { cn } from "@/lib/utils";
-import { useDisplaySettings } from "@/stores/display-settings";
 
 import {
   LANDING_FRAME,
@@ -16,24 +13,18 @@ import {
 } from "./landing-chrome";
 
 import { Image } from "expo-image";
-import { ArrowDown, CircleCheck } from "lucide-react-native/icons";
-import { vars } from "nativewind";
+import { ArrowDown } from "lucide-react-native/icons";
 
-const KAIJU_THUMBNAIL = require("@/assets/sample-links/sakanaction-kaiju.jpg");
+const YOUTUBE_SHARE_CAPTURE = require("@/assets/landing/kaiju-youtube-share.webp");
 const SCENE_LABEL =
-  "sakanaction의 怪獣 뮤직비디오 링크를 저장한 기기와 ALink의 Archived 저장 완료 표시";
+  "sakanaction의 怪獣 공식 뮤직비디오 YouTube 시청 페이지에서 공유 시트가 열린 화면";
 
-function ArchivedScene() {
-  const accent = useDisplaySettings((state) => state.display.accent);
-  const mode = useDisplaySettings((state) => state.display.theme);
-  const { success } = getThemeTokens(mode, accent);
-
+function YouTubeShareScene() {
   return (
     <View
       role="img"
       aria-label={SCENE_LABEL}
-      testID="landing-archived-scene"
-      className="relative aspect-[1.14] w-full max-w-[420px] self-center overflow-hidden rounded-b-[9%] rounded-t-[38%] md:max-w-[660px]"
+      className="h-[clamp(320px,105vw,400px)] w-full max-w-[420px] items-center self-center rounded-b-[9%] rounded-t-[38%] py-4 md:h-[clamp(340px,48vw,550px)] md:max-w-[660px] md:py-5"
       style={
         {
           backgroundImage:
@@ -43,32 +34,14 @@ function ArchivedScene() {
     >
       <View
         aria-hidden
-        className="absolute left-[34%] top-[5%] h-[88%] w-[41%] justify-center gap-1 overflow-hidden rounded-[22px] border-[4px] border-[color:var(--landing-device-frame)] bg-[color:var(--landing-device-surface)] shadow-qlink-lg md:rounded-[32px] md:border-[6px]"
-        style={{ transform: [{ rotate: "5deg" }] }}
+        className="aspect-[420/757] h-full max-w-full overflow-hidden rounded-[20px] bg-[color:var(--landing-device-frame)] p-1 shadow-qlink-lg md:rounded-[26px]"
       >
         <Image
-          source={KAIJU_THUMBNAIL}
-          style={{ aspectRatio: 16 / 9, width: "100%" }}
-          contentFit="cover"
+          accessible={false}
+          source={YOUTUBE_SHARE_CAPTURE}
+          className="size-full rounded-[16px] md:rounded-[22px]"
+          contentFit="contain"
         />
-        <Text className="px-2 text-[10px] font-bold text-white md:text-[clamp(10px,1.15vw,16px)]">
-          怪獣 -Music Video-
-        </Text>
-        <Text className="px-2 text-[8px] text-white/85 md:text-[clamp(8px,0.9vw,13px)]">
-          サカナクション sakanaction
-        </Text>
-      </View>
-      <View
-        aria-hidden
-        className="absolute bottom-0 left-[16%] h-14 origin-left -rotate-[4deg] flex-row items-center gap-2.5 rounded-full bg-card pl-3 pr-5 shadow-qlink-lg max-md:scale-[0.82] min-[360px]:bottom-[8%] xl:bottom-[18%]"
-        style={vars(getNativeThemeVars(mode, accent))}
-      >
-        <Icon
-          as={CircleCheck}
-          size={32}
-          color={success}
-        />
-        <Text className="text-xl font-semibold">Archived</Text>
       </View>
     </View>
   );
@@ -110,7 +83,7 @@ function LandingHero() {
             />
           </View>
           <View className="w-full min-w-0 md:w-auto md:flex-[1.14]">
-            <ArchivedScene />
+            <YouTubeShareScene />
           </View>
         </View>
         <AppStoreBadge className="self-start md:absolute md:bottom-3 md:left-0" />

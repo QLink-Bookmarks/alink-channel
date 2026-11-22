@@ -56,7 +56,7 @@ function LandingHeader({ activeSection }: { activeSection?: string }) {
       <StartButton
         href="/app"
         label="시작하기"
-        className="h-11 shrink-0 px-3 md:h-12 md:px-6"
+        compact
       />
     </View>
   );

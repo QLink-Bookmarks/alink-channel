@@ -4,8 +4,8 @@ import { envelope, mockApi } from "./support/mock-api";
 
 const title = /다시 찾을 링크,\s*한곳에 모아요\./;
 const description = "AI가 도와주는 북마크 아카이브.";
-const scene = /sakanaction의 怪獣.*Archived 저장 완료/;
-const thumbnail = /sakanaction-kaiju(?:\.[\da-f]+)?\.jpg/;
+const scene = /sakanaction의 怪獣 공식 뮤직비디오.*YouTube.*공유 시트가 열린 화면/;
+const shareCapture = /kaiju-youtube-share(?:\.[\da-f]+)?\.webp/;
 const subjects = ["Archive", "AI", "Ask & Access", "Action", "Amigo"];
 const sectionIds = ["organize", "share", "ask", "task", "shared"];
 const startLink = (page: Page) =>
@@ -37,7 +37,7 @@ test("renders the public landing on direct entry and refresh", async ({ page }) 
     "다시 찾을 링크",
     description,
     "웹으로 시작하기",
-    "Archived 저장 완료",
+    "공유 시트가 열린 화면",
   ];
   const offsets = accessibleContent.map((label) => accessibleTree.indexOf(label));
   expect(offsets[0]).toBeGreaterThanOrEqual(0);
@@ -225,23 +225,62 @@ test("back restores the exact position and visible focus after reading a section
   await expect(action).toBeFocused();
 });
 
-test("keeps both the Archived badge and video credit readable", async ({ page }) => {
+test("keeps the entire YouTube sharing capture in view across phone and desktop widths", async ({
+  page,
+}) => {
   await openGuestLanding(page);
   const graphic = page.getByRole("img", { name: scene });
-  const credit = graphic.getByText("サカナクション sakanaction", { exact: true });
-  const badge = graphic.getByText("Archived", { exact: true }).locator("..");
+  const image = graphic.locator("img");
+  await expect(image).toHaveAttribute("src", shareCapture);
+  await expect
+    .poll(() => image.evaluate((node: HTMLImageElement) => node.naturalWidth))
+    .toBeGreaterThan(0);
   for (const width of [320, 360, 390, 768, 769, 960, 1179, 1180, 1280]) {
     await page.setViewportSize({ width, height: 844 });
-    await expect(credit).toBeInViewport({ ratio: 1 });
-    await expect(badge).toBeInViewport({ ratio: 1 });
-    const creditBounds = (await credit.boundingBox())!;
-    const badgeBounds = (await badge.boundingBox())!;
-    expect(badgeBounds.y).toBeGreaterThanOrEqual(creditBounds.y + creditBounds.height);
+    await expect(image).toBeInViewport({ ratio: 1 });
+    await expect(image).toHaveCSS("object-fit", "contain");
+    const imageBounds = (await image.boundingBox())!;
     const sceneBounds = (await graphic.boundingBox())!;
-    expect(badgeBounds.y + badgeBounds.height).toBeLessThanOrEqual(
+    expect(imageBounds.x).toBeGreaterThanOrEqual(sceneBounds.x);
+    expect(imageBounds.y).toBeGreaterThanOrEqual(sceneBounds.y);
+    expect(imageBounds.x + imageBounds.width).toBeLessThanOrEqual(
+      sceneBounds.x + sceneBounds.width,
+    );
+    expect(imageBounds.y + imageBounds.height).toBeLessThanOrEqual(
       sceneBounds.y + sceneBounds.height,
     );
   }
+});
+
+test("gives the smaller header gradient a full touch target and keeps the large CTA style", async ({
+  page,
+}, testInfo) => {
+  await openGuestLanding(page);
+  const header = page.getByRole("banner");
+  const compact = header.getByRole("link", { name: "시작하기", exact: true });
+  const hero = startLink(page);
+  const gradient = (link: typeof compact) => link.locator(":scope > :first-child");
+  await expect(compact).toHaveCSS("height", testInfo.project.use.hasTouch ? "44px" : "48px");
+  await expect(gradient(compact)).toHaveCSS("height", "32px");
+  await expect(gradient(hero)).toHaveCSS("height", "48px");
+  const background = await gradient(hero).evaluate(
+    (node) => getComputedStyle(node).backgroundImage,
+  );
+  expect(background).toMatch(/^linear-gradient/);
+  await expect(gradient(compact)).toHaveCSS("background-image", background);
+  await expect(compact.getByText("시작하기", { exact: true })).toHaveCSS(
+    "color",
+    "rgb(255, 255, 255)",
+  );
+  await expect(hero.getByText("웹으로 시작하기", { exact: true })).toHaveCSS(
+    "color",
+    "rgb(255, 255, 255)",
+  );
+  const target = (await compact.boundingBox())!;
+  expect(target.width).toBeGreaterThanOrEqual(44);
+  if (testInfo.project.use.hasTouch) await compact.tap({ position: { x: target.width / 2, y: 2 } });
+  else await compact.click({ position: { x: target.width / 2, y: 2 } });
+  await expect(page).toHaveURL(/\/login$/);
 });
 
 test("opens the Archive from the scroll hint and switches its sample folder", async ({
@@ -324,12 +363,12 @@ for (const image of ["loading", "failed"] as const) {
     const pending = new Promise<void>((resolve) => {
       releaseImage = resolve;
     });
-    await page.route(thumbnail, async (route) => {
+    await page.route(shareCapture, async (route) => {
       if (image === "loading") await pending;
       await route.abort();
     });
     try {
-      const imageRequested = page.waitForRequest(thumbnail);
+      const imageRequested = page.waitForRequest(shareCapture);
       await page.goto("/", { waitUntil: "domcontentloaded" });
       await imageRequested;
       await expectFirstScreen(page);
@@ -383,13 +422,12 @@ test("an empty account shows its profile and the same static example", async ({ 
 
   const graphic = page.getByRole("img", { name: scene });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(graphic.getByText("Archived")).toBeVisible();
   const image = graphic.locator("img");
-  await expect(image).toHaveAttribute("src", thumbnail);
+  await expect(image).toBeVisible();
+  await expect(image).toHaveAttribute("src", shareCapture);
   const bounds = (await image.boundingBox())!;
   if (await page.evaluate(() => navigator.maxTouchPoints > 0)) await graphic.tap();
   else await page.mouse.move(bounds.x, bounds.y);
   expect(await image.boundingBox()).toEqual(bounds);
-  await expect(graphic.locator("svg")).toBeVisible();
   await expect(graphic.locator("a, button, [tabindex='0']")).toHaveCount(0);
 });
