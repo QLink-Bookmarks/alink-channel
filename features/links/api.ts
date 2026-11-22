@@ -42,10 +42,11 @@ function getPublicFolderLinks(
   folderId: number,
   cursor: string | undefined,
   read: ApiRequestConfig,
+  isPublic?: boolean,
 ) {
   return api.get<ApiEnvelope<PublicFolderPage<PublicFolderLists["links"]>>>("/api/links", {
     ...read,
-    params: { folderId, cursor },
+    params: { folderId, cursor, isPublic },
   });
 }
 
@@ -86,6 +87,10 @@ async function setLinkFavorite(linkId: string | number, payload: SetLinkFavorite
   );
 }
 
+async function setLinkPrivacy(linkId: string | number, payload: { isPublic: boolean }) {
+  return api.put<ApiEnvelope<null>, typeof payload>(`/api/links/${linkId}/privacy`, payload);
+}
+
 async function copySharedFolderLink(linkId: string | number, payload: CopyLinkRequest) {
   return api.post<CopyLinkResponse, CopyLinkRequest>(`/api/links/${linkId}/copy`, payload);
 }
@@ -101,5 +106,6 @@ export {
   getLinks,
   patchLink,
   setLinkFavorite,
+  setLinkPrivacy,
   updateLink,
 };

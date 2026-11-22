@@ -12,6 +12,7 @@ const fetchPages: {
     folderId: number,
     cursor: string | undefined,
     read: ApiRequestConfig,
+    isPublic?: boolean,
   ) => Promise<ApiEnvelope<PublicFolderPage<PublicFolderLists[K]>>>;
 } = { links: getPublicFolderLinks, todos: getPublicFolderTodos };
 
@@ -20,6 +21,7 @@ function usePublicFolderListQuery<K extends keyof PublicFolderLists>(
   visit: string,
   list: K,
   enabled: boolean,
+  isPublic?: K extends "links" ? boolean : never,
 ) {
   return useInfiniteQuery({
     enabled,
@@ -27,12 +29,13 @@ function usePublicFolderListQuery<K extends keyof PublicFolderLists>(
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    queryKey: ["folder-read", folderId, visit, list],
+    queryKey: ["folder-read", folderId, visit, list, isPublic],
     queryFn: async ({ pageParam, signal }) => {
       const response = await fetchPages[list](
         folderId,
         pageParam,
         resourceReadOptions(null, signal),
+        isPublic,
       );
       if (!response.success || !response.data) throw new Error("Invalid public folder list");
       return response.data;

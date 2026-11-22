@@ -72,7 +72,7 @@ type SubmitKind = "save" | "ai";
 type FolderDraft = {
   id: string | null;
   label: string;
-  isPublic?: boolean;
+  turnsPublicAt?: string | null;
 };
 
 type FieldErrors = { url?: string; title?: string };
@@ -125,7 +125,7 @@ function getFolderDraft(selection: FolderPickerSelection): FolderDraft {
   return {
     id: String(selection.id),
     label: selection.emoji ? `${selection.emoji} ${selection.label}` : selection.label,
-    isPublic: selection.isPublic,
+    turnsPublicAt: selection.turnsPublicAt,
   };
 }
 
@@ -234,8 +234,9 @@ function LinkCreateForm({
   const [memo, setMemo] = React.useState("");
   const [folder, setFolder] = React.useState<FolderDraft>(defaultFolder);
   const [visibilityDraft, setVisibilityDraft] = React.useState<boolean>();
-  const isPublic = folder.isPublic === true && (visibilityDraft ?? true);
-  const requestVisibility = folder.isPublic === true ? visibilityDraft : false;
+  const folderIsPublic = typeof folder.turnsPublicAt === "string";
+  const isPublic = folderIsPublic && (visibilityDraft ?? true);
+  const requestVisibility = folderIsPublic ? visibilityDraft : false;
   const [aiProvider, setAiProvider] = React.useState<AiProviderSelection | null>(null);
   const [todos, setTodos] = React.useState<TodoDraftEditorItem[]>(createInitialTodos);
   const [generateTodo, setGenerateTodo] = React.useState(false);
@@ -918,9 +919,9 @@ function LinkCreateForm({
   );
   const visibilityField = (
     <VisibilityField
-      disabled={isBusy || folder.isPublic !== true}
+      disabled={isBusy || !folderIsPublic}
       help={
-        folder.isPublic === true
+        folderIsPublic
           ? "전체 공개 링크와 연결된 할 일은 공개 페이지에 표시돼요."
           : "전체 공개 폴더에서만 링크를 공개할 수 있어요."
       }

@@ -8,6 +8,7 @@ import {
   deleteLink,
   patchLink,
   setLinkFavorite,
+  setLinkPrivacy,
   updateLink,
 } from "./api";
 import { getLinkDetailQueryKey, invalidateLinkListAndSearchQueries } from "./queries";
@@ -104,11 +105,26 @@ function useSetLinkFavoriteMutation() {
   });
 }
 
+function useSetLinkPrivacyMutation(linkId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (isPublic: boolean) => setLinkPrivacy(linkId, { isPublic }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: getLinkDetailQueryKey(linkId) }),
+        invalidateLinkListAndSearchQueries(queryClient),
+        queryClient.invalidateQueries({ queryKey: ["resource-read", "links", linkId] }),
+        queryClient.invalidateQueries({ queryKey: ["folder-read"] }),
+      ]),
+  });
+}
+
 export {
   useCopyLinkMutation,
   useCreateLinkMutation,
   useDeleteLinkMutation,
   usePatchLinkMutation,
   useSetLinkFavoriteMutation,
+  useSetLinkPrivacyMutation,
   useUpdateLinkMutation,
 };
