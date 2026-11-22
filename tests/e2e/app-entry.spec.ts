@@ -74,12 +74,18 @@ async function setUp(
   let profileFailures = options.profileFailures ?? 0;
   let signInFailures = options.signInFailures ?? 0;
   const invite = { folderId: "4", token: "original-invite-token" };
-  // Dismiss Expo's development LogBox without moving focus or clicking through a modal.
-  await page.addLocatorHandler(page.locator("#error-toast button"), (dismiss) =>
-    dismiss.evaluate((button: HTMLButtonElement) => button.click()),
-  );
   await page.addInitScript(
     ({ pendingInvite, pendingShare }) => {
+      // Keep Expo's development LogBox out of keyboard and pointer interactions.
+      document.addEventListener(
+        "DOMContentLoaded",
+        () => {
+          const style = document.createElement("style");
+          style.textContent = "#error-toast { display: none !important; }";
+          document.head.append(style);
+        },
+        { once: true },
+      );
       if (!sessionStorage.getItem("entry-fixtures")) {
         sessionStorage.setItem("entry-fixtures", "1");
         if (pendingInvite)
