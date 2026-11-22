@@ -4,8 +4,8 @@ import { envelope, mockApi } from "./support/mock-api";
 
 const title = /다시 찾을 링크,\s*한곳에 모아요\./;
 const description = "AI가 도와주는 북마크 아카이브.";
-const scene = /sakanaction의 怪獣 공식 뮤직비디오.*YouTube.*공유 시트가 열린 화면/;
-const shareCapture = /kaiju-youtube-share(?:\.[\da-f]+)?\.webp/;
+const scene = /sakanaction의 怪獣 공식 뮤직비디오.*YouTube.*ALink 공유 확장이 열린 화면.*Archived/;
+const shareCapture = /kaiju-alink-share-extension(?:\.[\da-f]+)?\.webp/;
 const subjects = ["Archive", "AI", "Ask & Access", "Action", "Amigo"];
 const sectionIds = ["organize", "share", "ask", "task", "shared"];
 const startLink = (page: Page) =>
@@ -37,7 +37,7 @@ test("renders the public landing on direct entry and refresh", async ({ page }) 
     "다시 찾을 링크",
     description,
     "웹으로 시작하기",
-    "공유 시트가 열린 화면",
+    "ALink 공유 확장이 열린 화면",
   ];
   const offsets = accessibleContent.map((label) => accessibleTree.indexOf(label));
   expect(offsets[0]).toBeGreaterThanOrEqual(0);
@@ -225,25 +225,30 @@ test("back restores the exact position and visible focus after reading a section
   await expect(action).toBeFocused();
 });
 
-test("keeps the entire YouTube sharing capture in view across phone and desktop widths", async ({
+test("keeps the complete ALink extension capture beside the Archived badge across screen widths", async ({
   page,
 }) => {
   await openGuestLanding(page);
   const graphic = page.getByRole("img", { name: scene });
   const image = graphic.locator("img");
+  const badge = graphic.getByTestId("landing-archived-badge");
   await expect(image).toHaveAttribute("src", shareCapture);
+  await expect(badge.getByText("Archived")).toBeVisible();
   await expect
     .poll(() => image.evaluate((node: HTMLImageElement) => node.naturalWidth))
     .toBeGreaterThan(0);
   for (const width of [320, 360, 390, 768, 769, 960, 1179, 1180, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(image).toBeInViewport({ ratio: 1 });
+    await expect(badge).toBeInViewport({ ratio: 1 });
     await expect(image).toHaveCSS("object-fit", "contain");
     const imageBounds = (await image.boundingBox())!;
+    const badgeBounds = (await badge.boundingBox())!;
     const sceneBounds = (await graphic.boundingBox())!;
     expect(imageBounds.x).toBeGreaterThanOrEqual(sceneBounds.x);
     expect(imageBounds.y).toBeGreaterThanOrEqual(sceneBounds.y);
-    expect(imageBounds.x + imageBounds.width).toBeLessThanOrEqual(
+    expect(imageBounds.x + imageBounds.width).toBeLessThan(badgeBounds.x);
+    expect(badgeBounds.x + badgeBounds.width).toBeLessThanOrEqual(
       sceneBounds.x + sceneBounds.width,
     );
     expect(imageBounds.y + imageBounds.height).toBeLessThanOrEqual(
