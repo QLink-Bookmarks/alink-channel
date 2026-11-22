@@ -217,10 +217,7 @@ function WebLanding() {
                 <Text className="text-center text-3xl font-extrabold leading-tight text-foreground md:text-5xl">
                   흩어진 북마크,{"\n"}이제는 하나로 Archive
                 </Text>
-                <StartButton
-                  href="/app"
-                  label="웹으로 시작하기"
-                />
+                <StartButton label="웹으로 시작하기" />
                 <AppStoreBadge />
               </Reveal>
             </View>

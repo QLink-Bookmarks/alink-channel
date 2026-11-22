@@ -5,7 +5,7 @@ import { LinearGradient } from "@/components/ui/linear-gradient";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
-import { type Href, Link } from "expo-router";
+import { Link } from "expo-router";
 
 export const LANDING_FRAME = "mx-auto w-full max-w-[1280px]";
 export const LANDING_TOP_GUTTER = "px-[22px] md:px-6";
@@ -87,18 +87,10 @@ export function LandingSectionLink({
   );
 }
 
-export function StartButton({
-  href,
-  label,
-  compact = false,
-}: {
-  href: Href;
-  label: string;
-  compact?: boolean;
-}) {
+export function StartButton({ label, compact = false }: { label: string; compact?: boolean }) {
   return (
     <Link
-      href={href}
+      href="/home"
       asChild
     >
       <Pressable

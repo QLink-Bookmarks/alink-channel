@@ -54,7 +54,6 @@ function LandingHeader({ activeSection }: { activeSection?: string }) {
         </Link>
       )}
       <StartButton
-        href="/app"
         label="시작하기"
         compact
       />

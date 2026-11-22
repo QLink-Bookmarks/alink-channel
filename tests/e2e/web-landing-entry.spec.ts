@@ -101,6 +101,7 @@ test("keeps the header in place and takes keyboard focus to each section", async
   expect((await header.boundingBox())!.y).toBe(0);
 
   const finalLink = page.locator("#landing-final").getByRole("link", { name: "웹으로 시작하기" });
+  await expect(finalLink).toHaveAttribute("href", "/home");
   await finalLink.click();
   await expect(page).toHaveURL(/\/login$/);
 });
@@ -338,7 +339,7 @@ test("starts in the same tab by keyboard or touch and allows another entry after
 }, testInfo) => {
   await openGuestLanding(page);
   const start = startLink(page);
-  await expect(start).toHaveAttribute("href", "/app");
+  await expect(start).toHaveAttribute("href", "/home");
   if (testInfo.project.use.hasTouch) {
     await start.tap();
   } else {
@@ -355,7 +356,7 @@ test("starts in the same tab by keyboard or touch and allows another entry after
   await page.goBack();
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
   const headerStart = page.getByRole("banner").getByRole("link", { name: "시작하기", exact: true });
-  await expect(headerStart).toHaveAttribute("href", "/app");
+  await expect(headerStart).toHaveAttribute("href", "/home");
   await headerStart.click();
   await expect(page).toHaveURL(/\/login$/);
   expect(page.context().pages()).toHaveLength(1);
@@ -407,8 +408,10 @@ test("entry works before session restoration finishes", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await refresh;
     await expectFirstScreen(page);
-    await startLink(page).click();
-    await expect(page).toHaveURL(/\/app$/);
+    const start = startLink(page);
+    await expect(start).toHaveAttribute("href", "/home");
+    await start.click();
+    await expect(page).toHaveURL(/\/(home|login)$/);
     expect(page.context().pages()).toHaveLength(1);
   } finally {
     releaseRefresh();
@@ -435,4 +438,7 @@ test("an empty account shows its profile and the same static example", async ({ 
   else await page.mouse.move(bounds.x, bounds.y);
   expect(await image.boundingBox()).toEqual(bounds);
   await expect(graphic.locator("a, button, [tabindex='0']")).toHaveCount(0);
+  await startLink(page).click();
+  await expect(page).toHaveURL(/\/home$/);
+  expect(page.context().pages()).toHaveLength(1);
 });

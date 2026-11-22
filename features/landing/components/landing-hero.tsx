@@ -98,10 +98,7 @@ function LandingHero() {
             <Text className="text-base text-[color:var(--landing-hero-muted)] md:text-[clamp(16px,1.55vw,22px)]">
               AI가 도와주는 북마크 아카이브.
             </Text>
-            <StartButton
-              href="/app"
-              label="웹으로 시작하기"
-            />
+            <StartButton label="웹으로 시작하기" />
           </View>
           <View className="w-full min-w-0 md:w-auto md:flex-[1.14]">
             <ShareExtensionScene />
