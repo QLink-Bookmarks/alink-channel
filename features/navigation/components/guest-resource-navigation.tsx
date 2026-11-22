@@ -82,7 +82,7 @@ function GuestResourceNavigation({
       </DialogTrigger>
       <DialogContent
         aria-describedby={undefined}
-        className="m-0 h-full w-72 max-w-[calc(100%-3rem)] gap-0 rounded-none border-y-0 border-l-0 border-sidebar-border bg-sidebar p-0 web:zoom-in-100 sm:max-w-72"
+        className="m-0 h-[100dvh] w-72 max-w-[calc(100%-3rem)] gap-0 rounded-none border-y-0 border-l-0 border-sidebar-border bg-sidebar p-0 web:zoom-in-100 sm:max-w-72"
         overlayClassName="z-50 items-start justify-start p-0"
         style={getNativeThemeVars(theme, "gray") as ViewStyle}
       >

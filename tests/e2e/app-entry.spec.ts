@@ -490,6 +490,9 @@ for (const resource of ["/folders/3", "/links/7"] as const) {
       await expect(openSidebar).toBeFocused();
       await page.keyboard.press("Enter");
       await expect(sidebarLogin).toBeFocused();
+      await expect
+        .poll(async () => (await sidebar.boundingBox())?.height ?? 0)
+        .toBeGreaterThanOrEqual(page.viewportSize()!.height - 1);
       await page.keyboard.press("Escape");
       await expect(sidebar).toHaveCount(0);
       await expect(openSidebar).toBeFocused();
