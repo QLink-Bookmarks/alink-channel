@@ -11,12 +11,15 @@ const BADGE_HEIGHT = 40;
 
 type AppStoreBadgeProps = {
   className?: string;
+  storeUrl?: string;
 };
 
 // Apple's official "Download on the App Store" badge. Hidden when no store URL
 // is configured so it never links nowhere.
-function AppStoreBadge({ className }: AppStoreBadgeProps) {
-  const storeUrl = process.env.EXPO_PUBLIC_IOS_APP_STORE_URL;
+function AppStoreBadge({
+  className,
+  storeUrl = process.env.EXPO_PUBLIC_IOS_APP_STORE_URL,
+}: AppStoreBadgeProps) {
   if (!storeUrl) {
     return null;
   }

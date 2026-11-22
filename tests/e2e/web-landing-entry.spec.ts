@@ -2,8 +2,8 @@ import { type Page, expect, test } from "@playwright/test";
 
 import { envelope, mockApi } from "./support/mock-api";
 
-const title = /다시 찾을 링크,\s*한곳에 모아요\./;
-const description = "AI가 도와주는 북마크 아카이브.";
+const title = "Save it, Find it.";
+const description = "한 곳에서 쉽게 찾는 북마크 아카이브";
 const scene = /sakanaction의 怪獣 공식 뮤직비디오.*YouTube.*ALink 공유 확장이 열린 화면.*Archived/;
 const shareCapture = /kaiju-alink-share-extension(?:\.[\da-f]+)?\.webp/;
 const subjects = ["Archive", "AI", "Ask & Access", "Action", "Amigo"];
@@ -33,12 +33,7 @@ test("renders the public landing on direct entry and refresh", async ({ page }) 
   await expectFirstScreen(page);
 
   const accessibleTree = await page.locator("#landing-intro").ariaSnapshot();
-  const accessibleContent = [
-    "다시 찾을 링크",
-    description,
-    "웹으로 시작하기",
-    "ALink 공유 확장이 열린 화면",
-  ];
+  const accessibleContent = [title, description, "웹으로 시작하기", "ALink 공유 확장이 열린 화면"];
   const offsets = accessibleContent.map((label) => accessibleTree.indexOf(label));
   expect(offsets[0]).toBeGreaterThanOrEqual(0);
   expect(offsets).toEqual([...offsets].sort((left, right) => left - right));
@@ -246,10 +241,10 @@ test("keeps the complete ALink extension capture beside the Archived badge acros
     const imageBounds = (await image.boundingBox())!;
     const badgeBounds = (await badge.boundingBox())!;
     const sceneBounds = (await graphic.boundingBox())!;
-    expect(imageBounds.x).toBeGreaterThanOrEqual(sceneBounds.x);
+    expect(badgeBounds.x).toBeGreaterThanOrEqual(sceneBounds.x);
     expect(imageBounds.y).toBeGreaterThanOrEqual(sceneBounds.y);
-    expect(imageBounds.x + imageBounds.width).toBeLessThan(badgeBounds.x);
-    expect(badgeBounds.x + badgeBounds.width).toBeLessThanOrEqual(
+    expect(badgeBounds.x + badgeBounds.width).toBeLessThan(imageBounds.x);
+    expect(imageBounds.x + imageBounds.width).toBeLessThanOrEqual(
       sceneBounds.x + sceneBounds.width,
     );
     expect(imageBounds.y + imageBounds.height).toBeLessThanOrEqual(

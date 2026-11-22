@@ -20,6 +20,8 @@ import { ArrowDown, CircleCheck } from "lucide-react-native/icons";
 import { vars } from "nativewind";
 
 const SHARE_EXTENSION_CAPTURE = require("@/assets/landing/kaiju-alink-share-extension.webp");
+const APP_STORE_URL =
+  "https://apps.apple.com/kr/app/%EC%97%90%EC%9D%B4%EB%A7%81%ED%81%AC-alink-ai%EA%B0%80-%EB%8F%84%EC%99%80%EC%A3%BC%EB%8A%94-%EB%B6%81%EB%A7%88%ED%81%AC-%EC%95%84%EC%B9%B4%EC%9D%B4%EB%B8%8C/id6788230955";
 const SCENE_LABEL =
   "sakanaction의 怪獣 공식 뮤직비디오를 YouTube에서 공유해 ALink 공유 확장이 열린 화면과 옆의 Archived 저장 완료 배지";
 
@@ -32,7 +34,7 @@ function ShareExtensionScene() {
     <View
       role="img"
       aria-label={SCENE_LABEL}
-      className="h-[clamp(320px,114vw,450px)] w-full max-w-[420px] flex-row items-center justify-center gap-3 self-center rounded-b-[9%] rounded-t-[38%] px-2 py-4 md:h-[clamp(440px,48vw,550px)] md:max-w-[660px] md:py-5 xl:gap-5"
+      className="h-[clamp(320px,106vw,450px)] w-full max-w-[420px] flex-row items-center justify-center gap-3 self-center rounded-b-[9%] rounded-t-[38%] px-2 py-4 md:h-[clamp(440px,48vw,550px)] md:max-w-[660px] md:py-5 xl:gap-5"
       style={
         {
           backgroundImage:
@@ -40,17 +42,6 @@ function ShareExtensionScene() {
         } as never
       }
     >
-      <View
-        aria-hidden
-        className="aspect-[402/874] h-full shrink-0 overflow-hidden rounded-[20px] bg-[color:var(--landing-device-frame)] p-1 shadow-qlink-lg md:rounded-[26px]"
-      >
-        <Image
-          accessible={false}
-          source={SHARE_EXTENSION_CAPTURE}
-          className="size-full rounded-[16px] md:rounded-[22px]"
-          contentFit="contain"
-        />
-      </View>
       <View
         aria-hidden
         testID="landing-archived-badge"
@@ -63,6 +54,17 @@ function ShareExtensionScene() {
           color={success}
         />
         <Text className="text-sm font-semibold md:text-base xl:text-xl">Archived</Text>
+      </View>
+      <View
+        aria-hidden
+        className="aspect-[402/874] h-full shrink-0 rotate-[4deg] overflow-hidden rounded-[20px] bg-[color:var(--landing-device-frame)] p-1 shadow-qlink-lg md:rounded-[26px]"
+      >
+        <Image
+          accessible={false}
+          source={SHARE_EXTENSION_CAPTURE}
+          className="size-full rounded-[16px] md:rounded-[22px]"
+          contentFit="contain"
+        />
       </View>
     </View>
   );
@@ -93,18 +95,20 @@ function LandingHero() {
               variant="h1"
               className="text-left text-[clamp(33px,11.54vw,45px)] font-extrabold leading-[1.1] tracking-[-0.04em] text-[color:var(--landing-hero-foreground)] md:text-[clamp(38px,5.15vw,78px)]"
             >
-              다시 찾을 링크,{"\n"}한곳에 모아요.
+              Save it, Find it.
             </Text>
             <Text className="text-base text-[color:var(--landing-hero-muted)] md:text-[clamp(16px,1.55vw,22px)]">
-              AI가 도와주는 북마크 아카이브.
+              한 곳에서 쉽게 찾는 북마크 아카이브
             </Text>
-            <StartButton label="웹으로 시작하기" />
+            <View className="flex-row flex-wrap items-center gap-3">
+              <StartButton label="웹으로 시작하기" />
+              <AppStoreBadge storeUrl={APP_STORE_URL} />
+            </View>
           </View>
           <View className="w-full min-w-0 md:w-auto md:flex-[1.14]">
             <ShareExtensionScene />
           </View>
         </View>
-        <AppStoreBadge className="self-start md:absolute md:bottom-3 md:left-0" />
         <LandingSectionLink
           section="organize"
           accessibilityLabel="Archive 섹션으로"

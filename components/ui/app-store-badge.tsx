@@ -1,5 +1,6 @@
 type AppStoreBadgeProps = {
   className?: string;
+  storeUrl?: string;
 };
 
 // The badge is a web-only download prompt — inside the native app there is
