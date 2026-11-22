@@ -613,15 +613,17 @@ function LinkCreateForm({
         ...aiMemoAndTodoFields,
       });
       const newLinkId = response.data?.id;
+      const desiredVisibility =
+        folderIsPublic || visibilityDraft === false ? visibilityDraft : undefined;
       let privacyFailed = false;
-      if (newLinkId != null && visibilityDraft === false) {
+      if (newLinkId != null && desiredVisibility !== undefined) {
         try {
           const inheritedPublic = await getLinkDetail(newLinkId).then(
             ({ data }) => data.isPublic,
             () => undefined,
           );
-          if (inheritedPublic !== false) {
-            await privacyMutation.mutateAsync({ id: newLinkId, isPublic: false });
+          if (inheritedPublic !== desiredVisibility) {
+            await privacyMutation.mutateAsync({ id: newLinkId, isPublic: desiredVisibility });
           }
         } catch (error) {
           privacyFailed = true;
@@ -682,6 +684,7 @@ function LinkCreateForm({
     aiProvider?.providerId,
     checkBeforeSubmit,
     folder.id,
+    folderIsPublic,
     myProviders,
     generateTodo,
     invalidateLinkQueries,

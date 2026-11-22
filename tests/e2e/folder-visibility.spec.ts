@@ -642,15 +642,25 @@ for (const kind of [
   "regular-missing",
   "ai-inherits",
   "ai-explicit-private",
+  "ai-matching-private",
+  "ai-explicit-public",
   "ai-private-failed",
 ] as const) {
   test(`applies the creation visibility contract (${kind})`, async ({ page }) => {
     const [known, unknown] = makeFolders(2);
     const isAi = kind !== "regular-missing";
-    const explicitPrivate = kind !== "ai-inherits";
+    const changesVisibility =
+      kind === "ai-explicit-private" ||
+      kind === "ai-explicit-public" ||
+      kind === "ai-private-failed";
+    const desiredPublic = kind === "ai-explicit-public";
     const destination =
       kind === "regular-missing" || kind === "ai-private-failed" ? unknown : known;
-    const newLink = makeLink({ id: 100, folderId: destination.id, isPublic: true });
+    const newLink = makeLink({
+      id: 100,
+      folderId: destination.id,
+      isPublic: kind !== "ai-matching-private" && !desiredPublic,
+    });
     const state = await mockApi(page, {
       folders: [
         { ...known, name: "공개 상태 확인됨", emoji: null, isPublic: true },
@@ -679,10 +689,12 @@ for (const kind of [
             ]),
           }),
         "PUT /api/links/ai": (route) => route.fulfill({ json: envelope({ id: 100 }) }),
-        "PUT /api/links/100/privacy": (route) =>
-          kind === "ai-private-failed"
-            ? route.abort("failed")
-            : route.fulfill({ json: envelope({ isPublic: false }) }),
+        "PUT /api/links/100/privacy": (route, request) => {
+          if (kind === "ai-private-failed") return route.abort("failed");
+          const { isPublic } = request.postDataJSON() as { isPublic: boolean };
+          state.details[newLink.id].isPublic = isPublic;
+          return route.fulfill({ json: envelope({ isPublic }) });
+        },
       },
     });
     await page.goto("/home");
@@ -696,7 +708,8 @@ for (const kind of [
       await page.getByRole("radio", { name, exact: true }).click();
     };
     await choose("공개 상태 확인됨");
-    if (explicitPrivate) await page.getByRole("radio", { name: "나만 보기" }).click();
+    if (kind !== "ai-inherits") await page.getByRole("radio", { name: "나만 보기" }).click();
+    if (desiredPublic) await page.getByRole("radio", { name: "전체 공개" }).click();
     if (destination === unknown) {
       await choose("공개 상태 미확인");
       await expect(page.getByRole("radio", { name: "나만 보기" })).toBeChecked();
@@ -724,9 +737,9 @@ for (const kind of [
       ({ method, path }) => method === "PUT" && path === "/api/links/100/privacy",
     );
     expect(privacyRequests.map(({ body }) => body)).toEqual(
-      explicitPrivate ? [{ isPublic: false }] : [],
+      changesVisibility ? [{ isPublic: desiredPublic }] : [],
     );
-    if (explicitPrivate) {
+    if (changesVisibility) {
       expect(state.requests.indexOf(privacyRequests[0])).toBeGreaterThan(
         state.requests.indexOf(createRequest()!),
       );
