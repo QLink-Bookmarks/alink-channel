@@ -12,7 +12,13 @@ import { DetailRow } from "./link-detail-parts";
 
 import { Link, useRouter } from "expo-router";
 
-function ReadOnlyLinkScreen({ link }: { link: PublicLinkDetail }) {
+function ReadOnlyLinkScreen({
+  link,
+  headerAction,
+}: {
+  link: PublicLinkDetail;
+  headerAction?: React.ReactNode;
+}) {
   const router = useRouter();
   const isWide = useWideView();
   const mode = isWide ? "panel" : "screen";
@@ -25,6 +31,7 @@ function ReadOnlyLinkScreen({ link }: { link: PublicLinkDetail }) {
         back
         className="md:hidden"
         onBack={handleBack}
+        rightSlot={headerAction}
       />
       <View className="w-full flex-1 self-center md:w-[clamp(420px,34vw,560px)]">
         <LinkDetailBody mode={mode}>

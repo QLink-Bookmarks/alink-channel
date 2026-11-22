@@ -15,6 +15,8 @@ import { getNativeThemeVars } from "@/lib/theme-vars";
 import { useAuthStore } from "@/stores/auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { GuestResourceNavigation } from "./guest-resource-navigation";
+
 import { isAxiosError } from "axios";
 import { useIsFocused, usePathname } from "expo-router";
 import Head from "expo-router/head";
@@ -28,27 +30,13 @@ function subscribeToSystemTheme(onChange: () => void) {
   return () => preference.removeEventListener("change", onChange);
 }
 
-function ReadOnlyTheme({
-  useSystemTheme,
-  children,
-}: {
-  useSystemTheme: boolean;
-  children: React.ReactNode;
-}) {
+function useSystemTheme() {
   const isDark = React.useSyncExternalStore(
     subscribeToSystemTheme,
     () => window.matchMedia(COLOR_SCHEME_QUERY).matches,
     () => false,
   );
-  const theme = useSystemTheme ? (isDark ? "dark" : "light") : undefined;
-  return (
-    <View
-      className={theme === "dark" ? "dark flex-1" : "flex-1"}
-      style={theme ? (getNativeThemeVars(theme, "gray") as ViewStyle) : undefined}
-    >
-      {children}
-    </View>
-  );
+  return isDark ? "dark" : "light";
 }
 
 function isUnavailable(error: unknown) {
@@ -89,6 +77,7 @@ function ResourceVisit({
 }) {
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const authToken = useAuthStore((state) => state.accessToken);
+  const systemTheme = useSystemTheme();
   const { hasResolved, needsAgreement } = useAgreementStatus();
   const waitingForAgreement = Boolean(authToken && !hasResolved);
   const readToken = needsAgreement ? null : authToken;
@@ -185,8 +174,27 @@ function ResourceVisit({
   if (canUseApp && access.isSuccess) return children;
   if (unavailable && !readToken) return children;
 
+  const guestTheme = authToken ? undefined : systemTheme;
+  const renderResource = (headerAction?: React.ReactNode) =>
+    resource?.mode === "link" ? (
+      <ReadOnlyLinkScreen
+        link={resource.data}
+        headerAction={headerAction}
+      />
+    ) : resource?.mode === "folder" ? (
+      <ReadOnlyFolderScreen
+        folder={resource.data}
+        links={links}
+        todos={todos}
+        headerAction={headerAction}
+      />
+    ) : null;
+
   return (
-    <ReadOnlyTheme useSystemTheme={!authToken}>
+    <View
+      className={guestTheme === "dark" ? "dark flex-1" : "flex-1"}
+      style={guestTheme ? (getNativeThemeVars(guestTheme, "gray") as ViewStyle) : undefined}
+    >
       <Head>
         <meta
           name="robots"
@@ -215,16 +223,12 @@ function ResourceVisit({
           isRetrying={access.isFetching}
           onRetry={() => void access.refetch()}
         />
-      ) : resource.mode === "link" ? (
-        <ReadOnlyLinkScreen link={resource.data} />
-      ) : resource.mode === "folder" ? (
-        <ReadOnlyFolderScreen
-          folder={resource.data}
-          links={links}
-          todos={todos}
-        />
-      ) : null}
-    </ReadOnlyTheme>
+      ) : guestTheme ? (
+        <GuestResourceNavigation theme={guestTheme}>{renderResource}</GuestResourceNavigation>
+      ) : (
+        renderResource()
+      )}
+    </View>
   );
 }
 

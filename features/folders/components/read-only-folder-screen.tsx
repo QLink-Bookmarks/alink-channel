@@ -72,10 +72,12 @@ function ReadOnlyFolderScreen({
   folder,
   links,
   todos,
+  headerAction,
 }: {
   folder: PublicFolder;
   links: ReturnType<typeof usePublicFolderListQuery<"links">>;
   todos: ReturnType<typeof usePublicFolderListQuery<"todos">>;
+  headerAction?: React.ReactNode;
 }) {
   const router = useRouter();
   const linkRows = links.data?.pages.flatMap((page) => page.contents) ?? [];
@@ -92,6 +94,7 @@ function ReadOnlyFolderScreen({
         back
         className="md:hidden"
         onBack={handleBack}
+        rightSlot={headerAction}
         title={[folder.emoji, folder.name].filter(Boolean).join(" ")}
         titleAccessibilityRole="header"
         titleAlign="start"
