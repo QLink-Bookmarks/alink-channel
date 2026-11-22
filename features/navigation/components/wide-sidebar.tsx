@@ -9,12 +9,8 @@ import {
   SidebarItem,
   SidebarRailItem,
 } from "@/components/layout/sidebar";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Emoji } from "@/components/ui/emoji";
 import { Kbd } from "@/components/ui/kbd";
 import { Text } from "@/components/ui/text";
-import { useMyProfileQuery } from "@/features/account/queries";
 import { FolderSections } from "@/features/folders/components/folder-sections";
 import { useUncategorizedCount } from "@/features/folders/hooks/use-uncategorized-count";
 import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
@@ -27,6 +23,7 @@ import { useNewLinkShortcutLabel } from "../hooks/use-new-link-shortcut-label";
 import { getFolderIdFromPath } from "../lib/folder-path";
 import { WIDE_PRIMARY_ITEMS } from "../lib/wide-sidebar-items";
 import type { WideSidebarKey } from "../types";
+import { SidebarProfileButton } from "./sidebar-profile-button";
 import { ThemePopoverButton } from "./theme-popover-button";
 
 import { Menu, Users } from "lucide-react-native";
@@ -78,8 +75,6 @@ function WideSidebar({
 }: WideSidebarProps) {
   const accent = useDisplaySettings((state) => state.display.accent);
   const theme = useDisplaySettings((state) => state.display.theme);
-  const avatarEmojiOverride = useDisplaySettings((state) => state.profile.avatarEmoji);
-  const myProfileQuery = useMyProfileQuery();
   const uncategorizedCount = useUncategorizedCount();
   const shortcutLabel = useNewLinkShortcutLabel();
   const currentFolderId = getFolderIdFromPath(pathname);
@@ -101,10 +96,6 @@ function WideSidebar({
   });
   const [folderAreaMinHeight, setFolderAreaMinHeight] = React.useState(0);
 
-  const profileAvatarEmoji = avatarEmojiOverride ?? myProfileQuery.data?.avatarEmoji ?? "🌸";
-  const profileNickname = myProfileQuery.data?.nickname ?? "사용자";
-  const profileUsername = myProfileQuery.data?.username ?? "";
-  const profileAvatarUrl = myProfileQuery.data?.avatarUrl ?? null;
   const uncategorizedHref = `/folders/${UNCATEGORIZED_FOLDER_ID}`;
 
   const handleBlockLayout = React.useCallback(
@@ -270,35 +261,7 @@ function WideSidebar({
           className="shrink-0 flex-row items-center gap-1 border-t border-sidebar-border pt-3"
           onLayout={handleBlockLayout("bottom")}
         >
-          <Button
-            className="h-auto min-h-0 min-w-0 flex-1 items-center justify-start gap-3 bg-transparent py-2 pl-5 pr-3 shadow-none web:hover:bg-sidebar-surface-2 sm:h-auto"
-            variant="ghost"
-            onPress={onProfilePress}
-          >
-            <Avatar
-              alt={`${profileNickname} avatar`}
-              size="xs"
-            >
-              {profileAvatarUrl ? <AvatarImage source={{ uri: profileAvatarUrl }} /> : null}
-              <AvatarFallback>
-                <Emoji className="text-xl">{profileAvatarEmoji}</Emoji>
-              </AvatarFallback>
-            </Avatar>
-            <View className="min-w-0 flex-1 items-start">
-              <Text
-                numberOfLines={1}
-                className="text-left text-base font-semibold text-sidebar-hover"
-              >
-                {profileNickname}
-              </Text>
-              <Text
-                numberOfLines={1}
-                className="text-left text-sm text-sidebar-muted"
-              >
-                {profileUsername}
-              </Text>
-            </View>
-          </Button>
+          <SidebarProfileButton onPress={onProfilePress} />
           <ThemePopoverButton sideOffset={THEME_POPOVER_SIDEBAR_CLEARANCE} />
         </View>
       </ScrollView>
