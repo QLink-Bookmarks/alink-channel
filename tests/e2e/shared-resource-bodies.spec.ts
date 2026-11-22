@@ -385,3 +385,65 @@ for (const role of ["guest", "outsider", "former-member-owner"] as const) {
     }
   });
 }
+
+for (const withdrawal of ["404", "public-projection"] as const) {
+  test(`the former owner's open folder panel clears private detail after ${withdrawal}`, async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, "The folder opens an overlay on wide screens.");
+    await mockApi(page, { folders: [] });
+    const folderPath = `/folders/${folder.id}`;
+    const linkPath = `/api/links/${publicVideo.id}`;
+    let withdrawn = false;
+    let reads = 0;
+    await page.route(`**/api${folderPath}`, (route) =>
+      route.fulfill({ json: envelope({ id: folder.id, name: folder.name, emoji: folder.emoji }) }),
+    );
+    await page.route(
+      (url) =>
+        url.pathname === "/api/links" && url.searchParams.get("folderId") === String(folder.id),
+      (route) => route.fulfill({ json: scroll(publicRows) }),
+    );
+    await page.route(`**${linkPath}`, (route) => {
+      reads += 1;
+      if (withdrawn && withdrawal === "404") {
+        return route.fulfill({
+          status: 404,
+          json: { success: false, data: null, error: { code: "LINK_404_0001" } },
+        });
+      }
+      const data = withdrawn
+        ? { ...publicVideo, ...folderFields, content: { excerpt }, todos: [] }
+        : { ...details[publicVideo.id], isOwner: true };
+      return route.fulfill({ json: envelope(data) });
+    });
+
+    await page.goto(folderPath);
+    await page.getByRole("link", { name: publicVideo.title }).click();
+    const panel = page.getByTestId("detail-panel");
+    await expect(panel.getByText("회원만 보는 메모")).toBeVisible();
+    await expect.poll(() => reads).toBeGreaterThanOrEqual(2);
+    withdrawn = true;
+    const expectedStatus = withdrawal === "404" ? 404 : 200;
+    const refreshed = page.waitForResponse(async (response) => {
+      if (new URL(response.url()).pathname !== linkPath || response.status() !== expectedStatus) {
+        return false;
+      }
+      if (withdrawal === "404") return true;
+      const body = await response.json();
+      return Boolean(body.data && !("sourceType" in body.data));
+    });
+    await panel.getByTestId("link-detail-refresh").click();
+    await refreshed;
+
+    await expect(panel.getByText("찾으시는 링크가 없어요")).toBeVisible();
+    await expect(panel.getByTestId("link-detail")).toHaveCount(0);
+    await expect(panel.getByText("회원만 보는 메모")).toHaveCount(0);
+    await expect(panel.getByTestId("link-detail-edit")).toHaveCount(0);
+    await panel.getByTestId("link-detail-not-found-close").click();
+    await expect(page).toHaveURL(folderPath);
+    await expect(panel).toHaveCount(0);
+    await expect(page.getByTestId("link-list-body")).toBeVisible();
+  });
+}

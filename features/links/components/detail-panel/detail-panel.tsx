@@ -13,6 +13,8 @@ import { FullWindowOverlay as RNFullWindowOverlay } from "react-native-screens";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
+import { isLinkNotFound } from "@/features/links/lib/is-link-not-found";
+import { useLinkDetailQuery } from "@/features/links/queries";
 import type { LinkDetail, PublicLinkDetail } from "@/features/links/types";
 import { cn } from "@/lib/utils";
 
@@ -38,27 +40,27 @@ function useNativeOverlayStyle(): StyleProp<ViewStyle> {
   };
 }
 
-function DetailPanelBody({
-  className,
-  detail,
-  error,
-  notFound,
-  isLoading,
-  observeAuthenticatedDetail,
-  style,
-  onDeleted,
-  onOpenChange,
-}: {
+type DetailPanelBodyProps = {
   className?: string;
   style?: StyleProp<ViewStyle>;
   detail?: LinkDetail | PublicLinkDetail;
   error?: boolean;
   notFound?: boolean;
   isLoading?: boolean;
-  observeAuthenticatedDetail?: boolean;
   onDeleted?: () => void;
   onOpenChange?: (open: boolean) => void;
-}) {
+};
+
+function DetailPanelBody({
+  className,
+  detail,
+  error,
+  notFound,
+  isLoading,
+  style,
+  onDeleted,
+  onOpenChange,
+}: DetailPanelBodyProps) {
   return (
     <View
       className={cn(
@@ -79,7 +81,6 @@ function DetailPanelBody({
         <LinkDetailResourceContent
           detail={detail}
           mode="panel"
-          observeAuthenticatedDetail={observeAuthenticatedDetail}
           onClose={() => onOpenChange?.(false)}
           onDeleted={onDeleted}
         />
@@ -117,6 +118,22 @@ function DetailPanelBody({
         />
       )}
     </View>
+  );
+}
+
+function AuthenticatedDetailPanelBody({
+  detail,
+  ...props
+}: DetailPanelBodyProps & { detail: LinkDetail }) {
+  const query = useLinkDetailQuery(detail.id, detail);
+  const notFound = query.isError && isLinkNotFound(query.error);
+  return (
+    <DetailPanelBody
+      {...props}
+      detail={notFound ? undefined : (query.data ?? detail)}
+      notFound={notFound}
+      error={query.isError}
+    />
   );
 }
 
@@ -176,6 +193,26 @@ function DetailPanel({
     return null;
   }
 
+  const bodyProps = {
+    className,
+    style: mode === "overlay" ? nativeOverlayStyle : undefined,
+    detail,
+    error,
+    notFound,
+    isLoading,
+    onDeleted,
+    onOpenChange,
+  };
+  const body =
+    observeAuthenticatedDetail && !notFound && detail && "sourceType" in detail ? (
+      <AuthenticatedDetailPanelBody
+        {...bodyProps}
+        detail={detail}
+      />
+    ) : (
+      <DetailPanelBody {...bodyProps} />
+    );
+
   if (mode === "overlay") {
     return (
       <FullWindowOverlay>
@@ -203,17 +240,7 @@ function DetailPanel({
               exiting={SlideOutRight.duration(180)}
             >
               {/* The dimmed backdrop separates the layer, so the panel has no shadow. */}
-              <DetailPanelBody
-                className={className}
-                style={nativeOverlayStyle}
-                detail={detail}
-                error={error}
-                notFound={notFound}
-                isLoading={isLoading}
-                observeAuthenticatedDetail={observeAuthenticatedDetail}
-                onDeleted={onDeleted}
-                onOpenChange={onOpenChange}
-              />
+              {body}
             </Animated.View>
           </View>
         </View>
@@ -226,16 +253,7 @@ function DetailPanel({
       entering={SlideInRight.duration(220)}
       exiting={SlideOutRight.duration(180)}
     >
-      <DetailPanelBody
-        className={className}
-        detail={detail}
-        error={error}
-        notFound={notFound}
-        isLoading={isLoading}
-        observeAuthenticatedDetail={observeAuthenticatedDetail}
-        onDeleted={onDeleted}
-        onOpenChange={onOpenChange}
-      />
+      {body}
     </Animated.View>
   );
 }
