@@ -115,6 +115,9 @@ function useSetLinkPrivacyMutation(linkId: number) {
   const queryKey = getLinkDetailQueryKey(linkId);
   return useMutation({
     mutationFn: (isPublic: boolean) => setLinkPrivacy(linkId, { isPublic }),
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey });
+    },
     onSuccess: async (response) => {
       await queryClient.cancelQueries({ queryKey, exact: true });
       queryClient.setQueryData<LinkDetail>(
