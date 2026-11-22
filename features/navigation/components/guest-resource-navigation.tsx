@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { ScrollView, View, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -6,12 +6,14 @@ import { BrandHeader } from "@/components/layout/brand-header";
 import { Sidebar, SidebarItem } from "@/components/layout/sidebar";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { IconButton } from "@/components/ui/icon-button";
+import { Text } from "@/components/ui/text";
 import { useWideView } from "@/lib/hooks/use-wide-view";
 import type { ThemeMode } from "@/lib/theme";
 import { getNativeThemeVars } from "@/lib/theme-vars";
 
-import { rememberReturnDestination } from "../lib/return-destination";
+import { consumeReturnDestination, rememberReturnDestination } from "../lib/return-destination";
 import { readParamValue } from "../routes";
+import { MobileBottomTabs } from "./mobile-bottom-tabs";
 
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { LogIn, Menu } from "lucide-react-native/icons";
@@ -35,12 +37,17 @@ function GuestResourceNavigation({
     rememberReturnDestination(query ? `${pathname}?${query}` : pathname);
     router.push("/login");
   };
+  const handleTabNavigate: ComponentProps<typeof MobileBottomTabs>["onNavigate"] = (href) => {
+    // The tab starts a new protected visit, even after a visitor backs out of sidebar login.
+    consumeReturnDestination();
+    router.push(href);
+  };
 
   const sidebarContent = (
     <ScrollView
       className="flex-1"
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerClassName="grow justify-between gap-4 p-3"
+      contentContainerClassName="grow p-3"
       contentContainerStyle={{ paddingTop: 12 + insets.top, paddingBottom: 12 + insets.bottom }}
     >
       <BrandHeader
@@ -48,12 +55,24 @@ function GuestResourceNavigation({
         accent="gray"
         className="pt-0"
       />
-      <View className="border-t border-sidebar-border pt-3">
-        <SidebarItem
-          icon={LogIn}
-          label="로그인"
-          onPress={handleLoginPress}
-        />
+      <View
+        className="flex-1 justify-center py-3"
+        testID="guest-sidebar-body"
+      >
+        <View
+          className="items-center gap-2 px-2"
+          testID="guest-sidebar-sign-in"
+        >
+          <Text className="text-center text-sm font-medium text-sidebar-foreground">
+            ALink에서 북마크 관리를 시작해보세요
+          </Text>
+          <SidebarItem
+            icon={LogIn}
+            label="로그인"
+            labelClassName="flex-none"
+            onPress={handleLoginPress}
+          />
+        </View>
       </View>
     </ScrollView>
   );
@@ -73,7 +92,7 @@ function GuestResourceNavigation({
     );
   }
 
-  return children(
+  const headerAction = (
     <Dialog className="shrink-0">
       <DialogTrigger asChild>
         <IconButton
@@ -93,7 +112,17 @@ function GuestResourceNavigation({
         <DialogTitle className="sr-only">사이드바</DialogTitle>
         {sidebarContent}
       </DialogContent>
-    </Dialog>,
+    </Dialog>
+  );
+
+  return (
+    <View className="flex-1 bg-background">
+      {children(headerAction)}
+      <MobileBottomTabs
+        activeTab="folders"
+        onNavigate={handleTabNavigate}
+      />
+    </View>
   );
 }
 

@@ -6,19 +6,22 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LoadErrorState } from "@/components/ui/load-error-state";
 import { useAgreementStatus } from "@/features/agreements/hooks/use-agreement-status";
 import { getFolderDetail } from "@/features/folders/api";
-import { ReadOnlyFolderScreen } from "@/features/folders/components/read-only-folder-screen";
-import { usePublicFolderListQuery } from "@/features/folders/public-queries";
 import { getLinkAccess } from "@/features/links/api";
-import { ReadOnlyLinkScreen } from "@/features/links/components/read-only-link-screen";
-import { resourceReadOptions } from "@/features/navigation/lib/resource-read";
+import {
+  isUnavailableResource,
+  resourceReadOptions,
+} from "@/features/navigation/lib/resource-read";
+import { useWideView } from "@/lib/hooks/use-wide-view";
 import { getNativeThemeVars } from "@/lib/theme-vars";
 import { useAuthStore } from "@/stores/auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { MemberResourceContext, PublicResourceContext } from "../hooks/use-public-resource";
 import { GuestResourceNavigation } from "./guest-resource-navigation";
+import { MobileBottomTabs } from "./mobile-bottom-tabs";
+import { PrivatePagesLayout } from "./private-pages-layout";
 
-import { isAxiosError } from "axios";
-import { useIsFocused, usePathname } from "expo-router";
+import { Navigator, useIsFocused, usePathname, useRouter } from "expo-router";
 import Head from "expo-router/head";
 
 const DETAIL_PATH = /^\/(folders|links)\/(\d+)\/?$/;
@@ -39,11 +42,9 @@ function useSystemTheme() {
   return isDark ? "dark" : "light";
 }
 
-function isUnavailable(error: unknown) {
-  return isAxiosError(error) && error.response?.status === 404;
-}
-
 function ResourceAccess({ children }: { children: React.ReactNode }) {
+  const { state } = Navigator.useContext();
+  const slot = state.routes[state.index];
   const match = DETAIL_PATH.exec(usePathname());
   const kind = match?.[1];
   const id = Number(match?.[2]);
@@ -53,8 +54,10 @@ function ResourceAccess({ children }: { children: React.ReactNode }) {
     !Number.isSafeInteger(id) ||
     id <= 0
   ) {
-    return children;
+    return <PrivatePagesLayout>{children}</PrivatePagesLayout>;
   }
+  const slotId = (slot?.params as { id?: string } | undefined)?.id;
+  if (slot?.name !== `${kind}/[id]` || Number(slotId) !== id) return null;
   return (
     <ResourceVisit
       key={`${kind}:${id}`}
@@ -77,6 +80,8 @@ function ResourceVisit({
 }) {
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const authToken = useAuthStore((state) => state.accessToken);
+  const router = useRouter();
+  const isWideView = useWideView();
   const systemTheme = useSystemTheme();
   const { hasResolved, needsAgreement } = useAgreementStatus();
   const waitingForAgreement = Boolean(authToken && !hasResolved);
@@ -116,25 +121,15 @@ function ResourceVisit({
       }
       const data = response.data;
       if ("isShared" in data || "sourceType" in data) return { mode: "app" } as const;
-      if ("todos" in data) return { mode: "link", data } as const;
+      if ("folderId" in data) return { mode: "link", data } as const;
       return { mode: "folder", data } as const;
     },
   });
 
   const resource = access.data;
   const canUseApp = resource?.mode === "app";
-  const readFolderLists =
-    focused &&
-    !waitingForAgreement &&
-    !wasRevoked &&
-    access.isSuccess &&
-    resource?.mode === "folder";
-  const links = usePublicFolderListQuery(id, listVisit, "links", readFolderLists);
-  const todos = usePublicFolderListQuery(id, listVisit, "todos", readFolderLists);
-  const listUnavailable =
-    readFolderLists && (isUnavailable(links.error) || isUnavailable(todos.error));
-  if (listUnavailable) setRevokedVisit(listVisit);
-  const unavailable = wasRevoked || listUnavailable || isUnavailable(access.error);
+  const revoke = React.useCallback(() => setRevokedVisit(listVisit), [listVisit]);
+  const unavailable = wasRevoked || isUnavailableResource(access.error);
   const publicTitle =
     !unavailable && access.isSuccess && resource?.mode !== "app"
       ? resource?.mode === "link"
@@ -170,24 +165,32 @@ function ResourceVisit({
   }, [canUseApp, focused]);
 
   if (!focused) return null;
-  if (waitingForAgreement) return children;
-  if (canUseApp && access.isSuccess) return children;
-  if (unavailable && !readToken) return children;
+  if (canUseApp && access.isSuccess) {
+    return (
+      <MemberResourceContext value={{ kind, id }}>
+        <PrivatePagesLayout>{children}</PrivatePagesLayout>
+      </MemberResourceContext>
+    );
+  }
+  if (waitingForAgreement || (unavailable && !readToken)) {
+    return <PrivatePagesLayout>{children}</PrivatePagesLayout>;
+  }
 
   const guestTheme = authToken ? undefined : systemTheme;
-  const renderResource = (headerAction?: React.ReactNode) =>
-    resource?.mode === "link" ? (
-      <ReadOnlyLinkScreen
-        link={resource.data}
-        headerAction={headerAction}
-      />
-    ) : resource?.mode === "folder" ? (
-      <ReadOnlyFolderScreen
-        folder={resource.data}
-        links={links}
-        todos={todos}
-        headerAction={headerAction}
-      />
+  const renderRoute = (headerAction?: React.ReactNode) =>
+    resource && resource.mode !== "app" ? (
+      <PublicResourceContext
+        value={{
+          resource,
+          visit: listVisit,
+          isGuest: Boolean(guestTheme),
+          linkReadToken: readToken,
+          headerAction,
+          revoke,
+        }}
+      >
+        {children}
+      </PublicResourceContext>
     ) : null;
 
   return (
@@ -224,9 +227,17 @@ function ResourceVisit({
           onRetry={() => void access.refetch()}
         />
       ) : guestTheme ? (
-        <GuestResourceNavigation theme={guestTheme}>{renderResource}</GuestResourceNavigation>
+        <GuestResourceNavigation theme={guestTheme}>{renderRoute}</GuestResourceNavigation>
       ) : (
-        renderResource()
+        <>
+          {renderRoute()}
+          {isWideView ? null : (
+            <MobileBottomTabs
+              activeTab={resource.mode === "folder" ? "folders" : null}
+              onNavigate={router.replace}
+            />
+          )}
+        </>
       )}
     </View>
   );

@@ -1,7 +1,6 @@
 import * as React from "react";
 import { ActivityIndicator, BackHandler, Pressable, View } from "react-native";
 
-import { AppHeader } from "@/components/layout/app-header";
 import { Sheet } from "@/components/layout/sheet";
 import {
   AlertDialog,
@@ -33,6 +32,7 @@ import {
   UNCATEGORIZED_PICKER_OPTION,
 } from "@/features/folders/components/folder-picker-list";
 import { VisibilityField } from "@/features/folders/components/visibility-field";
+import { VisibilityPopover } from "@/features/folders/components/visibility-popover";
 import { getMoveTargetFolderId } from "@/features/folders/lib/folder-pages";
 import { useFoldersQuery } from "@/features/folders/queries";
 import { buildShareText } from "@/features/links/lib/build-share-text";
@@ -42,10 +42,11 @@ import {
   useDeleteLinkMutation,
   usePatchLinkMutation,
   useSetLinkFavoriteMutation,
+  useSetLinkPrivacyMutation,
   useUpdateLinkMutation,
 } from "@/features/links/mutations";
 import { getLinkDetailQueryKey, useLinkDetailExcerptRecheck } from "@/features/links/queries";
-import type { LinkDetail, LinkDetailResponse, UpdateLinkRequest } from "@/features/links/types";
+import type { LinkDetail, UpdateLinkRequest } from "@/features/links/types";
 import { reportError } from "@/lib/error-reporting";
 import { cn } from "@/lib/utils";
 import type { FolderSection } from "@/stores/folder-navigation";
@@ -54,9 +55,7 @@ import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { LinkDetailActionsSection } from "./link-detail-actions-section";
-import { LinkDetailAiSurface } from "./link-detail-ai-surface";
-import { LinkDetailBody } from "./link-detail-body";
-import { LinkDetailHead } from "./link-detail-head";
+import { LinkDetailContent } from "./link-detail-content";
 import { LinkDetailMyNotes, type LinkFieldsUpdate } from "./link-detail-my-notes";
 import { FOCUS_RING_CLASS_NAME } from "./link-detail-parts";
 import { LinkDetailToolbar } from "./link-detail-toolbar";
@@ -66,9 +65,7 @@ import { type Href, useRouter } from "expo-router";
 import { Trash2 } from "lucide-react-native/icons";
 
 type ShareOutcome = "shared" | "copied" | "cancelled" | "failed";
-type LinkFieldsOverride = Partial<
-  Pick<UpdateLinkRequest, "isPublic" | "memo" | "summary" | "tags" | "title">
->;
+type LinkFieldsOverride = Partial<Pick<UpdateLinkRequest, "memo" | "summary" | "tags" | "title">>;
 
 const PERSONAL_FOLDER_SECTIONS: FolderSection[] = ["mine"];
 const DELETE_HIT_SLOP = 4;
@@ -85,7 +82,6 @@ function buildUpdateLinkPayload(
     faviconUrl: detail.faviconUrl ?? null,
     folderId: detail.folderId ?? null,
     isVideo: detail.isVideo ?? false,
-    isPublic: overrides.isPublic,
     thumbnailUrl: detail.thumbnailUrl ?? null,
     memo: overrides.memo !== undefined ? overrides.memo : detail.memo,
     sourceType: detail.sourceType,
@@ -169,7 +165,7 @@ function mergeLinkDetail(base: LinkDetail, incoming: Partial<LinkDetail>): LinkD
     folderId: incoming.folderId ?? base.folderId ?? null,
     folderEmoji: incoming.folderEmoji ?? base.folderEmoji ?? null,
     folderName: incoming.folderName ?? base.folderName ?? null,
-    // The PUT response does not echo the preview fields; the request resent them unchanged.
+    // Write responses may omit preview fields; keep the values from the detail.
     thumbnailUrl: incoming.thumbnailUrl ?? base.thumbnailUrl ?? null,
     faviconUrl: incoming.faviconUrl ?? base.faviconUrl ?? null,
     isVideo: incoming.isVideo ?? base.isVideo ?? false,
@@ -223,6 +219,7 @@ function LinkDetailView({
   const setFavoriteMutation = useSetLinkFavoriteMutation();
   const myProfileQuery = useMyProfileQuery();
   const foldersQuery = useFoldersQuery({ size: 15 });
+  const { refetch: refetchFolders } = foldersQuery;
   const copyLinkMutation = useCopyLinkMutation(detail.id);
   const patchLinkMutation = usePatchLinkMutation(detail.id);
   const showToast = useToastStore((state) => state.showToast);
@@ -249,6 +246,7 @@ function LinkDetailView({
   const [titleDraft, setTitleDraft] = React.useState("");
   const [summaryDraft, setSummaryDraft] = React.useState("");
   const [privacyDraft, setPrivacyDraft] = React.useState<boolean>();
+  const initialEditText = React.useRef({ title: "", summary: "" });
   const [isUnsavedEditOpen, setIsUnsavedEditOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   useLinkDetailExcerptRecheck(detail.id, detail.content);
@@ -267,16 +265,30 @@ function LinkDetailView({
     currentFolder.ownerId === myProfileQuery.data.id;
   const isLinkOwner = detail.isOwner === true;
   const canCopyFromSharedFolder = isSharedFolder && !isFolderOwner;
-  const folderPublic = detail.folderId == null ? false : currentFolder?.isPublic;
-  const canChangePrivacy = isLinkOwner && folderPublic === true;
+  const hasLinkVisibility = typeof detail.isPublic === "boolean";
+  const folderPublic =
+    detail.folderId == null
+      ? false
+      : typeof currentFolder?.isPublic === "boolean"
+        ? currentFolder.isPublic
+        : undefined;
+  const canChangePrivacy = isLinkOwner && folderPublic === true && hasLinkVisibility;
   const savedPublic = detail.isPublic === true;
   const isPublic = folderPublic === true && (privacyDraft ?? savedPublic);
-  const changedPrivacy = canChangePrivacy && isPublic !== savedPublic ? isPublic : undefined;
+  const changedPrivacy = isLinkOwner && privacyDraft !== savedPublic ? privacyDraft : undefined;
+  const unavailablePrivacyDraft = privacyDraft === true && !canChangePrivacy;
+  const privacyMutation = useSetLinkPrivacyMutation();
+  const linkVisibility = folderPublic === true && savedPublic;
+
+  const handleChangeLinkPrivacy = (next: boolean) => {
+    if (!canChangePrivacy || privacyMutation.isPending || next === linkVisibility) return;
+    privacyMutation.mutate({ id: detail.id, isPublic: next });
+  };
 
   const handleDetailUpdated = React.useCallback(
-    (response: LinkDetailResponse) => {
+    (fields: Partial<LinkDetail>) => {
       queryClient.setQueryData<LinkDetail>(getLinkDetailQueryKey(detail.id), (currentDetail) =>
-        mergeLinkDetail(currentDetail ?? detail, response.data as Partial<LinkDetail>),
+        mergeLinkDetail(currentDetail ?? detail, fields),
       );
       // Cards show the title, tags and star, so the link lists follow the detail.
       void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
@@ -294,14 +306,13 @@ function LinkDetailView({
       const response = await updateLinkMutation.mutateAsync(
         buildUpdateLinkPayload(latest, overrides),
       );
-      handleDetailUpdated(response);
+      handleDetailUpdated(response.data);
       // The merge keeps known values over nulls, so a cleared memo or summary is set here.
       queryClient.setQueryData<LinkDetail>(queryKey, (current) =>
         current
           ? {
               ...current,
               ...overrides,
-              isPublic: response.data.isPublic ?? overrides.isPublic ?? current.isPublic,
             }
           : current,
       );
@@ -351,7 +362,7 @@ function LinkDetailView({
         const response = await patchLinkMutation.mutateAsync({
           folderId: getMoveTargetFolderId(selection.id),
         });
-        handleDetailUpdated(response);
+        handleDetailUpdated(response.data);
       } catch (error: unknown) {
         reportError(error, {
           area: "link-detail-view:folder-move",
@@ -384,11 +395,7 @@ function LinkDetailView({
         linkId: detail.id,
         payload: { isFavorite: next },
       });
-      handleDetailUpdated({
-        success: true,
-        data: { ...detail, isFavorite: next },
-        error: null,
-      });
+      handleDetailUpdated({ isFavorite: next });
       await queryClient.invalidateQueries({ queryKey: ["links", "list"] });
     } catch (error: unknown) {
       reportError(error, {
@@ -487,6 +494,10 @@ function LinkDetailView({
   );
 
   const openEditSheet = React.useCallback(() => {
+    initialEditText.current = {
+      title: detail.title.trim(),
+      summary: (detail.summary ?? "").trim(),
+    };
     setTitleDraft(detail.title);
     setSummaryDraft(detail.summary ?? "");
     setPrivacyDraft(undefined);
@@ -512,12 +523,12 @@ function LinkDetailView({
   }, [dismissLinkDetailToasts]);
 
   const isEditDirty =
-    titleDraft.trim() !== detail.title.trim() ||
-    summaryDraft.trim() !== (detail.summary ?? "").trim() ||
+    titleDraft.trim() !== initialEditText.current.title ||
+    summaryDraft.trim() !== initialEditText.current.summary ||
     changedPrivacy !== undefined;
 
   const handleSaveEdit = React.useCallback(async () => {
-    if (isSavingEditRef.current) {
+    if (isSavingEditRef.current || unavailablePrivacyDraft) {
       return;
     }
     const nextTitle = titleDraft.trim();
@@ -533,12 +544,22 @@ function LinkDetailView({
     }
     isSavingEditRef.current = true;
     setIsSavingEdit(true);
+    let savingPrivacy = false;
     try {
-      await updateLinkFields({
-        ...(changedPrivacy === undefined ? {} : { isPublic: changedPrivacy }),
-        summary: summaryDraft.trim() ? summaryDraft.trim() : null,
-        title: nextTitle,
-      });
+      const summary = summaryDraft.trim();
+      const titleChanged = nextTitle !== initialEditText.current.title;
+      const summaryChanged = summary !== initialEditText.current.summary;
+      if (titleChanged || summaryChanged) {
+        await updateLinkFields({
+          ...(titleChanged ? { title: nextTitle } : {}),
+          ...(summaryChanged ? { summary: summary || null } : {}),
+        });
+        initialEditText.current = { title: nextTitle, summary };
+      }
+      if (changedPrivacy !== undefined) {
+        savingPrivacy = true;
+        await privacyMutation.mutateAsync({ id: detail.id, isPublic: changedPrivacy });
+      }
       setIsUnsavedEditOpen(false);
       setEditSheetOpen(false);
       showToast({
@@ -549,9 +570,10 @@ function LinkDetailView({
         sourceKey: "link-detail-edit",
       });
     } catch (error: unknown) {
+      if (savingPrivacy) await refetchFolders();
       reportError(error, { area: "link-detail-view:edit", extra: { linkId: detail.id } });
       showToast({
-        title: "수정에 실패했어요.",
+        title: savingPrivacy ? "공개 설정을 저장하지 못했어요." : "수정에 실패했어요.",
         description: "잠시 후 다시 시도해주세요.",
         variant: "error",
         dismissible: true,
@@ -565,10 +587,13 @@ function LinkDetailView({
   }, [
     changedPrivacy,
     detail.id,
+    privacyMutation,
+    refetchFolders,
     setEditSheetOpen,
     showToast,
     summaryDraft,
     titleDraft,
+    unavailablePrivacyDraft,
     updateLinkFields,
   ]);
 
@@ -651,15 +676,36 @@ function LinkDetailView({
 
   const isPanel = mode === "panel";
   let editVisibility: React.ReactNode = null;
-  if (isLinkOwner && folderPublic === undefined) {
+  if (unavailablePrivacyDraft) {
+    editVisibility = (
+      <View className="items-start gap-2">
+        <Text
+          accessibilityLiveRegion="polite"
+          className="text-sm text-muted-foreground"
+        >
+          현재 폴더 상태에서는 링크를 전체 공개할 수 없어요.
+        </Text>
+        <Button
+          disabled={isSavingEdit}
+          size="sm"
+          variant="outline"
+          onPress={() => setPrivacyDraft(undefined)}
+        >
+          <Text>공개 변경 취소</Text>
+        </Button>
+      </View>
+    );
+  } else if (isLinkOwner && (folderPublic === undefined || !hasLinkVisibility)) {
+    const help =
+      folderPublic !== undefined
+        ? "링크 공개 상태를 확인할 수 없어요."
+        : foldersQuery.isFetching
+          ? "폴더 공개 상태를 확인하는 중이에요."
+          : "폴더 공개 상태를 확인할 수 없어요.";
     editVisibility = (
       <View className="gap-2">
         <Text className="text-sm font-semibold text-foreground">공개 설정</Text>
-        <Text className="text-xs text-muted-foreground">
-          {foldersQuery.isFetching
-            ? "폴더 공개 상태를 확인하는 중이에요."
-            : "폴더 공개 상태를 확인할 수 없어요."}
-        </Text>
+        <Text className="text-xs text-muted-foreground">{help}</Text>
       </View>
     );
   } else if (isLinkOwner) {
@@ -686,6 +732,17 @@ function LinkDetailView({
       mode={mode}
       refreshFailed={hasRefreshFailed}
       refreshing={isRefreshing}
+      visibility={
+        isLinkOwner && hasLinkVisibility ? (
+          <VisibilityPopover
+            canPublish={canChangePrivacy}
+            error={privacyMutation.isError ? "공개 설정을 저장하지 못했어요." : undefined}
+            isPublic={linkVisibility}
+            pending={privacyMutation.isPending || isSavingEdit}
+            onChange={handleChangeLinkPrivacy}
+          />
+        ) : undefined
+      }
       onClose={onClose}
       onCopy={handleOpenCopyFolder}
       onEdit={openEditSheet}
@@ -695,65 +752,54 @@ function LinkDetailView({
     />
   );
 
-  const body = (
-    <LinkDetailBody mode={mode}>
-      {isPanel ? toolbar : null}
-      <LinkDetailHead
-        faviconUrl={detail.faviconUrl}
-        isVideo={detail.isVideo}
-        mode={mode}
-        status={detail.status}
-        thumbnailUrl={detail.thumbnailUrl}
-        title={detail.title}
-        url={detail.url}
-        workModel={detail.workModel}
-      />
-      <LinkDetailAiSurface
-        excerpt={detail.content?.excerpt ?? null}
-        status={detail.status}
-        summary={detail.summary}
-        url={detail.url}
-        workModel={detail.workModel}
-      />
-      <LinkDetailMyNotes
-        key={detail.id}
-        folderEmoji={detail.folderEmoji}
-        folderName={detail.folderName}
-        isEditingActions={isEditingActions}
-        linkId={detail.id}
-        memo={detail.memo}
-        tags={tags}
-        onOpenFolderMove={handleOpenFolderMove}
-        onUpdateLink={handleUpdateNotes}
-      >
-        <LinkDetailActionsSection
-          key={detail.id}
-          linkId={detail.id}
-          mode={mode}
-          todos={todos}
-          onEditingChange={setIsEditingActions}
-        />
-      </LinkDetailMyNotes>
-      <View className="mt-1 border-t border-border-soft pt-3">
-        <DeleteLinkButton onPress={() => setIsDeleteDialogOpen(true)} />
-      </View>
-    </LinkDetailBody>
-  );
-
   return (
     <>
-      {isPanel ? (
-        body
-      ) : (
-        <View className="flex-1 bg-background">
-          <AppHeader
-            back
-            rightSlot={toolbar}
-            onBack={handleBack}
-          />
-          {body}
-        </View>
-      )}
+      <LinkDetailContent
+        head={{
+          faviconUrl: detail.faviconUrl,
+          isVideo: detail.isVideo,
+          mode,
+          status: detail.status,
+          thumbnailUrl: detail.thumbnailUrl,
+          title: detail.title,
+          url: detail.url,
+          workModel: detail.workModel,
+        }}
+        toolbar={toolbar}
+        onBack={handleBack}
+        ai={{
+          excerpt: detail.content?.excerpt ?? null,
+          status: detail.status,
+          summary: detail.summary,
+          workModel: detail.workModel,
+        }}
+        notes={
+          <LinkDetailMyNotes
+            key={detail.id}
+            folderEmoji={detail.folderEmoji}
+            folderName={detail.folderName}
+            isEditingActions={isEditingActions}
+            linkId={detail.id}
+            memo={detail.memo}
+            tags={tags}
+            onOpenFolderMove={handleOpenFolderMove}
+            onUpdateLink={handleUpdateNotes}
+          >
+            <LinkDetailActionsSection
+              key={detail.id}
+              linkId={detail.id}
+              mode={mode}
+              todos={todos}
+              onEditingChange={setIsEditingActions}
+            />
+          </LinkDetailMyNotes>
+        }
+        footer={
+          <View className="mt-1 border-t border-border-soft pt-3">
+            <DeleteLinkButton onPress={() => setIsDeleteDialogOpen(true)} />
+          </View>
+        }
+      />
 
       <FolderPickerDialog
         confirmLabel="확인"
@@ -830,7 +876,7 @@ function LinkDetailView({
               summary={summaryDraft}
               visibility={editVisibility}
               saving={isSavingEdit}
-              canSave={isEditDirty}
+              canSave={isEditDirty && !unavailablePrivacyDraft}
               onChangeTitle={setTitleDraft}
               onChangeSummary={setSummaryDraft}
               onCancel={handleRequestCloseEdit}
@@ -851,7 +897,7 @@ function LinkDetailView({
               summary={summaryDraft}
               visibility={editVisibility}
               saving={isSavingEdit}
-              canSave={isEditDirty}
+              canSave={isEditDirty && !unavailablePrivacyDraft}
               onChangeTitle={setTitleDraft}
               onChangeSummary={setSummaryDraft}
               onCancel={handleRequestCloseEdit}

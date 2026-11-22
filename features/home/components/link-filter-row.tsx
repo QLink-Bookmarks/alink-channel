@@ -32,9 +32,10 @@ type LinkFilterRowProps = {
   primaryLabel?: string;
   sort: LinkSort;
   onSortChange: (next: LinkSort) => void;
-  favoriteOnly: boolean;
-  onFavoriteOnlyChange: (next: boolean) => void;
+  favoriteOnly?: boolean;
+  onFavoriteOnlyChange?: (next: boolean) => void;
   coverMode: FilterCoverMode;
+  coverLabel?: string;
   className?: string;
   testID?: string;
 };
@@ -87,9 +88,10 @@ function LinkFilterRow({
   primaryLabel,
   sort,
   onSortChange,
-  favoriteOnly,
+  favoriteOnly = false,
   onFavoriteOnlyChange,
   coverMode,
+  coverLabel = "정렬·필터",
   className,
   testID,
 }: LinkFilterRowProps) {
@@ -97,7 +99,7 @@ function LinkFilterRow({
     () => toFilterPill(getLinkPill(sort, favoriteOnly)),
     [sort, favoriteOnly],
   );
-  const handleFavoritePress = () => onFavoriteOnlyChange(!favoriteOnly);
+  const handleFavoritePress = () => onFavoriteOnlyChange?.(!favoriteOnly);
   // react-native-web presses on Space only for buttons; a switch toggles on Space as well.
   const favoriteKeyProps = isWeb
     ? ({
@@ -114,7 +116,7 @@ function LinkFilterRow({
     <FilterCoverRow
       appliedLabel={getLinkAppliedLabel(sort, favoriteOnly)}
       className={className}
-      coverLabel="정렬·필터"
+      coverLabel={coverLabel}
       coverMode={coverMode}
       pill={pill}
       primary={children}
@@ -122,36 +124,38 @@ function LinkFilterRow({
       testID={testID}
       cover={
         <>
-          <FilterCoverPart id="star">
-            <Pressable
-              accessibilityLabel="바로가기만 보기"
-              accessibilityRole="switch"
-              accessibilityState={{ checked: favoriteOnly }}
-              aria-checked={favoriteOnly}
-              className={cn("h-11 w-8 justify-center", isWeb && "group outline-none")}
-              hitSlop={STAR_HIT_SLOP}
-              testID={testID ? `${testID}-favorite` : undefined}
-              onPress={handleFavoritePress}
-              {...favoriteKeyProps}
-            >
-              <PressableHitSlopArea hitSlop={STAR_HIT_SLOP} />
-              <View
-                className={cn(
-                  "size-8 items-center justify-center rounded-full border",
-                  favoriteOnly ? "border-warning bg-warning/15" : "border-border bg-card",
-                  isWeb &&
-                    "transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background",
-                )}
+          {onFavoriteOnlyChange ? (
+            <FilterCoverPart id="star">
+              <Pressable
+                accessibilityLabel="바로가기만 보기"
+                accessibilityRole="switch"
+                accessibilityState={{ checked: favoriteOnly }}
+                aria-checked={favoriteOnly}
+                className={cn("h-11 w-8 justify-center", isWeb && "group outline-none")}
+                hitSlop={STAR_HIT_SLOP}
+                testID={testID ? `${testID}-favorite` : undefined}
+                onPress={handleFavoritePress}
+                {...favoriteKeyProps}
               >
-                <Icon
-                  as={Star}
-                  className={favoriteOnly ? "text-warning-icon" : "text-muted-foreground"}
-                  fill={favoriteOnly ? "currentColor" : "none"}
-                  size={16}
-                />
-              </View>
-            </Pressable>
-          </FilterCoverPart>
+                <PressableHitSlopArea hitSlop={STAR_HIT_SLOP} />
+                <View
+                  className={cn(
+                    "size-8 items-center justify-center rounded-full border",
+                    favoriteOnly ? "border-warning bg-warning/15" : "border-border bg-card",
+                    isWeb &&
+                      "transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background",
+                  )}
+                >
+                  <Icon
+                    as={Star}
+                    className={favoriteOnly ? "text-warning-icon" : "text-muted-foreground"}
+                    fill={favoriteOnly ? "currentColor" : "none"}
+                    size={16}
+                  />
+                </View>
+              </Pressable>
+            </FilterCoverPart>
+          ) : null}
           <SortCriterionChips
             criteria={LINK_SORT_CRITERIA}
             value={sort}

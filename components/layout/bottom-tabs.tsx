@@ -11,6 +11,8 @@ import type { LucideIcon } from "lucide-react-native";
 
 // View scope: 모바일 전용. md >= 769px에서는 사용하지 않는다.
 
+const isWeb = process.env.EXPO_OS === "web";
+
 type BottomTabItem = {
   key: string;
   label: string;
@@ -26,7 +28,7 @@ function BottomTabs({
   ...props
 }: React.ComponentProps<typeof View> & {
   value: string;
-  items: BottomTabItem[];
+  items: readonly BottomTabItem[];
   onValueChange?: (value: string) => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -45,6 +47,7 @@ function BottomTabs({
 
   return (
     <View
+      {...(isWeb ? { role: "navigation", "aria-label": "하단 내비게이션" } : {})}
       className={cn(
         "flex-row border-t border-border bg-background px-2 pb-2 pt-1 md:hidden",
         className,
@@ -64,6 +67,8 @@ function BottomTabs({
         return (
           <Pressable
             key={item.key}
+            accessibilityRole={isWeb ? "button" : undefined}
+            aria-current={isWeb && active ? "page" : undefined}
             className="flex-1 items-center gap-1 py-1"
             onPress={() => onValueChange?.(item.key)}
           >

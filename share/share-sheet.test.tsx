@@ -77,7 +77,16 @@ const PREPROCESSING = {
 };
 
 function folder(id: number, name: string, emoji: string | null, isShared = false): Folder {
-  return { id, name, emoji, isShared, shareCounts: 0, linkCounts: 0, myLinkCounts: 0 };
+  return {
+    id,
+    name,
+    emoji,
+    isShared,
+    isPublic: false,
+    shareCounts: 0,
+    linkCounts: 0,
+    myLinkCounts: 0,
+  };
 }
 
 const FOLDERS: Folder[] = [

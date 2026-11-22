@@ -40,11 +40,14 @@ function splitFoldersBySection(
   return sections;
 }
 
-function findFolderInPages(pages: readonly FolderPage[] | undefined, id: number) {
+function findFolderEntryInPages<TPage extends FolderPage>(
+  pages: readonly TPage[] | undefined,
+  id: number,
+) {
   for (const page of pages ?? []) {
     const folder = page.contents.find((entry) => entry.id === id);
     if (folder) {
-      return folder;
+      return { folder, page };
     }
   }
   return undefined;
@@ -131,7 +134,7 @@ function getMoveTargetFolderId(folderId: number | null) {
 
 export {
   UNCATEGORIZED_FOLDER_ID,
-  findFolderInPages,
+  findFolderEntryInPages,
   flattenFolderPages,
   getMoveTargetFolderId,
   getNextFolderCursor,

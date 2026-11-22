@@ -450,7 +450,7 @@ for (const { entry, expectedReturn } of [
     const resource = entry.split("?")[0];
     const opensOverlay = expectedReturn === destination;
     const state = await setUp(page, { guest: true });
-    const folderRead = { id: folder.id, name: folder.name, emoji: folder.emoji };
+    const folderRead = { id: folder.id, name: folder.name, emoji: folder.emoji, myLinkCounts: 0 };
     const linkRead = {
       id: link.id,
       folderId: folder.id,
@@ -458,23 +458,29 @@ for (const { entry, expectedReturn } of [
       folderEmoji: folder.emoji,
       title: link.title,
       url: link.url,
-      todos: [],
+      thumbnailUrl: null,
+      faviconUrl: null,
+      isVideo: false,
+      content: { excerpt: null },
+      todos: null,
     };
     const accessTokens: (string | undefined)[] = [];
     await page.route(
-      (url) => url.pathname === `/api${resource}`,
+      (url) =>
+        url.pathname === `/api${resource}` ||
+        (opensOverlay && url.pathname === `/api/links/${link.id}`),
       (route) => {
         expect(route.request().method()).toBe("GET");
         const token = route.request().headers().authorization;
         accessTokens.push(token);
         if (opensOverlay && token) return route.fallback();
-        return json(route, envelope(resource.startsWith("/links") ? linkRead : folderRead));
+        const isLink = new URL(route.request().url()).pathname.startsWith("/api/links/");
+        return json(route, envelope(isLink ? linkRead : folderRead));
       },
     );
     await page.route(
       (url) =>
-        ["/api/links", "/api/todos"].includes(url.pathname) &&
-        url.searchParams.get("folderId") === String(folder.id),
+        url.pathname === "/api/links" && url.searchParams.get("folderId") === String(folder.id),
       (route) => {
         expect(route.request().method()).toBe("GET");
         const token = route.request().headers().authorization;
@@ -519,6 +525,22 @@ for (const { entry, expectedReturn } of [
       await expect(sidebarLogin).toBeFocused();
     }
     await expect(sidebarLogin).toBeVisible();
+    const sidebarBody = sidebar.getByTestId("guest-sidebar-body");
+    const signInGroup = sidebarBody.getByTestId("guest-sidebar-sign-in");
+    await expect(
+      signInGroup.getByText("ALink에서 북마크 관리를 시작해보세요", { exact: true }),
+    ).toBeVisible();
+    await expect
+      .poll(async () => {
+        const body = (await sidebarBody.boundingBox())!;
+        const group = (await signInGroup.boundingBox())!;
+        const button = (await sidebarLogin.boundingBox())!;
+        return Math.max(
+          Math.abs(body.x + body.width / 2 - (button.x + button.width / 2)),
+          Math.abs(body.y + body.height / 2 - (group.y + group.height / 2)),
+        );
+      })
+      .toBeLessThanOrEqual(2);
     await expect(page).toHaveURL(entry);
     const getReturnDestination = () =>
       page.evaluate(() => sessionStorage.getItem("qlink-return-destination"));
@@ -551,6 +573,87 @@ for (const { entry, expectedReturn } of [
     expect(accessTokens).toContain(undefined);
     expect(accessTokens).toContain("Bearer new-access-token");
     expect(state.requests.filter(({ path }) => path === "/api/auth/sign")).toHaveLength(1);
+  });
+}
+
+for (const { label, href, fromLink } of [
+  { label: "홈", href: "/home", fromLink: false },
+  { label: "폴더", href: "/folders", fromLink: true },
+  { label: "액션", href: "/todos", fromLink: false },
+  { label: "설정", href: "/settings", fromLink: true },
+]) {
+  test(`guest mobile tab ${label} passes through login and opens ${href}`, async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!isMobile, "The bottom navigation is mobile only.");
+    const account = await setUp(page, { guest: true });
+    const resource = fromLink ? `/links/${link.id}` : `/folders/${folder.id}`;
+    const received: string[] = [];
+    await page.route(
+      (url) =>
+        url.pathname === `/api${resource}` ||
+        (url.pathname === "/api/links" && url.searchParams.get("folderId") === String(folder.id)),
+      (route) => {
+        const request = route.request();
+        if (request.headers().authorization) return route.fallback();
+        expect(request.method()).toBe("GET");
+        const { pathname } = new URL(request.url());
+        received.push(pathname);
+        if (pathname === `/api${resource}`) {
+          const read = fromLink
+            ? {
+                id: link.id,
+                title: link.title,
+                url: link.url,
+                folderId: folder.id,
+                folderName: folder.name,
+                folderEmoji: folder.emoji,
+                thumbnailUrl: null,
+                faviconUrl: null,
+                isVideo: false,
+                content: { excerpt: null },
+                todos: null,
+              }
+            : { id: folder.id, name: folder.name, emoji: folder.emoji, myLinkCounts: 0 };
+          return json(route, envelope(read));
+        }
+        return json(route, envelope({ contents: [], isEmpty: true, hasNext: false }));
+      },
+    );
+    await page.goto(resource);
+    await expect(
+      page.getByRole("heading", { name: new RegExp(fromLink ? link.title : folder.name) }),
+    ).toBeVisible();
+    const tabs = page.getByRole("navigation", { name: "하단 내비게이션" });
+    await expect(tabs.getByRole("button")).toHaveText(["홈", "폴더", "액션", "설정"]);
+    await expect(tabs.getByRole("button", { name: "폴더" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(received).toContain(`/api${resource}`);
+    if (href === "/home") {
+      await page.getByRole("button", { name: "사이드바 열기" }).tap();
+      await page
+        .getByRole("dialog", { name: "사이드바" })
+        .getByRole("button", { name: "로그인", exact: true })
+        .tap();
+      await expect(page).toHaveURL("/login");
+      await page.goBack();
+      await expect(page).toHaveURL(resource);
+      await expect(tabs).toBeVisible();
+    }
+
+    await tabs.getByRole("button", { name: label, exact: true }).tap();
+    await expect(page).toHaveURL("/login");
+    await expect(page.getByRole("heading", { name: new RegExp(folder.name) })).toHaveCount(0);
+    expect(account.requests.filter(({ path }) => path !== refreshPath)).toEqual([]);
+    await signIn(page);
+    await expect(page).toHaveURL(href);
+    await expect(tabs.getByRole("button", { name: label, exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 }
 

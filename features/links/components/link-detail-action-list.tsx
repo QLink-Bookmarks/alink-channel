@@ -1,6 +1,7 @@
 import { View } from "react-native";
 
 import { Text } from "@/components/ui/text";
+import { TodoItem } from "@/features/todos/components/todo-item/todo-item";
 
 function LinkDetailActionSection({
   action,
@@ -23,13 +24,23 @@ function LinkDetailActionSection({
   );
 }
 
-function LinkDetailActionList({ children }: { children: React.ReactNode }) {
+type LinkDetailActionCard = Omit<React.ComponentProps<typeof TodoItem>, "variant"> & {
+  id: React.Key;
+};
+
+function LinkDetailActionList({ items }: { items: LinkDetailActionCard[] }) {
   return (
     <View
       className="gap-2"
       testID="link-detail-todo-list"
     >
-      {children}
+      {items.map(({ id, ...item }) => (
+        <TodoItem
+          key={id}
+          variant="display"
+          {...item}
+        />
+      ))}
     </View>
   );
 }

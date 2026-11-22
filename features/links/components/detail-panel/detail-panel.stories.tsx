@@ -1,6 +1,6 @@
 import { View } from "react-native";
 
-import type { LinkDetail } from "@/features/links/types";
+import type { LinkDetail, PublicLinkDetail } from "@/features/links/types";
 import type { Meta, StoryObj } from "@storybook/react-native";
 
 import { DetailPanel } from "./detail-panel";
@@ -9,7 +9,7 @@ import { useArgs } from "storybook/preview-api";
 
 type DetailPanelStoryArgs = {
   open: boolean;
-  detail: LinkDetail;
+  detail: LinkDetail | PublicLinkDetail;
   mode?: "inline" | "overlay";
   notFound?: boolean;
 };
@@ -46,6 +46,7 @@ const meta = {
     open: true,
     detail: {
       id: 1,
+      isPublic: false,
       url: "https://qlink.app/reference",
       title: "ALINK 컴포넌트 시스템",
       thumbnailUrl: "https://picsum.photos/seed/alink-detail/640/360",
@@ -122,6 +123,7 @@ export const NoImage: Story = {
     mode: "overlay",
     detail: {
       id: 2,
+      isPublic: false,
       url: "https://www.notion.so/team/onboarding",
       title: "2026 하반기 팀 온보딩 문서",
       thumbnailUrl: null,
@@ -143,6 +145,26 @@ export const Overlay: Story = {
   },
 };
 
+export const PublicReadOnly: Story = {
+  name: "공개 링크 읽기",
+  args: {
+    mode: "inline",
+    detail: {
+      id: 4,
+      url: "https://visitjeju.net/kr/detail/view",
+      title: "성산일출봉 일출 시간표와 입장 마감 안내",
+      folderId: 1,
+      folderName: "제주 산책 기록",
+      folderEmoji: "🗺️",
+      thumbnailUrl: null,
+      faviconUrl: null,
+      isVideo: false,
+      content: { excerpt: "일출을 볼 수 있는 전망대와 탐방로 시간표를 소개해요…" },
+      todos: null,
+    },
+  },
+};
+
 export const NotFound: Story = {
   name: "없는 링크 (닫기 버튼)",
   args: {
@@ -157,6 +179,7 @@ export const AiInProgress: Story = {
     mode: "overlay",
     detail: {
       id: 3,
+      isPublic: false,
       url: "https://visitjeju.net/kr/detail/view",
       title: "성산일출봉 일출 시간표와 입장 마감 안내",
       thumbnailUrl: null,

@@ -246,6 +246,29 @@ describe("useLinkPagesQuery", () => {
 
   beforeEach(() => fetchLinks.mockReset());
 
+  it("keeps each visibility filter and its cursor in a separate list", async () => {
+    fetchLinks.mockImplementation(async ({ isPublic, cursor } = {}) => {
+      if (isPublic === false) return cursor ? page([2]) : page([1], "private-next");
+      return page(isPublic === true ? [3] : [1, 2, 3]);
+    });
+    const { result, rerender } = renderPages({ folderId: 1, isPublic: false });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.links.map(({ id }) => id)).toEqual([1, 2]));
+    rerender({ folderId: 1, isPublic: true });
+    await waitFor(() => expect(result.current.links.map(({ id }) => id)).toEqual([3]));
+    rerender({ folderId: 1 });
+    await waitFor(() => expect(result.current.links.map(({ id }) => id)).toEqual([1, 2, 3]));
+    expect(fetchLinks.mock.calls).toEqual([
+      [expect.objectContaining({ folderId: 1, isPublic: false, cursor: undefined })],
+      [expect.objectContaining({ folderId: 1, isPublic: false, cursor: "private-next" })],
+      [expect.objectContaining({ folderId: 1, isPublic: true, cursor: undefined })],
+      [expect.not.objectContaining({ isPublic: expect.anything() })],
+    ]);
+  });
+
   it("retries a transient first-page error using the same criteria", async () => {
     fetchLinks.mockRejectedValueOnce(new Error("offline"));
     fetchLinks.mockResolvedValueOnce(page([1]));

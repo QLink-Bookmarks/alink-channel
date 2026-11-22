@@ -18,7 +18,6 @@ type AiProviderWithModels = {
 type GetAiProviderModelsResponse = ApiEnvelope<AiProviderWithModels[]>;
 
 type AiSummaryRequest = {
-  isPublic?: boolean;
   id?: number | null;
   folderId?: number | null;
   userProviderId: number;

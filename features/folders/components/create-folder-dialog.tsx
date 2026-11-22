@@ -18,10 +18,13 @@ import { EmojiPickerGrid } from "@/components/ui/emoji-picker-grid";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
-import { useQueryClient } from "@tanstack/react-query";
 
-import { useCreateFolderMutation, useUpdateFolderMutation } from "../mutations";
-import { folderQueryKeys, useFolderPrivacyQuery } from "../queries";
+import {
+  useCreateFolderMutation,
+  useSetFolderPrivacyMutation,
+  useUpdateFolderMutation,
+} from "../mutations";
+import { useFolderDetailQuery } from "../queries";
 import type { Folder } from "../types";
 import { PublicFolderAddress } from "./public-folder-address";
 import { VisibilityField } from "./visibility-field";
@@ -64,7 +67,7 @@ function CreateFolderDialog({
   const mutation = useCreateFolderMutation();
   const resetMutation = mutation.reset;
   const saving = React.useRef(false);
-  const privacy = useFolderPrivacyQuery(open ? (created?.id ?? null) : null);
+  const privacy = useFolderDetailQuery(open ? (created?.id ?? null) : null);
 
   React.useEffect(() => {
     if (open) {
@@ -220,24 +223,26 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
   const [draftPrivacy, setDraftPrivacy] = React.useState<boolean>();
   const [confirming, setConfirming] = React.useState(false);
   const [notice, setNotice] = React.useState<string>();
-  const queryClient = useQueryClient();
-  const privacy = useFolderPrivacyQuery(open ? folder.id : null);
-  const savedPublic = privacy.data?.isPublic ?? folder.isPublic === true;
+  const privacy = useFolderDetailQuery(open ? folder.id : null);
+  const confirmedVisibility = privacy.isSuccess && typeof privacy.data.isPublic === "boolean";
+  const savedPublic = (privacy.data?.isPublic ?? folder.isPublic) === true;
   const isPublic = draftPrivacy ?? savedPublic;
   const saving = React.useRef(false);
   const saveButton = React.useRef<React.ComponentRef<typeof View>>(null);
   const resultNotice = React.useRef<React.ComponentRef<typeof View>>(null);
   const mutation = useUpdateFolderMutation();
+  const privacyMutation = useSetFolderPrivacyMutation();
   const resetMutation = mutation.reset;
-  const initializedFolder = React.useRef<number | null>(null);
+  const resetPrivacyMutation = privacyMutation.reset;
+  const initializedFolder = React.useRef<Folder | null>(null);
 
   React.useEffect(() => {
     if (!open) {
       initializedFolder.current = null;
       return;
     }
-    if (initializedFolder.current === folder.id) return;
-    initializedFolder.current = folder.id;
+    if (initializedFolder.current?.id === folder.id) return;
+    initializedFolder.current = folder;
     setName(folder.name);
     setEmoji(folder.emoji ?? null);
     setIsShared(folder.isShared);
@@ -246,18 +251,19 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
     setConfirming(false);
     setNotice(undefined);
     resetMutation();
-  }, [folder.emoji, folder.id, folder.isShared, folder.name, open, resetMutation]);
+    resetPrivacyMutation();
+  }, [folder, open, resetMutation, resetPrivacyMutation]);
 
   const handleSave = async (confirmed = false) => {
     if (saving.current || (confirming && !confirmed)) return;
-    if (draftPrivacy !== undefined && !privacy.isSuccess) return;
+    if (draftPrivacy !== undefined && (!confirmedVisibility || privacy.isFetching)) return;
     const trimmed = name.trim();
     if (!trimmed) {
       setValidationError("폴더 이름을 입력해주세요.");
       return;
     }
 
-    const change = isPublic !== savedPublic && privacy.isSuccess ? isPublic : undefined;
+    const change = isPublic !== savedPublic && confirmedVisibility ? isPublic : undefined;
     if (change === true && !confirmed) {
       setConfirming(true);
       return;
@@ -265,18 +271,28 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
     saving.current = true;
     setConfirming(false);
     try {
-      const response = await mutation.mutateAsync({
-        id: folder.id,
-        payload: { name: trimmed, emoji, isShared, isPublic: change },
-      });
-      onUpdated?.(response.data.id);
+      resetMutation();
+      resetPrivacyMutation();
+      const initial = initializedFolder.current ?? folder;
+      const fieldsChanged =
+        trimmed !== initial.name.trim() ||
+        emoji !== (initial.emoji ?? null) ||
+        isShared !== initial.isShared;
+      if (fieldsChanged) {
+        await mutation.mutateAsync({
+          id: folder.id,
+          payload: { name: trimmed, emoji, isShared },
+        });
+        initializedFolder.current = { ...initial, name: trimmed, emoji, isShared };
+      }
+      if (change !== undefined) {
+        await privacyMutation.mutateAsync({ id: folder.id, isPublic: change });
+      }
+      onUpdated?.(folder.id);
       if (change === undefined) {
         onOpenChange(false);
         return;
       }
-      queryClient.setQueryData(folderQueryKeys.privacy(folder.id), {
-        isPublic: response.data.isPublic,
-      });
       setDraftPrivacy(undefined);
       setNotice(
         change
@@ -285,7 +301,7 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
       );
       requestAnimationFrame(() => resultNotice.current?.focus());
     } catch {
-      void privacy.refetch();
+      // Mutation errors stay visible in the form so the user can retry.
     } finally {
       saving.current = false;
     }
@@ -296,7 +312,8 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
   };
 
   const useSheetActions = mode === "mobile" && process.env.EXPO_OS !== "web";
-  const isPending = mutation.isPending || (draftPrivacy !== undefined && privacy.isFetching);
+  const isWriting = mutation.isPending || privacyMutation.isPending;
+  const isPending = isWriting || (draftPrivacy !== undefined && privacy.isFetching);
   const body = notice ? (
     <View className="gap-3">
       <View
@@ -318,7 +335,11 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
     <FolderFormBody
       emoji={emoji}
       errorMessage={
-        mutation.error ? "폴더 수정에 실패했어요. 잠시 후 다시 시도해주세요." : undefined
+        privacyMutation.isError
+          ? "공개 설정을 저장하지 못했어요."
+          : mutation.isError
+            ? "폴더 수정에 실패했어요. 잠시 후 다시 시도해주세요."
+            : undefined
       }
       isPending={isPending}
       isShared={isShared}
@@ -326,7 +347,7 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
       visibility={
         <View className="gap-3">
           <VisibilityField
-            disabled={mutation.isPending || !privacy.isSuccess || privacy.isFetching}
+            disabled={isWriting || !confirmedVisibility || privacy.isFetching}
             help={FOLDER_VISIBILITY_HELP}
             isPublic={isPublic}
             onChange={setDraftPrivacy}
@@ -441,7 +462,7 @@ function FolderPrivacyDetails({
   query,
 }: {
   folderId: number;
-  query: ReturnType<typeof useFolderPrivacyQuery>;
+  query: ReturnType<typeof useFolderDetailQuery>;
 }) {
   if (query.isFetching) {
     return <Text className="text-xs text-muted-foreground">공개 설정을 확인하는 중이에요.</Text>;
@@ -460,7 +481,7 @@ function FolderPrivacyDetails({
       </View>
     );
   }
-  return query.data?.isPublic ? (
+  return query.data?.isPublic === true ? (
     <PublicFolderAddress
       key={folderId}
       folderId={folderId}
@@ -587,7 +608,7 @@ function FolderFormActions({
   );
 }
 
-export { CreateFolderDialog, EditFolderDialog };
+export { CreateFolderDialog, EditFolderDialog, PUBLISH_DESCRIPTION, PUBLISH_TITLE };
 export type {
   CreatedFolder,
   CreateFolderDialogMode,

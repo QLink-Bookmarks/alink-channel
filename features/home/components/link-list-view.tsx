@@ -1,11 +1,7 @@
 import * as React from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { RefreshControl } from "react-native";
 
-import { PageHeader } from "@/components/layout/page-header";
-import { EmptyState } from "@/components/ui/empty-state";
-import { LoadErrorState } from "@/components/ui/load-error-state";
-import { PaginationFooter } from "@/components/ui/pagination-footer";
-import { Text } from "@/components/ui/text";
+import { PublicFolderList } from "@/features/folders/components/public-folder-list";
 import { LinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
 import { useLinkCardSize } from "@/features/links/hooks/use-link-card-size";
 import { getLinkCardPageSize } from "@/features/links/lib/link-card-size";
@@ -21,7 +17,7 @@ import {
 } from "@/lib/hooks/use-list-scroll-memory";
 import { usePullToRefresh } from "@/lib/hooks/use-pull-to-refresh";
 
-import { LinkFilterRow } from "./link-filter-row";
+import { LinkListBody, type LinkListBodyProps } from "./link-list-body";
 
 import { type Href, useRouter } from "expo-router";
 import type { LucideIcon } from "lucide-react-native";
@@ -38,7 +34,26 @@ type LinkListViewProps = {
   headerActions?: React.ReactNode;
 };
 
-function LinkListView({
+function renderLinkListBody(props: LinkListBodyProps) {
+  return <LinkListBody {...props} />;
+}
+
+type PublicLinkListViewProps = {
+  publicList: Omit<React.ComponentProps<typeof PublicFolderList>, "render">;
+};
+
+function LinkListView(props: LinkListViewProps | PublicLinkListViewProps) {
+  return "publicList" in props ? (
+    <PublicFolderList
+      {...props.publicList}
+      render={renderLinkListBody}
+    />
+  ) : (
+    <MemberLinkList {...props} />
+  );
+}
+
+function MemberLinkList({
   folderId,
   title,
   emoji,
@@ -89,79 +104,53 @@ function LinkListView({
     [basePath, listVariant, router],
   );
 
-  return (
-    <ScrollView
-      ref={scrollViewRef}
-      {...pagination.scrollViewProps}
-      className="flex-1"
-      contentInsetAdjustmentBehavior="automatic"
-      showsVerticalScrollIndicator={false}
-      refreshControl={
+  return renderLinkListBody({
+    title,
+    emoji,
+    icon,
+    headerActions,
+    scrollRef: scrollViewRef,
+    scrollProps: {
+      ...pagination.scrollViewProps,
+      refreshControl: (
         <RefreshControl
           refreshing={isRefreshing}
           onRefresh={handleRefresh}
         />
-      }
-    >
-      <PageHeader
-        title={title}
-        emoji={emoji}
-        icon={icon}
-        actions={headerActions}
+      ),
+    },
+    meta: totalLabel,
+    filter: {
+      coverMode: listVariant === "wide" ? "content" : "fill",
+      favoriteOnly,
+      sort,
+      onFavoriteOnlyChange: setFavoriteOnly,
+      onSortChange: setSort,
+    },
+    isLoadError,
+    isEmpty,
+    isRetrying: linksQuery.isFetching,
+    emptyTitle: favoriteOnly ? "조건에 맞는 링크가 없어요" : "아직 링크가 없어요",
+    emptyDescription: favoriteOnly
+      ? "바로가기만 보는 중이에요."
+      : "새 링크를 추가하면 이곳에 표시돼요.",
+    onRetry: () => void linksQuery.refetch(),
+    pagination: {
+      isLoading: linksQuery.isFetchingNextPage,
+      isError: linksQuery.isFetchNextPageError,
+      onRetry: pagination.retryNextPage,
+    },
+    children: (
+      <LinkCardGrid
+        isLoading={linksQuery.isPending}
+        links={links}
+        skeletonCount={8}
+        activeLinkId={activeLinkId}
+        onCardPress={handleCardPress}
       />
-      <View className="gap-5 px-6 pb-24 pt-4 md:pb-6 md:pt-0">
-        <LinkFilterRow
-          className="md:-mt-4"
-          coverMode={listVariant === "wide" ? "content" : "fill"}
-          favoriteOnly={favoriteOnly}
-          sort={sort}
-          testID="link-filter-row"
-          onFavoriteOnlyChange={setFavoriteOnly}
-          onSortChange={setSort}
-        >
-          {totalLabel != null ? (
-            <Text className="text-sm text-muted-foreground">{totalLabel}</Text>
-          ) : null}
-        </LinkFilterRow>
-        {isLoadError ? (
-          <LoadErrorState
-            title="링크를 불러오지 못했어요"
-            isRetrying={linksQuery.isFetching}
-            onRetry={() => {
-              void linksQuery.refetch();
-            }}
-          />
-        ) : isEmpty && favoriteOnly ? (
-          <EmptyState
-            emoji="📭"
-            title="조건에 맞는 링크가 없어요"
-            description="바로가기만 보는 중이에요."
-          />
-        ) : isEmpty ? (
-          <EmptyState
-            emoji="📭"
-            title="아직 링크가 없어요"
-            description="새 링크를 추가하면 이곳에 표시돼요."
-          />
-        ) : (
-          <LinkCardGrid
-            isLoading={linksQuery.isPending}
-            links={links}
-            skeletonCount={8}
-            activeLinkId={activeLinkId}
-            onCardPress={handleCardPress}
-          />
-        )}
-        <PaginationFooter
-          isLoading={linksQuery.isFetchingNextPage}
-          isError={linksQuery.isFetchNextPageError}
-          errorTitle="링크를 불러오지 못했어요"
-          onRetry={pagination.retryNextPage}
-        />
-      </View>
-    </ScrollView>
-  );
+    ),
+  });
 }
 
 export { LinkListView };
-export type { LinkListViewProps };
+export type { LinkListViewProps, PublicLinkListViewProps };
