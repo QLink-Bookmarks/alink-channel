@@ -5,7 +5,7 @@ type Folder = {
   id: number;
   ownerId?: number;
   ownerNickname?: string | null;
-  turnsPublicAt?: string | null;
+  turnsPublicAt: string | null;
   name: string;
   emoji?: string | null;
   isShared: boolean;
@@ -105,8 +105,7 @@ type UpdateFolderRequest = {
   isShared?: boolean | null;
 };
 
-type FolderPrivacy = { isPublic: boolean };
-type UpdateFolderResponse = ApiEnvelope<{ id: number } & FolderPrivacy>;
+type UpdateFolderResponse = ApiEnvelope<{ id: number; turnsPublicAt: string | null }>;
 type PublicFolder = { id: number; name: string; emoji: string | null };
 type PublicFolderLists = {
   links: { id: number; title: string; url: string };
@@ -133,7 +132,6 @@ export type {
   FolderListStatus,
   FolderMember,
   FolderOrderKey,
-  FolderPrivacy,
   FolderScrollResponse,
   GetFolderMembersResponse,
   GetFolderMembersResponseData,

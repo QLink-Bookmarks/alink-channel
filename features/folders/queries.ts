@@ -1,5 +1,7 @@
 import * as React from "react";
 
+import { resourceReadOptions } from "@/features/navigation/lib/resource-read";
+import { useAuthStore } from "@/stores/auth";
 import {
   type QueryClient,
   useInfiniteQuery,
@@ -7,7 +9,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
-import { getFolderMembers, getFolderPrivacy, getFolders } from "./api";
+import { getFolderDetail, getFolderMembers, getFolders } from "./api";
 import {
   findFolderInPages,
   flattenFolderPages,
@@ -29,17 +31,22 @@ const folderQueryKeys = {
   list: (params: FolderListParams) => ["folders", "list", params] as const,
   infinite: (params: FolderPagesParams) => ["folders", "infinite", params] as const,
   members: (id: number) => ["folders", "members", id] as const,
-  privacy: (id: number | null) => ["folders", "privacy", id] as const,
+  detail: (id: number | null) => ["folders", "detail", id] as const,
 };
 
-function useFolderPrivacyQuery(id: number | null) {
+function useFolderDetailQuery(id: number | null, enabled = true) {
+  const authToken = useAuthStore((state) => state.accessToken);
   return useQuery({
-    enabled: id != null,
+    enabled: enabled && id != null && Boolean(authToken),
     queryFn: async ({ signal }) => {
-      if (id == null) return null;
-      return (await getFolderPrivacy(id, signal)).data;
+      if (id == null || !authToken) throw new Error("Authenticated folder ID is required");
+      const response = await getFolderDetail(id, resourceReadOptions(authToken, signal));
+      if (!response.success || !response.data || !("isShared" in response.data)) {
+        throw new Error("Authenticated folder detail is unavailable");
+      }
+      return response.data;
     },
-    queryKey: folderQueryKeys.privacy(id),
+    queryKey: folderQueryKeys.detail(id),
     refetchOnMount: "always",
     retry: false,
     staleTime: 0,
@@ -209,7 +216,7 @@ export {
   folderQueryKeys,
   useFolderMembersQuery,
   useFolderPagesQuery,
-  useFolderPrivacyQuery,
+  useFolderDetailQuery,
   useFolderQuery,
   useFoldersQuery,
 };

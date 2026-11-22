@@ -51,10 +51,14 @@ function useCreateLinkMutation() {
 
 function useUpdateLinkMutation(linkId: string | number) {
   const invalidateLinkQueries = useInvalidateLinkQueries();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: UpdateLinkRequest) => updateLink(linkId, payload),
-    onSuccess: () => {
+    onSuccess: (_response, payload) => {
       invalidateLinkQueries(linkId);
+      if (payload.isPublic !== undefined) {
+        void invalidatePublicLinkQueries(queryClient, linkId);
+      }
     },
   });
 }
@@ -113,10 +117,19 @@ function useSetLinkPrivacyMutation(linkId: number) {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: getLinkDetailQueryKey(linkId) }),
         invalidateLinkListAndSearchQueries(queryClient),
-        queryClient.invalidateQueries({ queryKey: ["resource-read", "links", linkId] }),
-        queryClient.invalidateQueries({ queryKey: ["folder-read"] }),
+        invalidatePublicLinkQueries(queryClient, linkId),
       ]),
   });
+}
+
+function invalidatePublicLinkQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  linkId: number | string,
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["resource-read", "links", Number(linkId)] }),
+    queryClient.invalidateQueries({ queryKey: ["folder-read"] }),
+  ]);
 }
 
 export {

@@ -27,6 +27,7 @@ function makeFolders(count: number): Folder[] {
     return {
       id,
       name: `폴더 ${id}`,
+      turnsPublicAt: null,
       isShared: id % 3 === 0,
       shareCounts: 0,
       linkCounts: 0,

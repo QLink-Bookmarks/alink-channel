@@ -66,6 +66,7 @@ describe("folder choice helpers", () => {
       toFolderChoice({
         id: 7,
         name: "제주 여행",
+        turnsPublicAt: null,
         emoji: null,
         isShared: false,
         shareCounts: 0,

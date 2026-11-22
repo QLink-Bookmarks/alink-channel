@@ -3,6 +3,16 @@ import { ScrollView, View } from "react-native";
 
 import { Sheet } from "@/components/layout/sheet";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,16 +32,22 @@ import { getWebAppOrigin } from "@/lib/app-variant";
 import { getThemeTokens } from "@/lib/theme";
 import { useDisplaySettings } from "@/stores/display-settings";
 import { useToastStore } from "@/stores/toast-store";
+import type { TriggerRef } from "@rn-primitives/popover";
 
 import { buildInviteShareText } from "../lib/build-invite-share-text";
 import { getApiErrorMessage } from "../lib/folder-api-errors";
 import { shareInvitation } from "../lib/share-invitation";
-import { useCreateFolderInvitationMutation, useDeleteFolderMemberMutation } from "../mutations";
-import { useFolderMembersQuery } from "../queries";
+import {
+  useCreateFolderInvitationMutation,
+  useDeleteFolderMemberMutation,
+  useSetFolderPrivacyMutation,
+} from "../mutations";
+import { useFolderDetailQuery, useFolderMembersQuery } from "../queries";
 import type { Folder, FolderMember } from "../types";
 import type { CreateFolderDialogMode } from "./create-folder-dialog";
-import { EditFolderDialog } from "./create-folder-dialog";
+import { EditFolderDialog, PUBLISH_DESCRIPTION, PUBLISH_TITLE } from "./create-folder-dialog";
 import { FolderRemovalFlow, type FolderRemovalKind } from "./folder-removal-flow";
+import { VisibilityPopover } from "./visibility-popover";
 
 import * as Clipboard from "expo-clipboard";
 import { type Href, useRouter } from "expo-router";
@@ -91,6 +107,12 @@ function FolderHeaderActions({ mode, folder }: FolderHeaderActionsProps) {
               size="sm"
               variant="ghost"
               onPress={() => setIsEditOpen(true)}
+            />
+          ) : null}
+          {canEdit ? (
+            <FolderVisibilityAction
+              key={folder.id}
+              folder={folder}
             />
           ) : null}
           {canShare ? (
@@ -153,6 +175,78 @@ function FolderHeaderActions({ mode, folder }: FolderHeaderActionsProps) {
       ) : (
         removalFlow
       )}
+    </>
+  );
+}
+
+function FolderVisibilityAction({ folder }: { folder: Folder }) {
+  const [open, setOpen] = React.useState(false);
+  const [confirming, setConfirming] = React.useState(false);
+  const mutation = useSetFolderPrivacyMutation();
+  const detail = useFolderDetailQuery(folder.id, open || confirming || mutation.isPending);
+  const trigger = React.useRef<TriggerRef>(null);
+  const isPublic =
+    typeof (detail.data ? detail.data.turnsPublicAt : folder.turnsPublicAt) === "string";
+  const canChange =
+    detail.isSuccess && detail.data.turnsPublicAt !== undefined && !detail.isFetching;
+
+  const handleWrite = (next: boolean) => {
+    if (mutation.isPending) return;
+    mutation.mutate(
+      { id: folder.id, isPublic: next },
+      {
+        onError: () => void detail.refetch(),
+      },
+    );
+  };
+
+  return (
+    <>
+      <VisibilityPopover
+        canPublish={canChange}
+        error={
+          mutation.isError
+            ? "공개 설정을 저장하지 못했어요."
+            : detail.isError
+              ? "공개 설정을 확인하지 못했어요."
+              : undefined
+        }
+        isPublic={isPublic}
+        pending={mutation.isPending || !canChange}
+        triggerRef={trigger}
+        onChange={(next) => {
+          if (!canChange || next === isPublic) return;
+          if (next) setConfirming(true);
+          else handleWrite(false);
+        }}
+        onOpenChange={setOpen}
+      />
+      <AlertDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+      >
+        <AlertDialogContent
+          className="max-w-md"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            trigger.current?.close();
+            trigger.current?.focus();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>{PUBLISH_TITLE}</AlertDialogTitle>
+            <AlertDialogDescription>{PUBLISH_DESCRIPTION}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Text>취소</Text>
+            </AlertDialogCancel>
+            <AlertDialogAction onPress={() => handleWrite(true)}>
+              <Text>전체 공개</Text>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

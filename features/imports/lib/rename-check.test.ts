@@ -13,6 +13,7 @@ function folder(id: number, name: string, overrides: Partial<Folder> = {}): Fold
     linkCounts: 0,
     myLinkCounts: 0,
     ownerId: ME,
+    turnsPublicAt: null,
     ...overrides,
   };
 }

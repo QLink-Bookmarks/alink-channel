@@ -12,7 +12,6 @@ import type {
   DeleteFolderParams,
   DeleteFolderResponse,
   Folder,
-  FolderPrivacy,
   GetFolderMembersResponse,
   GetFoldersParams,
   GetFoldersResponse,
@@ -53,8 +52,8 @@ async function updateFolder(id: number, payload: UpdateFolderRequest) {
   return api.put<UpdateFolderResponse, UpdateFolderRequest>(`/api/folders/${id}`, payload);
 }
 
-async function getFolderPrivacy(id: number, signal?: AbortSignal) {
-  return api.get<ApiEnvelope<FolderPrivacy>>(`/api/folders/${id}/privacy`, { signal });
+async function setFolderPrivacy(id: number, payload: { isPublic: boolean }) {
+  return api.put<ApiEnvelope<null>, typeof payload>(`/api/folders/${id}/privacy`, payload);
 }
 
 async function getFolderDetail(id: number, read: ApiRequestConfig) {
@@ -88,7 +87,7 @@ export {
   deleteFolder,
   deleteFolderMember,
   getFolderMembers,
-  getFolderPrivacy,
+  setFolderPrivacy,
   getFolders,
   getFolderDetail,
   transferFolderOwnership,
