@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>로그인 복귀 주소 검증</title>
+  </head>
+  <body>
+    <p>로그인 복귀 주소를 준비하고 있습니다.</p>
+    <script>
+      const destinations = new Map([
+        ["external", "https://outside.test/home"],
+        ["missing", "/does-not-exist"],
+        ["auth", "/login"],
+      ]);
+      const testCase = new URLSearchParams(window.location.search).get("case");
+      const destination = destinations.get(testCase);
+      if (destination) {
+        window.sessionStorage.setItem("qlink-return-destination", destination);
+        window.location.replace("/login");
+      } else {
+        document.querySelector("p").textContent = "검증 주소에 올바른 case를 지정해주세요.";
+      }
+    </script>
+  </body>
+</html>

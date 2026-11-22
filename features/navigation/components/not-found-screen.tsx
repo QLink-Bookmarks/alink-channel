@@ -9,9 +9,6 @@ import { type Href, useRouter } from "expo-router";
 function NotFoundScreen() {
   const router = useRouter();
   const handleGoHome = React.useCallback(() => {
-    // Route to root, not /home: /home is auth-guarded, so when signed out it is
-    // not a navigable route and replace() would no-op. Root hits the auth splash
-    // which forwards to /home (signed in) or the login screen (signed out).
     router.replace("/" as Href);
   }, [router]);
 

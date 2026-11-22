@@ -10,7 +10,7 @@ import {
 
 import { signIn } from "../api";
 import { type ConnectOutcome, connectWithToken } from "../lib/connect-with-token";
-import { beginOauthState, getOauthMode, setOauthMode } from "../lib/oauth-state";
+import { type OauthMode, beginOauthAttempt } from "../lib/oauth-state";
 
 import { createURL } from "expo-linking";
 
@@ -21,7 +21,7 @@ function getRedirectUri(): string {
 // Called by the shared web redirect dispatcher once it confirms the returning
 // `?code=` belongs to Kakao (via `state`). Returns a connect outcome when this
 // round-trip was a "connect" flow, or null when it was a login (handled here).
-async function exchangeKakaoCode(code: string): Promise<ConnectOutcome | null> {
+async function exchangeKakaoCode(code: string, mode: OauthMode): Promise<ConnectOutcome | null> {
   const socialToken = await issueAccessTokenWithCodeWeb({
     code,
     redirectUri: getRedirectUri(),
@@ -31,7 +31,7 @@ async function exchangeKakaoCode(code: string): Promise<ConnectOutcome | null> {
   }
   setAccessTokenWeb(socialToken.accessToken);
 
-  if (getOauthMode() === "connect") {
+  if (mode === "connect") {
     return connectWithToken("KAKAO", socialToken.accessToken, "WEB");
   }
 
@@ -46,12 +46,12 @@ async function exchangeKakaoCode(code: string): Promise<ConnectOutcome | null> {
   return null;
 }
 
-async function startKakaoOauth(): Promise<void> {
+async function startKakaoOauth(mode: OauthMode): Promise<void> {
   await kakaoLogin({
     web: {
       redirectUri: getRedirectUri(),
       prompt: ["select_account"],
-      state: beginOauthState("kakao"),
+      state: beginOauthAttempt("kakao", mode),
     },
   });
 }
@@ -59,8 +59,7 @@ async function startKakaoOauth(): Promise<void> {
 function useKakaoLogin() {
   const handleKakaoLogin = React.useCallback(async () => {
     try {
-      setOauthMode("login");
-      await startKakaoOauth();
+      await startKakaoOauth("login");
     } catch (error) {
       reportError(error, { area: "auth:kakao-login" });
     }
@@ -72,8 +71,7 @@ function useKakaoLogin() {
 // Kick off the Kakao redirect in "connect" mode. Completion happens on return
 // via exchangeKakaoCode.
 async function beginKakaoConnect(): Promise<void> {
-  setOauthMode("connect");
-  await startKakaoOauth();
+  await startKakaoOauth("connect");
 }
 
 export { beginKakaoConnect, exchangeKakaoCode, useKakaoLogin };

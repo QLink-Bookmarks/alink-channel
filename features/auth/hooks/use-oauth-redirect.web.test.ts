@@ -16,13 +16,15 @@ const mockedExchangeKakao = exchangeKakaoCode as jest.MockedFunction<typeof exch
 const mockedProcessNaver = processNaverRedirect as jest.MockedFunction<typeof processNaverRedirect>;
 
 const KAKAO_STATE = "kakao:abc";
+const NAVER_STATE = "naver:def";
+const ATTEMPT_KEY = "qlink.oauth.attempt";
 
 function stubLocation(href: string) {
   const url = new URL(href);
   const storage = new Map<string, string>();
   Object.assign(globalThis, {
     window: {
-      location: { href: url.toString(), hash: url.hash },
+      location: { href: url.toString(), hash: url.hash, pathname: url.pathname },
       history: { replaceState: jest.fn() },
     },
     sessionStorage: {
@@ -34,10 +36,16 @@ function stubLocation(href: string) {
   return storage;
 }
 
-function startRedirect(href: string, mode: "login" | "connect") {
+function startRedirect(href: string, mode: "login" | "connect", provider = "kakao") {
   const storage = stubLocation(href);
-  storage.set("qlink.oauth.state", KAKAO_STATE);
-  storage.set("qlink.oauth.mode", mode);
+  storage.set(
+    ATTEMPT_KEY,
+    JSON.stringify({
+      provider,
+      mode,
+      state: provider === "naver" ? NAVER_STATE : KAKAO_STATE,
+    }),
+  );
   return renderHook(() => useOauthRedirect());
 }
 
@@ -80,9 +88,10 @@ describe("useOauthRedirect (web)", () => {
   it("shows a failure when the Naver connect return cannot be processed", async () => {
     mockedProcessNaver.mockRejectedValue(new Error("sdk"));
 
-    startRedirect("https://app.test/#access_token=n1", "connect");
+    startRedirect(`https://app.test/#access_token=n1&state=${NAVER_STATE}`, "connect", "naver");
 
     await waitFor(() => expect(mockApply).toHaveBeenCalledWith(failed("NAVER")));
+    expect(mockedProcessNaver).toHaveBeenCalledWith("n1", "connect");
   });
 
   it("shows nothing for a login return that fails", async () => {
@@ -104,5 +113,38 @@ describe("useOauthRedirect (web)", () => {
     await waitFor(() => expect(result.current.isProcessing).toBe(false));
     expect(mockedExchangeKakao).not.toHaveBeenCalled();
     expect(mockApply).not.toHaveBeenCalled();
+  });
+
+  it("clears a cancelled Naver return and lets the user resume login", async () => {
+    const { result } = startRedirect(
+      `https://app.test/#error=access_denied&state=${NAVER_STATE}`,
+      "login",
+      "naver",
+    );
+
+    await waitFor(() => expect(result.current.isProcessing).toBe(false));
+    expect(result.current.shouldEnterApp).toBe(true);
+    expect(mockedProcessNaver).not.toHaveBeenCalled();
+    expect(window.history.replaceState).toHaveBeenCalledWith(
+      undefined,
+      "",
+      new URL("https://app.test/"),
+    );
+  });
+
+  it.each([
+    ["kakao", KAKAO_STATE],
+    ["naver", "naver:new-attempt"],
+  ])("leaves the current %s attempt alone on a stale Naver callback", async (provider, state) => {
+    const storage = stubLocation(`https://app.test/#access_token=old&state=${NAVER_STATE}`);
+    const current = JSON.stringify({ provider, state, mode: "connect" });
+    storage.set(ATTEMPT_KEY, current);
+    const { result } = renderHook(() => useOauthRedirect());
+
+    await waitFor(() => expect(result.current.isProcessing).toBe(false));
+    expect(result.current.shouldEnterApp).toBe(false);
+    expect(mockedProcessNaver).not.toHaveBeenCalled();
+    expect(mockedExchangeKakao).not.toHaveBeenCalled();
+    expect(storage.get(ATTEMPT_KEY)).toBe(current);
   });
 });
