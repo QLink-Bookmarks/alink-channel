@@ -3,50 +3,25 @@ import * as React from "react";
 import { reportError } from "@/lib/error-reporting";
 
 import { type ConnectOutcome, connectFailed } from "../lib/connect-with-token";
-import {
-  clearOauthMode,
-  clearOauthState,
-  getOauthMode,
-  resolveOauthState,
-} from "../lib/oauth-state";
+import { hasOauthCallbackHash } from "../lib/oauth-callback";
+import { consumeOauthAttempt } from "../lib/oauth-state";
 import type { SocialProvider } from "../lib/provider-brand";
 import { useConnectFeedback } from "./use-connect-feedback";
 import { exchangeKakaoCode } from "./use-kakao-login.web";
 import { processNaverRedirect } from "./use-naver-login.web";
 
-type OauthRedirect = { code: string; state: string | null };
-
-function readRedirect(): OauthRedirect | null {
-  if (typeof window === "undefined") return null;
+function clearCallbackUrl() {
   const url = new URL(window.location.href);
-  const code = url.searchParams.get("code");
-  if (!code) return null;
-  return { code, state: url.searchParams.get("state") };
+  for (const key of ["code", "state", "error", "error_description", "error_uri"]) {
+    url.searchParams.delete(key);
+  }
+  if (hasOauthCallbackHash(url.hash)) url.hash = "";
+  window.history.replaceState(window.history.state, "", url);
 }
 
-function clearRedirectParams() {
-  if (typeof window === "undefined") return;
-  // Defer so it runs after expo-router finishes asserting the initial URL on
-  // hydration, otherwise the router re-adds the stale params.
-  setTimeout(() => {
-    const url = new URL(window.location.href);
-    url.searchParams.delete("code");
-    url.searchParams.delete("state");
-    window.history.replaceState(null, "", url.toString());
-  }, 0);
-}
-
-function hasNaverHash(): boolean {
-  return typeof window !== "undefined" && window.location.hash.includes("access_token");
-}
-
-// Single web callback handler. Kakao returns to the app root with `?code=&state=`
-// (resolved via `state`); Naver uses its SDK's implicit flow and returns the
-// token in the URL hash, handled by processNaverRedirect.
 function useOauthRedirect() {
-  const [isProcessing, setIsProcessing] = React.useState(
-    () => Boolean(readRedirect()) || hasNaverHash(),
-  );
+  const [isProcessing, setIsProcessing] = React.useState(true);
+  const [shouldEnterApp, setShouldEnterApp] = React.useState(false);
   const handledRef = React.useRef(false);
   const applyConnectOutcome = useConnectFeedback();
 
@@ -55,48 +30,42 @@ function useOauthRedirect() {
     handledRef.current = true;
 
     void (async () => {
-      const isConnect = getOauthMode() === "connect";
+      const url = new URL(window.location.href);
+      const hash = new URLSearchParams(url.hash.slice(1));
+      const hashCallback = hasOauthCallbackHash(url.hash);
+      const params = hashCallback ? hash : url.searchParams;
+      const state = params.get("state");
+      const provider =
+        hashCallback || (params.has("error") && state?.startsWith("naver:")) ? "naver" : "kakao";
+      const credential = params.get(provider === "naver" ? "access_token" : "code");
+      const attempt = consumeOauthAttempt(provider, state);
       let attempted: SocialProvider | null = null;
       let outcome: ConnectOutcome | null = null;
+
       try {
-        if (hasNaverHash()) {
-          attempted = "NAVER";
-          setIsProcessing(true);
-          outcome = await processNaverRedirect();
-          return;
+        if (attempt && credential) {
+          attempted = provider === "naver" ? "NAVER" : "KAKAO";
+          outcome = await (provider === "naver"
+            ? processNaverRedirect(credential, attempt.mode)
+            : exchangeKakaoCode(credential, attempt.mode));
         }
-
-        const redirect = readRedirect();
-        if (!redirect) {
-          return;
-        }
-
-        attempted = "KAKAO";
-        const provider = resolveOauthState(redirect.state);
-        if (provider === "kakao") {
-          setIsProcessing(true);
-          outcome = await exchangeKakaoCode(redirect.code);
-        }
-        clearRedirectParams();
-        clearOauthState();
       } catch (error) {
         reportError(error, { area: "auth:oauth-exchange" });
       } finally {
-        clearOauthMode();
-        setIsProcessing(false);
-        // A connect round-trip always ends in a toast: its outcome, or a
-        // failure when the token exchange threw or returned nothing.
-        if (!outcome && isConnect && attempted) {
-          outcome = connectFailed(attempted);
+        if (attempt?.mode === "connect" && attempted) {
+          applyConnectOutcome(outcome ?? connectFailed(attempted));
         }
-        if (outcome) {
-          applyConnectOutcome(outcome);
-        }
+        // Expo Router can still be committing the initial URL on hydration.
+        setTimeout(() => {
+          if (window.location.pathname === "/") clearCallbackUrl();
+          setShouldEnterApp(attempt !== null);
+          setIsProcessing(false);
+        }, 0);
       }
     })();
   }, [applyConnectOutcome]);
 
-  return { isProcessing };
+  return { isProcessing, shouldEnterApp };
 }
 
 export { useOauthRedirect };

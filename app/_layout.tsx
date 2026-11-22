@@ -8,8 +8,8 @@ import { SafeAreaProvider, initialWindowMetrics } from "react-native-safe-area-c
 import { AppErrorBoundary } from "@/components/error/app-error-boundary";
 import { ToastViewport } from "@/components/ui/toast-viewport";
 import { useMySettingsQuery } from "@/features/account/queries";
-import { useAgreementStatus } from "@/features/agreements/hooks/use-agreement-status";
 import { useScreenTracking } from "@/features/analytics";
+import { ShareIntentBridge } from "@/features/auth/components/share-intent-bridge";
 import { useSocialSdks } from "@/features/auth/hooks/use-social-sdks";
 import { useDocumentTitle } from "@/features/navigation/hooks/use-document-title";
 import { PushNotificationsBridge } from "@/features/notifications/components/push-notifications-bridge";
@@ -19,18 +19,17 @@ import { getNativeThemeVars } from "@/lib/theme-vars";
 import { QueryProvider } from "@/providers/query-provider";
 import { useAuthStore } from "@/stores/auth";
 import { useDisplaySettings } from "@/stores/display-settings";
-import { useShareIntentStore } from "@/stores/share-intent";
 import { ThemeProvider } from "@react-navigation/native";
 import { PortalHost } from "@rn-primitives/portal";
 
-import { Stack, useRouter } from "expo-router";
-import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
+import { Stack } from "expo-router";
+import { ShareIntentProvider } from "expo-share-intent";
 import { useColorScheme, vars } from "nativewind";
 
 const StorybookEnabled = process.env.EXPO_PUBLIC_STORYBOOK_ENABLED === "true";
 
 export const unstable_settings = {
-  initialRouteName: StorybookEnabled ? "(storybook)/index" : "(auth)",
+  initialRouteName: StorybookEnabled ? "(storybook)/index" : "index",
 };
 
 function SettingsHydrator() {
@@ -92,80 +91,22 @@ function DocumentTitleBridge() {
   return null;
 }
 
-function ShareIntentBridge() {
-  const router = useRouter();
-  const hasHydrated = useAuthStore((state) => state.hasHydrated);
-  const accessToken = useAuthStore((state) => state.accessToken);
-  const setPendingShare = useShareIntentStore((state) => state.setPending);
-  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
-
-  React.useEffect(() => {
-    if (!hasShareIntent) {
-      return;
-    }
-    const sharedUrl = shareIntent.webUrl ?? shareIntent.text ?? "";
-    if (sharedUrl) {
-      // When signed in, open the create sheet now; otherwise stash it and let the
-      // auth splash route to it after login (mirrors the pending-invite flow).
-      if (hasHydrated && accessToken) {
-        router.push({ pathname: "/home", params: { linkUrl: sharedUrl } });
-      } else {
-        setPendingShare({ url: sharedUrl });
-      }
-    }
-    resetShareIntent();
-  }, [
-    accessToken,
-    hasHydrated,
-    hasShareIntent,
-    resetShareIntent,
-    router,
-    setPendingShare,
-    shareIntent,
-  ]);
-
-  return null;
-}
-
 function AppStack() {
-  const { isAuthenticated, needsAgreement } = useAgreementStatus();
-
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={StorybookEnabled}>
         <Stack.Screen name="(storybook)/index" />
       </Stack.Protected>
 
+      <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
-
       <Stack.Screen name="invite" />
-
       <Stack.Screen name="privacy" />
-
-      <Stack.Protected guard={isAuthenticated}>
-        <Stack.Protected guard={needsAgreement}>
-          <Stack.Screen
-            name="agreements"
-            options={{ gestureEnabled: false }}
-          />
-        </Stack.Protected>
-
-        <Stack.Protected guard={!needsAgreement}>
-          <Stack.Screen
-            name="qr-scan"
-            options={{
-              headerShown: true,
-              title: "QR 스캔",
-              headerBackTitle: " ",
-              headerBackButtonDisplayMode: "minimal",
-            }}
-          />
-        </Stack.Protected>
-      </Stack.Protected>
-
-      {/* (pages) stays unguarded here so a logged-out deep-link into any app page
-          actually mounts and its layout can redirect to /login (root shows the
-          marketing landing instead). Auth + agreement gating lives in PagesLayout. */}
+      <Stack.Screen
+        name="agreements"
+        options={{ gestureEnabled: false }}
+      />
+      <Stack.Screen name="qr-scan" />
       <Stack.Screen name="(pages)" />
     </Stack>
   );

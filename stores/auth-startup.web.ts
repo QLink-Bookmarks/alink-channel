@@ -1,11 +1,8 @@
+import { hasOauthCallback } from "@/features/auth/lib/oauth-callback";
+
 import type { AuthTokens, StartupRefresh } from "./auth-tokens";
 
 const STARTUP_REFRESH_WAIT_MS = 4000;
-
-function isOauthReturn() {
-  const url = new URL(window.location.href);
-  return url.searchParams.has("code") || url.hash.includes("access_token");
-}
 
 function waitAtMost<T>(promise: Promise<T>, fallback: T, ms: number): Promise<T> {
   return new Promise<T>((resolve) => {
@@ -30,7 +27,10 @@ async function resolveStartupTokens(
   if (stored?.accessToken) {
     return { accessToken: stored.accessToken, refreshToken: null };
   }
-  if (typeof window === "undefined" || isOauthReturn()) {
+  if (
+    typeof window === "undefined" ||
+    (window.location.pathname === "/" && hasOauthCallback(window.location))
+  ) {
     return null;
   }
   const accessToken = await waitAtMost(

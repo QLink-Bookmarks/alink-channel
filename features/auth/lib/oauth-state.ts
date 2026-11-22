@@ -1,71 +1,40 @@
-// Shared OAuth `state` helper so multiple providers can share a single web
-// redirect target (the app root) without their callbacks colliding. The state
-// encodes the provider and a random token that we verify on return (CSRF).
-
-type OauthProvider = "kakao" | "naver";
-
-// Whether the current OAuth round-trip is a fresh login or connecting an extra
-// provider to the already-signed-in account. Both share the same redirect URI,
-// so the intent rides along in sessionStorage and is read back on return.
 type OauthMode = "login" | "connect";
+type OauthProvider = "kakao" | "naver";
+type OauthAttempt = { provider: OauthProvider; mode: OauthMode; state: string };
 
-const STATE_STORAGE_KEY = "qlink.oauth.state";
-const MODE_STORAGE_KEY = "qlink.oauth.mode";
+const ATTEMPT_STORAGE_KEY = "qlink.oauth.attempt";
 
-function randomToken(): string {
-  const cryptoRef = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
-  if (cryptoRef?.randomUUID) {
-    return cryptoRef.randomUUID().replace(/-/g, "");
-  }
-  return `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+function beginOauthAttempt(provider: OauthProvider, mode: OauthMode): string {
+  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  const state = `${provider}:${nonce}`;
+  sessionStorage.setItem(ATTEMPT_STORAGE_KEY, JSON.stringify({ provider, mode, state }));
+  return state;
 }
 
-function getSessionStorage(): Storage | null {
+function consumeOauthAttempt(
+  provider: OauthProvider,
+  returnedState: string | null,
+): OauthAttempt | null {
+  if (!returnedState) return null;
   try {
-    return typeof sessionStorage !== "undefined" ? sessionStorage : null;
+    const raw = sessionStorage.getItem(ATTEMPT_STORAGE_KEY);
+    if (!raw) return null;
+    const attempt = JSON.parse(raw) as Partial<OauthAttempt>;
+    if (
+      attempt.provider !== provider ||
+      attempt.state !== returnedState ||
+      (attempt.mode !== "login" && attempt.mode !== "connect")
+    )
+      return null;
+
+    sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
+    return { provider, mode: attempt.mode, state: returnedState };
   } catch {
     return null;
   }
 }
 
-// Build a `<provider>:<token>` state and persist it for the round trip.
-function beginOauthState(provider: OauthProvider): string {
-  const state = `${provider}:${randomToken()}`;
-  getSessionStorage()?.setItem(STATE_STORAGE_KEY, state);
-  return state;
-}
-
-// Return the provider only if the returned state exactly matches what we stored.
-function resolveOauthState(returnedState: string | null): OauthProvider | null {
-  if (!returnedState) return null;
-  const stored = getSessionStorage()?.getItem(STATE_STORAGE_KEY);
-  if (!stored || stored !== returnedState) return null;
-  const provider = returnedState.split(":")[0];
-  return provider === "kakao" || provider === "naver" ? provider : null;
-}
-
-function clearOauthState(): void {
-  getSessionStorage()?.removeItem(STATE_STORAGE_KEY);
-}
-
-function setOauthMode(mode: OauthMode): void {
-  getSessionStorage()?.setItem(MODE_STORAGE_KEY, mode);
-}
-
-function getOauthMode(): OauthMode {
-  return getSessionStorage()?.getItem(MODE_STORAGE_KEY) === "connect" ? "connect" : "login";
-}
-
-function clearOauthMode(): void {
-  getSessionStorage()?.removeItem(MODE_STORAGE_KEY);
-}
-
-export {
-  beginOauthState,
-  clearOauthMode,
-  clearOauthState,
-  getOauthMode,
-  resolveOauthState,
-  setOauthMode,
-};
-export type { OauthMode, OauthProvider };
+export { beginOauthAttempt, consumeOauthAttempt };
+export type { OauthMode };
