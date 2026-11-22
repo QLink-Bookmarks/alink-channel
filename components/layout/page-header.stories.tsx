@@ -55,3 +55,15 @@ export const Basic: Story = {
     />
   ),
 };
+
+export const FolderTitle: Story = {
+  name: "폴더 제목",
+  render: () => (
+    <PageHeader
+      className="flex"
+      title="디자인 레퍼런스"
+      emoji="📁"
+      titleAccessibilityRole="header"
+    />
+  ),
+};

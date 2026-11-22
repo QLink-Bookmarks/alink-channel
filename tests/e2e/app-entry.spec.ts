@@ -24,6 +24,15 @@ const refreshPath = "/api/auth/token/refresh/web";
 const googleSdk = "https://accounts.google.com/gsi/client";
 const kakaoSdk = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.9/kakao.min.js";
 
+test.beforeEach(({ page }, testInfo) => {
+  if (testInfo.title.startsWith("removed address /app ")) return;
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) {
+      expect(new URL(frame.url()).pathname).not.toBe("/app");
+    }
+  });
+});
+
 function json(route: Route, data: unknown, status = 200) {
   return route.fulfill({ status, json: data });
 }
@@ -366,7 +375,7 @@ test("a background profile error preserves the open link form and its input", as
 });
 
 for (const route of ["/folders/3", "/links/7", "/qr-scan"] as const) {
-  test(`agreed user can open, reload and leave ${route}`, async ({ page, isMobile }) => {
+  test(`agreed user can open, reload and leave ${route}`, async ({ page }) => {
     await setUp(page);
     await page.goto("/privacy");
     await page.goto(route);
@@ -376,12 +385,11 @@ for (const route of ["/folders/3", "/links/7", "/qr-scan"] as const) {
       : route === "/folders/3"
         ? new RegExp(folder.name)
         : "QR 스캔";
-    const expectedUrl = isLink && !isMobile ? "/links?linkId=7" : route;
     await expect(
       page.getByText(screen, { exact: true }).filter({ visible: true }).first(),
     ).toBeVisible();
     await page.reload();
-    await expect(page).toHaveURL(expectedUrl);
+    await expect(page).toHaveURL(route);
     await expect(
       page.getByText(screen, { exact: true }).filter({ visible: true }).first(),
     ).toBeVisible();
@@ -398,7 +406,8 @@ test("guest resumes the original folder and overlay after reloading login", asyn
   await page.goto("/privacy");
   await page.goto(destination);
   await expect(page).toHaveURL("/login");
-  expect(state.requests.some(({ path }) => path.startsWith("/api/folders/"))).toBe(false);
+  expect(state.requests.filter(({ path }) => path === "/api/folders/3")).toHaveLength(1);
+  expect(state.requests.some(({ path }) => path === "/api/folders")).toBe(false);
   await page.reload();
   await signIn(page);
   await expectDestination(page, isMobile);
@@ -407,6 +416,21 @@ test("guest resumes the original folder and overlay after reloading login", asyn
   await page.goto("/home");
   await expectHome(page);
 });
+
+for (const resource of ["/folders/3", "/links/7"] as const) {
+  test(`guest login returns to the same direct resource ${resource}`, async ({ page }) => {
+    await setUp(page, { guest: true });
+    await page.goto(resource);
+    await expect(page).toHaveURL("/login");
+    await page.reload();
+    await signIn(page);
+    await expect(page).toHaveURL(resource);
+    const label = resource.startsWith("/links") ? link.title : new RegExp(folder.name);
+    await expect(page.getByText(label).filter({ visible: true }).first()).toBeVisible();
+    await page.reload();
+    await expect(page).toHaveURL(resource);
+  });
+}
 
 test("consent reload and failed save preserve the original destination", async ({
   page,

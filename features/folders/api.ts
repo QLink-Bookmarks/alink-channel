@@ -1,4 +1,5 @@
-import { api } from "@/lib/api-client";
+import type { ApiEnvelope } from "@/features/links/types";
+import { type ApiRequestConfig, api } from "@/lib/api-client";
 
 import type {
   AcceptFolderInvitationRequest,
@@ -10,9 +11,12 @@ import type {
   DeleteFolderMemberResponse,
   DeleteFolderParams,
   DeleteFolderResponse,
+  Folder,
+  FolderPrivacy,
   GetFolderMembersResponse,
   GetFoldersParams,
   GetFoldersResponse,
+  PublicFolder,
   TransferFolderOwnershipRequest,
   TransferFolderOwnershipResponse,
   UpdateFolderRequest,
@@ -49,6 +53,14 @@ async function updateFolder(id: number, payload: UpdateFolderRequest) {
   return api.put<UpdateFolderResponse, UpdateFolderRequest>(`/api/folders/${id}`, payload);
 }
 
+async function getFolderPrivacy(id: number, signal?: AbortSignal) {
+  return api.get<ApiEnvelope<FolderPrivacy>>(`/api/folders/${id}/privacy`, { signal });
+}
+
+async function getFolderDetail(id: number, read: ApiRequestConfig) {
+  return api.get<ApiEnvelope<Folder | PublicFolder>>(`/api/folders/${id}`, read);
+}
+
 async function deleteFolderMember(id: number, memberId: number) {
   return api.delete<DeleteFolderMemberResponse>(`/api/folders/${id}/members/${memberId}`);
 }
@@ -76,7 +88,9 @@ export {
   deleteFolder,
   deleteFolderMember,
   getFolderMembers,
+  getFolderPrivacy,
   getFolders,
+  getFolderDetail,
   transferFolderOwnership,
   updateFolder,
 };

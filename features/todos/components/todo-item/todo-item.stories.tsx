@@ -42,6 +42,26 @@ export const Basic: Story = {
   name: "기본",
 };
 
+export const ReadOnly: Story = {
+  name: "읽기 전용 액션",
+  render: (args) => (
+    <>
+      <TodoItem
+        {...args}
+        variant="display"
+        readOnly
+      />
+      <TodoItem
+        {...args}
+        variant="display"
+        readOnly
+        done
+        text="기록을 팀에 공유하기"
+      />
+    </>
+  ),
+};
+
 export const Display: Story = {
   name: "액션 카드",
   render: (args) => (
