@@ -65,7 +65,7 @@ describe("DetailPanel", () => {
       withSafeArea(
         <DetailPanel
           mode="overlay"
-          detail={{ id: 1 } as LinkDetail}
+          detail={{ id: 1, sourceType: "INPUT" } as LinkDetail}
           open
         />,
       ),

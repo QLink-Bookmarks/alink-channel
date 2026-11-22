@@ -7,7 +7,6 @@ import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { TodoDraftListEditor } from "@/features/todos/components/todo-draft-list-editor";
 import { TodoErrorSummary } from "@/features/todos/components/todo-error-summary";
-import { TodoItem } from "@/features/todos/components/todo-item/todo-item";
 import { formatTodoSchedule } from "@/features/todos/lib/todo-schedule-label";
 import { cn } from "@/lib/utils";
 import { type LeaveGuard, requestLeave, useLeaveGuard } from "@/stores/leave-guard";
@@ -30,34 +29,6 @@ type LinkDetailActionsSectionProps = {
   /** Tells the detail when editing starts and ends, to turn the other commands off. */
   onEditingChange: (editing: boolean) => void;
 };
-
-function LinkTodoCard({
-  todo,
-  nowMs,
-  onEdit,
-  onToggleDone,
-}: {
-  todo: LinkTodo;
-  nowMs: number;
-  onEdit: (todoId: LinkTodo["id"]) => void;
-  onToggleDone: (todoId: LinkTodo["id"], done: boolean) => void;
-}) {
-  const done = isLinkTodoDone(todo);
-  const schedule = formatTodoSchedule({ ...todo, done }, nowMs);
-  return (
-    <TodoItem
-      done={done}
-      overdue={schedule.overdue}
-      pressHint="고치기"
-      reminderLabel={schedule.label}
-      scheduleKind={schedule.kind}
-      text={getLinkTodoTitle(todo)}
-      variant="display"
-      onPress={() => onEdit(todo.id)}
-      onToggle={(next) => onToggleDone(todo.id, next)}
-    />
-  );
-}
 
 function SaveFailedAlert() {
   return (
@@ -257,17 +228,23 @@ function LinkDetailActionsSection({
           </View>
         </View>
       ) : (
-        <LinkDetailActionList>
-          {todos.map((todo) => (
-            <LinkTodoCard
-              key={todo.id}
-              nowMs={nowMs}
-              todo={todo}
-              onEdit={edit.startEdit}
-              onToggleDone={edit.toggleDone}
-            />
-          ))}
-        </LinkDetailActionList>
+        <LinkDetailActionList
+          items={todos.map((todo) => {
+            const done = isLinkTodoDone(todo);
+            const schedule = formatTodoSchedule({ ...todo, done }, nowMs);
+            return {
+              id: todo.id,
+              done,
+              overdue: schedule.overdue,
+              pressHint: "고치기",
+              reminderLabel: schedule.label,
+              scheduleKind: schedule.kind,
+              text: getLinkTodoTitle(todo),
+              onPress: () => edit.startEdit(todo.id),
+              onToggle: (next) => edit.toggleDone(todo.id, next),
+            };
+          })}
+        />
       )}
     </LinkDetailActionSection>
   );

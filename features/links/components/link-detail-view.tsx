@@ -1,7 +1,6 @@
 import * as React from "react";
 import { ActivityIndicator, BackHandler, Pressable, View } from "react-native";
 
-import { AppHeader } from "@/components/layout/app-header";
 import { Sheet } from "@/components/layout/sheet";
 import {
   AlertDialog,
@@ -56,9 +55,7 @@ import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { LinkDetailActionsSection } from "./link-detail-actions-section";
-import { LinkDetailAiSurface } from "./link-detail-ai-surface";
-import { LinkDetailBody } from "./link-detail-body";
-import { LinkDetailHead } from "./link-detail-head";
+import { LinkDetailContent } from "./link-detail-content";
 import { LinkDetailMyNotes, type LinkFieldsUpdate } from "./link-detail-my-notes";
 import { FOCUS_RING_CLASS_NAME } from "./link-detail-parts";
 import { LinkDetailToolbar } from "./link-detail-toolbar";
@@ -755,65 +752,54 @@ function LinkDetailView({
     />
   );
 
-  const body = (
-    <LinkDetailBody mode={mode}>
-      {isPanel ? toolbar : null}
-      <LinkDetailHead
-        faviconUrl={detail.faviconUrl}
-        isVideo={detail.isVideo}
-        mode={mode}
-        status={detail.status}
-        thumbnailUrl={detail.thumbnailUrl}
-        title={detail.title}
-        url={detail.url}
-        workModel={detail.workModel}
-      />
-      <LinkDetailAiSurface
-        excerpt={detail.content?.excerpt ?? null}
-        status={detail.status}
-        summary={detail.summary}
-        url={detail.url}
-        workModel={detail.workModel}
-      />
-      <LinkDetailMyNotes
-        key={detail.id}
-        folderEmoji={detail.folderEmoji}
-        folderName={detail.folderName}
-        isEditingActions={isEditingActions}
-        linkId={detail.id}
-        memo={detail.memo}
-        tags={tags}
-        onOpenFolderMove={handleOpenFolderMove}
-        onUpdateLink={handleUpdateNotes}
-      >
-        <LinkDetailActionsSection
-          key={detail.id}
-          linkId={detail.id}
-          mode={mode}
-          todos={todos}
-          onEditingChange={setIsEditingActions}
-        />
-      </LinkDetailMyNotes>
-      <View className="mt-1 border-t border-border-soft pt-3">
-        <DeleteLinkButton onPress={() => setIsDeleteDialogOpen(true)} />
-      </View>
-    </LinkDetailBody>
-  );
-
   return (
     <>
-      {isPanel ? (
-        body
-      ) : (
-        <View className="flex-1 bg-background">
-          <AppHeader
-            back
-            rightSlot={toolbar}
-            onBack={handleBack}
-          />
-          {body}
-        </View>
-      )}
+      <LinkDetailContent
+        head={{
+          faviconUrl: detail.faviconUrl,
+          isVideo: detail.isVideo,
+          mode,
+          status: detail.status,
+          thumbnailUrl: detail.thumbnailUrl,
+          title: detail.title,
+          url: detail.url,
+          workModel: detail.workModel,
+        }}
+        toolbar={toolbar}
+        onBack={handleBack}
+        ai={{
+          excerpt: detail.content?.excerpt ?? null,
+          status: detail.status,
+          summary: detail.summary,
+          workModel: detail.workModel,
+        }}
+        notes={
+          <LinkDetailMyNotes
+            key={detail.id}
+            folderEmoji={detail.folderEmoji}
+            folderName={detail.folderName}
+            isEditingActions={isEditingActions}
+            linkId={detail.id}
+            memo={detail.memo}
+            tags={tags}
+            onOpenFolderMove={handleOpenFolderMove}
+            onUpdateLink={handleUpdateNotes}
+          >
+            <LinkDetailActionsSection
+              key={detail.id}
+              linkId={detail.id}
+              mode={mode}
+              todos={todos}
+              onEditingChange={setIsEditingActions}
+            />
+          </LinkDetailMyNotes>
+        }
+        footer={
+          <View className="mt-1 border-t border-border-soft pt-3">
+            <DeleteLinkButton onPress={() => setIsDeleteDialogOpen(true)} />
+          </View>
+        }
+      />
 
       <FolderPickerDialog
         confirmLabel="확인"

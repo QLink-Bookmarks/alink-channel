@@ -70,18 +70,34 @@ function SummaryModel({ workModel }: { workModel: string }) {
  * The page excerpt: muted text with an inline "이어 읽기" link right after the trailing "…"
  * that opens the original.
  */
-function DetailExcerpt({ excerpt, url }: { excerpt: string; url: string }) {
+function DetailExcerpt({
+  excerpt,
+  url,
+  canOpenOriginal,
+}: {
+  excerpt: string;
+  url: string;
+  canOpenOriginal: boolean;
+}) {
   return (
     <Text
       selectable
-      {...(process.env.EXPO_OS === "web" ? {} : getExcerptAccessibilityProps(url))}
+      {...(process.env.EXPO_OS !== "web" && canOpenOriginal
+        ? getExcerptAccessibilityProps(url)
+        : {})}
       // Native: the bottom padding (cancelled by the negative margin) lets the inline link's
       // hitSlop reach below the last line; touches outside the paragraph never reach it.
       className="native:-mb-3 native:pb-3 text-[13px] leading-5 text-muted-foreground"
       lineBreakStrategyIOS="hangul-word"
       testID="link-detail-excerpt-text"
     >
-      {excerpt} <ExcerptContinueLink url={url} />
+      {excerpt}
+      {canOpenOriginal ? (
+        <>
+          {" "}
+          <ExcerptContinueLink url={url} />
+        </>
+      ) : null}
     </Text>
   );
 }
@@ -92,6 +108,7 @@ type LinkDetailAiSurfaceProps = {
   excerpt?: string | null;
   status?: LinkStatus | null;
   workModel?: string | null;
+  canOpenOriginal?: boolean;
 };
 
 // What the link holds, on one soft face: the AI summary with its model, then the page
@@ -102,6 +119,7 @@ function LinkDetailAiSurfaceBase({
   excerpt,
   status,
   workModel,
+  canOpenOriginal = true,
 }: LinkDetailAiSurfaceProps) {
   const summaryText = summary?.trim() ? summary : null;
   const excerptText = excerpt?.trim() ? excerpt : null;
@@ -140,6 +158,7 @@ function LinkDetailAiSurfaceBase({
         >
           <SurfaceHeading title="미리보기" />
           <DetailExcerpt
+            canOpenOriginal={canOpenOriginal}
             excerpt={excerptText}
             url={url}
           />

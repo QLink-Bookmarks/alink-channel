@@ -27,6 +27,39 @@ type LinkDetailToolbarProps = {
   onClose?: () => void;
 };
 
+function LinkDetailToolbarLayout({
+  mode,
+  children,
+  onClose,
+}: {
+  mode: LinkDetailToolbarProps["mode"];
+  children?: React.ReactNode;
+  onClose?: () => void;
+}) {
+  return (
+    <View
+      className={cn("flex-row items-center", mode === "panel" ? "-mx-2 h-12" : "min-w-0")}
+      testID="link-detail-toolbar"
+    >
+      {children}
+      {mode === "panel" ? (
+        <>
+          <View className="min-w-0 flex-1" />
+          <IconButton
+            accessibilityLabel="닫기"
+            hitSlop={4}
+            icon={X}
+            size="sm"
+            testID="link-detail-close"
+            variant="ghost"
+            onPress={onClose}
+          />
+        </>
+      ) : null}
+    </View>
+  );
+}
+
 function LinkDetailToolbar({
   mode,
   isFavorite,
@@ -58,9 +91,9 @@ function LinkDetailToolbar({
   );
 
   return (
-    <View
-      className={cn("flex-row items-center", mode === "panel" ? "-mx-2 h-12" : "min-w-0")}
-      testID="link-detail-toolbar"
+    <LinkDetailToolbarLayout
+      mode={mode}
+      onClose={onClose}
     >
       {star}
       {visibility}
@@ -100,23 +133,9 @@ function LinkDetailToolbar({
         refreshing={refreshing}
         onPress={onRefresh}
       />
-      {mode === "panel" ? (
-        <>
-          <View className="min-w-0 flex-1" />
-          <IconButton
-            accessibilityLabel="닫기"
-            hitSlop={4}
-            icon={X}
-            size="sm"
-            testID="link-detail-close"
-            variant="ghost"
-            onPress={onClose}
-          />
-        </>
-      ) : null}
-    </View>
+    </LinkDetailToolbarLayout>
   );
 }
 
-export { LinkDetailToolbar };
+export { LinkDetailToolbar, LinkDetailToolbarLayout };
 export type { LinkDetailToolbarProps };

@@ -1,21 +1,15 @@
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Text } from "@/components/ui/text";
 import { isAdminRole } from "@/features/account/lib/roles";
 import { useMyProfileQuery } from "@/features/account/queries";
-import { FolderHeaderActions } from "@/features/folders/components/folder-header-actions";
 import { MobileFoldersScreen } from "@/features/folders/components/mobile-folders-screen";
-import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
-import { useFolderQuery } from "@/features/folders/queries";
 import { LinkListView } from "@/features/home/components/link-list-view";
 import { MobileHomeScreen } from "@/features/home/components/mobile-home-screen";
 import { WideHomeScreen } from "@/features/home/components/wide-home-screen";
 import { ImportDetailScreen } from "@/features/imports/components/history/import-detail-screen";
 import { ImportHistoryScreen } from "@/features/imports/components/history/import-history-screen";
-import { LinkDetailScreen } from "@/features/links/components/link-detail-screen";
 import { NotificationInboxScreen } from "@/features/notifications/components/notification-inbox-screen";
 import { PostDetailScreen } from "@/features/posts/components/post-detail-screen";
 import { PostListScreen } from "@/features/posts/components/post-list-screen";
@@ -49,114 +43,6 @@ function FoldersRouteScreen() {
   return <MobileFoldersScreen />;
 }
 
-function FolderDetailRouteScreen() {
-  const params = useLocalSearchParams<{ id?: string | string[]; linkId?: string | string[] }>();
-  const folderId = readParamValue(params.id);
-  const linkIdParam = readParamValue(params.linkId);
-  const folderIdNumber = folderId ? Number(folderId) : Number.NaN;
-  const isUncategorizedFolder = folderIdNumber === UNCATEGORIZED_FOLDER_ID;
-  const folderQuery = useFolderQuery(folderIdNumber, { enabled: !isUncategorizedFolder });
-
-  if (isUncategorizedFolder) {
-    return (
-      <LinkListView
-        folderId={UNCATEGORIZED_FOLDER_ID}
-        title="미분류"
-        emoji="🗂️"
-        basePath={`/folders/${UNCATEGORIZED_FOLDER_ID}`}
-        activeLinkId={linkIdParam ? Number(linkIdParam) : undefined}
-      />
-    );
-  }
-
-  const folder = folderQuery.folder;
-
-  if (folder) {
-    return (
-      <LinkListView
-        folderId={folder.id}
-        title={folder.name}
-        emoji={folder.emoji ?? undefined}
-        meta={`${folder.linkCounts}개 링크`}
-        basePath={`/folders/${folder.id}`}
-        headerActions={
-          <FolderHeaderActions
-            folder={folder}
-            folderUpdatedAt={folderQuery.dataUpdatedAt}
-            mode="wide"
-          />
-        }
-        activeLinkId={linkIdParam ? Number(linkIdParam) : undefined}
-      />
-    );
-  }
-
-  if (folderQuery.isError) {
-    return (
-      <FolderNoticeScreen
-        emoji="⚠️"
-        title="폴더를 불러오지 못했어요"
-        description="네트워크 연결을 확인한 뒤 다시 시도해주세요."
-        onRetry={folderQuery.retry}
-      />
-    );
-  }
-
-  if (folderQuery.isNotFound) {
-    return (
-      <FolderNoticeScreen
-        emoji="📁"
-        title="폴더를 찾을 수 없어요"
-        description="삭제된 폴더이거나 접근 권한이 없는 폴더예요."
-      />
-    );
-  }
-
-  return (
-    <ActivityIndicator
-      size="large"
-      className="flex-1 py-16"
-    />
-  );
-}
-
-function FolderNoticeScreen({
-  emoji,
-  title,
-  description,
-  onRetry,
-}: {
-  emoji: string;
-  title: string;
-  description: string;
-  onRetry?: () => void;
-}) {
-  return (
-    <ScrollView
-      className="flex-1"
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerClassName="flex-grow justify-center"
-      showsVerticalScrollIndicator={false}
-    >
-      <EmptyState
-        emoji={emoji}
-        title={title}
-        description={description}
-        actions={
-          onRetry ? (
-            <Button
-              variant="outline"
-              onPress={onRetry}
-            >
-              <Text>다시 시도</Text>
-            </Button>
-          ) : undefined
-        }
-      />
-    </ScrollView>
-  );
-}
-
 function TodosRouteScreen() {
   const { isWideView } = useShellRouteState();
   return <TodosScreen mode={isWideView ? "wide" : "mobile"} />;
@@ -183,25 +69,6 @@ function LinksRouteScreen() {
       icon={BookCopyIcon}
       basePath="/links"
       activeLinkId={linkIdParam ? Number(linkIdParam) : undefined}
-    />
-  );
-}
-
-function LinkDetailRouteScreen() {
-  const { isWideView } = useShellRouteState();
-  const params = useLocalSearchParams<{ id?: string | string[] }>();
-  const linkId = readParamValue(params.id);
-
-  if (!isWideView) {
-    return <LinkDetailScreen linkId={linkId} />;
-  }
-
-  return (
-    <LinkListView
-      title="전체 보기"
-      icon={BookCopyIcon}
-      basePath="/links"
-      activeLinkId={linkId ? Number(linkId) : undefined}
     />
   );
 }
@@ -331,12 +198,10 @@ export {
   AnnouncementsRouteScreen,
   FeedbackDetailRouteScreen,
   FeedbacksRouteScreen,
-  FolderDetailRouteScreen,
   FoldersRouteScreen,
   HomeRouteScreen,
   ImportDetailRouteScreen,
   ImportsRouteScreen,
-  LinkDetailRouteScreen,
   LinksRouteScreen,
   NotificationsRouteScreen,
   SettingsRouteScreen,

@@ -1,6 +1,6 @@
 import { View } from "react-native";
 
-import type { LinkDetail } from "@/features/links/types";
+import type { LinkDetail, PublicLinkDetail } from "@/features/links/types";
 import type { Meta, StoryObj } from "@storybook/react-native";
 
 import { DetailPanel } from "./detail-panel";
@@ -9,7 +9,7 @@ import { useArgs } from "storybook/preview-api";
 
 type DetailPanelStoryArgs = {
   open: boolean;
-  detail: LinkDetail;
+  detail: LinkDetail | PublicLinkDetail;
   mode?: "inline" | "overlay";
   notFound?: boolean;
 };
@@ -142,6 +142,26 @@ export const Overlay: Story = {
   name: "오버레이",
   args: {
     mode: "overlay",
+  },
+};
+
+export const PublicReadOnly: Story = {
+  name: "공개 링크 읽기",
+  args: {
+    mode: "inline",
+    detail: {
+      id: 4,
+      url: "https://visitjeju.net/kr/detail/view",
+      title: "성산일출봉 일출 시간표와 입장 마감 안내",
+      folderId: 1,
+      folderName: "제주 산책 기록",
+      folderEmoji: "🗺️",
+      thumbnailUrl: null,
+      faviconUrl: null,
+      isVideo: false,
+      content: { excerpt: "일출을 볼 수 있는 전망대와 탐방로 시간표를 소개해요…" },
+      todos: [{ title: "여행 날짜 정하기", isCompleted: true }],
+    },
   },
 };
 

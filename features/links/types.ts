@@ -166,13 +166,22 @@ type PatchLinkResponse = ApiEnvelope<
     memo: string | null;
   }
 >;
-type PublicLinkDetail = {
+type PublicLinkSource = {
   id: number;
+  title: string;
+  url: string;
+  thumbnailUrl: string | null;
+  faviconUrl: string | null;
+  isVideo: boolean;
+};
+
+type PublicLinkListItem = PublicLinkSource & { contentExcerpt: string | null };
+
+type PublicLinkDetail = PublicLinkSource & {
   folderId: number;
   folderName: string;
   folderEmoji: string | null;
-  title: string;
-  url: string;
+  content: { excerpt: string | null };
   todos: { title: string; isCompleted: boolean }[];
 };
 type DeleteLinkResponse = ApiEnvelope<null>;
@@ -256,6 +265,7 @@ type LinkPreviewResponse = ApiEnvelope<{
 
 export type {
   PublicLinkDetail,
+  PublicLinkListItem,
   ApiEnvelope,
   CopyLinkRequest,
   CopyLinkResponse,

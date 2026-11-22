@@ -1,4 +1,4 @@
-import type { PublicFolderLists, PublicFolderPage } from "@/features/folders/types";
+import type { PublicFolderPage } from "@/features/folders/types";
 import { type ApiRequestConfig, api } from "@/lib/api-client";
 
 import { LinkAccessDenied } from "./lib/is-link-not-found";
@@ -16,6 +16,7 @@ import type {
   PatchLinkRequest,
   PatchLinkResponse,
   PublicLinkDetail,
+  PublicLinkListItem,
   SetLinkFavoriteRequest,
   SetLinkFavoriteResponse,
   UpdateLinkRequest,
@@ -40,14 +41,12 @@ function getLinkAccess(linkId: number, read: ApiRequestConfig) {
 }
 
 function getPublicFolderLinks(
-  folderId: number,
-  cursor: string | undefined,
+  params: Pick<GetLinksParams, "folderId" | "cursor" | "order" | "size">,
   read: ApiRequestConfig,
-  isPublic?: boolean,
 ) {
-  return api.get<ApiEnvelope<PublicFolderPage<PublicFolderLists["links"]>>>("/api/links", {
+  return api.get<ApiEnvelope<PublicFolderPage<PublicLinkListItem>>>("/api/links", {
     ...read,
-    params: { folderId, cursor, isPublic },
+    params,
   });
 }
 

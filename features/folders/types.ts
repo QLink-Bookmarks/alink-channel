@@ -106,10 +106,6 @@ type UpdateFolderRequest = {
 
 type UpdateFolderResponse = ApiEnvelope<{ id: number; isPublic: boolean }>;
 type PublicFolder = { id: number; name: string; emoji: string | null };
-type PublicFolderLists = {
-  links: { id: number; title: string; url: string };
-  todos: { linkId: number; title: string; isCompleted: boolean };
-};
 type PublicFolderPage<T> = {
   isEmpty: boolean;
   contents: T[];
@@ -137,7 +133,6 @@ export type {
   GetFoldersParams,
   GetFoldersResponse,
   PublicFolder,
-  PublicFolderLists,
   PublicFolderPage,
   TransferFolderOwnershipRequest,
   TransferFolderOwnershipResponse,

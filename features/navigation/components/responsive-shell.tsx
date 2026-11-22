@@ -17,17 +17,12 @@ import {
   CreateFolderDialog,
   type CreatedFolder,
 } from "@/features/folders/components/create-folder-dialog";
-import { FolderHeaderActions } from "@/features/folders/components/folder-header-actions";
 import { FOLDER_SECTIONS_SHEET_TIMING } from "@/features/folders/hooks/use-section-accordion";
-import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
-import { useFolderQuery } from "@/features/folders/queries";
 import { DetailPanel } from "@/features/links/components/detail-panel/detail-panel";
 import {
   LinkCreateForm,
   type LinkCreateFormHandle,
 } from "@/features/links/components/link-create-form";
-import { isLinkNotFound } from "@/features/links/lib/is-link-not-found";
-import { useLinkDetailQuery } from "@/features/links/queries";
 import { NotificationBellButton } from "@/features/notifications/components/notification-bell-button";
 import { SearchDialog } from "@/features/search/components/search-dialog";
 import { cn } from "@/lib/utils";
@@ -48,7 +43,6 @@ import { useLinkOverlayState } from "../hooks/use-link-overlay-state";
 import { type ShellActions, ShellActionsContext } from "../hooks/use-shell-actions";
 import { useShellRouteState } from "../hooks/use-shell-route-state";
 import { useWideShellInsets } from "../hooks/use-wide-shell-insets";
-import { getFolderIdFromPath } from "../lib/folder-path";
 import { isNewLinkShortcut, suppressNextTextInput } from "../lib/new-link-shortcut";
 import { consumeReturnDestination } from "../lib/return-destination";
 import { canOpenWideOverlayInPlace } from "../routes";
@@ -94,19 +88,11 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const returnAfterShareRef = React.useRef(false);
   const openFolderSection = useFolderNavigation((state) => state.openSectionOn);
   const isAnnouncementsListRoute = routeState.pathname === "/announcements";
-  const mobileFolderId = getFolderIdFromPath(routeState.pathname) ?? Number.NaN;
-  const mobileFolderQuery = useFolderQuery(mobileFolderId, {
-    enabled: !routeState.isWideView && mobileFolderId !== UNCATEGORIZED_FOLDER_ID,
-  });
-  // The mobile link detail draws its own header (back + toolbar) once the detail is loaded.
-  const mobileLinkDetailId = /^\/links\/([^/]+)$/.exec(routeState.pathname)?.[1];
-  const mobileLinkDetailQuery = useLinkDetailQuery(
-    routeState.isWideView ? null : mobileLinkDetailId,
-  );
+  const isResourceDetailRoute = /^\/(folders|links)\/[^/]+$/.test(routeState.pathname);
   const { detail, error, handleOpenChange, isLoading, isOpen, notFound } = useLinkOverlayState({
     isWideView: routeState.isWideView,
     overlayBaseHref: routeState.overlayBaseHref,
-    overlayLinkId: routeState.overlayLinkId,
+    overlayLinkId: isResourceDetailRoute ? undefined : routeState.overlayLinkId,
   });
   // Closing the detail asks first while its action editor holds unsaved edits.
   const handleOverlayOpenChange = React.useCallback(
@@ -357,7 +343,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
           <WideSidebarColumn
             activeKey={routeState.wideSidebarKey}
             folderListKey={sidebarFolderListKey}
-            isOverlayOpen={isOpen}
+            isOverlayOpen={Boolean(routeState.overlayLinkId)}
             pathname={routeState.pathname}
             onAddFolderPress={handleWideAddFolderPress}
             onAddLinkPress={handleWideAddLinkPress}
@@ -484,17 +470,6 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   }
 
   const isMobileHome = routeState.pathname === "/home";
-  // Folder detail keeps its title right after the back button, so the title does not shift with
-  // the role-dependent actions on the right. Every other mobile header stays centered.
-  const isMobileFolderDetail = getFolderIdFromPath(routeState.pathname) !== undefined;
-  const mobileFolder = mobileFolderQuery.folder;
-  const isMobileLinkDetailShown =
-    mobileLinkDetailId !== undefined &&
-    mobileLinkDetailQuery.data !== undefined &&
-    !(mobileLinkDetailQuery.isError && isLinkNotFound(mobileLinkDetailQuery.error));
-  const mobileHeaderTitle = mobileFolder
-    ? `${mobileFolder.emoji ? `${mobileFolder.emoji} ` : ""}${mobileFolder.name}`
-    : routeState.routeTitle;
   const showMobileFab =
     routeState.pathname === "/home" ||
     routeState.pathname === "/todos" ||
@@ -504,7 +479,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     <>
       {redirectCover}
       <View className={cn("flex-1 bg-background", redirectHref && "hidden")}>
-        {isMobileLinkDetailShown ? null : (
+        {isResourceDetailRoute ? null : (
           <AppHeader
             back={!isMobileHome && routeState.showBackButton}
             onBack={handleBack}
@@ -525,18 +500,11 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
                     onPress={handleNotificationsPress}
                   />
                 </View>
-              ) : mobileFolder ? (
-                <FolderHeaderActions
-                  folder={mobileFolder}
-                  folderUpdatedAt={mobileFolderQuery.dataUpdatedAt}
-                  mode="mobile"
-                />
               ) : isAnnouncementsListRoute ? (
                 <AnnouncementsHeaderAction mode="mobile" />
               ) : undefined
             }
-            title={isMobileHome ? undefined : mobileHeaderTitle}
-            titleAlign={isMobileFolderDetail ? "start" : "center"}
+            title={isMobileHome ? undefined : routeState.routeTitle}
           />
         )}
         <View

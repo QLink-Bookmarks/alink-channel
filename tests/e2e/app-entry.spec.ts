@@ -458,23 +458,29 @@ for (const { entry, expectedReturn } of [
       folderEmoji: folder.emoji,
       title: link.title,
       url: link.url,
+      thumbnailUrl: null,
+      faviconUrl: null,
+      isVideo: false,
+      content: { excerpt: null },
       todos: [],
     };
     const accessTokens: (string | undefined)[] = [];
     await page.route(
-      (url) => url.pathname === `/api${resource}`,
+      (url) =>
+        url.pathname === `/api${resource}` ||
+        (opensOverlay && url.pathname === `/api/links/${link.id}`),
       (route) => {
         expect(route.request().method()).toBe("GET");
         const token = route.request().headers().authorization;
         accessTokens.push(token);
         if (opensOverlay && token) return route.fallback();
-        return json(route, envelope(resource.startsWith("/links") ? linkRead : folderRead));
+        const isLink = new URL(route.request().url()).pathname.startsWith("/api/links/");
+        return json(route, envelope(isLink ? linkRead : folderRead));
       },
     );
     await page.route(
       (url) =>
-        ["/api/links", "/api/todos"].includes(url.pathname) &&
-        url.searchParams.get("folderId") === String(folder.id),
+        url.pathname === "/api/links" && url.searchParams.get("folderId") === String(folder.id),
       (route) => {
         expect(route.request().method()).toBe("GET");
         const token = route.request().headers().authorization;
@@ -587,8 +593,7 @@ for (const { label, href, fromLink } of [
     await page.route(
       (url) =>
         url.pathname === `/api${resource}` ||
-        (["/api/links", "/api/todos"].includes(url.pathname) &&
-          url.searchParams.get("folderId") === String(folder.id)),
+        (url.pathname === "/api/links" && url.searchParams.get("folderId") === String(folder.id)),
       (route) => {
         const request = route.request();
         if (request.headers().authorization) return route.fallback();
@@ -604,6 +609,10 @@ for (const { label, href, fromLink } of [
                 folderId: folder.id,
                 folderName: folder.name,
                 folderEmoji: folder.emoji,
+                thumbnailUrl: null,
+                faviconUrl: null,
+                isVideo: false,
+                content: { excerpt: null },
                 todos: [],
               }
             : { id: folder.id, name: folder.name, emoji: folder.emoji };

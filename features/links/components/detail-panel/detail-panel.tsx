@@ -13,10 +13,10 @@ import { FullWindowOverlay as RNFullWindowOverlay } from "react-native-screens";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
-import type { LinkDetail } from "@/features/links/types";
+import type { LinkDetail, PublicLinkDetail } from "@/features/links/types";
 import { cn } from "@/lib/utils";
 
-import { LinkDetailView } from "../link-detail-view";
+import { LinkDetailResourceContent } from "../link-detail-resource-content";
 import { getDetailPanelWidth } from "./detail-panel-width";
 
 import { X } from "lucide-react-native/icons";
@@ -50,7 +50,7 @@ function DetailPanelBody({
 }: {
   className?: string;
   style?: StyleProp<ViewStyle>;
-  detail?: LinkDetail;
+  detail?: LinkDetail | PublicLinkDetail;
   error?: boolean;
   notFound?: boolean;
   isLoading?: boolean;
@@ -74,7 +74,7 @@ function DetailPanelBody({
         />
       ) : detail && !notFound ? (
         // A failed refresh keeps the detail on screen; the view shows the failure itself.
-        <LinkDetailView
+        <LinkDetailResourceContent
           detail={detail}
           mode="panel"
           onClose={() => onOpenChange?.(false)}
@@ -148,16 +148,18 @@ function DetailPanel({
   notFound,
   isLoading,
   mode = "inline",
+  overlayWithinParent,
   onDeleted,
   onOpenChange,
 }: {
   className?: string;
   open: boolean;
-  detail?: LinkDetail;
+  detail?: LinkDetail | PublicLinkDetail;
   error?: boolean;
   notFound?: boolean;
   isLoading?: boolean;
   mode?: "inline" | "overlay";
+  overlayWithinParent?: boolean;
   onDeleted?: () => void;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -175,10 +177,12 @@ function DetailPanel({
         <View
           className={cn(
             "bottom-0 left-0 right-0 top-0 flex",
-            Platform.select({
-              web: "fixed",
-              default: "absolute",
-            }),
+            overlayWithinParent
+              ? "absolute"
+              : Platform.select({
+                  web: "fixed",
+                  default: "absolute",
+                }),
           )}
         >
           <Pressable
