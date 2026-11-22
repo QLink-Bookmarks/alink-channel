@@ -1,5 +1,1 @@
-import { AgreementsScreen } from "@/features/agreements/components/agreements-screen";
-
-export default function AgreementsRoute() {
-  return <AgreementsScreen />;
-}
+export { AgreementsRouteScreen as default } from "@/features/agreements/components/agreements-route-screen";

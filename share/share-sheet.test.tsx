@@ -429,7 +429,9 @@ describe("ShareSheet", () => {
     expect(screen.getByText("로그인을 먼저 해주세요")).toBeTruthy();
     fireEvent.press(screen.getByText("로그인 하러가기"));
 
-    expect(mockOpenHostApp).toHaveBeenCalledWith("login");
+    expect(mockOpenHostApp).toHaveBeenCalledWith(
+      `login?sharedUrl=${encodeURIComponent(SHARED_URL)}`,
+    );
     expect(mockClose).toHaveBeenCalledTimes(1);
   });
 

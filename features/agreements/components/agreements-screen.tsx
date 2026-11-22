@@ -84,7 +84,6 @@ function AgreementsScreen() {
         });
         return;
       }
-      router.replace("/home" as Href);
     } catch (error) {
       showToast({
         variant: "error",
@@ -92,7 +91,7 @@ function AgreementsScreen() {
         sourceKey: "agreements",
       });
     }
-  }, [mutation, router, showToast]);
+  }, [mutation, showToast]);
 
   return (
     <View

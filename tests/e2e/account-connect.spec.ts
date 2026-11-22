@@ -12,8 +12,8 @@ type GoogleBehavior = "token" | "close";
 const GOOGLE_SDK = "https://accounts.google.com/gsi/client";
 const KAKAO_SDK = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.9/kakao.min.js";
 const KAKAO_TOKEN = "https://kauth.kakao.com/oauth/token";
-const NAVER_SDK = "https://static.nid.naver.com/js/naveridlogin_js_sdk_2.0.2.js";
 const KAKAO_STATE = "kakao:e2e";
+const NAVER_STATE = "naver:e2e";
 // The Kakao web SDK keeps its REST key AES-encrypted in localStorage under `krk`; this is
 // "e2e-rest-key", so the code exchange runs even when no Kakao keys are configured.
 const KAKAO_REST_KEY_ENTRY = "U2FsdGVkX1+4Zs+E6h0gXY4Ws+DfG79Q9r/xPhQ/5QA=";
@@ -23,10 +23,6 @@ const GOOGLE_SDK_STUB = `window.google = { accounts: { oauth2: { initTokenClient
     ? config.error_callback && config.error_callback({ type: "popup_closed" })
     : config.callback({ access_token: "google-web-token" }), 300),
 }) } } };`;
-const NAVER_SDK_STUB = `window.naver = { LoginWithNaverId: class {
-  init() {}
-  getLoginStatus(callback) { this.accessToken = { accessToken: "naver-web-token" }; callback(true); }
-} };`;
 
 function connectionResponse(status: number, code?: string) {
   const body = code
@@ -37,7 +33,11 @@ function connectionResponse(status: number, code?: string) {
 
 async function setUp(
   page: Page,
-  options: { connection: { status: number; code?: string }; google?: GoogleBehavior },
+  options: {
+    connection: { status: number; code?: string };
+    google?: GoogleBehavior;
+    profileReady?: Promise<void>;
+  },
 ) {
   const providers = [{ id: 1, type: "KAKAO" }];
   await page.addInitScript((behavior) => {
@@ -55,7 +55,6 @@ async function setUp(
     route.fulfill({ status: 200, contentType: "application/javascript", body });
   await page.route(GOOGLE_SDK, script(GOOGLE_SDK_STUB));
   await page.route(KAKAO_SDK, (route) => route.abort());
-  await page.route(NAVER_SDK, script(NAVER_SDK_STUB));
   await page.route(KAKAO_TOKEN, (route) =>
     route.fulfill({
       status: 200,
@@ -72,6 +71,19 @@ async function setUp(
   );
   return mockApi(page, {
     handlers: {
+      "GET /api/users/me": async (route) => {
+        await options.profileReady;
+        await route.fulfill({
+          json: envelope({
+            id: 1,
+            username: "e2e",
+            nickname: "테스터",
+            role: "USER",
+            allowsPrivacy: true,
+            allowsAiUsage: true,
+          }),
+        });
+      },
       "GET /api/users/me/settings": (route) =>
         route.fulfill({
           contentType: "application/json",
@@ -182,14 +194,23 @@ test.describe("계정 연결 시트", () => {
 });
 
 test.describe("카카오·네이버 연결 리다이렉트 복귀", () => {
-  async function returnFrom(page: Page, path: string) {
+  async function returnFrom(page: Page, path: string, provider: "kakao" | "naver" = "kakao") {
     await page.addInitScript(
-      ({ state, restKey }) => {
-        window.sessionStorage.setItem("qlink.oauth.state", state);
-        window.sessionStorage.setItem("qlink.oauth.mode", "connect");
+      ({ attempt, restKey }) => {
+        if (!window.sessionStorage.getItem("connect-attempt-fixture")) {
+          window.sessionStorage.setItem("connect-attempt-fixture", "1");
+          window.sessionStorage.setItem("qlink.oauth.attempt", JSON.stringify(attempt));
+        }
         if (!window.localStorage.getItem("krk")) window.localStorage.setItem("krk", restKey);
       },
-      { state: KAKAO_STATE, restKey: KAKAO_REST_KEY_ENTRY },
+      {
+        attempt: {
+          provider,
+          state: provider === "naver" ? NAVER_STATE : KAKAO_STATE,
+          mode: "connect",
+        },
+        restKey: KAKAO_REST_KEY_ENTRY,
+      },
     );
     await page.goto(path);
   }
@@ -197,8 +218,9 @@ test.describe("카카오·네이버 연결 리다이렉트 복귀", () => {
   test("a Kakao connect return with a 500 shows the failure toast", async ({ page }) => {
     const state = await setUp(page, { connection: { status: 500, code: "COMMON_500_0001" } });
 
-    await returnFrom(page, `/?code=e2e-code&state=${encodeURIComponent(KAKAO_STATE)}`);
+    await returnFrom(page, `/auth/callback?code=e2e-code&state=${encodeURIComponent(KAKAO_STATE)}`);
 
+    await expect(page).toHaveURL("/settings");
     await expectOnTop(page.getByText("연결에 실패했어요."));
     expect(connectionRequests(state).map((request) => request.body)).toEqual([
       { provider: "KAKAO", token: "kakao-web-token", platform: "WEB" },
@@ -208,19 +230,39 @@ test.describe("카카오·네이버 연결 리다이렉트 복귀", () => {
   test("a Naver connect return with a 500 shows the failure toast", async ({ page }) => {
     const state = await setUp(page, { connection: { status: 500, code: "COMMON_500_0001" } });
 
-    await returnFrom(page, "/#access_token=naver-web-token&state=n");
+    await returnFrom(
+      page,
+      `/auth/callback#access_token=naver-web-token&state=${NAVER_STATE}`,
+      "naver",
+    );
 
+    await expect(page).toHaveURL("/settings");
     await expectOnTop(page.getByText("연결에 실패했어요."));
     expect(connectionRequests(state).map((request) => request.body)).toEqual([
       { provider: "NAVER", token: "naver-web-token", platform: "WEB" },
     ]);
   });
 
-  test("a Kakao connect return with a 201 shows the success toast", async ({ page }) => {
-    await setUp(page, { connection: { status: 201 } });
+  test("a Kakao connect return waits for Settings before showing success", async ({ page }) => {
+    let releaseProfile = () => {};
+    const profileReady = new Promise<void>((resolve) => {
+      releaseProfile = resolve;
+    });
+    await setUp(page, { connection: { status: 201 }, profileReady });
 
-    await returnFrom(page, `/?code=e2e-code&state=${encodeURIComponent(KAKAO_STATE)}`);
+    try {
+      await returnFrom(
+        page,
+        `/auth/callback?code=e2e-code&state=${encodeURIComponent(KAKAO_STATE)}`,
+      );
+      await expect(page).toHaveURL("/settings");
+      await expect(page.getByText("인증 정보를 확인 중입니다…")).toBeVisible();
+      await expect(page.getByText("계정을 연결했어요.")).toHaveCount(0);
+    } finally {
+      releaseProfile();
+    }
 
+    await expect(page.getByLabel("계정 연결 추가")).toBeVisible();
     await expectOnTop(page.getByText("계정을 연결했어요."));
   });
 });
