@@ -32,6 +32,7 @@ import {
   type FolderPickerSelection,
 } from "@/features/folders/components/folder-picker-list";
 import { VisibilityField } from "@/features/folders/components/visibility-field";
+import { toLinkTitle } from "@/features/imports/lib/build-import-candidates";
 import { type TodoDraftEditorItem } from "@/features/todos/components/todo-draft-list-editor";
 import {
   type TodoEditorId,
@@ -51,13 +52,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getLinkDetail } from "../api";
 import { buildAiMemoAndTodoFields, buildLinkTodoRequests } from "../lib/link-create-todos";
 import { getLinkPreviewRequestFields } from "../lib/link-preview/link-preview-result";
-import { useCreateLinkMutation, useSetLinkPrivacyMutation } from "../mutations";
+import { useCreateLinkMutation } from "../mutations";
 import { useLinkPreviewQuery } from "../queries";
-import type { LinkPreview } from "../types";
+import type { LinkDetail, LinkPreview } from "../types";
 import { LinkCreateBottomBar, type LinkCreateProviderState } from "./link-create-bottom-bar";
 import { LinkCreateMemoActions } from "./link-create-memo-actions";
 import { UnsavedChangesDialog } from "./unsaved-changes-dialog";
 
+import { isAxiosError } from "axios";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { type Href, useRouter } from "expo-router";
@@ -117,6 +119,10 @@ const POPOVER_FOLDER_LIST_MAX_HEIGHT = 200;
 
 function createInitialTodos(): TodoDraftEditorItem[] {
   return [];
+}
+
+function hasStartedAiSummary({ status, workModel }: LinkDetail) {
+  return status === "G" || status === "A" || status === "F" || workModel != null;
 }
 
 function getFolderDraft(selection: FolderPickerSelection): FolderDraft {
@@ -202,7 +208,6 @@ function LinkCreateForm({
   const pendingQrResult = useQrScanStore((state) => state.pendingResult);
   const clearQrResult = useQrScanStore((state) => state.clear);
   const createLinkMutation = useCreateLinkMutation();
-  const privacyMutation = useSetLinkPrivacyMutation();
   const resetMutation = createLinkMutation.reset;
   const hasSaveError = Boolean(createLinkMutation.error);
   const invalidateLinkQueries = React.useCallback(() => {
@@ -236,6 +241,8 @@ function LinkCreateForm({
   const [memo, setMemo] = React.useState("");
   const [folder, setFolder] = React.useState<FolderDraft>(defaultFolder);
   const [visibilityDraft, setVisibilityDraft] = React.useState<boolean>();
+  const [privateAiLink, setPrivateAiLink] = React.useState<{ id: number; uncertain: boolean }>();
+  const [isAiSubmitting, setIsAiSubmitting] = React.useState(false);
   const folderIsPublic = folder.isPublic === true;
   const isPublic = folderIsPublic && (visibilityDraft ?? true);
   const requestVisibility = folderIsPublic ? visibilityDraft : false;
@@ -424,6 +431,7 @@ function LinkCreateForm({
     setMemo("");
     setFolder(defaultFolder);
     setVisibilityDraft(undefined);
+    setPrivateAiLink(undefined);
     setAiProvider(null);
     setTodos(createInitialTodos());
     setGenerateTodo(false);
@@ -577,7 +585,7 @@ function LinkCreateForm({
   );
 
   const handleAiOrganize = React.useCallback(async () => {
-    if (isSubmittingRef.current || !checkBeforeSubmit("ai")) {
+    if (isSubmittingRef.current || (!privateAiLink && !checkBeforeSubmit("ai"))) {
       return;
     }
     const trimmedUrl = url.trim();
@@ -599,57 +607,82 @@ function LinkCreateForm({
     }
 
     isSubmittingRef.current = true;
+    setIsAiSubmitting(true);
+    let savedLink = privateAiLink;
+    const folderId = folder.id ? Number(folder.id) : null;
     const aiMemoAndTodoFields = buildAiMemoAndTodoFields(memo, todos);
+    const previewFields = getLinkPreviewRequestFields(linkPreview);
 
     try {
-      const response = await requestAiSummaryMutation.mutateAsync({
-        folderId: folder.id ? Number(folder.id) : null,
-        generateTodo,
-        modelId: target.modelId,
-        title: trimmedTitle ? trimmedTitle : null,
-        url: trimmedUrl,
-        userProviderId: target.userProviderId,
-        ...getLinkPreviewRequestFields(linkPreview),
-        ...aiMemoAndTodoFields,
-      });
-      const newLinkId = response.data?.id;
-      const desiredVisibility =
-        folderIsPublic || visibilityDraft === false ? visibilityDraft : undefined;
-      let privacyFailed = false;
-      if (newLinkId != null && desiredVisibility !== undefined) {
+      if (!savedLink && visibilityDraft === false) {
+        const { data } = await createLinkMutation.mutateAsync({
+          folderId,
+          isPublic: false,
+          memo: aiMemoAndTodoFields.memo,
+          sourceType: "INPUT",
+          tags: [],
+          title: toLinkTitle(trimmedTitle, trimmedUrl),
+          todos: aiMemoAndTodoFields.todos ?? [],
+          url: trimmedUrl,
+          ...previewFields,
+        });
+        savedLink = { id: data.id, uncertain: false };
+        setPrivateAiLink(savedLink);
+        if (aiMemoAndTodoFields.todos) {
+          void queryClient.invalidateQueries({ queryKey: todoQueryKeys.lists() });
+        }
+      }
+
+      let newLinkId = savedLink?.id;
+      let shouldRequestAi = true;
+      if (savedLink?.uncertain) {
+        const { data } = await getLinkDetail(savedLink.id);
+        shouldRequestAi = !hasStartedAiSummary(data);
+        if (shouldRequestAi && data.status !== "C") {
+          throw new Error("The server did not report the saved link's AI status");
+        }
+      }
+      if (shouldRequestAi) {
         try {
-          const inheritedPublic = await getLinkDetail(newLinkId).then(
-            ({ data }) => data.isPublic,
-            () => undefined,
-          );
-          if (inheritedPublic !== desiredVisibility) {
-            await privacyMutation.mutateAsync({ id: newLinkId, isPublic: desiredVisibility });
-          }
-        } catch (error) {
-          privacyFailed = true;
-          reportError(error, {
-            area: "link-create-form:ai-privacy",
-            extra: { linkId: newLinkId },
+          const { data } = await requestAiSummaryMutation.mutateAsync({
+            id: savedLink?.id,
+            folderId,
+            generateTodo,
+            modelId: target.modelId,
+            title: trimmedTitle || null,
+            url: trimmedUrl,
+            userProviderId: target.userProviderId,
+            ...previewFields,
+            ...(!savedLink ? aiMemoAndTodoFields : {}),
           });
+          newLinkId = data?.id ?? newLinkId;
+        } catch (error) {
+          if (!savedLink) throw error;
+          const status = isAxiosError(error) ? error.response?.status : undefined;
+          if (status != null && status >= 400 && status < 500 && status !== 408) {
+            savedLink = { ...savedLink, uncertain: false };
+            setPrivateAiLink(savedLink);
+            throw error;
+          }
+          savedLink = { ...savedLink, uncertain: true };
+          setPrivateAiLink(savedLink);
+          const detail = await getLinkDetail(savedLink.id).catch(() => undefined);
+          if (!detail || !hasStartedAiSummary(detail.data)) throw error;
         }
       }
 
       showToast({
-        description: privacyFailed
-          ? "링크 상세에서 공개 상태를 확인하고 다시 변경할 수 있어요."
-          : "AI 정리 요청이 접수되었어요.",
+        description: "AI 정리 요청이 접수되었어요.",
         dismissible: true,
         durationMs: 3000,
         sourceKey: "link-create-ai-organize",
-        title: privacyFailed
-          ? "AI 정리는 시작했지만 공개 설정을 저장하지 못했어요."
-          : "AI 정리 시작",
-        variant: privacyFailed ? "warning" : "success",
+        title: "AI 정리 시작",
+        variant: "success",
       });
 
       invalidateLinkQueries();
       // The actions sent with the request now exist, so the 액션 lists are stale.
-      if (aiMemoAndTodoFields.todos) {
+      if (!savedLink && aiMemoAndTodoFields.todos) {
         void queryClient.invalidateQueries({ queryKey: todoQueryKeys.lists() });
       }
       resetForm();
@@ -670,7 +703,11 @@ function LinkCreateForm({
         extra: { mode },
       });
       showToast({
-        description: "AI 정리 요청에 실패했어요. 잠시 후 다시 시도해주세요.",
+        description: savedLink
+          ? savedLink.uncertain
+            ? "링크는 나만 보기로 저장됐어요. 다음 시도에서 접수 여부를 확인해요."
+            : "링크는 나만 보기로 저장됐어요. AI 정리만 다시 시도할 수 있어요."
+          : "AI 정리 요청에 실패했어요. 잠시 후 다시 시도해주세요.",
         dismissible: true,
         durationMs: 3000,
         sourceKey: "link-create-ai-organize",
@@ -678,13 +715,14 @@ function LinkCreateForm({
         variant: "warning",
       });
     } finally {
+      setIsAiSubmitting(false);
       isSubmittingRef.current = false;
     }
   }, [
     aiProvider?.providerId,
     checkBeforeSubmit,
+    createLinkMutation,
     folder.id,
-    folderIsPublic,
     myProviders,
     generateTodo,
     invalidateLinkQueries,
@@ -693,7 +731,7 @@ function LinkCreateForm({
     mode,
     onCancel,
     onSaved,
-    privacyMutation,
+    privateAiLink,
     queryClient,
     requestAiSummaryMutation,
     resetForm,
@@ -708,7 +746,14 @@ function LinkCreateForm({
   // Saves even while the preview is still loading: the link then goes without its
   // images, and the server fills the thumbnail in later (alink-backend#195).
   const handleSave = React.useCallback(async () => {
-    if (isSubmittingRef.current || !checkBeforeSubmit("save")) {
+    if (isSubmittingRef.current) return;
+    if (privateAiLink) {
+      resetForm();
+      onCancel();
+      onSaved?.(privateAiLink.id);
+      return;
+    }
+    if (!checkBeforeSubmit("save")) {
       return;
     }
 
@@ -751,7 +796,9 @@ function LinkCreateForm({
     linkPreview,
     memo,
     mode,
+    onCancel,
     onSaved,
+    privateAiLink,
     queryClient,
     resetForm,
     title,
@@ -759,12 +806,9 @@ function LinkCreateForm({
     url,
   ]);
 
-  const pendingRequest = createLinkMutation.isPending
-    ? "save"
-    : requestAiSummaryMutation.isPending || privacyMutation.isPending
-      ? "ai"
-      : null;
+  const pendingRequest = isAiSubmitting ? "ai" : createLinkMutation.isPending ? "save" : null;
   const isBusy = pendingRequest != null;
+  const fieldsDisabled = isBusy || privateAiLink != null;
 
   // Anything the user put in that closing would throw away. A title that is only the
   // preview's, a blank action row and the default provider do not count.
@@ -779,12 +823,13 @@ function LinkCreateForm({
     generateTodo;
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = React.useState(false);
   const requestClose = React.useCallback(() => {
-    if (!hasInput || isBusy) {
+    if (isAiSubmitting && visibilityDraft === false) return false;
+    if (!hasInput || isBusy || privateAiLink) {
       return true;
     }
     setIsCloseConfirmOpen(true);
     return false;
-  }, [hasInput, isBusy]);
+  }, [hasInput, isAiSubmitting, isBusy, privateAiLink, visibilityDraft]);
   React.useImperativeHandle(ref, () => ({ requestClose }), [requestClose]);
 
   const handleDiscardAndClose = React.useCallback(() => {
@@ -825,7 +870,7 @@ function LinkCreateForm({
     <View className="border-t border-border-soft pt-5">
       <LinkCreateMemoActions
         actionListRef={actionListRef}
-        disabled={isBusy}
+        disabled={fieldsDisabled}
         memo={memo}
         mode={mode}
         open={isMemoActionsOpen}
@@ -854,7 +899,7 @@ function LinkCreateForm({
         errors.url && "border-destructive/70",
       )}
       value={url}
-      editable={!isBusy}
+      editable={!fieldsDisabled}
       autoCapitalize="none"
       keyboardType="url"
       placeholder={URL_PLACEHOLDER}
@@ -874,7 +919,7 @@ function LinkCreateForm({
             accessibilityLabel="QR 스캔"
             accessibilityRole="button"
             className="size-11 shrink-0 items-center justify-center rounded-xl border border-input bg-card active:bg-accent"
-            disabled={isBusy}
+            disabled={fieldsDisabled}
             onPress={handleScanQr}
           >
             <Icon
@@ -906,7 +951,7 @@ function LinkCreateForm({
             errors.title && "border-destructive/70",
           )}
           value={title}
-          editable={!isBusy}
+          editable={!fieldsDisabled}
           maxLength={TITLE_MAX_LENGTH}
           placeholder={TITLE_PLACEHOLDER}
           onBlur={handleTitleBlur}
@@ -922,7 +967,7 @@ function LinkCreateForm({
     >
       {isMobile ? (
         <FolderTrigger
-          disabled={isBusy}
+          disabled={fieldsDisabled}
           isMobile
           label={folder.label}
           onPress={() => setMobileSheetStep("folder-picker")}
@@ -931,7 +976,7 @@ function LinkCreateForm({
         <Popover>
           <PopoverTrigger asChild>
             <FolderTrigger
-              disabled={isBusy}
+              disabled={fieldsDisabled}
               isMobile={false}
               label={folder.label}
             />
@@ -946,7 +991,7 @@ function LinkCreateForm({
   );
   const visibilityField = (
     <VisibilityField
-      disabled={isBusy || !folderIsPublic}
+      disabled={fieldsDisabled || !folderIsPublic}
       help={
         folderIsPublic
           ? "전체 공개 링크와 연결된 할 일은 공개 페이지에 표시돼요."

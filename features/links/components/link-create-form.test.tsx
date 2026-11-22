@@ -52,7 +52,6 @@ const mockCreateLink = {
 
 jest.mock("../mutations", () => ({
   useCreateLinkMutation: () => mockCreateLink,
-  useSetLinkPrivacyMutation: () => ({ isPending: false, mutateAsync: jest.fn() }),
 }));
 
 const mockRequestAiSummary = {

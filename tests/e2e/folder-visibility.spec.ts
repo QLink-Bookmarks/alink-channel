@@ -661,26 +661,26 @@ test("keeps an explicit private link and its todo when the folder is reselected"
 for (const kind of [
   "regular-missing",
   "ai-inherits",
-  "ai-explicit-private",
-  "ai-matching-private",
   "ai-explicit-public",
-  "ai-private-failed",
+  "ai-private-5xx",
+  "ai-private-network",
+  "ai-private-response-lost",
 ] as const) {
   test(`applies the creation visibility contract (${kind})`, async ({ page }) => {
     const [known, unknown] = makeFolders(2);
     const isAi = kind !== "regular-missing";
-    const changesVisibility =
-      kind === "ai-explicit-private" ||
-      kind === "ai-explicit-public" ||
-      kind === "ai-private-failed";
+    const needsPrivateWrite = kind.startsWith("ai-private");
+    const shouldRetry = kind === "ai-private-5xx" || kind === "ai-private-network";
     const desiredPublic = kind === "ai-explicit-public";
-    const destination =
-      kind === "regular-missing" || kind === "ai-private-failed" ? unknown : known;
+    const destination = kind === "regular-missing" ? unknown : known;
     const newLink = makeLink({
       id: 100,
       folderId: destination.id,
-      isPublic: kind !== "ai-matching-private" && !desiredPublic,
+      isPublic: !needsPrivateWrite,
+      status: needsPrivateWrite ? "C" : "A",
+      workModel: null,
     });
+    let aiAttempts = 0;
     const state = await mockApi(page, {
       folders: [
         { ...known, name: "공개 상태 확인됨", emoji: null, isPublic: true },
@@ -708,12 +708,22 @@ for (const kind of [
               },
             ]),
           }),
-        "PUT /api/links/ai": (route) => route.fulfill({ json: envelope({ id: 100 }) }),
-        "PUT /api/links/100/privacy": (route, request) => {
-          if (kind === "ai-private-failed") return route.abort("failed");
-          const { isPublic } = request.postDataJSON() as { isPublic: boolean };
-          state.details[newLink.id].isPublic = isPublic;
-          return route.fulfill({ json: envelope({ isPublic }) });
+        "POST /api/links": (route) =>
+          route.fulfill({ status: 201, json: envelope({ id: newLink.id }) }),
+        "PUT /api/links/ai": (route) => {
+          aiAttempts += 1;
+          if (aiAttempts === 1 && kind === "ai-private-5xx") {
+            return route.fulfill({ status: 503, json: { success: false, data: null } });
+          }
+          if (aiAttempts === 1 && kind === "ai-private-network") {
+            return route.abort("failed");
+          }
+          if (kind === "ai-private-response-lost") {
+            state.details[newLink.id].status = "G";
+            state.details[newLink.id].workModel = "gpt-test";
+            return route.abort("failed");
+          }
+          return route.fulfill({ json: envelope({ id: newLink.id }) });
         },
       },
     });
@@ -735,42 +745,89 @@ for (const kind of [
       await expect(page.getByRole("radio", { name: "나만 보기" })).toBeChecked();
       await expect(page.getByRole("radio", { name: "전체 공개" })).toBeDisabled();
     }
-    await page
-      .getByRole("textbox", { name: "URL", exact: true })
-      .fill("https://example.com/unknown");
-    await page.getByRole("textbox", { name: "제목", exact: true }).fill("비공개 링크");
-    await page.getByRole("button", { name: isAi ? "AI 정리" : "저장", exact: true }).click();
-    const createRequest = () =>
-      state.requests.find(({ method, path }) =>
-        isAi
-          ? method === "PUT" && path === "/api/links/ai"
-          : method === "POST" && path === "/api/links",
-      );
-    await expect.poll(() => createRequest()?.body).toMatchObject({ folderId: destination.id });
+    const url = "https://example.com/private-ai";
+    const formUrl = page.getByRole("textbox", { name: "URL", exact: true });
+    await formUrl.fill(url);
+    if (needsPrivateWrite) {
+      await page.getByRole("button", { name: /^메모·액션/ }).click();
+      await page.getByRole("textbox", { name: "메모", exact: true }).fill("숨길 메모");
+      await page.getByText("액션 추가", { exact: true }).click();
+      await page.getByPlaceholder("액션 제목").fill("숨길 액션");
+    } else {
+      await page.getByRole("textbox", { name: "제목", exact: true }).fill("새 링크");
+    }
+    const submit = page.getByRole("button", { name: isAi ? "AI 정리" : "저장", exact: true });
+    await submit.click();
+    const creates = () =>
+      state.requests.filter(({ method, path }) => method === "POST" && path === "/api/links");
     if (!isAi) {
-      expect(createRequest()?.body).toHaveProperty("isPublic", false);
+      await expect
+        .poll(() => creates()[0]?.body)
+        .toMatchObject({ folderId: destination.id, isPublic: false });
       return;
     }
+    if (shouldRetry) {
+      await expect(
+        page.getByText("링크는 나만 보기로 저장됐어요. 다음 시도에서 접수 여부를 확인해요."),
+      ).toBeVisible();
+      await expect(formUrl).toHaveValue(url);
+      await expect(page.getByRole("textbox", { name: "메모", exact: true })).toHaveValue(
+        "숨길 메모",
+      );
+      await expect(page.getByPlaceholder("액션 제목")).toHaveValue("숨길 액션");
+      await submit.click();
+    }
     await expect(page).toHaveURL(isWideProject() ? /\/home\?linkId=100$/ : /\/links\/100$/);
-    expect(createRequest()?.body).not.toHaveProperty("isPublic");
-    const privacyRequests = state.requests.filter(
-      ({ method, path }) => method === "PUT" && path === "/api/links/100/privacy",
+    const aiRequests = state.requests.filter(
+      ({ method, path }) => method === "PUT" && path === "/api/links/ai",
     );
-    expect(privacyRequests.map(({ body }) => body)).toEqual(
-      changesVisibility ? [{ isPublic: desiredPublic }] : [],
-    );
-    if (changesVisibility) {
-      expect(state.requests.indexOf(privacyRequests[0])).toBeGreaterThan(
-        state.requests.indexOf(createRequest()!),
+    expect(aiRequests).toHaveLength(shouldRetry ? 2 : 1);
+    if (shouldRetry) {
+      expect(
+        state.requests.slice(
+          state.requests.indexOf(aiRequests[0]) + 1,
+          state.requests.indexOf(aiRequests[1]),
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ method: "GET", path: `/api/links/${newLink.id}` }),
+        ]),
       );
     }
-    if (kind === "ai-private-failed") {
-      await expect(
-        page.getByText("AI 정리는 시작했지만 공개 설정을 저장하지 못했어요."),
-      ).toBeVisible();
-      expect(
-        state.requests.filter(({ method, path }) => method === "PUT" && path === "/api/links/ai"),
-      ).toHaveLength(1);
+    expect(
+      state.requests.some(({ path, method }) => method === "PUT" && path.endsWith("/privacy")),
+    ).toBe(false);
+    for (const request of aiRequests) {
+      expect(request.body).toMatchObject({
+        folderId: destination.id,
+        modelId: 10,
+        url,
+        userProviderId: 5,
+      });
+      expect(request.body).not.toHaveProperty("isPublic");
+      if (needsPrivateWrite) {
+        expect(request.body).toMatchObject({ id: newLink.id, title: null });
+        expect(request.body).not.toHaveProperty("memo");
+        expect(request.body).not.toHaveProperty("todos");
+        expect(state.requests.indexOf(request)).toBeGreaterThan(
+          state.requests.indexOf(creates()[0]),
+        );
+      } else {
+        expect(request.body).not.toHaveProperty("id");
+      }
+    }
+    expect(creates()).toHaveLength(needsPrivateWrite ? 1 : 0);
+    if (needsPrivateWrite) {
+      expect(creates()[0].body).toMatchObject({
+        folderId: destination.id,
+        isPublic: false,
+        memo: "숨길 메모",
+        sourceType: "INPUT",
+        tags: [],
+        title: "example.com/private-ai",
+        todos: [{ title: "숨길 액션" }],
+        url,
+      });
     }
   });
 }
