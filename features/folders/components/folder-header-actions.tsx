@@ -59,9 +59,10 @@ const HEADER_HIT_SLOP = 4;
 type FolderHeaderActionsProps = {
   mode: CreateFolderDialogMode;
   folder: Folder;
+  folderUpdatedAt: number;
 };
 
-function FolderHeaderActions({ mode, folder }: FolderHeaderActionsProps) {
+function FolderHeaderActions({ mode, folder, folderUpdatedAt }: FolderHeaderActionsProps) {
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [isShareOpen, setIsShareOpen] = React.useState(false);
   const [removalKind, setRemovalKind] = React.useState<FolderRemovalKind | null>(null);
@@ -113,6 +114,7 @@ function FolderHeaderActions({ mode, folder }: FolderHeaderActionsProps) {
             <FolderVisibilityAction
               key={folder.id}
               folder={folder}
+              folderUpdatedAt={folderUpdatedAt}
             />
           ) : null}
           {canShare ? (
@@ -179,16 +181,19 @@ function FolderHeaderActions({ mode, folder }: FolderHeaderActionsProps) {
   );
 }
 
-function FolderVisibilityAction({ folder }: { folder: Folder }) {
+function FolderVisibilityAction({
+  folder,
+  folderUpdatedAt,
+}: Pick<FolderHeaderActionsProps, "folder" | "folderUpdatedAt">) {
   const [open, setOpen] = React.useState(false);
   const [confirming, setConfirming] = React.useState(false);
   const mutation = useSetFolderPrivacyMutation();
   const readsDetail = open || confirming || mutation.isPending;
   const detail = useFolderDetailQuery(folder.id, readsDetail);
   const trigger = React.useRef<TriggerRef>(null);
-  const isPublic =
-    typeof (readsDetail && detail.data ? detail.data.turnsPublicAt : folder.turnsPublicAt) ===
-    "string";
+  const latestFolder =
+    detail.data && detail.dataUpdatedAt >= folderUpdatedAt ? detail.data : folder;
+  const isPublic = typeof latestFolder.turnsPublicAt === "string";
   const canChange =
     detail.isSuccess && detail.data.turnsPublicAt !== undefined && !detail.isFetching;
 

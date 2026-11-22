@@ -180,7 +180,7 @@ function useFolderQuery(id: number, options?: { enabled?: boolean }) {
     (!isValidId || (hasPages && !hasNextPage && !isFetchingNextPage));
   const isLoading = enabled && !folder && !isError && !isNotFound;
 
-  return { folder, isError, isLoading, isNotFound, retry };
+  return { folder, dataUpdatedAt: pagesQuery.dataUpdatedAt, isError, isLoading, isNotFound, retry };
 }
 
 type FolderMembersQueryOptions = {

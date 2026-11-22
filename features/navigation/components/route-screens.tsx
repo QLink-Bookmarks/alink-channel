@@ -82,6 +82,7 @@ function FolderDetailRouteScreen() {
         headerActions={
           <FolderHeaderActions
             folder={folder}
+            folderUpdatedAt={folderQuery.dataUpdatedAt}
             mode="wide"
           />
         }

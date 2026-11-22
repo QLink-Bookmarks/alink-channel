@@ -403,6 +403,8 @@ test("reads current visibility when the folder form is reopened immediately", as
   const reopened = await openEdit(page);
   await expect(reopened.getByRole("radio", { name: "나만 보기" })).toBeChecked();
   await expect(reopened.getByRole("link", { name: "공개 페이지 열기" })).toHaveCount(0);
+  await reopened.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(page.getByRole("button", { name: "공개 설정, 나만 보기" })).toBeVisible();
   expect(state.requests.filter(({ path }) => path === `/api/folders/${FOLDER_ID}`)).toHaveLength(
     firstReads + 1,
   );

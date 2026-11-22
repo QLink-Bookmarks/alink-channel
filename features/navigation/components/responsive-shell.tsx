@@ -550,6 +550,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
               ) : mobileFolder ? (
                 <FolderHeaderActions
                   folder={mobileFolder}
+                  folderUpdatedAt={mobileFolderQuery.dataUpdatedAt}
                   mode="mobile"
                 />
               ) : isAnnouncementsListRoute ? (
