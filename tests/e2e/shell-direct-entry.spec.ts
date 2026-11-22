@@ -256,7 +256,7 @@ test.describe("signed in direct entry", () => {
     await page.setViewportSize(WIDE);
     await page.goto("/home");
     await page.getByTestId("link-card-body").first().click();
-    await expectWideOverlay(page, 7);
+    await expectWideOverlay(page, 7, true);
   });
 
   test("crossing 768/769 on the detail swaps page and overlay", async ({ page }) => {
@@ -281,6 +281,7 @@ test.describe("signed out direct entry", () => {
     ["/settings?linkId=7", WIDE],
   ] as const) {
     test(`${viewport.width}px ${path} goes to login`, async ({ page }) => {
+      await mockApi(page, { seedSession: false });
       await page.setViewportSize(viewport);
       await page.goto(path);
       await expect(page).toHaveURL(/\/login$/);
