@@ -105,14 +105,24 @@ test.describe("folder detail lookup", () => {
   test("an id that no page holds ends in 폴더를 찾을 수 없어요 after a loading state", async ({
     page,
   }) => {
+    let finishLookup = () => {};
+    const lookup = new Promise<void>((resolve) => {
+      finishLookup = resolve;
+    });
     const state = await mockApi(page, {
       folders: makeFolders(FOLDER_COUNT),
-      folderPages: { delayMs: { 0: 800 } },
+      handlers: {
+        "GET /api/folders/9999": async (route) => {
+          await lookup;
+          await route.fulfill({ status: 404, json: { success: false, data: null } });
+        },
+      },
     });
 
     await page.goto("/folders/9999");
 
     await expect(page.getByRole("progressbar").first()).toBeVisible();
+    finishLookup();
     await expect(page.getByText("폴더를 찾을 수 없어요")).toBeVisible({ timeout: 15_000 });
     expect(folderRequests(state)).toEqual([]);
     expect(state.requests.some((request) => request.path === "/api/folders/9999")).toBe(true);
