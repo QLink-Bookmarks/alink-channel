@@ -9,13 +9,15 @@ import { useWideViewState } from "@/lib/hooks/use-wide-view";
 import { useAuthStore } from "@/stores/auth";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 
-import { type Href, Redirect, Slot } from "expo-router";
+import { type Href, Navigator, Redirect } from "expo-router";
 
 export default function PagesLayout() {
   return (
-    <ResourceAccess>
-      <PrivatePagesLayout />
-    </ResourceAccess>
+    <Navigator>
+      <ResourceAccess>
+        <PrivatePagesLayout />
+      </ResourceAccess>
+    </Navigator>
   );
 }
 
@@ -45,7 +47,7 @@ function PrivatePagesLayout() {
   return (
     <BottomSheetModalProvider>
       <ResponsiveShell>
-        <Slot />
+        <Navigator.Slot />
       </ResponsiveShell>
       <ImportFlowHost />
     </BottomSheetModalProvider>

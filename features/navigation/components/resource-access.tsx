@@ -109,6 +109,9 @@ function ResourceVisit({
           name="robots"
           content="noindex"
         />
+        {data && access.isSuccess ? (
+          <title>{`${"title" in data ? data.title : data.name} · ALink`}</title>
+        ) : null}
       </Head>
       {!hasHydrated || access.isPending ? (
         <ActivityIndicator

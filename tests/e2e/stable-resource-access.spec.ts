@@ -9,6 +9,13 @@ const API_PATH = `/api/folders/${FOLDER_ID}`;
 const FOLDER_NAME = "도시 산책 기록";
 const LONG_URL = `https://example.com/${"long-url-".repeat(22)}`;
 
+test.beforeEach(async ({ page }) => {
+  await page.route(
+    /^https:\/\/(?:accounts\.google\.com|appleid\.cdn-apple\.com|t1\.kakaocdn\.net)\//,
+    (route) => route.abort(),
+  );
+});
+
 async function mockPublicFolder(page: Page) {
   const state = {
     headStatus: 200,
@@ -22,7 +29,6 @@ async function mockPublicFolder(page: Page) {
       { linkId: LINK_ID, title: "전시 예약하기", isCompleted: true },
     ],
     authorization: [] as (string | undefined)[],
-    requests: [] as string[],
   };
   await page.route(
     (url) =>
@@ -34,7 +40,6 @@ async function mockPublicFolder(page: Page) {
       const request = route.request();
       const url = new URL(request.url());
       state.authorization.push(request.headers().authorization);
-      state.requests.push(url.pathname);
       let status = state.headStatus;
       let response: unknown = envelope({ id: FOLDER_ID, name: FOLDER_NAME, emoji: "🗺️" });
       if (url.pathname === `/api/links/${LINK_ID}`) {
@@ -156,6 +161,14 @@ test("retains rows on a paging failure and clears the whole view on withdrawal",
   await expect(page.getByText("다음 산책 코스 고르기")).toHaveCount(0);
   await page.reload();
   await expect(page).toHaveURL(/\/login$/);
+  state.headStatus = 200;
+  state.links = [];
+  state.nextLinks = [];
+  state.todos = [];
+  await page.goto(WEB_PATH);
+  await expect(page.getByRole("heading", { name: new RegExp(FOLDER_NAME) })).toBeVisible();
+  await expect(page.getByText("아직 공개한 항목이 없어요.")).toBeVisible();
+  await expect(page.getByText("오래된 골목길")).toHaveCount(0);
 });
 
 test("checks the public address again after returning through browser history", async ({
