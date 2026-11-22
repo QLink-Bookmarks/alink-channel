@@ -1,71 +1,64 @@
 import * as React from "react";
 
 import { reportError } from "@/lib/error-reporting";
+import { useAuthStore } from "@/stores/auth";
 
 import { type ConnectOutcome, connectFailed } from "../lib/connect-with-token";
-import { hasOauthCallbackHash } from "../lib/oauth-callback";
+import { notifyLoginFailed } from "../lib/notify-login-failed";
+import { readOauthCallback } from "../lib/oauth-callback";
 import { consumeOauthAttempt } from "../lib/oauth-state";
-import type { SocialProvider } from "../lib/provider-brand";
-import { useConnectFeedback } from "./use-connect-feedback";
+import { stageRedirectConnectOutcome } from "./use-connect-feedback";
 import { exchangeKakaoCode } from "./use-kakao-login.web";
 import { processNaverRedirect } from "./use-naver-login.web";
 
-function clearCallbackUrl() {
-  const url = new URL(window.location.href);
-  for (const key of ["code", "state", "error", "error_description", "error_uri"]) {
-    url.searchParams.delete(key);
-  }
-  if (hasOauthCallbackHash(url.hash)) url.hash = "";
-  window.history.replaceState(window.history.state, "", url);
-}
-
 function useOauthRedirect() {
-  const [isProcessing, setIsProcessing] = React.useState(true);
-  const [shouldEnterApp, setShouldEnterApp] = React.useState(false);
+  const [result, setResult] = React.useState<"login" | "connect" | "invalid" | null>(null);
   const handledRef = React.useRef(false);
-  const applyConnectOutcome = useConnectFeedback();
 
   React.useEffect(() => {
     if (handledRef.current) return;
     handledRef.current = true;
 
-    void (async () => {
-      const url = new URL(window.location.href);
-      const hash = new URLSearchParams(url.hash.slice(1));
-      const hashCallback = hasOauthCallbackHash(url.hash);
-      const params = hashCallback ? hash : url.searchParams;
-      const state = params.get("state");
-      const provider =
-        hashCallback || (params.has("error") && state?.startsWith("naver:")) ? "naver" : "kakao";
-      const credential = params.get(provider === "naver" ? "access_token" : "code");
-      const attempt = consumeOauthAttempt(provider, state);
-      let attempted: SocialProvider | null = null;
-      let outcome: ConnectOutcome | null = null;
+    const url = new URL(window.location.href);
+    const callback = readOauthCallback(url);
+    window.history.replaceState(window.history.state, "", url.pathname);
+    const attempt = callback && consumeOauthAttempt(callback.provider, callback.state);
+    if (!callback || !attempt) {
+      setResult("invalid");
+      return;
+    }
 
+    const isAuthenticated = Boolean(useAuthStore.getState().accessToken);
+    if (isAuthenticated !== (attempt.mode === "connect")) {
+      setResult("login");
+      return;
+    }
+
+    const { credential, error } = callback;
+    const provider = callback.provider === "naver" ? "NAVER" : "KAKAO";
+    void (async () => {
+      let outcome: ConnectOutcome | null = null;
       try {
-        if (attempt && credential) {
-          attempted = provider === "naver" ? "NAVER" : "KAKAO";
-          outcome = await (provider === "naver"
+        if (!error && credential) {
+          outcome = await (provider === "NAVER"
             ? processNaverRedirect(credential, attempt.mode)
             : exchangeKakaoCode(credential, attempt.mode));
+        } else if (error !== "access_denied" && attempt.mode === "login") {
+          notifyLoginFailed();
         }
       } catch (error) {
         reportError(error, { area: "auth:oauth-exchange" });
+        if (attempt.mode === "login") notifyLoginFailed();
       } finally {
-        if (attempt?.mode === "connect" && attempted) {
-          applyConnectOutcome(outcome ?? connectFailed(attempted));
+        if (attempt.mode === "connect" && error !== "access_denied") {
+          stageRedirectConnectOutcome(outcome ?? connectFailed(provider));
         }
-        // Expo Router can still be committing the initial URL on hydration.
-        setTimeout(() => {
-          if (window.location.pathname === "/") clearCallbackUrl();
-          setShouldEnterApp(attempt !== null);
-          setIsProcessing(false);
-        }, 0);
+        setResult(attempt.mode);
       }
     })();
-  }, [applyConnectOutcome]);
+  }, []);
 
-  return { isProcessing, shouldEnterApp };
+  return result;
 }
 
 export { useOauthRedirect };

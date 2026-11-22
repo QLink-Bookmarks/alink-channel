@@ -1,11 +1,12 @@
 import * as React from "react";
 
 import { reportError } from "@/lib/error-reporting";
-import { useAuthStore } from "@/stores/auth";
 
-import { signIn } from "../api";
 import { type ConnectOutcome, connectWithToken } from "../lib/connect-with-token";
+import { notifyLoginFailed } from "../lib/notify-login-failed";
+import { getOauthCallbackUrl } from "../lib/oauth-callback";
 import { type OauthMode, beginOauthAttempt } from "../lib/oauth-state";
+import { signInWithWebToken } from "../lib/sign-in-with-web-token";
 
 async function processNaverRedirect(
   token: string,
@@ -13,10 +14,7 @@ async function processNaverRedirect(
 ): Promise<ConnectOutcome | null> {
   if (mode === "connect") return connectWithToken("NAVER", token, "WEB");
 
-  const result = await signIn({ provider: "NAVER", token, platform: "WEB" });
-  if (result?.success && result.data) {
-    useAuthStore.getState().authenticate({ accessToken: result.data.accessToken });
-  }
+  await signInWithWebToken("NAVER", token);
   return null;
 }
 
@@ -25,7 +23,7 @@ function startNaverOauth(mode: OauthMode) {
   url.search = new URLSearchParams({
     response_type: "token",
     client_id: process.env.EXPO_PUBLIC_NAVER_CLIENT_ID ?? "",
-    redirect_uri: window.location.origin,
+    redirect_uri: getOauthCallbackUrl(),
     state: beginOauthAttempt("naver", mode),
     version: "js-2.0.1",
     svctype: "1",
@@ -39,6 +37,7 @@ function useNaverLogin() {
       startNaverOauth("login");
     } catch (error) {
       reportError(error, { area: "auth:naver-login" });
+      notifyLoginFailed();
     }
   }, []);
 

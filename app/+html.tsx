@@ -17,15 +17,6 @@ const STORED_THEME_SCRIPT = `(function () {
   } catch (error) {}
 })();`;
 
-const OAUTH_ENTRY_SCRIPT = `(function () {
-  if (window.location.pathname !== "/") return;
-  var params = new URLSearchParams(window.location.search);
-  var hash = new URLSearchParams(window.location.hash.slice(1));
-  if (params.has("code") || (params.has("error") && params.has("state")) || hash.has("access_token") || (hash.has("error") && hash.has("state"))) {
-    document.documentElement.setAttribute("data-oauth-entry", "");
-  }
-})();`;
-
 export default function Root({ children }: { children: React.ReactNode }) {
   // OG tags must be absolute URLs (KakaoTalk/Facebook won't resolve relative
   // paths). The image filename is versioned so social/CDN caches fetch fresh
@@ -46,8 +37,6 @@ export default function Root({ children }: { children: React.ReactNode }) {
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
         <script dangerouslySetInnerHTML={{ __html: STORED_THEME_SCRIPT }} />
-        <script dangerouslySetInnerHTML={{ __html: OAUTH_ENTRY_SCRIPT }} />
-        <style>{`html[data-oauth-entry] #web-landing { display: none; }`}</style>
         <title>에이링크 ALink — AI가 도와주는 북마크 아카이브</title>
         <meta
           name="description"
