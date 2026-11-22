@@ -63,6 +63,7 @@ function LinkDetailToolbar({
       testID="link-detail-toolbar"
     >
       {star}
+      {visibility}
       <DetailToolbarButton
         compact={compact}
         icon={Share2}
@@ -80,7 +81,6 @@ function LinkDetailToolbar({
           onPress={onEdit}
         />
       ) : null}
-      {visibility}
       {canCopy ? (
         <DetailToolbarButton
           accessibilityLabel="개인 폴더로 추가"

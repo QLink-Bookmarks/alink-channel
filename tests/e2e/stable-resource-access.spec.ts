@@ -113,6 +113,7 @@ for (const signedIn of [false, true]) {
     await link.click();
     await expect(page).toHaveURL(new RegExp(`/links/${LINK_ID}$`));
     await expect(page.getByRole("heading", { name: "오래된 골목길" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^공개 설정, / })).toHaveCount(0);
     if (signedIn) {
       await expect(page.getByRole("button", { name: "로그인", exact: true })).toHaveCount(0);
       await expect(page.getByRole("button", { name: "사이드바 열기" })).toHaveCount(0);
