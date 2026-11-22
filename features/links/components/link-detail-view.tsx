@@ -68,9 +68,7 @@ import { type Href, useRouter } from "expo-router";
 import { Trash2 } from "lucide-react-native/icons";
 
 type ShareOutcome = "shared" | "copied" | "cancelled" | "failed";
-type LinkFieldsOverride = Partial<
-  Pick<UpdateLinkRequest, "isPublic" | "memo" | "summary" | "tags" | "title">
->;
+type LinkFieldsOverride = Partial<Pick<UpdateLinkRequest, "memo" | "summary" | "tags" | "title">>;
 
 const PERSONAL_FOLDER_SECTIONS: FolderSection[] = ["mine"];
 const DELETE_HIT_SLOP = 4;
@@ -87,7 +85,6 @@ function buildUpdateLinkPayload(
     faviconUrl: detail.faviconUrl ?? null,
     folderId: detail.folderId ?? null,
     isVideo: detail.isVideo ?? false,
-    isPublic: overrides.isPublic,
     thumbnailUrl: detail.thumbnailUrl ?? null,
     memo: overrides.memo !== undefined ? overrides.memo : detail.memo,
     sourceType: detail.sourceType,
@@ -271,24 +268,24 @@ function LinkDetailView({
     currentFolder.ownerId === myProfileQuery.data.id;
   const isLinkOwner = detail.isOwner === true;
   const canCopyFromSharedFolder = isSharedFolder && !isFolderOwner;
-  const folderTurnsPublicAt = currentFolder?.turnsPublicAt;
   const folderPublic =
     detail.folderId == null
       ? false
-      : folderTurnsPublicAt === undefined
-        ? undefined
-        : folderTurnsPublicAt !== null;
-  const canChangePrivacy = isLinkOwner && folderPublic === true;
-  const savedPublic = typeof detail.turnsPublicAt === "string";
+      : typeof currentFolder?.isPublic === "boolean"
+        ? currentFolder.isPublic
+        : undefined;
+  const canChangePrivacy =
+    isLinkOwner && folderPublic === true && typeof detail.isPublic === "boolean";
+  const savedPublic = detail.isPublic === true;
   const isPublic = folderPublic === true && (privacyDraft ?? savedPublic);
   const changedPrivacy = isLinkOwner && privacyDraft !== savedPublic ? privacyDraft : undefined;
   const unavailablePrivacyDraft = privacyDraft === true && !canChangePrivacy;
-  const privacyMutation = useSetLinkPrivacyMutation(detail.id);
+  const privacyMutation = useSetLinkPrivacyMutation();
   const linkVisibility = folderPublic === true && savedPublic;
 
   const handleChangeLinkPrivacy = (next: boolean) => {
-    if (privacyMutation.isPending || next === linkVisibility) return;
-    privacyMutation.mutate(next);
+    if (!canChangePrivacy || privacyMutation.isPending || next === linkVisibility) return;
+    privacyMutation.mutate({ id: detail.id, isPublic: next });
   };
 
   const handleDetailUpdated = React.useCallback(
@@ -313,13 +310,12 @@ function LinkDetailView({
         buildUpdateLinkPayload(latest, overrides),
       );
       handleDetailUpdated(response);
-      const { isPublic: _visibility, ...fields } = overrides;
       // The merge keeps known values over nulls, so a cleared memo or summary is set here.
       queryClient.setQueryData<LinkDetail>(queryKey, (current) =>
         current
           ? {
               ...current,
-              ...fields,
+              ...overrides,
             }
           : current,
       );
@@ -555,18 +551,21 @@ function LinkDetailView({
     }
     isSavingEditRef.current = true;
     setIsSavingEdit(true);
+    let savingPrivacy = false;
     try {
       const summary = summaryDraft.trim();
       const titleChanged = nextTitle !== initialEditText.current.title;
       const summaryChanged = summary !== initialEditText.current.summary;
-      if (changedPrivacy !== undefined && !titleChanged && !summaryChanged) {
-        await privacyMutation.mutateAsync(changedPrivacy);
-      } else {
+      if (titleChanged || summaryChanged) {
         await updateLinkFields({
-          isPublic: changedPrivacy,
           ...(titleChanged ? { title: nextTitle } : {}),
           ...(summaryChanged ? { summary: summary || null } : {}),
         });
+        initialEditText.current = { title: nextTitle, summary };
+      }
+      if (changedPrivacy !== undefined) {
+        savingPrivacy = true;
+        await privacyMutation.mutateAsync({ id: detail.id, isPublic: changedPrivacy });
       }
       setIsUnsavedEditOpen(false);
       setEditSheetOpen(false);
@@ -578,10 +577,10 @@ function LinkDetailView({
         sourceKey: "link-detail-edit",
       });
     } catch (error: unknown) {
-      if (changedPrivacy === true) void refetchFolders();
+      if (savingPrivacy) await refetchFolders();
       reportError(error, { area: "link-detail-view:edit", extra: { linkId: detail.id } });
       showToast({
-        title: "수정에 실패했어요.",
+        title: savingPrivacy ? "공개 설정을 저장하지 못했어요." : "수정에 실패했어요.",
         description: "잠시 후 다시 시도해주세요.",
         variant: "error",
         dismissible: true,

@@ -224,9 +224,8 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
   const [confirming, setConfirming] = React.useState(false);
   const [notice, setNotice] = React.useState<string>();
   const privacy = useFolderDetailQuery(open ? folder.id : null);
-  const confirmedVisibility = privacy.isSuccess && privacy.data.turnsPublicAt !== undefined;
-  const savedPublic =
-    typeof (privacy.data ? privacy.data.turnsPublicAt : folder.turnsPublicAt) === "string";
+  const confirmedVisibility = privacy.isSuccess && typeof privacy.data.isPublic === "boolean";
+  const savedPublic = (privacy.data?.isPublic ?? folder.isPublic) === true;
   const isPublic = draftPrivacy ?? savedPublic;
   const saving = React.useRef(false);
   const saveButton = React.useRef<React.ComponentRef<typeof View>>(null);
@@ -279,13 +278,15 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
         trimmed !== initial.name.trim() ||
         emoji !== (initial.emoji ?? null) ||
         isShared !== initial.isShared;
-      if (change !== undefined && !fieldsChanged) {
-        await privacyMutation.mutateAsync({ id: folder.id, isPublic: change });
-      } else if (fieldsChanged) {
+      if (fieldsChanged) {
         await mutation.mutateAsync({
           id: folder.id,
-          payload: { name: trimmed, emoji, isShared, isPublic: change },
+          payload: { name: trimmed, emoji, isShared },
         });
+        initializedFolder.current = { ...initial, name: trimmed, emoji, isShared };
+      }
+      if (change !== undefined) {
+        await privacyMutation.mutateAsync({ id: folder.id, isPublic: change });
       }
       onUpdated?.(folder.id);
       if (change === undefined) {
@@ -300,7 +301,7 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
       );
       requestAnimationFrame(() => resultNotice.current?.focus());
     } catch {
-      void privacy.refetch();
+      // Mutation errors stay visible in the form so the user can retry.
     } finally {
       saving.current = false;
     }
@@ -334,9 +335,11 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
     <FolderFormBody
       emoji={emoji}
       errorMessage={
-        mutation.error || privacyMutation.error
-          ? "폴더 수정에 실패했어요. 잠시 후 다시 시도해주세요."
-          : undefined
+        privacyMutation.isError
+          ? "공개 설정을 저장하지 못했어요."
+          : mutation.isError
+            ? "폴더 수정에 실패했어요. 잠시 후 다시 시도해주세요."
+            : undefined
       }
       isPending={isPending}
       isShared={isShared}
@@ -478,7 +481,7 @@ function FolderPrivacyDetails({
       </View>
     );
   }
-  return typeof query.data?.turnsPublicAt === "string" ? (
+  return query.data?.isPublic === true ? (
     <PublicFolderAddress
       key={folderId}
       folderId={folderId}

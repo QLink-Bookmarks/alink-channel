@@ -12,7 +12,6 @@ import {
 } from "./support/mock-api";
 
 const FOLDER_ID = 1;
-const PUBLIC_AT = "2026-11-22T10:00:00Z";
 const PUBLISH_TITLE = "폴더를 전체 공개할까요?";
 const FOLDER_INPUT = "예: 디자인 레퍼런스";
 
@@ -26,7 +25,7 @@ test("a new folder defaults to private and returns its public address without co
     folders: [],
     handlers: {
       "GET /api/folders/1": (route) =>
-        route.fulfill({ json: envelope({ ...folder, turnsPublicAt: PUBLIC_AT }) }),
+        route.fulfill({ json: envelope({ ...folder, isPublic: true }) }),
     },
   });
   await page.goto(isWideProject() ? "/home" : "/folders");
@@ -79,29 +78,17 @@ for (const { isOwner, folderOwnerId, isPublic } of [
     const [folder] = makeFolders(1);
     const link = makeLink({ id: 1, folderId: folder.id, folderName: folder.name });
     const state = await mockApi(page, {
-      folders: [{ ...folder, ownerId: folderOwnerId, isShared: true, turnsPublicAt: PUBLIC_AT }],
+      folders: [{ ...folder, ownerId: folderOwnerId, isShared: true, isPublic: true }],
       links: [link],
       details: {
-        [link.id]: makeDetail(link, { isOwner, turnsPublicAt: isPublic ? PUBLIC_AT : null }),
+        [link.id]: makeDetail(link, { isOwner, isPublic }),
       },
       handlers: {
-        "PUT /api/links/1": (route, request) => {
-          const { isPublic, title } = request.postDataJSON() as {
-            isPublic: boolean;
-            title: string;
-          };
-          state.details[link.id] = {
-            ...state.details[link.id],
-            title,
-            turnsPublicAt: isPublic ? PUBLIC_AT : null,
-          };
-          return route.fulfill({ json: envelope(state.details[link.id]) });
-        },
         "PUT /api/links/1/privacy": (route, request) => {
           const { isPublic } = request.postDataJSON() as { isPublic: boolean };
-          state.details[link.id].turnsPublicAt = isPublic ? PUBLIC_AT : null;
+          state.details[link.id].isPublic = isPublic;
           return route.fulfill({
-            json: envelope({ turnsPublicAt: state.details[link.id].turnsPublicAt }),
+            json: envelope({ isPublic: state.details[link.id].isPublic }),
           });
         },
       },
@@ -124,13 +111,13 @@ for (const { isOwner, folderOwnerId, isPublic } of [
     await everyone.click();
     await page.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.getByText("수정했어요.")).toBeVisible();
-    expect(state.details[link.id].turnsPublicAt).toBe(PUBLIC_AT);
+    expect(state.details[link.id].isPublic).toBe(true);
     await page.getByTestId("link-detail-edit").click();
     await expect(everyone).toBeChecked();
     await onlyMe.click();
     await page.getByRole("button", { name: "저장", exact: true }).click();
     await expect(onlyMe).toHaveCount(0);
-    expect(state.details[link.id].turnsPublicAt).toBeNull();
+    expect(state.details[link.id].isPublic).toBe(false);
     expect(
       state.requests.filter(({ method }) => method === "PUT").map(({ path, body }) => [path, body]),
     ).toEqual([
@@ -149,11 +136,11 @@ test("a private folder overrides stale public link details", async ({ page }) =>
   });
   await mockApi(page, {
     links: [link],
-    details: { [link.id]: makeDetail(link, { isOwner: true, turnsPublicAt: PUBLIC_AT }) },
+    details: { [link.id]: makeDetail(link, { isOwner: true, isPublic: true }) },
     handlers: {
       "GET /api/folders": async (route) => {
         await folderResponse;
-        await route.fulfill({ json: scroll([{ ...folder, turnsPublicAt: null }]) });
+        await route.fulfill({ json: scroll([{ ...folder, isPublic: false }]) });
       },
     },
   });
@@ -173,96 +160,106 @@ test("a private folder overrides stale public link details", async ({ page }) =>
   await expect(everyone).toBeDisabled();
 });
 
-test("keeps a rejected combined link edit intact and uses the toolbar for a privacy-only write", async ({
-  page,
-}) => {
-  const [folder] = makeFolders(1);
-  const link = makeLink({ id: 1, folderId: folder.id, folderName: folder.name });
-  let rejectCombined = true;
-  const state = await mockApi(page, {
-    folders: [{ ...folder, turnsPublicAt: PUBLIC_AT }],
-    links: [link],
-    details: { [link.id]: makeDetail(link, { isOwner: true, turnsPublicAt: null }) },
-    handlers: {
-      "PUT /api/links/1": (route, request) => {
-        if (rejectCombined)
-          return route.fulfill({ status: 422, json: { success: false, data: null } });
-        const { title, isPublic } = request.postDataJSON() as { title: string; isPublic: boolean };
-        state.details[link.id] = {
-          ...state.details[link.id],
-          title,
-          turnsPublicAt: isPublic ? PUBLIC_AT : null,
-        };
-        return route.fulfill({ json: envelope(state.details[link.id]) });
+for (const committed of [false, true]) {
+  test(`reconciles a failed link privacy response after saving the title (committed: ${committed})`, async ({
+    page,
+  }) => {
+    const [folder] = makeFolders(1);
+    const link = makeLink({ id: 1, folderId: folder.id, folderName: folder.name });
+    let failPrivacy = true;
+    const state = await mockApi(page, {
+      folders: [{ ...folder, isPublic: true }],
+      links: [link],
+      details: { [link.id]: makeDetail(link, { isOwner: true, isPublic: false }) },
+      handlers: {
+        "PUT /api/links/1": (route, request) => {
+          const { title } = request.postDataJSON() as { title: string };
+          state.details[link.id] = {
+            ...state.details[link.id],
+            title,
+          };
+          return route.fulfill({ json: envelope(state.details[link.id]) });
+        },
+        "PUT /api/links/1/privacy": (route, request) => {
+          const { isPublic } = request.postDataJSON() as { isPublic: boolean };
+          if (failPrivacy) {
+            failPrivacy = false;
+            if (committed) state.details[link.id].isPublic = isPublic;
+            return route.abort("failed");
+          }
+          state.details[link.id].isPublic = isPublic;
+          return route.fulfill({
+            json: envelope({ isPublic: state.details[link.id].isPublic }),
+          });
+        },
       },
-      "PUT /api/links/1/privacy": (route, request) => {
-        const { isPublic } = request.postDataJSON() as { isPublic: boolean };
-        state.details[link.id].turnsPublicAt = isPublic ? PUBLIC_AT : null;
-        return route.fulfill({
-          json: envelope({ turnsPublicAt: state.details[link.id].turnsPublicAt }),
-        });
-      },
-    },
+    });
+
+    await page.goto(isWideProject() ? "/links?linkId=1" : "/links/1");
+    await page.getByTestId("link-detail-edit").click();
+    const title = page.getByRole("textbox", { name: "제목" });
+    const everyone = page.getByRole("radio", { name: "전체 공개" });
+    const save = page.getByRole("button", { name: "저장", exact: true });
+    await title.fill("이름과 함께 변경");
+    await everyone.click();
+    await save.click();
+    await expect(page.getByText("공개 설정을 저장하지 못했어요.")).toBeVisible();
+    await expect(title).toHaveValue("이름과 함께 변경");
+    await expect(everyone).toBeChecked();
+    expect(state.details[link.id].isPublic).toBe(committed);
+    expect(state.details[link.id].title).toBe("이름과 함께 변경");
+    const privacyIndex = state.requests.findIndex(
+      ({ path, method }) => method === "PUT" && path === "/api/links/1/privacy",
+    );
+    expect(state.requests.slice(privacyIndex + 1)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ method: "GET", path: "/api/links/1" })]),
+    );
+
+    if (committed) {
+      await expect(save).toBeDisabled();
+      await page.getByRole("button", { name: "취소", exact: true }).click();
+    } else {
+      await save.click();
+    }
+    await expect(title).toHaveCount(0);
+    const toolbar = page.getByTestId("link-detail-toolbar");
+    await toolbar.getByRole("button", { name: "공개 설정, 전체 공개" }).click();
+    const overlay = page.getByRole("group", { name: "공개 설정" });
+    await expect(overlay.getByRole("button", { name: "전체 공개", pressed: true })).toBeVisible();
+    const privateOption = overlay.getByRole("button", { name: "나만 보기" });
+    await privateOption.focus();
+    expect(state.requests.filter(({ method }) => method === "PUT")).toHaveLength(committed ? 2 : 3);
+    await page.keyboard.press("Enter");
+    await expect(privateOption).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("Escape");
+    await expect(toolbar.getByRole("button", { name: "공개 설정, 나만 보기" })).toBeFocused();
+
+    const writes = state.requests.filter(({ method }) => method === "PUT");
+    expect(writes.map(({ path, body }) => [path, body])).toEqual([
+      ["/api/links/1", expect.objectContaining({ title: "이름과 함께 변경", folderId: FOLDER_ID })],
+      ["/api/links/1/privacy", { isPublic: true }],
+      ...(committed ? [] : [["/api/links/1/privacy", { isPublic: true }]]),
+      ["/api/links/1/privacy", { isPublic: false }],
+    ]);
+    expect(writes[0].body).not.toHaveProperty("isPublic");
   });
-
-  await page.goto(isWideProject() ? "/links?linkId=1" : "/links/1");
-  await page.getByTestId("link-detail-edit").click();
-  const title = page.getByRole("textbox", { name: "제목" });
-  const everyone = page.getByRole("radio", { name: "전체 공개" });
-  const save = page.getByRole("button", { name: "저장", exact: true });
-  await title.fill("이름과 함께 변경");
-  await everyone.click();
-  await save.click();
-  await expect(page.getByText("수정에 실패했어요.")).toBeVisible();
-  await expect(title).toHaveValue("이름과 함께 변경");
-  await expect(everyone).toBeChecked();
-  expect(state.details[link.id].turnsPublicAt).toBeNull();
-  expect(state.details[link.id].title).toBe(link.title);
-
-  rejectCombined = false;
-  await save.click();
-  await expect(title).toHaveCount(0);
-  const toolbar = page.getByTestId("link-detail-toolbar");
-  await toolbar.getByRole("button", { name: "공개 설정, 전체 공개" }).click();
-  const overlay = page.getByRole("group", { name: "공개 설정" });
-  await expect(overlay.getByRole("button", { name: "전체 공개", pressed: true })).toBeVisible();
-  const privateOption = overlay.getByRole("button", { name: "나만 보기" });
-  await privateOption.focus();
-  expect(state.requests.filter(({ method }) => method === "PUT")).toHaveLength(2);
-  await page.keyboard.press("Enter");
-  await expect(privateOption).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.press("Escape");
-  await expect(toolbar.getByRole("button", { name: "공개 설정, 나만 보기" })).toBeFocused();
-
-  const writes = state.requests.filter(({ method }) => method === "PUT");
-  expect(writes.map(({ path }) => path)).toEqual([
-    "/api/links/1",
-    "/api/links/1",
-    "/api/links/1/privacy",
-  ]);
-  expect(writes[0].body).toMatchObject({ title: "이름과 함께 변경", isPublic: true });
-  expect(writes[1].body).toEqual(writes[0].body);
-  expect(writes[2].body).toEqual({ isPublic: false });
-});
+}
 
 test("keeps link field edits after the current folder becomes private", async ({ page }) => {
   const [folder] = makeFolders(1);
   const link = makeLink({ id: 1, folderId: folder.id, folderName: folder.name });
-  let folderTurnsPublicAt: string | null = PUBLIC_AT;
+  let folderIsPublic = true;
   const state = await mockApi(page, {
     links: [link],
-    details: { [link.id]: makeDetail(link, { isOwner: true, turnsPublicAt: null }) },
+    details: { [link.id]: makeDetail(link, { isOwner: true, isPublic: false }) },
     handlers: {
       "GET /api/folders": (route) =>
-        route.fulfill({ json: scroll([{ ...folder, turnsPublicAt: folderTurnsPublicAt }]) }),
+        route.fulfill({ json: scroll([{ ...folder, isPublic: folderIsPublic }]) }),
       "PUT /api/links/1": (route, request) => {
         const body = request.postDataJSON() as {
           title: string;
           summary: string;
-          isPublic?: boolean;
         };
-        if (body.isPublic === true)
-          return route.fulfill({ status: 422, json: { success: false, data: null } });
         state.details[link.id] = {
           ...state.details[link.id],
           title: body.title,
@@ -270,6 +267,8 @@ test("keeps link field edits after the current folder becomes private", async ({
         };
         return route.fulfill({ json: envelope(state.details[link.id]) });
       },
+      "PUT /api/links/1/privacy": (route) =>
+        route.fulfill({ status: 422, json: { success: false, data: null } }),
     },
   });
   await page.goto(isWideProject() ? "/links?linkId=1" : "/links/1");
@@ -280,24 +279,28 @@ test("keeps link field edits after the current folder becomes private", async ({
   await title.fill("유지할 제목");
   await summary.fill("유지할 요약");
   await page.getByRole("radio", { name: "전체 공개" }).click();
-  folderTurnsPublicAt = null;
+  folderIsPublic = false;
   await save.click();
   await expect(page.getByText("현재 폴더 상태에서는 링크를 전체 공개할 수 없어요.")).toBeVisible();
   await expect(title).toHaveValue("유지할 제목");
   await expect(summary).toHaveValue("유지할 요약");
   await expect(save).toBeDisabled();
   await page.getByRole("button", { name: "공개 변경 취소" }).click();
-  await save.click();
+  await expect(save).toBeDisabled();
+  await page.getByRole("button", { name: "취소", exact: true }).click();
   await expect(title).toHaveCount(0);
   expect(state.requests.filter(({ method }) => method === "PUT").map(({ body }) => body)).toEqual([
-    expect.objectContaining({ title: "유지할 제목", summary: "유지할 요약", isPublic: true }),
-    expect.not.objectContaining({ isPublic: expect.anything() }),
+    expect.objectContaining({ title: "유지할 제목", summary: "유지할 요약" }),
+    { isPublic: true },
   ]);
   expect(state.details[link.id]).toMatchObject({
     title: "유지할 제목",
     summary: "유지할 요약",
-    turnsPublicAt: null,
+    isPublic: false,
   });
+  expect(
+    state.requests.find(({ method, path }) => method === "PUT" && path === "/api/links/1")?.body,
+  ).not.toHaveProperty("isPublic");
 });
 
 async function openEdit(page: Page) {
@@ -310,36 +313,36 @@ async function openEdit(page: Page) {
 async function mockFolderOwner(
   page: Page,
   theme: "light" | "dark",
-  failures: { beforeWrite?: boolean; afterWrite?: boolean } = {},
+  failures: { edit?: boolean; privacy?: "before-write" | "after-write" } = {},
 ) {
-  let turnsPublicAt: string | null = null;
   const [folder] = makeFolders(1);
+  const savedFolder = { ...folder, isShared: true, isPublic: false };
   const state = await mockApi(page, {
-    folders: [{ ...folder, isShared: true, turnsPublicAt }],
+    folders: [savedFolder],
     handlers: {
       "GET /api/users/me/settings": settingsHandler(theme, "gray"),
-      [`GET /api/folders/${FOLDER_ID}`]: (route) =>
-        route.fulfill({ json: envelope({ ...folder, isShared: true, turnsPublicAt }) }),
+      [`GET /api/folders/${FOLDER_ID}`]: (route) => route.fulfill({ json: envelope(savedFolder) }),
       [`PUT /api/folders/${FOLDER_ID}/privacy`]: (route, request) => {
-        const body = request.postDataJSON() as { isPublic: boolean };
-        turnsPublicAt = body.isPublic ? PUBLIC_AT : null;
-        state.folders[0].turnsPublicAt = turnsPublicAt;
-        return route.fulfill({ json: envelope({ turnsPublicAt }) });
+        const { isPublic } = request.postDataJSON() as { isPublic: boolean };
+        const failure = failures.privacy;
+        failures.privacy = undefined;
+        if (failure !== "before-write") savedFolder.isPublic = isPublic;
+        if (failure) return route.abort("failed");
+        return route.fulfill({ json: envelope({ isPublic }) });
       },
       [`PUT /api/folders/${FOLDER_ID}`]: (route, request) => {
-        const data = request.postDataJSON() as { isPublic?: boolean };
-        if (failures.beforeWrite) {
-          failures.beforeWrite = false;
+        const { name, emoji, isShared } = request.postDataJSON() as {
+          name: string;
+          emoji: string | null;
+          isShared: boolean;
+        };
+        if (failures.edit) {
+          failures.edit = false;
           return route.fulfill({ status: 503, json: { success: false, data: null } });
         }
-        if (data.isPublic !== undefined) turnsPublicAt = data.isPublic ? PUBLIC_AT : null;
-        state.folders[0].turnsPublicAt = turnsPublicAt;
-        if (failures.afterWrite) {
-          failures.afterWrite = false;
-          return route.abort("failed");
-        }
+        Object.assign(savedFolder, { name, emoji, isShared });
         return route.fulfill({
-          json: envelope({ id: FOLDER_ID, turnsPublicAt }),
+          json: envelope({ id: FOLDER_ID, isPublic: savedFolder.isPublic }),
         });
       },
     },
@@ -352,41 +355,63 @@ async function mockFolderOwner(
       .map(({ body }) => body);
 }
 
-test("preserves the folder draft on failure and reloads a committed change after a lost response", async ({
-  page,
-}) => {
-  const writes = await mockFolderOwner(page, "light", { beforeWrite: true, afterWrite: true });
-  await page.goto(`/folders/${FOLDER_ID}`);
-  const form = await openEdit(page);
-  await form.getByPlaceholder(FOLDER_INPUT).fill("실패 뒤 유지할 이름");
-  await form.getByRole("radio", { name: "전체 공개" }).click();
-  const confirm = page
-    .getByRole("dialog", { name: PUBLISH_TITLE })
-    .getByRole("button", { name: "전체 공개" });
-  const save = form.getByRole("button", { name: "저장", exact: true });
-  await save.click();
-  await confirm.click();
-  await expect(form.getByText("폴더 수정에 실패했어요. 잠시 후 다시 시도해주세요.")).toBeVisible();
-  await expect(form.getByPlaceholder(FOLDER_INPUT)).toHaveValue("실패 뒤 유지할 이름");
-  await expect(form.getByRole("radio", { name: "전체 공개" })).toBeEnabled();
-  await save.click();
-  await confirm.click();
-  await expect(form.getByRole("link", { name: "공개 페이지 열기" })).toBeVisible();
-  await form.getByRole("button", { name: "취소", exact: true }).click();
-  const reopened = await openEdit(page);
-  await expect(reopened.getByRole("radio", { name: "전체 공개" })).toBeChecked();
-  await expect(reopened.getByRole("link", { name: "공개 페이지 열기" })).toBeVisible();
-  expect(writes()).toHaveLength(2);
-});
+for (const privacy of ["before-write", "after-write"] as const) {
+  test(`preserves the folder draft and reconciles a failed privacy response (${privacy})`, async ({
+    page,
+  }) => {
+    const writes = await mockFolderOwner(page, "light", { edit: true, privacy });
+    await page.goto(`/folders/${FOLDER_ID}`);
+    const form = await openEdit(page);
+    await form.getByPlaceholder(FOLDER_INPUT).fill("실패 뒤 유지할 이름");
+    await form.getByRole("radio", { name: "전체 공개" }).click();
+    const confirm = page
+      .getByRole("dialog", { name: PUBLISH_TITLE })
+      .getByRole("button", { name: "전체 공개" });
+    const save = form.getByRole("button", { name: "저장", exact: true });
+    await save.click();
+    await confirm.click();
+    await expect(
+      form.getByText("폴더 수정에 실패했어요. 잠시 후 다시 시도해주세요."),
+    ).toBeVisible();
+    await expect(form.getByPlaceholder(FOLDER_INPUT)).toHaveValue("실패 뒤 유지할 이름");
+    await expect(form.getByRole("radio", { name: "전체 공개" })).toBeEnabled();
+    expect(writes()).toEqual([{ name: "실패 뒤 유지할 이름", emoji: "📁", isShared: true }]);
+    await save.click();
+    await confirm.click();
+    await expect(form.getByText("공개 설정을 저장하지 못했어요.")).toBeVisible();
+    const publicAddress = form.getByRole("link", { name: "공개 페이지 열기" });
+    if (privacy === "before-write") {
+      await expect(publicAddress).toHaveCount(0);
+      await save.click();
+      await confirm.click();
+      await expect(publicAddress).toBeVisible();
+      await form.getByRole("button", { name: "완료", exact: true }).click();
+    } else {
+      await expect(publicAddress).toBeVisible();
+      await save.click();
+    }
+    await expect(form.getByPlaceholder(FOLDER_INPUT)).toHaveCount(0);
+    const reopened = await openEdit(page);
+    await expect(reopened.getByPlaceholder(FOLDER_INPUT)).toHaveValue("실패 뒤 유지할 이름");
+    await expect(reopened.getByRole("radio", { name: "전체 공개" })).toBeChecked();
+    await expect(reopened.getByRole("link", { name: "공개 페이지 열기" })).toBeVisible();
+    expect(writes()).toEqual([
+      { name: "실패 뒤 유지할 이름", emoji: "📁", isShared: true },
+      { name: "실패 뒤 유지할 이름", emoji: "📁", isShared: true },
+      { isPublic: true },
+      ...(privacy === "before-write" ? [{ isPublic: true }] : []),
+    ]);
+  });
+}
 
 test("reads current visibility when the folder form is reopened immediately", async ({ page }) => {
   const [folder] = makeFolders(1);
-  let turnsPublicAt: string | null = PUBLIC_AT;
+  let isPublic: boolean = true;
   const state = await mockApi(page, {
-    folders: [{ ...folder, turnsPublicAt }],
+    folders: [{ ...folder, isPublic }],
     handlers: {
       [`GET /api/folders/${FOLDER_ID}`]: (route) =>
-        route.fulfill({ json: envelope({ ...folder, turnsPublicAt }) }),
+        route.fulfill({ json: envelope({ ...folder, isPublic }) }),
     },
   });
 
@@ -399,7 +424,7 @@ test("reads current visibility when the folder form is reopened immediately", as
   const firstReads = state.requests.filter(
     ({ path }) => path === `/api/folders/${FOLDER_ID}`,
   ).length;
-  turnsPublicAt = null;
+  isPublic = false;
   const reopened = await openEdit(page);
   await expect(reopened.getByRole("radio", { name: "나만 보기" })).toBeChecked();
   await expect(reopened.getByRole("link", { name: "공개 페이지 열기" })).toHaveCount(0);
@@ -438,7 +463,7 @@ test("keeps the newer folder detail after the sidebar loads a different folder p
 }) => {
   test.skip(!isWideProject(), "the wide sidebar stays mounted on folder details");
   const [first, second] = makeFolders(2).reverse();
-  let turnsPublicAt: string | null = null;
+  let isPublic: boolean = false;
   let releaseNextPage: () => void = () => {};
   const nextPage = new Promise<void>((resolve) => {
     releaseNextPage = resolve;
@@ -448,13 +473,13 @@ test("keeps the newer folder detail after the sidebar loads a different folder p
     handlers: {
       "GET /api/folders": async (route, request) => {
         if (!new URL(request.url()).searchParams.has("cursor")) {
-          return route.fulfill({ json: scroll([{ ...first, turnsPublicAt: null }], "second") });
+          return route.fulfill({ json: scroll([{ ...first, isPublic: false }], "second") });
         }
         await nextPage;
         return route.fulfill({ json: scroll([second]) });
       },
       [`GET /api/folders/${first.id}`]: (route) =>
-        route.fulfill({ json: envelope({ ...first, turnsPublicAt }) }),
+        route.fulfill({ json: envelope({ ...first, isPublic }) }),
     },
   });
   try {
@@ -468,7 +493,7 @@ test("keeps the newer folder detail after the sidebar loads a different folder p
         ),
       )
       .toBe(true);
-    turnsPublicAt = PUBLIC_AT;
+    isPublic = true;
     await trigger.click();
     const overlay = page.getByRole("group", { name: "공개 설정" });
     await expect(overlay.getByRole("button", { name: "전체 공개", pressed: true })).toBeVisible();
@@ -512,7 +537,8 @@ for (const theme of ["light", "dark"] as const) {
     await page.keyboard.press("Enter");
     await expect(page.getByText("폴더를 전체 공개했어요.")).toBeVisible();
     expect(writes()).toEqual([
-      { name: "협업 이름 초안", emoji: "📁", isShared: true, isPublic: true },
+      { name: "협업 이름 초안", emoji: "📁", isShared: true },
+      { isPublic: true },
     ]);
     const firstAddress = page.getByRole("link", { name: "공개 페이지 열기" });
     await expect(firstAddress).toHaveAttribute("href", new RegExp(`/folders/${FOLDER_ID}$`));
@@ -525,7 +551,7 @@ for (const theme of ["light", "dark"] as const) {
     await publicForm.getByRole("button", { name: "저장", exact: true }).click();
     await expect(publicForm.getByPlaceholder(FOLDER_INPUT)).toHaveCount(0);
     await expect(confirmation).toHaveCount(0);
-    expect(writes()[1]).toEqual({
+    expect(writes()[2]).toEqual({
       name: "공개 주소를 유지하는 이름 수정",
       emoji: "📁",
       isShared: true,
@@ -552,7 +578,7 @@ for (const theme of ["light", "dark"] as const) {
     await republishForm.getByRole("button", { name: "저장" }).click();
     await confirmation.getByRole("button", { name: "전체 공개" }).click();
     await expect(firstAddress).toHaveAttribute("href", new RegExp(`/folders/${FOLDER_ID}$`));
-    expect(writes()).toHaveLength(4);
+    expect(writes()).toHaveLength(5);
   });
 }
 
@@ -562,8 +588,8 @@ test("keeps an explicit private link and its todo when the folder is reselected"
   const [folder, privateFolder] = makeFolders(2);
   const state = await mockApi(page, {
     folders: [
-      { ...folder, name: "공개 폴더", emoji: null, turnsPublicAt: PUBLIC_AT },
-      { ...privateFolder, name: "비공개 폴더", emoji: null, turnsPublicAt: null },
+      { ...folder, name: "공개 폴더", emoji: null, isPublic: true },
+      { ...privateFolder, name: "비공개 폴더", emoji: null, isPublic: false },
     ],
   });
   await page.goto("/home");
@@ -612,16 +638,25 @@ test("keeps an explicit private link and its todo when the folder is reselected"
     });
 });
 
-for (const kind of ["일반", "AI"] as const) {
-  test(`keeps a link private in the ${kind} flow when the folder response omits visibility`, async ({
-    page,
-  }) => {
+for (const kind of [
+  "regular-missing",
+  "ai-inherits",
+  "ai-explicit-private",
+  "ai-private-failed",
+] as const) {
+  test(`applies the creation visibility contract (${kind})`, async ({ page }) => {
     const [known, unknown] = makeFolders(2);
+    const isAi = kind !== "regular-missing";
+    const explicitPrivate = kind !== "ai-inherits";
+    const destination =
+      kind === "regular-missing" || kind === "ai-private-failed" ? unknown : known;
+    const newLink = makeLink({ id: 100, folderId: destination.id, isPublic: true });
     const state = await mockApi(page, {
       folders: [
-        { ...known, name: "공개 상태 확인됨", emoji: null, turnsPublicAt: PUBLIC_AT },
-        { ...unknown, name: "공개 상태 미확인", emoji: null },
+        { ...known, name: "공개 상태 확인됨", emoji: null, isPublic: true },
+        { ...unknown, name: "공개 상태 미확인", emoji: null, isPublic: undefined },
       ],
+      details: { [newLink.id]: makeDetail(newLink, { isOwner: true }) },
       handlers: {
         "GET /api/users/me/settings": (route) =>
           route.fulfill({
@@ -644,6 +679,10 @@ for (const kind of ["일반", "AI"] as const) {
             ]),
           }),
         "PUT /api/links/ai": (route) => route.fulfill({ json: envelope({ id: 100 }) }),
+        "PUT /api/links/100/privacy": (route) =>
+          kind === "ai-private-failed"
+            ? route.abort("failed")
+            : route.fulfill({ json: envelope({ isPublic: false }) }),
       },
     });
     await page.goto("/home");
@@ -657,26 +696,48 @@ for (const kind of ["일반", "AI"] as const) {
       await page.getByRole("radio", { name, exact: true }).click();
     };
     await choose("공개 상태 확인됨");
-    await page.getByRole("radio", { name: "나만 보기" }).click();
-    await choose("공개 상태 미확인");
-    await expect(page.getByRole("radio", { name: "나만 보기" })).toBeChecked();
-    await expect(page.getByRole("radio", { name: "전체 공개" })).toBeDisabled();
+    if (explicitPrivate) await page.getByRole("radio", { name: "나만 보기" }).click();
+    if (destination === unknown) {
+      await choose("공개 상태 미확인");
+      await expect(page.getByRole("radio", { name: "나만 보기" })).toBeChecked();
+      await expect(page.getByRole("radio", { name: "전체 공개" })).toBeDisabled();
+    }
     await page
       .getByRole("textbox", { name: "URL", exact: true })
       .fill("https://example.com/unknown");
     await page.getByRole("textbox", { name: "제목", exact: true }).fill("비공개 링크");
-    await page
-      .getByRole("button", { name: kind === "AI" ? "AI 정리" : "저장", exact: true })
-      .click();
-    await expect
-      .poll(
-        () =>
-          state.requests.find(({ method, path }) =>
-            kind === "AI"
-              ? method === "PUT" && path === "/api/links/ai"
-              : method === "POST" && path === "/api/links",
-          )?.body,
-      )
-      .toMatchObject({ folderId: unknown.id, isPublic: false });
+    await page.getByRole("button", { name: isAi ? "AI 정리" : "저장", exact: true }).click();
+    const createRequest = () =>
+      state.requests.find(({ method, path }) =>
+        isAi
+          ? method === "PUT" && path === "/api/links/ai"
+          : method === "POST" && path === "/api/links",
+      );
+    await expect.poll(() => createRequest()?.body).toMatchObject({ folderId: destination.id });
+    if (!isAi) {
+      expect(createRequest()?.body).toHaveProperty("isPublic", false);
+      return;
+    }
+    await expect(page).toHaveURL(isWideProject() ? /\/links\?linkId=100$/ : /\/links\/100$/);
+    expect(createRequest()?.body).not.toHaveProperty("isPublic");
+    const privacyRequests = state.requests.filter(
+      ({ method, path }) => method === "PUT" && path === "/api/links/100/privacy",
+    );
+    expect(privacyRequests.map(({ body }) => body)).toEqual(
+      explicitPrivate ? [{ isPublic: false }] : [],
+    );
+    if (explicitPrivate) {
+      expect(state.requests.indexOf(privacyRequests[0])).toBeGreaterThan(
+        state.requests.indexOf(createRequest()!),
+      );
+    }
+    if (kind === "ai-private-failed") {
+      await expect(
+        page.getByText("AI 정리는 시작했지만 공개 설정을 저장하지 못했어요."),
+      ).toBeVisible();
+      expect(
+        state.requests.filter(({ method, path }) => method === "PUT" && path === "/api/links/ai"),
+      ).toHaveLength(1);
+    }
   });
 }

@@ -27,7 +27,7 @@ function makeFolders(count: number): Folder[] {
     return {
       id,
       name: `폴더 ${id}`,
-      turnsPublicAt: null,
+      isPublic: false,
       isShared: id % 3 === 0,
       shareCounts: 0,
       linkCounts: 0,
@@ -202,11 +202,7 @@ describe("useFolderQuery", () => {
       await waitFor(() => expect(folder.result.current.folder?.id).toBe(40));
       expect(folder.result.current.dataUpdatedAt).toBe(1000);
 
-      client.setQueryData(
-        folderQueryKeys.detail(40),
-        { turnsPublicAt: "2026-11-22T10:00:00Z" },
-        { updatedAt: 2000 },
-      );
+      client.setQueryData(folderQueryKeys.detail(40), { isPublic: true }, { updatedAt: 2000 });
       now.mockReturnValue(3000);
       await act(async () => {
         await pages.result.current.fetchNextPage();

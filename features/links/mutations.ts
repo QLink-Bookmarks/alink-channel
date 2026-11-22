@@ -52,14 +52,10 @@ function useCreateLinkMutation() {
 
 function useUpdateLinkMutation(linkId: string | number) {
   const invalidateLinkQueries = useInvalidateLinkQueries();
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: UpdateLinkRequest) => updateLink(linkId, payload),
-    onSuccess: (_response, payload) => {
+    onSuccess: () => {
       invalidateLinkQueries(linkId);
-      if (payload.isPublic !== undefined) {
-        void invalidatePublicLinkQueries(queryClient, linkId);
-      }
     },
   });
 }
@@ -110,25 +106,26 @@ function useSetLinkFavoriteMutation() {
   });
 }
 
-function useSetLinkPrivacyMutation(linkId: number) {
+function useSetLinkPrivacyMutation() {
   const queryClient = useQueryClient();
-  const queryKey = getLinkDetailQueryKey(linkId);
+  const refreshVisibility = (id: number) =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: getLinkDetailQueryKey(id) }),
+      invalidateLinkListAndSearchQueries(queryClient),
+      invalidatePublicLinkQueries(queryClient, id),
+    ]);
   return useMutation({
-    mutationFn: (isPublic: boolean) => setLinkPrivacy(linkId, { isPublic }),
-    onError: () => {
-      void queryClient.invalidateQueries({ queryKey });
-    },
-    onSuccess: async (response) => {
+    mutationFn: ({ id, isPublic }: { id: number; isPublic: boolean }) =>
+      setLinkPrivacy(id, { isPublic }),
+    onError: (_error, { id }) => refreshVisibility(id),
+    onSuccess: async (response, { id }) => {
+      const queryKey = getLinkDetailQueryKey(id);
       await queryClient.cancelQueries({ queryKey, exact: true });
       queryClient.setQueryData<LinkDetail>(
         queryKey,
-        (detail) => detail && { ...detail, turnsPublicAt: response.data.turnsPublicAt },
+        (detail) => detail && { ...detail, isPublic: response.data.isPublic },
       );
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey }),
-        invalidateLinkListAndSearchQueries(queryClient),
-        invalidatePublicLinkQueries(queryClient, linkId),
-      ]);
+      await refreshVisibility(id);
     },
   });
 }

@@ -82,7 +82,7 @@ function folder(id: number, name: string, emoji: string | null, isShared = false
     name,
     emoji,
     isShared,
-    turnsPublicAt: null,
+    isPublic: false,
     shareCounts: 0,
     linkCounts: 0,
     myLinkCounts: 0,

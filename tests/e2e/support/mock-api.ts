@@ -21,6 +21,7 @@ type MockLink = {
   status: "G" | "A" | "F" | "C";
   workModel: string | null;
   isFavorite: boolean;
+  isPublic?: boolean;
   folderId: number | null;
   folderName: string | null;
   folderEmoji: string | null;
@@ -39,7 +40,6 @@ type MockDetailTodo = {
 
 type MockDetail = Omit<MockLink, "todoCounts"> & {
   isOwner?: boolean;
-  turnsPublicAt?: string | null;
   summary: string | null;
   memo: string | null;
   sourceType: "INPUT" | "QR";
@@ -87,7 +87,7 @@ type MockFolder = {
   name: string;
   emoji: string | null;
   isShared: boolean;
-  turnsPublicAt?: string | null;
+  isPublic?: boolean;
   shareCounts: number;
   linkCounts: number;
   /** The signed-in user's links in it. `GET /api/folders` answers `linkCounts` when omitted. */
@@ -109,13 +109,23 @@ type MockFolderMembers = {
 };
 
 const DEFAULT_FOLDERS: MockFolder[] = [
-  { id: 1, ownerId: 1, name: "공부", emoji: "📚", isShared: false, shareCounts: 0, linkCounts: 0 },
+  {
+    id: 1,
+    ownerId: 1,
+    name: "공부",
+    emoji: "📚",
+    isShared: false,
+    isPublic: false,
+    shareCounts: 0,
+    linkCounts: 0,
+  },
   {
     id: 2,
     ownerId: 1,
     name: "가볼 곳",
     emoji: "☕",
     isShared: false,
+    isPublic: false,
     shareCounts: 0,
     linkCounts: 0,
   },
@@ -125,6 +135,7 @@ const DEFAULT_FOLDERS: MockFolder[] = [
     name: "캠핑 모임",
     emoji: "🏕️",
     isShared: true,
+    isPublic: false,
     shareCounts: 3,
     linkCounts: 0,
   },
@@ -235,6 +246,7 @@ function makeFolders(count: number, sharedEvery = 0): MockFolder[] {
       name: `폴더 ${id}`,
       emoji: "📁",
       isShared,
+      isPublic: false,
       shareCounts: isShared ? 2 : 0,
       linkCounts: id % 5,
     };
@@ -252,6 +264,7 @@ function makeLink(overrides: Partial<MockLink> & Pick<MockLink, "id">): MockLink
     status: "A",
     workModel: "gpt-4o-mini",
     isFavorite: false,
+    isPublic: false,
     folderId: null,
     folderName: null,
     folderEmoji: null,
@@ -338,6 +351,10 @@ function filterLinks(links: MockLink[], url: URL) {
   }
   if (url.searchParams.get("isFavorite") === "true") {
     result = result.filter((link) => link.isFavorite);
+  }
+  const isPublic = url.searchParams.get("isPublic");
+  if (isPublic === "true" || isPublic === "false") {
+    result = result.filter((link) => link.isPublic === (isPublic === "true"));
   }
   return result;
 }
@@ -777,6 +794,7 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
           name?: string;
           emoji?: string | null;
           isShared?: boolean;
+          isPublic?: boolean;
         };
         const id = Math.max(0, ...state.folders.map((folder) => folder.id)) + 1;
         state.folders = [
@@ -786,6 +804,7 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
             name: payload.name ?? `폴더 ${id}`,
             emoji: payload.emoji ?? null,
             isShared: Boolean(payload.isShared),
+            isPublic: payload.isPublic === true,
             shareCounts: payload.isShared ? 1 : 0,
             linkCounts: 0,
           },
@@ -827,13 +846,20 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
         return json(scroll(page.contents, page.nextCursor));
       }
       if (method === "POST" && path === "/api/links") {
-        const payload = (body ?? {}) as { url?: string; title?: string; folderId?: number | null };
+        const payload = (body ?? {}) as {
+          url?: string;
+          title?: string;
+          folderId?: number | null;
+          isPublic?: boolean;
+        };
+        const folder = state.folders.find(({ id }) => id === payload.folderId);
         const id = Math.max(0, ...state.links.map((link) => link.id)) + 1;
         const link = placeLink(
           makeLink({
             id,
             url: payload.url ?? `https://example.com/posts/${id}`,
             title: payload.title ?? `링크 ${id}`,
+            isPublic: folder?.isPublic === true && payload.isPublic !== false,
             createdAt: new Date().toISOString(),
           }),
           payload.folderId ?? null,
@@ -879,6 +905,7 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
               folderId: targetId,
               folderName: folder?.name ?? null,
               folderEmoji: folder?.emoji ?? null,
+              isPublic: current?.isPublic === true && folder?.isPublic === true,
             };
             if (current && current.folderId !== moved.folderId) {
               shiftFolderCount(current.folderId, -1);
@@ -894,11 +921,12 @@ async function mockApi(page: Page, options: MockApiOptions = {}) {
           return json(envelope(state.details[id] ?? null));
         }
         if (method === "PUT" && detail) {
-          const payload = body as Partial<MockDetail>;
+          const payload = body as Partial<Omit<MockDetail, "isPublic">>;
           // PUT is a full replace (#134): omitted preview fields are cleared.
           const next: MockDetail = {
             ...detail,
             ...payload,
+            isPublic: detail.isPublic,
             thumbnailUrl: payload.thumbnailUrl ?? null,
             faviconUrl: payload.faviconUrl ?? null,
             isVideo: payload.isVideo ?? false,

@@ -88,7 +88,7 @@ async function setLinkFavorite(linkId: string | number, payload: SetLinkFavorite
 }
 
 async function setLinkPrivacy(linkId: string | number, payload: { isPublic: boolean }) {
-  return api.put<ApiEnvelope<{ turnsPublicAt: string | null }>, typeof payload>(
+  return api.put<ApiEnvelope<{ isPublic: boolean }>, typeof payload>(
     `/api/links/${linkId}/privacy`,
     payload,
   );

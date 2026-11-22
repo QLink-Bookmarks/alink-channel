@@ -27,7 +27,7 @@ type FolderPickerSelection<Id = FolderPickerId> = {
   id: Id;
   label: string;
   emoji?: string | null;
-  turnsPublicAt?: string | null;
+  isPublic?: boolean;
 };
 
 type FolderPickerListProps = {
@@ -112,7 +112,7 @@ function FolderPickerList({
             id: folder.id,
             label: folder.name,
             emoji: folder.emoji ?? null,
-            turnsPublicAt: folder.turnsPublicAt,
+            isPublic: folder.isPublic,
           })
         }
       />

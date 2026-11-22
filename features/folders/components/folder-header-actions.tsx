@@ -193,18 +193,13 @@ function FolderVisibilityAction({
   const trigger = React.useRef<TriggerRef>(null);
   const latestFolder =
     detail.data && detail.dataUpdatedAt >= folderUpdatedAt ? detail.data : folder;
-  const isPublic = typeof latestFolder.turnsPublicAt === "string";
+  const isPublic = latestFolder.isPublic === true;
   const canChange =
-    detail.isSuccess && detail.data.turnsPublicAt !== undefined && !detail.isFetching;
+    detail.isSuccess && typeof detail.data.isPublic === "boolean" && !detail.isFetching;
 
   const handleWrite = (next: boolean) => {
     if (mutation.isPending) return;
-    mutation.mutate(
-      { id: folder.id, isPublic: next },
-      {
-        onError: () => void detail.refetch(),
-      },
-    );
+    mutation.mutate({ id: folder.id, isPublic: next });
   };
 
   return (

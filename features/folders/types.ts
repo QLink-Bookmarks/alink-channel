@@ -5,7 +5,7 @@ type Folder = {
   id: number;
   ownerId?: number;
   ownerNickname?: string | null;
-  turnsPublicAt: string | null;
+  isPublic: boolean;
   name: string;
   emoji?: string | null;
   isShared: boolean;
@@ -99,13 +99,12 @@ type AcceptFolderInvitationRequest = {
 type AcceptFolderInvitationResponse = ApiEnvelope<{ folderId: number }>;
 
 type UpdateFolderRequest = {
-  isPublic?: boolean;
   name: string;
   emoji?: string | null;
   isShared?: boolean | null;
 };
 
-type UpdateFolderResponse = ApiEnvelope<{ id: number; turnsPublicAt: string | null }>;
+type UpdateFolderResponse = ApiEnvelope<{ id: number; isPublic: boolean }>;
 type PublicFolder = { id: number; name: string; emoji: string | null };
 type PublicFolderLists = {
   links: { id: number; title: string; url: string };

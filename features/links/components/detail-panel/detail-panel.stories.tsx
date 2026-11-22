@@ -46,7 +46,7 @@ const meta = {
     open: true,
     detail: {
       id: 1,
-      turnsPublicAt: null,
+      isPublic: false,
       url: "https://qlink.app/reference",
       title: "ALINK 컴포넌트 시스템",
       thumbnailUrl: "https://picsum.photos/seed/alink-detail/640/360",
@@ -123,7 +123,7 @@ export const NoImage: Story = {
     mode: "overlay",
     detail: {
       id: 2,
-      turnsPublicAt: null,
+      isPublic: false,
       url: "https://www.notion.so/team/onboarding",
       title: "2026 하반기 팀 온보딩 문서",
       thumbnailUrl: null,
@@ -159,7 +159,7 @@ export const AiInProgress: Story = {
     mode: "overlay",
     detail: {
       id: 3,
-      turnsPublicAt: null,
+      isPublic: false,
       url: "https://visitjeju.net/kr/detail/view",
       title: "성산일출봉 일출 시간표와 입장 마감 안내",
       thumbnailUrl: null,

@@ -48,9 +48,10 @@ import { useQrScanStore } from "@/stores/qr-scan";
 import { useToastStore } from "@/stores/toast-store";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { getLinkDetail } from "../api";
 import { buildAiMemoAndTodoFields, buildLinkTodoRequests } from "../lib/link-create-todos";
 import { getLinkPreviewRequestFields } from "../lib/link-preview/link-preview-result";
-import { useCreateLinkMutation } from "../mutations";
+import { useCreateLinkMutation, useSetLinkPrivacyMutation } from "../mutations";
 import { useLinkPreviewQuery } from "../queries";
 import type { LinkPreview } from "../types";
 import { LinkCreateBottomBar, type LinkCreateProviderState } from "./link-create-bottom-bar";
@@ -72,7 +73,7 @@ type SubmitKind = "save" | "ai";
 type FolderDraft = {
   id: string | null;
   label: string;
-  turnsPublicAt?: string | null;
+  isPublic?: boolean;
 };
 
 type FieldErrors = { url?: string; title?: string };
@@ -125,7 +126,7 @@ function getFolderDraft(selection: FolderPickerSelection): FolderDraft {
   return {
     id: String(selection.id),
     label: selection.emoji ? `${selection.emoji} ${selection.label}` : selection.label,
-    turnsPublicAt: selection.turnsPublicAt,
+    isPublic: selection.isPublic,
   };
 }
 
@@ -201,6 +202,7 @@ function LinkCreateForm({
   const pendingQrResult = useQrScanStore((state) => state.pendingResult);
   const clearQrResult = useQrScanStore((state) => state.clear);
   const createLinkMutation = useCreateLinkMutation();
+  const privacyMutation = useSetLinkPrivacyMutation();
   const resetMutation = createLinkMutation.reset;
   const hasSaveError = Boolean(createLinkMutation.error);
   const invalidateLinkQueries = React.useCallback(() => {
@@ -234,7 +236,7 @@ function LinkCreateForm({
   const [memo, setMemo] = React.useState("");
   const [folder, setFolder] = React.useState<FolderDraft>(defaultFolder);
   const [visibilityDraft, setVisibilityDraft] = React.useState<boolean>();
-  const folderIsPublic = typeof folder.turnsPublicAt === "string";
+  const folderIsPublic = folder.isPublic === true;
   const isPublic = folderIsPublic && (visibilityDraft ?? true);
   const requestVisibility = folderIsPublic ? visibilityDraft : false;
   const [aiProvider, setAiProvider] = React.useState<AiProviderSelection | null>(null);
@@ -602,7 +604,6 @@ function LinkCreateForm({
     try {
       const response = await requestAiSummaryMutation.mutateAsync({
         folderId: folder.id ? Number(folder.id) : null,
-        isPublic: requestVisibility,
         generateTodo,
         modelId: target.modelId,
         title: trimmedTitle ? trimmedTitle : null,
@@ -611,14 +612,37 @@ function LinkCreateForm({
         ...getLinkPreviewRequestFields(linkPreview),
         ...aiMemoAndTodoFields,
       });
+      const newLinkId = response.data?.id;
+      let privacyFailed = false;
+      if (newLinkId != null && visibilityDraft === false) {
+        try {
+          const inheritedPublic = await getLinkDetail(newLinkId).then(
+            ({ data }) => data.isPublic,
+            () => undefined,
+          );
+          if (inheritedPublic !== false) {
+            await privacyMutation.mutateAsync({ id: newLinkId, isPublic: false });
+          }
+        } catch (error) {
+          privacyFailed = true;
+          reportError(error, {
+            area: "link-create-form:ai-privacy",
+            extra: { linkId: newLinkId },
+          });
+        }
+      }
 
       showToast({
-        description: "AI 정리 요청이 접수되었어요.",
+        description: privacyFailed
+          ? "링크 상세에서 공개 상태를 확인하고 다시 변경할 수 있어요."
+          : "AI 정리 요청이 접수되었어요.",
         dismissible: true,
         durationMs: 3000,
         sourceKey: "link-create-ai-organize",
-        title: "AI 정리 시작",
-        variant: "success",
+        title: privacyFailed
+          ? "AI 정리는 시작했지만 공개 설정을 저장하지 못했어요."
+          : "AI 정리 시작",
+        variant: privacyFailed ? "warning" : "success",
       });
 
       invalidateLinkQueries();
@@ -629,7 +653,6 @@ function LinkCreateForm({
       resetForm();
       onCancel();
       // Surface the newly-queued link so the user can watch it move through G → A.
-      const newLinkId = response.data?.id;
       if (newLinkId != null) {
         if (onSaved) {
           onSaved(newLinkId);
@@ -659,7 +682,6 @@ function LinkCreateForm({
     aiProvider?.providerId,
     checkBeforeSubmit,
     folder.id,
-    requestVisibility,
     myProviders,
     generateTodo,
     invalidateLinkQueries,
@@ -668,6 +690,7 @@ function LinkCreateForm({
     mode,
     onCancel,
     onSaved,
+    privacyMutation,
     queryClient,
     requestAiSummaryMutation,
     resetForm,
@@ -676,6 +699,7 @@ function LinkCreateForm({
     title,
     todos,
     url,
+    visibilityDraft,
   ]);
 
   // Saves even while the preview is still loading: the link then goes without its
@@ -734,7 +758,7 @@ function LinkCreateForm({
 
   const pendingRequest = createLinkMutation.isPending
     ? "save"
-    : requestAiSummaryMutation.isPending
+    : requestAiSummaryMutation.isPending || privacyMutation.isPending
       ? "ai"
       : null;
   const isBusy = pendingRequest != null;

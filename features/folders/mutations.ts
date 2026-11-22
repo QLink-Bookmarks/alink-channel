@@ -58,7 +58,7 @@ function useUpdateFolderMutation() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UpdateFolderRequest }) =>
       updateFolder(id, payload),
-    onSuccess: (_response, { id, payload }) => invalidate(id, payload.isPublic !== undefined),
+    onSuccess: (_response, { id }) => invalidate(id, false),
   });
 }
 
@@ -68,12 +68,13 @@ function useSetFolderPrivacyMutation() {
   return useMutation({
     mutationFn: ({ id, isPublic }: { id: number; isPublic: boolean }) =>
       setFolderPrivacy(id, { isPublic }),
+    onError: (_error, { id }) => invalidate(id, true),
     onSuccess: async (response, { id }) => {
       const queryKey = folderQueryKeys.detail(id);
       await queryClient.cancelQueries({ queryKey, exact: true });
       queryClient.setQueryData<Folder>(
         queryKey,
-        (folder) => folder && { ...folder, turnsPublicAt: response.data.turnsPublicAt },
+        (folder) => folder && { ...folder, isPublic: response.data.isPublic },
       );
       await invalidate(id, true);
     },

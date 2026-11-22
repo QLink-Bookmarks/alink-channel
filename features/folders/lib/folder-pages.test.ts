@@ -14,7 +14,7 @@ function folder(id: number, isShared = false): Folder {
   return {
     id,
     name: `폴더 ${id}`,
-    turnsPublicAt: null,
+    isPublic: false,
     isShared,
     shareCounts: isShared ? 2 : 0,
     linkCounts: 0,
