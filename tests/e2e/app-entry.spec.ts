@@ -591,6 +591,45 @@ for (const provider of ["카카오", "네이버"]) {
   });
 }
 
+test("an expired connection session reauthenticates and shows the failure in Settings", async ({
+  page,
+}) => {
+  const state = await setUp(page, { guest: true });
+  await page.goto("/privacy");
+  await page.evaluate(() => {
+    sessionStorage.setItem("qlink-auth", JSON.stringify({ accessToken: "expired-session" }));
+  });
+  await page.goto("/settings");
+  await page.getByLabel("계정 연결 추가").click();
+  await page.getByText("카카오 계정 연결", { exact: true }).click();
+
+  const providerReturn = page.getByRole("link", { name: "인증 완료" });
+  await expect(providerReturn).toBeVisible();
+  await page.evaluate(() => sessionStorage.removeItem("qlink-auth"));
+  const kakaoExchanges: string[] = [];
+  page.on("request", (request) => {
+    if (request.url() === "https://kauth.kakao.com/oauth/token") {
+      kakaoExchanges.push(request.method());
+    }
+  });
+  await providerReturn.click();
+  await expect(page).toHaveURL("/login");
+  await expect(page.getByText("연결에 실패했어요.")).toHaveCount(0);
+
+  // Complete reauthentication through a full-page provider redirect.
+  await page.getByText("네이버로 계속하기", { exact: true }).click();
+  await page.getByRole("link", { name: "인증 완료" }).click();
+  await expect(page).toHaveURL("/settings");
+  await expect(page.getByLabel("계정 연결 추가")).toBeVisible();
+  await expect(page.getByText("연결에 실패했어요.")).toBeVisible();
+  expect(kakaoExchanges).toHaveLength(0);
+  expect(state.requests.filter(({ path }) => path === "/api/auth/connection")).toHaveLength(0);
+
+  await page.reload();
+  await expect(page.getByLabel("계정 연결 추가")).toBeVisible();
+  await expect(page.getByText("연결에 실패했어요.")).toHaveCount(0);
+});
+
 for (const provider of ["Apple", "Google"]) {
   test(`${provider} popup login retries after closure and resumes the protected destination`, async ({
     page,

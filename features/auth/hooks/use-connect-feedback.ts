@@ -6,18 +6,6 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import type { ConnectOutcome } from "../lib/connect-with-token";
 
-let redirectOutcome: ConnectOutcome | null = null;
-
-function stageRedirectConnectOutcome(outcome: ConnectOutcome) {
-  redirectOutcome = outcome;
-}
-
-function takeRedirectConnectOutcome() {
-  const outcome = redirectOutcome;
-  redirectOutcome = null;
-  return outcome;
-}
-
 // Shared post-connect side effects: surface a toast at once, then refresh the
 // connected-provider list in the background. Used by the connect sheet/dialog
 // and the settings route after a web redirect.
@@ -60,12 +48,4 @@ function useConnectFeedback() {
   );
 }
 
-function useRedirectConnectFeedback() {
-  const applyOutcome = useConnectFeedback();
-  React.useEffect(() => {
-    const outcome = takeRedirectConnectOutcome();
-    if (outcome) applyOutcome(outcome);
-  }, [applyOutcome]);
-}
-
-export { stageRedirectConnectOutcome, useConnectFeedback, useRedirectConnectFeedback };
+export { useConnectFeedback };

@@ -7,9 +7,12 @@ import { type ConnectOutcome, connectFailed } from "../lib/connect-with-token";
 import { notifyLoginFailed } from "../lib/notify-login-failed";
 import { readOauthCallback } from "../lib/oauth-callback";
 import { consumeOauthAttempt } from "../lib/oauth-state";
-import { stageRedirectConnectOutcome } from "./use-connect-feedback";
 import { exchangeKakaoCode } from "./use-kakao-login.web";
 import { processNaverRedirect } from "./use-naver-login.web";
+import {
+  stageExpiredConnectOutcome,
+  stageRedirectConnectOutcome,
+} from "./use-redirect-connect-feedback.web";
 
 function useOauthRedirect() {
   const [result, setResult] = React.useState<"login" | "connect" | "invalid" | null>(null);
@@ -28,14 +31,19 @@ function useOauthRedirect() {
       return;
     }
 
+    const { credential, error } = callback;
+    const provider = callback.provider === "naver" ? "NAVER" : "KAKAO";
     const isAuthenticated = Boolean(useAuthStore.getState().accessToken);
-    if (isAuthenticated !== (attempt.mode === "connect")) {
+    if (attempt.mode === "connect" && !isAuthenticated) {
+      if (error !== "access_denied") stageExpiredConnectOutcome(provider);
+      setResult("connect");
+      return;
+    }
+    if (attempt.mode === "login" && isAuthenticated) {
       setResult("login");
       return;
     }
 
-    const { credential, error } = callback;
-    const provider = callback.provider === "naver" ? "NAVER" : "KAKAO";
     void (async () => {
       let outcome: ConnectOutcome | null = null;
       try {
