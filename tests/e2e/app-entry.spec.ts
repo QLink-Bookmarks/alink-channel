@@ -57,6 +57,7 @@ async function setUp(
     signInFailures?: number;
     cancelPopupOnce?: boolean;
     connectionSessionExpired?: boolean;
+    callbackResponse?: Promise<void>;
   } = {},
 ) {
   let agreed = !options.needsConsent;
@@ -157,7 +158,8 @@ async function setUp(
         }
         return json(route, { success: false, data: null }, 401);
       },
-      "POST /api/auth/sign": (route) => {
+      "POST /api/auth/sign": async (route) => {
+        await options.callbackResponse;
         if (signInFailures-- > 0) return json(route, { success: false, data: null }, 400);
         return json(route, envelope({ accessToken: "new-access-token" }), 201);
       },
@@ -185,10 +187,12 @@ async function setUp(
         options.invite === "failure"
           ? json(route, { success: false, data: null, error: { message: "만료된 초대" } }, 400)
           : json(route, envelope({ folderId: 4 })),
-      "POST /api/auth/connection": (route) =>
-        options.connectionSessionExpired
+      "POST /api/auth/connection": async (route) => {
+        await options.callbackResponse;
+        return options.connectionSessionExpired
           ? json(route, { success: false, error: { code: "AUTH_401_0001" } }, 401)
-          : json(route, envelope({ id: 9 }), 201),
+          : json(route, envelope({ id: 9 }), 201);
+      },
     },
   });
 }
@@ -645,6 +649,38 @@ for (const { session, expiredAtApi } of [
     await page.reload();
     await expect(page.getByLabel("계정 연결 추가")).toBeVisible();
     await expect(page.getByText("연결에 실패했어요.")).toHaveCount(0);
+  });
+}
+
+for (const { mode, provider, apiPath } of [
+  { mode: "login", provider: "네이버로 계속하기", apiPath: "/api/auth/sign" },
+  { mode: "connect", provider: "카카오 계정 연결", apiPath: "/api/auth/connection" },
+]) {
+  test(`the ${mode} callback scrubs credentials and does not replay on reload during a request`, async ({
+    page,
+  }) => {
+    const response = deferred();
+    try {
+      const guest = mode === "login";
+      const state = await setUp(page, { guest, callbackResponse: response.promise });
+      await page.goto(guest ? destination : "/settings");
+      if (!guest) await page.getByLabel("계정 연결 추가").click();
+      await page.getByText(provider, { exact: true }).click();
+      await page.getByRole("link", { name: "인증 완료" }).click();
+
+      const requests = () => state.requests.filter(({ path }) => path === apiPath).length;
+      await expect.poll(requests).toBe(1);
+      await expect(page).toHaveURL("/auth/callback");
+      await expect(page.getByText(checking).filter({ visible: true })).toBeVisible();
+      await page.reload();
+      await expect(page).toHaveURL("/");
+      await expect(
+        page.getByText(landing, { exact: true }).filter({ visible: true }).first(),
+      ).toBeVisible();
+      expect(requests()).toBe(1);
+    } finally {
+      response.release();
+    }
   });
 }
 
