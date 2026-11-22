@@ -12,7 +12,7 @@ import {
   requestSharedAiSummary,
 } from "./share-api";
 import { ShareSheet } from "./share-sheet";
-import { FACE_FALLBACK_MS } from "./share-sheet-frame";
+import { FACE_FALLBACK_MS, ShareSheetFrame } from "./share-sheet-frame";
 
 import { close, openHostApp } from "expo-share-extension";
 
@@ -149,6 +149,37 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.useRealTimers();
+});
+
+describe("ShareSheetFrame", () => {
+  it("uses the host layout height as soon as the container is laid out", () => {
+    const onAvailableHeightChange = jest.fn();
+    render(
+      <ShareSheetFrame
+        contentHeight={200}
+        hasRoundedCorners
+        isCompleting={false}
+        isDismissEnabled
+        isReducedMotion={false}
+        isSwipeEnabled
+        onAvailableHeightChange={onAvailableHeightChange}
+        onDismiss={jest.fn()}
+      >
+        <></>
+      </ShareSheetFrame>,
+    );
+
+    expect(screen.queryByTestId("share-sheet")).toBeNull();
+
+    fireEvent(screen.root, "layout", { nativeEvent: { layout: { height: 335 } } });
+
+    expect(onAvailableHeightChange).toHaveBeenLastCalledWith(335);
+    expect(screen.getByTestId("share-sheet")).toBeTruthy();
+
+    fireEvent(screen.root, "layout", { nativeEvent: { layout: { height: 392 } } });
+
+    expect(onAvailableHeightChange).toHaveBeenLastCalledWith(392);
+  });
 });
 
 describe("ShareSheet", () => {

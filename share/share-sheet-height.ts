@@ -39,16 +39,6 @@ function getFolderStepHeight({
   return Math.min(base + UNCATEGORIZED_GAP + headers + tallestList, maxHeight);
 }
 
-type SheetPlacement = {
-  top: number;
-  height: number;
-};
-
-function getAvailableSheetHeight({ top, height }: SheetPlacement, windowHeight: number) {
-  const hiddenBelowWindow = Math.max(0, top + height - windowHeight);
-  return Math.max(0, height - hiddenBelowWindow);
-}
-
 function clampSheetHeight(height: number | undefined, containerHeight: number) {
   if (height == null || height <= 0) {
     return containerHeight;
@@ -56,5 +46,5 @@ function clampSheetHeight(height: number | undefined, containerHeight: number) {
   return Math.min(height, containerHeight);
 }
 
-export { DEFAULT_SHEET_HEIGHT, clampSheetHeight, getAvailableSheetHeight, getFolderStepHeight };
-export type { FolderStepHeightInput, SheetPlacement };
+export { DEFAULT_SHEET_HEIGHT, clampSheetHeight, getFolderStepHeight };
+export type { FolderStepHeightInput };
