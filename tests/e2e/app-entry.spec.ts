@@ -227,7 +227,9 @@ async function expectHome(page: Page) {
 
 async function expectDestination(page: Page, isMobile: boolean) {
   await expect(page).toHaveURL(isMobile ? /\/links\/7$/ : /\/folders\/3\?linkId=7$/);
-  await expect(page.getByText(link.title, { exact: true }).first()).toBeVisible();
+  const detail = isMobile ? page : page.getByTestId("detail-panel");
+  if (!isMobile) await expect(detail.getByTestId("link-detail-close")).toBeVisible();
+  await expect(detail.getByText(link.title, { exact: true }).first()).toBeVisible();
 }
 
 for (const status of ["guest", "agreed", "unagreed"] as const) {
