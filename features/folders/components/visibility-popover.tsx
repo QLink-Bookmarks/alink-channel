@@ -14,6 +14,7 @@ const choices = [
   { value: "public", label: "전체 공개", icon: Globe },
   { value: "private", label: "나만 보기", icon: Lock },
 ] as const;
+const isWeb = process.env.EXPO_OS === "web";
 
 function VisibilityPopover({
   isPublic,
@@ -49,7 +50,7 @@ function VisibilityPopover({
         />
       </PopoverTrigger>
       <PopoverContent
-        accessibilityLabel="공개 설정"
+        accessible={false}
         accessibilityState={{ busy: pending }}
         align="end"
         className="w-48 gap-2 rounded-xl p-2"
@@ -58,9 +59,10 @@ function VisibilityPopover({
       >
         <Text className="px-2 pt-1 text-sm font-semibold">공개 설정</Text>
         <View
-          accessibilityLabel="공개 설정"
+          accessible={false}
+          accessibilityLabel={isWeb ? "공개 설정" : undefined}
           className="gap-1"
-          role="group"
+          role={isWeb ? "group" : undefined}
         >
           {choices.map(({ value, label, icon }) => {
             const disabled = value === "public" && !canPublish;
