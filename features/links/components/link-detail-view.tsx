@@ -47,12 +47,7 @@ import {
   useUpdateLinkMutation,
 } from "@/features/links/mutations";
 import { getLinkDetailQueryKey, useLinkDetailExcerptRecheck } from "@/features/links/queries";
-import type {
-  LinkDetail,
-  PatchLinkResponse,
-  UpdateLinkRequest,
-  UpdateLinkResponse,
-} from "@/features/links/types";
+import type { LinkDetail, UpdateLinkRequest } from "@/features/links/types";
 import { reportError } from "@/lib/error-reporting";
 import { cn } from "@/lib/utils";
 import type { FolderSection } from "@/stores/folder-navigation";
@@ -294,9 +289,9 @@ function LinkDetailView({
   };
 
   const handleDetailUpdated = React.useCallback(
-    (response: UpdateLinkResponse | PatchLinkResponse) => {
+    (fields: Partial<LinkDetail>) => {
       queryClient.setQueryData<LinkDetail>(getLinkDetailQueryKey(detail.id), (currentDetail) =>
-        mergeLinkDetail(currentDetail ?? detail, response.data),
+        mergeLinkDetail(currentDetail ?? detail, fields),
       );
       // Cards show the title, tags and star, so the link lists follow the detail.
       void queryClient.invalidateQueries({ queryKey: ["links", "list"] });
@@ -314,7 +309,7 @@ function LinkDetailView({
       const response = await updateLinkMutation.mutateAsync(
         buildUpdateLinkPayload(latest, overrides),
       );
-      handleDetailUpdated(response);
+      handleDetailUpdated(response.data);
       // The merge keeps known values over nulls, so a cleared memo or summary is set here.
       queryClient.setQueryData<LinkDetail>(queryKey, (current) =>
         current
@@ -370,7 +365,7 @@ function LinkDetailView({
         const response = await patchLinkMutation.mutateAsync({
           folderId: getMoveTargetFolderId(selection.id),
         });
-        handleDetailUpdated(response);
+        handleDetailUpdated(response.data);
       } catch (error: unknown) {
         reportError(error, {
           area: "link-detail-view:folder-move",
@@ -403,11 +398,7 @@ function LinkDetailView({
         linkId: detail.id,
         payload: { isFavorite: next },
       });
-      handleDetailUpdated({
-        success: true,
-        data: { ...detail, isFavorite: next },
-        error: null,
-      });
+      handleDetailUpdated({ isFavorite: next });
       await queryClient.invalidateQueries({ queryKey: ["links", "list"] });
     } catch (error: unknown) {
       reportError(error, {
