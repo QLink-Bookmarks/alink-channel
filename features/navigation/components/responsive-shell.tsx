@@ -3,7 +3,6 @@ import { Platform, View } from "react-native";
 
 import { RouteErrorBoundary } from "@/components/error/route-error-boundary";
 import { AppHeader } from "@/components/layout/app-header";
-import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { BrandHeader } from "@/components/layout/brand-header";
 import { Fab } from "@/components/layout/fab";
 import { Sheet } from "@/components/layout/sheet";
@@ -53,18 +52,11 @@ import { getFolderIdFromPath } from "../lib/folder-path";
 import { isNewLinkShortcut, suppressNextTextInput } from "../lib/new-link-shortcut";
 import { consumeReturnDestination } from "../lib/return-destination";
 import { canOpenWideOverlayInPlace } from "../routes";
-import type { MobileTabKey } from "../types";
+import { MobileBottomTabs } from "./mobile-bottom-tabs";
 import { WideSidebarColumn } from "./wide-sidebar-column";
 
 import { type Href, Redirect, useGlobalSearchParams, useRouter } from "expo-router";
-import { Folder, House, ListTodo, Plus, Search, Settings } from "lucide-react-native";
-
-const mobileTabItems = [
-  { key: "home", label: "홈", icon: House },
-  { key: "folders", label: "폴더", icon: Folder },
-  { key: "todos", label: "액션", icon: ListTodo },
-  { key: "settings", label: "설정", icon: Settings },
-] satisfies React.ComponentProps<typeof BottomTabs>["items"];
+import { Plus, Search, Settings } from "lucide-react-native";
 
 function ResponsiveShell({ children }: { children: React.ReactNode }) {
   useDocumentTitle(true);
@@ -170,20 +162,6 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     }
     wasAddLinkOpenRef.current = isAddLinkOpen;
   }, [isAddLinkDialogOpen, isAddLinkSheetOpen, router]);
-
-  const handleMobileTabChange = React.useCallback(
-    (value: string) => {
-      const nextHrefByTab: Record<MobileTabKey, string> = {
-        home: "/home",
-        folders: "/folders",
-        todos: "/todos",
-        settings: "/settings",
-      };
-
-      router.replace(nextHrefByTab[value as MobileTabKey] as Href);
-    },
-    [router],
-  );
 
   const handleBack = React.useCallback(() => {
     if (router.canGoBack()) {
@@ -577,10 +555,9 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
             />
           ) : null}
         </View>
-        <BottomTabs
-          items={mobileTabItems}
-          value={routeState.mobileTabKey ?? ""}
-          onValueChange={handleMobileTabChange}
+        <MobileBottomTabs
+          activeTab={routeState.mobileTabKey}
+          onNavigate={router.replace}
         />
         {hasOpenedAddLinkSheet && isAddLinkSheetOpen ? (
           <Sheet

@@ -25,7 +25,7 @@ import { deleteLink, patchLink } from "@/features/links/api";
 import { LinkCard } from "@/features/links/components/link-card/link-card";
 import { LinkCardSkeleton } from "@/features/links/components/link-card/link-card-skeleton";
 import { useLinkCardSize } from "@/features/links/hooks/use-link-card-size";
-import { getLinkCardMinWidth } from "@/features/links/lib/link-card-size";
+import { type LinkCardSize, getLinkCardMinWidth } from "@/features/links/lib/link-card-size";
 import { isPreviewableUrl } from "@/features/links/lib/link-preview/link-preview-result";
 import { openLinkUrl } from "@/features/links/lib/open-link-url";
 import { useSetLinkFavoriteMutation } from "@/features/links/mutations";
@@ -41,17 +41,23 @@ import { ExternalLink, FolderOpen, Star, Trash2 } from "lucide-react-native/icon
 const GRID_GAP = 12;
 const GRID_CLASS_NAME = "w-full flex-row flex-wrap";
 
-function useLinkGridLayout() {
+function useLinkGridLayout(size?: LinkCardSize) {
   const { isWideView, linkCardSize } = useLinkCardSize();
   const { itemStyle, onLayout } = useGridColumns({
     gap: GRID_GAP,
-    minItemWidth: getLinkCardMinWidth(linkCardSize, isWideView),
+    minItemWidth: getLinkCardMinWidth(size ?? linkCardSize, isWideView),
   });
   return { isWideView, itemStyle, onLayout };
 }
 
-function ReadOnlyLinkCardGrid({ links }: { links: PublicFolderLists["links"][] }) {
-  const { itemStyle, onLayout } = useLinkGridLayout();
+function ReadOnlyLinkCardGrid({
+  links,
+  size,
+}: {
+  links: PublicFolderLists["links"][];
+  size?: LinkCardSize;
+}) {
+  const { itemStyle, onLayout } = useLinkGridLayout(size);
   return (
     <View
       className={GRID_CLASS_NAME}

@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { ReadOnlyLinkCardGrid } from "@/features/links/components/link-card-grid/link-card-grid";
+import type { LinkCardSize } from "@/features/links/lib/link-card-size";
 import { TodoItem } from "@/features/todos/components/todo-item/todo-item";
 
 import type { usePublicFolderListQuery } from "../public-queries";
@@ -73,11 +74,13 @@ function ReadOnlyFolderScreen({
   links,
   todos,
   headerAction,
+  linkCardSize,
 }: {
   folder: PublicFolder;
   links: ReturnType<typeof usePublicFolderListQuery<"links">>;
   todos: ReturnType<typeof usePublicFolderListQuery<"todos">>;
   headerAction?: React.ReactNode;
+  linkCardSize?: LinkCardSize;
 }) {
   const router = useRouter();
   const linkRows = links.data?.pages.flatMap((page) => page.contents) ?? [];
@@ -112,7 +115,10 @@ function ReadOnlyFolderScreen({
           <Text className="text-sm text-muted-foreground">아직 공개한 항목이 없어요.</Text>
         ) : (
           <>
-            <ReadOnlyLinkCardGrid links={linkRows} />
+            <ReadOnlyLinkCardGrid
+              links={linkRows}
+              size={linkCardSize}
+            />
             <FolderListStatus
               label="링크"
               state={links}

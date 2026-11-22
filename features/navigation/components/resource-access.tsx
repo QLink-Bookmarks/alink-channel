@@ -187,6 +187,7 @@ function ResourceVisit({
         links={links}
         todos={todos}
         headerAction={headerAction}
+        linkCardSize={guestTheme ? "small" : undefined}
       />
     ) : null;
 

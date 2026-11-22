@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from "@storybook/react-native";
 
 import { BottomTabs } from "./bottom-tabs";
 
-import { House, Link, ListTodo } from "lucide-react-native/icons";
+import { Folder, House, ListTodo, Settings } from "lucide-react-native/icons";
 
 const meta = {
   title: "레이아웃/하단 탭",
@@ -20,8 +20,9 @@ const meta = {
     value: "home",
     items: [
       { key: "home", label: "홈", icon: House },
-      { key: "links", label: "링크", icon: Link },
+      { key: "folders", label: "폴더", icon: Folder },
       { key: "todos", label: "액션", icon: ListTodo },
+      { key: "settings", label: "설정", icon: Settings },
     ],
   },
   decorators: [
@@ -39,4 +40,9 @@ type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {
   name: "기본",
+};
+
+export const FolderActive: Story = {
+  name: "폴더 활성",
+  args: { value: "folders" },
 };

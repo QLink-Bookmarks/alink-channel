@@ -141,6 +141,31 @@ for (const signedIn of [false, true]) {
       );
     }
   });
+
+  test(`read-only cards use small for guests and keep the chosen size for signed-in visitors (signed in: ${signedIn})`, async ({
+    page,
+    isMobile,
+  }) => {
+    await mockApi(page, { seedSession: signedIn });
+    await page.addInitScript(() => localStorage.setItem("qlink-link-card-size", "large"));
+    const state = await mockPublicFolder(page);
+    state.links = Array.from({ length: 4 }, (_, index) => ({
+      id: LINK_ID + index,
+      title: `공개 링크 ${index + 1}`,
+      url: LONG_URL,
+    }));
+    await page.goto(WEB_PATH);
+    const cards = page.getByRole("main").getByTestId("link-card");
+    await expect(cards).toHaveCount(4);
+    await expect
+      .poll(async () => {
+        const positions = await cards.evaluateAll((nodes) =>
+          nodes.map((node) => Math.round(node.getBoundingClientRect().y)),
+        );
+        return positions.filter((position) => position === positions[0]).length;
+      })
+      .toBe(signedIn ? (isMobile ? 1 : 3) : isMobile ? 2 : 4);
+  });
 }
 
 test("recovers from header and individual list failures and shows both types of empty state", async ({
