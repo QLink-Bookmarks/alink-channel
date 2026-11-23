@@ -102,7 +102,7 @@ test.describe("folder detail lookup", () => {
     });
   });
 
-  test("an id that no page holds ends in 폴더를 찾을 수 없어요 after a loading state", async ({
+  test("a denied folder address replaces the loading screen with home and a toast", async ({
     page,
   }) => {
     let finishLookup = () => {};
@@ -123,8 +123,8 @@ test.describe("folder detail lookup", () => {
 
     await expect(page.getByRole("progressbar").first()).toBeVisible();
     finishLookup();
+    await expect(page).toHaveURL("/home");
     await expect(page.getByText("폴더를 찾을 수 없어요")).toBeVisible({ timeout: 15_000 });
-    expect(folderRequests(state)).toEqual([]);
     expect(state.requests.some((request) => request.path === "/api/folders/9999")).toBe(true);
   });
 
