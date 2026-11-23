@@ -309,7 +309,7 @@ function PublicFolderController({
       isLoading: overlay.isPending,
       notFound: selected === null || isUnavailableResource(overlay.error),
       error: overlay.isError,
-      onRetry: process.env.EXPO_OS === "web" ? () => void overlay.refetch() : undefined,
+      onRetry: () => void overlay.refetch(),
       isRetrying: overlay.isFetching,
       returnFocusHref: `${folderPath}?linkId=${overlayId}`,
       onOpenChange: () => requestLeave(handleClose),
