@@ -16,7 +16,7 @@ const PUBLISH_TITLE = "폴더를 전체 공개할까요?";
 const FOLDER_INPUT = "예: 디자인 레퍼런스";
 
 for (const entry of ["numeric address", "folder card"] as const) {
-  test(`places link visibility immediately after the star from the ${entry}`, async ({ page }) => {
+  test(`opens link visibility from sharing after the star from the ${entry}`, async ({ page }) => {
     const [folder] = makeFolders(1);
     const link = makeLink({ id: 1, folderId: folder.id, folderName: folder.name });
     await mockApi(page, {
@@ -35,34 +35,29 @@ for (const entry of ["numeric address", "folder card"] as const) {
 
     const toolbar = page.getByTestId("link-detail-toolbar");
     const favorite = toolbar.getByTestId("link-detail-favorite");
-    const visibility = toolbar.getByRole("button", { name: "공개 설정, 전체 공개" });
     const share = toolbar.getByTestId("link-detail-share");
 
-    await expect(visibility).toBeInViewport();
+    await expect(share).toBeInViewport();
     const buttons = await toolbar
       .getByRole("button")
       .evaluateAll((nodes) =>
         nodes.map((node) => node.getAttribute("data-testid") ?? node.getAttribute("aria-label")),
       );
-    expect(buttons.slice(0, 3)).toEqual([
-      "link-detail-favorite",
-      "공개 설정, 전체 공개",
-      "link-detail-share",
-    ]);
+    expect(buttons.slice(0, 2)).toEqual(["link-detail-favorite", "link-detail-share"]);
 
     await favorite.focus();
     await page.keyboard.press("Tab");
-    await expect(visibility).toBeFocused();
-    await page.keyboard.press("Tab");
     await expect(share).toBeFocused();
-    await page.keyboard.press("Shift+Tab");
-    await expect(visibility).toBeFocused();
     await page.keyboard.press("Enter");
     const choices = page.getByRole("group", { name: "공개 설정" });
     await expect(choices.getByRole("button", { name: "전체 공개", pressed: true })).toBeVisible();
-    await page.keyboard.press("Escape");
+    if (isWideProject()) {
+      await page.keyboard.press("Escape");
+      await expect(share).toBeFocused();
+    } else {
+      await page.getByLabel("닫기", { exact: true }).click();
+    }
     await expect(choices).toHaveCount(0);
-    await expect(visibility).toBeFocused();
   });
 }
 
@@ -294,7 +289,8 @@ for (const committed of [false, true]) {
     }
     await expect(title).toHaveCount(0);
     const toolbar = page.getByTestId("link-detail-toolbar");
-    await toolbar.getByRole("button", { name: "공개 설정, 전체 공개" }).click();
+    const share = toolbar.getByTestId("link-detail-share");
+    await share.click();
     const overlay = page.getByRole("group", { name: "공개 설정" });
     await expect(overlay.getByRole("button", { name: "전체 공개", pressed: true })).toBeVisible();
     const privateOption = overlay.getByRole("button", { name: "나만 보기" });
@@ -302,8 +298,12 @@ for (const committed of [false, true]) {
     expect(state.requests.filter(({ method }) => method === "PUT")).toHaveLength(committed ? 2 : 3);
     await page.keyboard.press("Enter");
     await expect(privateOption).toHaveAttribute("aria-pressed", "true");
-    await page.keyboard.press("Escape");
-    await expect(toolbar.getByRole("button", { name: "공개 설정, 나만 보기" })).toBeFocused();
+    if (isWideProject()) {
+      await page.keyboard.press("Escape");
+      await expect(share).toBeFocused();
+    } else {
+      await page.getByLabel("닫기", { exact: true }).click();
+    }
 
     const writes = state.requests.filter(({ method }) => method === "PUT");
     expect(writes.map(({ path, body }) => [path, body])).toEqual([
