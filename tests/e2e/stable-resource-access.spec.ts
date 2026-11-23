@@ -396,6 +396,46 @@ test("checks the public address again after returning through browser history", 
   await expect(page.getByRole("link", { name: "오래된 골목길" })).toHaveCount(0);
 });
 
+test("checks an open public link again when the browser tab becomes visible", async ({ page }) => {
+  await mockApi(page, { seedSession: false });
+  const state = await mockPublicFolder(page);
+  await page.goto(`/links/${LINK_ID}`);
+  const heading = page.getByRole("heading", { name: "오래된 골목길" });
+  await expect(heading).toBeVisible();
+
+  state.linkStatus = 404;
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+
+  await expect(page).toHaveURL("/");
+  await expect(heading).toHaveCount(0);
+  await expect(page.getByText("찾으시는 링크가 없어요", { exact: true })).toHaveCount(1);
+});
+
+test("going back from guest login restores the public folder and link", async ({
+  page,
+  isMobile,
+}) => {
+  await mockApi(page, { seedSession: false });
+  await mockPublicFolder(page);
+
+  for (const [path, title] of [
+    [WEB_PATH, FOLDER_NAME],
+    [`/links/${LINK_ID}`, "오래된 골목길"],
+  ]) {
+    await page.goto(path);
+    const heading = page.getByRole("heading", { level: 1, name: new RegExp(title) });
+    await expect(heading).toBeVisible();
+    if (isMobile) await page.getByRole("button", { name: "사이드바 열기" }).click();
+    await page.getByRole("button", { name: "로그인", exact: true }).click();
+    await expect(page).toHaveURL("/login");
+
+    await page.goBack();
+
+    await expect(page).toHaveURL(path);
+    await expect(heading).toBeVisible();
+  }
+});
+
 test("keeps a long title within the existing link card", async ({ page, isMobile }) => {
   await mockApi(page, { seedSession: false });
   const state = await mockPublicFolder(page);
