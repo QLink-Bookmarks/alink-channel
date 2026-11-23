@@ -49,7 +49,7 @@ function PublicAddressRow({ path }: PublicAddressRowProps) {
       {failed ? (
         <Text
           selectable
-          className="min-w-0 flex-1 rounded py-2 text-xs text-muted-foreground web:[overflow-wrap:anywhere] web:focus-visible:outline web:focus-visible:outline-2 web:focus-visible:outline-ring"
+          className="min-w-0 flex-1 rounded py-2 text-sm text-muted-foreground web:[overflow-wrap:anywhere] web:focus-visible:outline web:focus-visible:outline-2 web:focus-visible:outline-ring"
           {...(isWeb && {
             tabIndex: 0 as const,
             onFocus: (event: { currentTarget: EventTarget }) => {
@@ -67,13 +67,13 @@ function PublicAddressRow({ path }: PublicAddressRowProps) {
       ) : (
         <View className="min-w-0 flex-1 flex-row items-center">
           <Text
-            className="min-w-0 shrink text-xs text-muted-foreground"
+            className="min-w-0 shrink text-sm text-muted-foreground"
             numberOfLines={1}
           >
             {origin}
           </Text>
           <Text
-            className="shrink-0 text-xs text-muted-foreground"
+            className="shrink-0 text-sm text-muted-foreground"
             numberOfLines={1}
           >
             {path}

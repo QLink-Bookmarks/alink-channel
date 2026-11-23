@@ -206,8 +206,18 @@ test("copies the full address even when the origin truncates and opens a logged-
   const origin = new URL(page.url()).origin;
   const displayedOrigin = choices.getByText(origin, { exact: true });
   await expect(displayedOrigin).toHaveCSS("text-overflow", "ellipsis");
+  expect(
+    await displayedOrigin.evaluate((node) => parseFloat(getComputedStyle(node).fontSize)),
+  ).toBeGreaterThan(11);
   expect(await displayedOrigin.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
   await expect(address).toHaveText(PATH);
+  expect(await address.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  if (!isWideProject()) {
+    const popover = page.getByTestId("folder-visibility-popover");
+    await expect.poll(async () => (await popover.boundingBox())?.x ?? 0).toBeGreaterThanOrEqual(12);
+    const box = (await popover.boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(390 - 12);
+  }
   await copy.click();
   await expect(page.getByText(COPY_SUCCESS)).toBeVisible();
   await expect(choices).toBeVisible();

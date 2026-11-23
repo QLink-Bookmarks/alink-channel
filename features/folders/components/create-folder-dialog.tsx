@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmojiPickerGrid } from "@/components/ui/emoji-picker-grid";
 import { Input } from "@/components/ui/input";
+import { PublicAddressRow } from "@/components/ui/public-address-row";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 
@@ -26,7 +27,6 @@ import {
 } from "../mutations";
 import { useFolderDetailQuery } from "../queries";
 import type { Folder } from "../types";
-import { PublicFolderAddress } from "./public-folder-address";
 import { VisibilityField } from "./visibility-field";
 
 const PUBLISH_TITLE = "폴더를 전체 공개할까요?";
@@ -312,7 +312,6 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
   };
 
   const useSheetActions = mode === "mobile" && process.env.EXPO_OS !== "web";
-  const addressFolderId = process.env.EXPO_OS === "android" ? folder.id : undefined;
   const isWriting = mutation.isPending || privacyMutation.isPending;
   const isPending = isWriting || (draftPrivacy !== undefined && privacy.isFetching);
   const body = notice ? (
@@ -324,12 +323,6 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
       >
         <Text role="status">{notice}</Text>
       </View>
-      {addressFolderId !== undefined ? (
-        <FolderPrivacyStatus
-          addressFolderId={addressFolderId}
-          query={privacy}
-        />
-      ) : null}
       <Button onPress={() => handleOpenChange(false)}>
         <Text>완료</Text>
       </Button>
@@ -355,10 +348,7 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
             isPublic={isPublic}
             onChange={setDraftPrivacy}
           />
-          <FolderPrivacyStatus
-            addressFolderId={addressFolderId}
-            query={privacy}
-          />
+          <FolderPrivacyStatus query={privacy} />
         </View>
       }
       name={name}
@@ -485,9 +475,9 @@ function FolderPrivacyStatus({
     );
   }
   return addressFolderId !== undefined && query.data?.isPublic === true ? (
-    <PublicFolderAddress
+    <PublicAddressRow
       key={addressFolderId}
-      folderId={addressFolderId}
+      path={`/folders/${addressFolderId}`}
     />
   ) : null;
 }

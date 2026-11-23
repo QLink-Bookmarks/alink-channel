@@ -32,7 +32,6 @@ import {
   UNCATEGORIZED_PICKER_OPTION,
 } from "@/features/folders/components/folder-picker-list";
 import { VisibilityField } from "@/features/folders/components/visibility-field";
-import { VisibilityPopover } from "@/features/folders/components/visibility-popover";
 import { getMoveTargetFolderId } from "@/features/folders/lib/folder-pages";
 import { useFoldersQuery } from "@/features/folders/queries";
 import { buildShareText } from "@/features/links/lib/build-share-text";
@@ -59,6 +58,7 @@ import { LinkDetailContent } from "./link-detail-content";
 import { LinkDetailMyNotes, type LinkFieldsUpdate } from "./link-detail-my-notes";
 import { FOCUS_RING_CLASS_NAME } from "./link-detail-parts";
 import { LinkDetailToolbar } from "./link-detail-toolbar";
+import { LinkVisibilityPopover } from "./link-visibility-popover";
 import { UnsavedChangesDialog } from "./unsaved-changes-dialog";
 
 import { type Href, useRouter } from "expo-router";
@@ -734,7 +734,7 @@ function LinkDetailView({
       refreshing={isRefreshing}
       visibility={
         isLinkOwner && hasLinkVisibility ? (
-          <VisibilityPopover
+          <LinkVisibilityPopover
             canPublish={canChangePrivacy}
             error={privacyMutation.isError ? "공개 설정을 저장하지 못했어요." : undefined}
             isPublic={linkVisibility}
