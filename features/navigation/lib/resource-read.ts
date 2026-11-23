@@ -6,8 +6,6 @@ function resourceReadOptions(authToken: string | null, signal: AbortSignal): Api
   return {
     authToken,
     signal,
-    adapter: "fetch",
-    fetchOptions: { cache: "no-store" },
     withCredentials: false,
   };
 }
