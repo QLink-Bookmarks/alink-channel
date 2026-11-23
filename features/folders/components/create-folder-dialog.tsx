@@ -118,8 +118,8 @@ function CreateFolderDialog({
   const body = created ? (
     <View className="gap-3">
       <Text role="status">폴더를 만들었어요.</Text>
-      <FolderPrivacyDetails
-        folderId={created.id}
+      <FolderPrivacyStatus
+        addressFolderId={created.id}
         query={privacy}
       />
       <Button onPress={() => handleOpenChange(false)}>
@@ -312,6 +312,7 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
   };
 
   const useSheetActions = mode === "mobile" && process.env.EXPO_OS !== "web";
+  const addressFolderId = process.env.EXPO_OS === "android" ? folder.id : undefined;
   const isWriting = mutation.isPending || privacyMutation.isPending;
   const isPending = isWriting || (draftPrivacy !== undefined && privacy.isFetching);
   const body = notice ? (
@@ -323,10 +324,12 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
       >
         <Text role="status">{notice}</Text>
       </View>
-      <FolderPrivacyDetails
-        folderId={folder.id}
-        query={privacy}
-      />
+      {addressFolderId !== undefined ? (
+        <FolderPrivacyStatus
+          addressFolderId={addressFolderId}
+          query={privacy}
+        />
+      ) : null}
       <Button onPress={() => handleOpenChange(false)}>
         <Text>완료</Text>
       </Button>
@@ -352,8 +355,8 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
             isPublic={isPublic}
             onChange={setDraftPrivacy}
           />
-          <FolderPrivacyDetails
-            folderId={folder.id}
+          <FolderPrivacyStatus
+            addressFolderId={addressFolderId}
             query={privacy}
           />
         </View>
@@ -457,11 +460,11 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
   );
 }
 
-function FolderPrivacyDetails({
-  folderId,
+function FolderPrivacyStatus({
+  addressFolderId,
   query,
 }: {
-  folderId: number;
+  addressFolderId?: number;
   query: ReturnType<typeof useFolderDetailQuery>;
 }) {
   if (query.isFetching) {
@@ -481,10 +484,10 @@ function FolderPrivacyDetails({
       </View>
     );
   }
-  return query.data?.isPublic === true ? (
+  return addressFolderId !== undefined && query.data?.isPublic === true ? (
     <PublicFolderAddress
-      key={folderId}
-      folderId={folderId}
+      key={addressFolderId}
+      folderId={addressFolderId}
     />
   ) : null;
 }

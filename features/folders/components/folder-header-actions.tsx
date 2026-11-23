@@ -99,7 +99,7 @@ function FolderHeaderActions({ mode, folder, folderUpdatedAt }: FolderHeaderActi
   return (
     <>
       {isRoleKnown ? (
-        <View className="flex-row items-center gap-2">
+        <View className="shrink-0 flex-row items-center gap-2">
           {canEdit ? (
             <IconButton
               accessibilityLabel="폴더 수정"
@@ -191,13 +191,27 @@ function FolderVisibilityAction({
   const readsDetail = open || confirming || mutation.isPending;
   const detail = useFolderDetailQuery(folder.id, readsDetail);
   const trigger = React.useRef<TriggerRef>(null);
+  const usesLegacyVisibility = process.env.EXPO_OS === "android";
   const latestFolder =
     typeof detail.data?.isPublic === "boolean" && detail.dataUpdatedAt >= folderUpdatedAt
       ? detail.data
       : folder;
-  const isPublic = latestFolder.isPublic === true;
+  const isPublic =
+    !usesLegacyVisibility && mutation.isPending
+      ? !mutation.variables.isPublic
+      : latestFolder.isPublic === true;
   const hasVisibility = detail.isSuccess && typeof detail.data.isPublic === "boolean";
-  const canChange = hasVisibility && !detail.isFetching;
+  const canChange =
+    hasVisibility && !detail.isFetching && (usesLegacyVisibility || !detail.isPaused);
+  const status = mutation.isPending
+    ? "saving"
+    : detail.isFetching || detail.isPending || detail.isPaused
+      ? "checking"
+      : !hasVisibility
+        ? "unavailable"
+        : mutation.isError
+          ? "save-error"
+          : "ready";
 
   const handleWrite = (next: boolean) => {
     if (mutation.isPending) return;
@@ -207,23 +221,33 @@ function FolderVisibilityAction({
   return (
     <>
       <VisibilityPopover
-        canPublish={canChange}
-        error={
-          mutation.isError
-            ? "공개 설정을 저장하지 못했어요."
-            : detail.isError || (detail.isSuccess && !hasVisibility)
-              ? "공개 설정을 확인하지 못했어요."
-              : undefined
-        }
+        {...(usesLegacyVisibility
+          ? {
+              canPublish: canChange,
+              error: mutation.isError
+                ? "공개 설정을 저장하지 못했어요."
+                : detail.isError || (detail.isSuccess && !hasVisibility)
+                  ? "공개 설정을 확인하지 못했어요."
+                  : undefined,
+              pending: mutation.isPending || !canChange,
+            }
+          : {
+              confirming,
+              folderId: folder.id,
+              status,
+              onRetry: () => void detail.refetch(),
+            })}
         isPublic={isPublic}
-        pending={mutation.isPending || !canChange}
         triggerRef={trigger}
         onChange={(next) => {
           if (!canChange || next === isPublic) return;
           if (next) setConfirming(true);
           else handleWrite(false);
         }}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => {
+          if (!usesLegacyVisibility && next && mutation.isError) mutation.reset();
+          setOpen(next);
+        }}
       />
       <AlertDialog
         open={confirming}
@@ -233,7 +257,7 @@ function FolderVisibilityAction({
           className="max-w-md"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            trigger.current?.close();
+            if (usesLegacyVisibility) trigger.current?.close();
             trigger.current?.focus();
           }}
         >
