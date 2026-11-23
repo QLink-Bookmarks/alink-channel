@@ -63,6 +63,11 @@ function LinkListBody({
         emoji={emoji}
         icon={icon}
         actions={headerActions}
+        className={
+          headerActions
+            ? "web:[&>div:first-child]:min-w-0 web:[&>div:last-child]:shrink-0 web:[&_h1]:truncate"
+            : undefined
+        }
         titleAccessibilityRole="header"
       />
       <View

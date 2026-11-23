@@ -99,7 +99,7 @@ function FolderHeaderActions({ mode, folder, folderUpdatedAt }: FolderHeaderActi
   return (
     <>
       {isRoleKnown ? (
-        <View className="flex-row items-center gap-2">
+        <View className="shrink-0 flex-row items-center gap-2">
           {canEdit ? (
             <IconButton
               accessibilityLabel="폴더 수정"
@@ -195,9 +195,20 @@ function FolderVisibilityAction({
     typeof detail.data?.isPublic === "boolean" && detail.dataUpdatedAt >= folderUpdatedAt
       ? detail.data
       : folder;
-  const isPublic = latestFolder.isPublic === true;
+  const isPublic = mutation.isPending
+    ? !mutation.variables.isPublic
+    : latestFolder.isPublic === true;
   const hasVisibility = detail.isSuccess && typeof detail.data.isPublic === "boolean";
   const canChange = hasVisibility && !detail.isFetching;
+  const status = mutation.isPending
+    ? "saving"
+    : detail.isFetching || detail.isPending
+      ? "checking"
+      : !hasVisibility
+        ? "unavailable"
+        : mutation.isError
+          ? "save-error"
+          : "ready";
 
   const handleWrite = (next: boolean) => {
     if (mutation.isPending) return;
@@ -207,23 +218,21 @@ function FolderVisibilityAction({
   return (
     <>
       <VisibilityPopover
-        canPublish={canChange}
-        error={
-          mutation.isError
-            ? "공개 설정을 저장하지 못했어요."
-            : detail.isError || (detail.isSuccess && !hasVisibility)
-              ? "공개 설정을 확인하지 못했어요."
-              : undefined
-        }
+        confirming={confirming}
+        folderId={folder.id}
         isPublic={isPublic}
-        pending={mutation.isPending || !canChange}
+        status={status}
         triggerRef={trigger}
         onChange={(next) => {
           if (!canChange || next === isPublic) return;
           if (next) setConfirming(true);
           else handleWrite(false);
         }}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => {
+          if (next && mutation.isError) mutation.reset();
+          setOpen(next);
+        }}
+        onRetry={() => void detail.refetch()}
       />
       <AlertDialog
         open={confirming}
@@ -233,7 +242,6 @@ function FolderVisibilityAction({
           className="max-w-md"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            trigger.current?.close();
             trigger.current?.focus();
           }}
         >

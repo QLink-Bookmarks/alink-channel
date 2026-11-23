@@ -118,8 +118,8 @@ function CreateFolderDialog({
   const body = created ? (
     <View className="gap-3">
       <Text role="status">폴더를 만들었어요.</Text>
-      <FolderPrivacyDetails
-        folderId={created.id}
+      <FolderPrivacyStatus
+        createdFolderId={created.id}
         query={privacy}
       />
       <Button onPress={() => handleOpenChange(false)}>
@@ -323,10 +323,6 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
       >
         <Text role="status">{notice}</Text>
       </View>
-      <FolderPrivacyDetails
-        folderId={folder.id}
-        query={privacy}
-      />
       <Button onPress={() => handleOpenChange(false)}>
         <Text>완료</Text>
       </Button>
@@ -352,10 +348,7 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
             isPublic={isPublic}
             onChange={setDraftPrivacy}
           />
-          <FolderPrivacyDetails
-            folderId={folder.id}
-            query={privacy}
-          />
+          <FolderPrivacyStatus query={privacy} />
         </View>
       }
       name={name}
@@ -457,11 +450,11 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
   );
 }
 
-function FolderPrivacyDetails({
-  folderId,
+function FolderPrivacyStatus({
+  createdFolderId,
   query,
 }: {
-  folderId: number;
+  createdFolderId?: number;
   query: ReturnType<typeof useFolderDetailQuery>;
 }) {
   if (query.isFetching) {
@@ -481,10 +474,10 @@ function FolderPrivacyDetails({
       </View>
     );
   }
-  return query.data?.isPublic === true ? (
+  return createdFolderId !== undefined && query.data?.isPublic === true ? (
     <PublicFolderAddress
-      key={folderId}
-      folderId={folderId}
+      key={createdFolderId}
+      folderId={createdFolderId}
     />
   ) : null;
 }
