@@ -455,17 +455,18 @@ for (const privacy of ["before-write", "after-write"] as const) {
       await expect(publicAddress).toHaveCount(0);
       await save.click();
       await confirm.click();
-      await expect(publicAddress).toBeVisible();
+      await expect(form.getByText("폴더를 전체 공개했어요.")).toBeVisible();
+      await expect(publicAddress).toHaveCount(0);
       await form.getByRole("button", { name: "완료", exact: true }).click();
     } else {
-      await expect(publicAddress).toBeVisible();
+      await expect(publicAddress).toHaveCount(0);
       await save.click();
     }
     await expect(form.getByPlaceholder(FOLDER_INPUT)).toHaveCount(0);
     const reopened = await openEdit(page);
     await expect(reopened.getByPlaceholder(FOLDER_INPUT)).toHaveValue("실패 뒤 유지할 이름");
     await expect(reopened.getByRole("radio", { name: "전체 공개" })).toBeChecked();
-    await expect(reopened.getByRole("link", { name: "공개 페이지 열기" })).toBeVisible();
+    await expect(reopened.getByRole("link", { name: "공개 페이지 열기" })).toHaveCount(0);
     expect(writes()).toEqual([
       { name: "실패 뒤 유지할 이름", emoji: "📁", isShared: true },
       { name: "실패 뒤 유지할 이름", emoji: "📁", isShared: true },
@@ -519,12 +520,11 @@ test("publishes from the folder header only after confirmation", async ({ page }
   await confirm.getByRole("button", { name: "취소" }).click();
   await expect(confirm).toHaveCount(0);
   await expect(trigger).toBeFocused();
+  await expect(everyone).toBeVisible();
   expect(writes()).toEqual([]);
-  await trigger.click();
   await everyone.click();
   await confirm.getByRole("button", { name: "전체 공개" }).click();
   await expect(trigger).toHaveAccessibleName("공개 설정, 전체 공개");
-  await trigger.click();
   await expect(everyone).toHaveAttribute("aria-pressed", "true");
   expect(writes()).toEqual([{ isPublic: true }]);
 });
@@ -579,7 +579,7 @@ test("keeps the newer folder detail after the sidebar loads a different folder p
 });
 
 for (const theme of ["light", "dark"] as const) {
-  test(`publishes only after confirmation, preserves collaboration and keeps the folder address through republication in ${theme}`, async ({
+  test(`publishes only after confirmation, preserves collaboration and offers the folder address in the header in ${theme}`, async ({
     page,
   }) => {
     const writes = await mockFolderOwner(page, theme);
@@ -611,13 +611,14 @@ for (const theme of ["light", "dark"] as const) {
       { name: "협업 이름 초안", emoji: "📁", isShared: true },
       { isPublic: true },
     ]);
-    const firstAddress = page.getByRole("link", { name: "공개 페이지 열기" });
-    await expect(firstAddress).toHaveAttribute("href", new RegExp(`/folders/${FOLDER_ID}$`));
+    const legacyLink = page.getByRole("link", { name: "공개 페이지 열기" });
+    await expect(legacyLink).toHaveCount(0);
     await page.getByRole("button", { name: "완료", exact: true }).click();
 
     const publicForm = await openEdit(page);
     await expect(publicForm.getByRole("radio", { name: "전체 공개" })).toBeChecked();
-    await expect(firstAddress).toBeVisible();
+    await expect(publicForm.getByText("공개 열람 주소")).toHaveCount(0);
+    await expect(legacyLink).toHaveCount(0);
     await publicForm.getByPlaceholder(FOLDER_INPUT).fill("공개 주소를 유지하는 이름 수정");
     await publicForm.getByRole("button", { name: "저장", exact: true }).click();
     await expect(publicForm.getByPlaceholder(FOLDER_INPUT)).toHaveCount(0);
@@ -629,10 +630,10 @@ for (const theme of ["light", "dark"] as const) {
     });
 
     const cancelRevokeForm = await openEdit(page);
-    await expect(firstAddress).toHaveAttribute("href", new RegExp(`/folders/${FOLDER_ID}$`));
+    await expect(legacyLink).toHaveCount(0);
     await cancelRevokeForm.getByRole("radio", { name: "나만 보기" }).click();
     await cancelRevokeForm.getByRole("button", { name: "취소" }).click();
-    await expect(firstAddress).toHaveCount(0);
+    await expect(legacyLink).toHaveCount(0);
 
     const revokeForm = await openEdit(page);
     await expect(revokeForm.getByRole("radio", { name: "전체 공개" })).toBeChecked();
@@ -641,14 +642,18 @@ for (const theme of ["light", "dark"] as const) {
     await expect(
       page.getByText("공개를 껐어요. 이제 권한이 있는 사람만 폴더를 열 수 있어요."),
     ).toBeVisible();
-    await expect(firstAddress).toHaveCount(0);
+    await expect(legacyLink).toHaveCount(0);
     await page.getByRole("button", { name: "완료", exact: true }).click();
 
     const republishForm = await openEdit(page);
     await republishForm.getByRole("radio", { name: "전체 공개" }).click();
     await republishForm.getByRole("button", { name: "저장" }).click();
     await confirmation.getByRole("button", { name: "전체 공개" }).click();
-    await expect(firstAddress).toHaveAttribute("href", new RegExp(`/folders/${FOLDER_ID}$`));
+    await expect(page.getByText("폴더를 전체 공개했어요.")).toBeVisible();
+    await page.getByRole("button", { name: "완료", exact: true }).click();
+    await page.getByRole("button", { name: "공개 설정, 전체 공개" }).click();
+    await expect(page.getByText(`/folders/${FOLDER_ID}`, { exact: true })).toBeVisible();
+    await expect(legacyLink).toHaveCount(0);
     expect(writes()).toHaveLength(5);
   });
 }
