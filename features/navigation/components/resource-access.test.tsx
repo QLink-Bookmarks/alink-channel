@@ -5,10 +5,10 @@ import { UnavailableResourceRedirect } from "./resource-access";
 
 const mockAuth = { hasHydrated: true, accessToken: null as string | null };
 const mockReplace = jest.fn();
-let mockFocused = true;
+let mockPath = "/folders/42";
 
 jest.mock("expo-router", () => ({
-  useIsFocused: () => mockFocused,
+  usePathname: () => mockPath,
   useRouter: () => ({ replace: mockReplace }),
 }));
 jest.mock("expo-router/head", () => () => null);
@@ -25,7 +25,7 @@ jest.mock("./private-pages-layout", () => ({}));
 beforeEach(() => {
   mockAuth.hasHydrated = true;
   mockAuth.accessToken = null;
-  mockFocused = true;
+  mockPath = "/folders/42";
   mockReplace.mockClear();
   useToastStore.getState().dismissAllToasts();
 });
@@ -58,9 +58,9 @@ it.each([
   }
 });
 
-it("waits for focus and hydration, then announces the denied link once", () => {
+it("waits for the active address and hydration, then announces the denied link once", () => {
   mockAuth.hasHydrated = false;
-  mockFocused = false;
+  mockPath = "/links/27";
   const view = render(
     <UnavailableResourceRedirect
       kind="links"
@@ -71,6 +71,7 @@ it("waits for focus and hydration, then announces the denied link once", () => {
 
   mockAuth.hasHydrated = true;
   mockAuth.accessToken = "member";
+  mockPath = "/home";
   view.rerender(
     <UnavailableResourceRedirect
       kind="links"
@@ -79,7 +80,7 @@ it("waits for focus and hydration, then announces the denied link once", () => {
   );
   expect(mockReplace).not.toHaveBeenCalled();
 
-  mockFocused = true;
+  mockPath = "/links/27";
   view.rerender(
     <UnavailableResourceRedirect
       kind="links"

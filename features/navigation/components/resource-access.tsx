@@ -36,14 +36,15 @@ const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 
 function UnavailableResourceRedirect({ kind, id }: { kind: "folders" | "links"; id: number }) {
   const router = useRouter();
-  const focused = useIsFocused();
+  const path = DETAIL_PATH.exec(usePathname());
+  const isCurrentResource = path?.[1] === kind && Number(path[2]) === id;
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const authToken = useAuthStore((state) => state.accessToken);
   const redirectedResource = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     const sourceKey = `resource-unavailable:${kind}:${id}`;
-    if (!focused || !hasHydrated || redirectedResource.current === sourceKey) return;
+    if (!isCurrentResource || !hasHydrated || redirectedResource.current === sourceKey) return;
 
     redirectedResource.current = sourceKey;
     if (!authToken && process.env.EXPO_OS !== "web") {
@@ -57,7 +58,7 @@ function UnavailableResourceRedirect({ kind, id }: { kind: "folders" | "links"; 
       description: "삭제되었거나 접근 권한이 없어요.",
       sourceKey,
     });
-  }, [authToken, focused, hasHydrated, id, kind, router]);
+  }, [authToken, hasHydrated, id, isCurrentResource, kind, router]);
 
   return null;
 }
