@@ -5,6 +5,7 @@ import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { LoadErrorState } from "@/components/ui/load-error-state";
 import { useAgreementStatus } from "@/features/agreements/hooks/use-agreement-status";
 import { getFolderDetail } from "@/features/folders/api";
+import type { Folder } from "@/features/folders/types";
 import { getLinkAccess } from "@/features/links/api";
 import {
   isUnavailableResource,
@@ -33,6 +34,10 @@ import Head from "expo-router/head";
 
 const DETAIL_PATH = /^\/(folders|links)\/(\d+)\/?$/;
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
+
+const MemberFolderDetailContext = React.createContext<{ folder: Folder; updatedAt: number } | null>(
+  null,
+);
 
 function UnavailableResourceRedirect({ kind, id }: { kind: "folders" | "links"; id: number }) {
   const router = useRouter();
@@ -157,7 +162,8 @@ function ResourceVisit({
         throw new Error("Unexpected authenticated resource response");
       }
       const data = response.data;
-      if ("isShared" in data || "sourceType" in data) return { mode: "app" } as const;
+      if ("isShared" in data) return { mode: "app", folder: data } as const;
+      if ("sourceType" in data) return { mode: "app" } as const;
       if ("folderId" in data) return { mode: "link", data } as const;
       return { mode: "folder", data } as const;
     },
@@ -229,9 +235,14 @@ function ResourceVisit({
   }
   if (openLinkScreen || clearInvalidMemberOverlay) return null;
   if (canUseApp && access.isSuccess) {
+    const memberFolder = resource.folder
+      ? { folder: resource.folder, updatedAt: access.dataUpdatedAt }
+      : null;
     return (
       <MemberResourceContext value={{ kind, id }}>
-        <PrivatePagesLayout>{children}</PrivatePagesLayout>
+        <MemberFolderDetailContext value={memberFolder}>
+          <PrivatePagesLayout>{children}</PrivatePagesLayout>
+        </MemberFolderDetailContext>
       </MemberResourceContext>
     );
   }
@@ -295,4 +306,4 @@ function ResourceVisit({
   );
 }
 
-export { ResourceAccess, UnavailableResourceRedirect };
+export { MemberFolderDetailContext, ResourceAccess, UnavailableResourceRedirect };

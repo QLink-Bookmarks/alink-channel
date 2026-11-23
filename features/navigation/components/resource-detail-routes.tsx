@@ -36,7 +36,7 @@ import {
 import { useShellRouteState } from "../hooks/use-shell-route-state";
 import { isUnavailableResource, resourceReadOptions } from "../lib/resource-read";
 import { readParamValue } from "../routes";
-import { UnavailableResourceRedirect } from "./resource-access";
+import { MemberFolderDetailContext, UnavailableResourceRedirect } from "./resource-access";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { BookCopyIcon } from "lucide-react-native";
@@ -157,10 +157,12 @@ function MemberFolderController({
   const isWeb = process.env.EXPO_OS === "web";
   const query = useFolderQuery(folderId, { enabled: isWeb && !isUncategorized });
   const detail = useFolderDetailQuery(!isWeb && isFolderId(folderId) ? folderId : null);
-  const folder = isWeb ? query.folder : detail.data;
-  const folderUpdatedAt = isWeb ? query.dataUpdatedAt : detail.dataUpdatedAt;
+  const webDetail = React.use(MemberFolderDetailContext);
+  const folder = query.folder ?? (query.isNotFound ? webDetail?.folder : undefined) ?? detail.data;
+  const folderUpdatedAt = query.folder
+    ? query.dataUpdatedAt
+    : (webDetail?.updatedAt ?? detail.dataUpdatedAt);
   const isError = isWeb ? query.isError : detail.isError;
-  const isNotFound = isWeb ? query.isNotFound : isUnavailableResource(detail.error);
   const basePath = `/folders/${folderId}`;
   const panel = useMemberPanel(basePath, isWide, linkId);
   const headerAction = folder ? (
@@ -175,7 +177,7 @@ function MemberFolderController({
     headerAction,
     panel,
   };
-  if (isNotFound && isFolderId(folderId)) {
+  if (!isWeb && isFolderId(folderId) && isUnavailableResource(detail.error)) {
     return (
       <UnavailableResourceRedirect
         kind="folders"
