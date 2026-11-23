@@ -57,12 +57,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LinkDetailActionsSection } from "./link-detail-actions-section";
 import { LinkDetailContent } from "./link-detail-content";
 import { LinkDetailMyNotes, type LinkFieldsUpdate } from "./link-detail-my-notes";
-import { FOCUS_RING_CLASS_NAME } from "./link-detail-parts";
+import { DetailToolbarButton, FOCUS_RING_CLASS_NAME } from "./link-detail-parts";
 import { LinkDetailToolbar } from "./link-detail-toolbar";
+import { LinkShareSurface } from "./link-share-surface";
 import { UnsavedChangesDialog } from "./unsaved-changes-dialog";
 
 import { type Href, useRouter } from "expo-router";
-import { Trash2 } from "lucide-react-native/icons";
+import { Share2, Trash2 } from "lucide-react-native/icons";
 
 type ShareOutcome = "shared" | "copied" | "cancelled" | "failed";
 type LinkFieldsOverride = Partial<Pick<UpdateLinkRequest, "memo" | "summary" | "tags" | "title">>;
@@ -280,9 +281,16 @@ function LinkDetailView({
   const privacyMutation = useSetLinkPrivacyMutation();
   const linkVisibility = folderPublic === true && savedPublic;
 
-  const handleChangeLinkPrivacy = (next: boolean) => {
-    if (!canChangePrivacy || privacyMutation.isPending || next === linkVisibility) return;
-    privacyMutation.mutate({ id: detail.id, isPublic: next });
+  const handleChangeLinkPrivacy = async (next: boolean) => {
+    if (!isLinkOwner || !hasLinkVisibility || privacyMutation.isPending || isSavingEdit) return;
+    try {
+      await privacyMutation.mutateAsync({ id: detail.id, isPublic: next });
+    } catch (error: unknown) {
+      reportError(error, {
+        area: "link-detail-view:visibility",
+        extra: { linkId: detail.id },
+      });
+    }
   };
 
   const handleDetailUpdated = React.useCallback(
@@ -732,22 +740,46 @@ function LinkDetailView({
       mode={mode}
       refreshFailed={hasRefreshFailed}
       refreshing={isRefreshing}
-      visibility={
-        isLinkOwner && hasLinkVisibility ? (
-          <VisibilityPopover
-            canPublish={canChangePrivacy}
-            error={privacyMutation.isError ? "공개 설정을 저장하지 못했어요." : undefined}
-            isPublic={linkVisibility}
+      share={
+        process.env.EXPO_OS === "android" ? (
+          <>
+            {isLinkOwner && hasLinkVisibility ? (
+              <VisibilityPopover
+                canPublish={canChangePrivacy}
+                error={privacyMutation.isError ? "공개 설정을 저장하지 못했어요." : undefined}
+                isPublic={linkVisibility}
+                pending={privacyMutation.isPending || isSavingEdit}
+                onChange={handleChangeLinkPrivacy}
+              />
+            ) : null}
+            <DetailToolbarButton
+              compact={!isPanel}
+              icon={Share2}
+              label="공유"
+              testID="link-detail-share"
+              onPress={handleShare}
+            />
+          </>
+        ) : (
+          <LinkShareSurface
+            key={detail.id}
+            failed={privacyMutation.isError}
+            folderId={detail.folderId ?? null}
+            isOwner={isLinkOwner}
+            isPublic={detail.isPublic}
+            linkId={detail.id}
+            mode={mode}
             pending={privacyMutation.isPending || isSavingEdit}
+            url={detail.url}
             onChange={handleChangeLinkPrivacy}
+            onShare={handleShare}
           />
-        ) : undefined
+        )
       }
       onClose={onClose}
       onCopy={handleOpenCopyFolder}
       onEdit={openEditSheet}
       onRefresh={handleRefresh}
-      onShare={handleShare}
       onToggleFavorite={handleToggleFavorite}
     />
   );

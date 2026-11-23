@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 import { DetailToolbarButton, RefreshButton } from "./link-detail-parts";
 
-import { FolderPlus, Pencil, Share2, Star, X } from "lucide-react-native/icons";
+import { FolderPlus, Pencil, Star, X } from "lucide-react-native/icons";
 
 type LinkDetailToolbarProps = {
   /** `panel`: the wide panel's top row with a close button. `screen`: the mobile header's right slot. */
@@ -18,9 +18,8 @@ type LinkDetailToolbarProps = {
   isCopyPending: boolean;
   refreshing: boolean;
   refreshFailed: boolean;
-  visibility?: React.ReactNode;
+  share: React.ReactNode;
   onToggleFavorite: () => void;
-  onShare: () => void;
   onEdit: () => void;
   onCopy: () => void;
   onRefresh: () => void;
@@ -69,9 +68,8 @@ function LinkDetailToolbar({
   isCopyPending,
   refreshing,
   refreshFailed,
-  visibility,
+  share,
   onToggleFavorite,
-  onShare,
   onEdit,
   onCopy,
   onRefresh,
@@ -96,14 +94,7 @@ function LinkDetailToolbar({
       onClose={onClose}
     >
       {star}
-      {visibility}
-      <DetailToolbarButton
-        compact={compact}
-        icon={Share2}
-        label="공유"
-        testID="link-detail-share"
-        onPress={onShare}
-      />
+      {share}
       {canEdit ? (
         <DetailToolbarButton
           compact={compact}
