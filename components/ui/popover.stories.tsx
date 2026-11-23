@@ -3,7 +3,7 @@ import { View } from "react-native";
 import type { Meta, StoryObj } from "@storybook/react-native";
 
 import { Button } from "./button";
-import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "./popover";
 import { Text } from "./text";
 
 const meta = {
@@ -31,9 +31,14 @@ export const Basic: Story = {
           <Text>팝오버 열기</Text>
         </Button>
       </PopoverTrigger>
-      <PopoverContent>
+      <PopoverContent className="gap-2">
         <Text variant="large">워크스페이스</Text>
         <Text variant="muted">결제, 멤버, 알림 설정을 관리한다.</Text>
+        <PopoverClose asChild>
+          <Button variant="outline">
+            <Text>닫기</Text>
+          </Button>
+        </PopoverClose>
       </PopoverContent>
     </Popover>
   ),

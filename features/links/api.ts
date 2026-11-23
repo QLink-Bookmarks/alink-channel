@@ -1,6 +1,9 @@
-import { api } from "@/lib/api-client";
+import type { PublicFolderPage } from "@/features/folders/types";
+import { type ApiRequestConfig, api } from "@/lib/api-client";
 
+import { LinkAccessDenied } from "./lib/is-link-not-found";
 import type {
+  ApiEnvelope,
   CopyLinkRequest,
   CopyLinkResponse,
   CreateLinkRequest,
@@ -8,12 +11,16 @@ import type {
   DeleteLinkResponse,
   GetLinksParams,
   GetLinksResponse,
-  LinkDetailResponse,
+  LinkDetail,
   LinkPreviewResponse,
   PatchLinkRequest,
+  PatchLinkResponse,
+  PublicLinkDetail,
+  PublicLinkListItem,
   SetLinkFavoriteRequest,
   SetLinkFavoriteResponse,
   UpdateLinkRequest,
+  UpdateLinkResponse,
 } from "./types";
 
 async function createLink(payload: CreateLinkRequest) {
@@ -21,7 +28,26 @@ async function createLink(payload: CreateLinkRequest) {
 }
 
 async function getLinkDetail(linkId: string | number) {
-  return api.get<LinkDetailResponse>(`/api/links/${linkId}`);
+  const response = await api.get<ApiEnvelope<LinkDetail | PublicLinkDetail>>(
+    `/api/links/${linkId}`,
+  );
+  const detail = response.data;
+  if (!detail || !("sourceType" in detail)) throw new LinkAccessDenied();
+  return { ...response, data: detail };
+}
+
+function getLinkAccess(linkId: number, read: ApiRequestConfig) {
+  return api.get<ApiEnvelope<LinkDetail | PublicLinkDetail>>(`/api/links/${linkId}`, read);
+}
+
+function getPublicFolderLinks(
+  params: Pick<GetLinksParams, "folderId" | "cursor" | "orderKey" | "order" | "size">,
+  read: ApiRequestConfig,
+) {
+  return api.get<ApiEnvelope<PublicFolderPage<PublicLinkListItem>>>("/api/links", {
+    ...read,
+    params,
+  });
 }
 
 async function getLinks(params: GetLinksParams = {}) {
@@ -43,11 +69,11 @@ async function getLinkPreview(url: string, config: { timeout?: number } = {}) {
 }
 
 async function updateLink(linkId: string | number, payload: UpdateLinkRequest) {
-  return api.put<LinkDetailResponse, UpdateLinkRequest>(`/api/links/${linkId}`, payload);
+  return api.put<UpdateLinkResponse, UpdateLinkRequest>(`/api/links/${linkId}`, payload);
 }
 
 async function patchLink(linkId: string | number, payload: PatchLinkRequest) {
-  return api.patch<LinkDetailResponse, PatchLinkRequest>(`/api/links/${linkId}`, payload);
+  return api.patch<PatchLinkResponse, PatchLinkRequest>(`/api/links/${linkId}`, payload);
 }
 
 async function deleteLink(linkId: string | number) {
@@ -61,6 +87,13 @@ async function setLinkFavorite(linkId: string | number, payload: SetLinkFavorite
   );
 }
 
+async function setLinkPrivacy(linkId: string | number, payload: { isPublic: boolean }) {
+  return api.put<ApiEnvelope<{ isPublic: boolean }>, typeof payload>(
+    `/api/links/${linkId}/privacy`,
+    payload,
+  );
+}
+
 async function copySharedFolderLink(linkId: string | number, payload: CopyLinkRequest) {
   return api.post<CopyLinkResponse, CopyLinkRequest>(`/api/links/${linkId}/copy`, payload);
 }
@@ -70,9 +103,12 @@ export {
   createLink,
   deleteLink,
   getLinkDetail,
+  getLinkAccess,
+  getPublicFolderLinks,
   getLinkPreview,
   getLinks,
   patchLink,
   setLinkFavorite,
+  setLinkPrivacy,
   updateLink,
 };

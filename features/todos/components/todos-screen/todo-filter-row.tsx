@@ -41,6 +41,7 @@ function toFilterPill(status: TodoStatusFilter, sort: TodoSort): FilterPill | nu
     return null;
   }
   return {
+    compactMarkOnly: true,
     parts: [
       {
         id: "sort",
@@ -58,6 +59,7 @@ function toFilterPill(status: TodoStatusFilter, sort: TodoSort): FilterPill | nu
             as={piece.direction === "asc" ? ArrowUpNarrowWide : ArrowDownWideNarrow}
             className="text-primary"
             size={13}
+            testID="todo-filter-sort-direction"
           />
         ),
       },
@@ -86,6 +88,7 @@ function TodoFilterRow({
       coverMode={coverMode}
       pill={pill}
       primaryLabel="액션 상태"
+      protectedPrimaryChipCount={TODO_STATUS_FILTERS.length}
       testID={testID}
       primary={TODO_STATUS_FILTERS.map((filter) => (
         <FilterChip

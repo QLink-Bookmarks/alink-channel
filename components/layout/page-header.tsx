@@ -22,6 +22,7 @@ function PageHeader({
   meta,
   primaryAction,
   actions,
+  titleAccessibilityRole,
   ...props
 }: React.ComponentProps<typeof View> & {
   title: string;
@@ -30,6 +31,7 @@ function PageHeader({
   meta?: string;
   primaryAction?: PageHeaderPrimaryAction;
   actions?: React.ReactNode;
+  titleAccessibilityRole?: "header";
 }) {
   return (
     <View
@@ -47,7 +49,11 @@ function PageHeader({
               className="size-7 text-primary"
             />
           ) : null}
-          <Text className="text-3xl font-extrabold">
+          <Text
+            accessibilityRole={titleAccessibilityRole}
+            aria-level={titleAccessibilityRole ? 1 : undefined}
+            className="text-3xl font-extrabold"
+          >
             {!icon && emoji ? `${emoji} ` : ""}
             {title}
           </Text>

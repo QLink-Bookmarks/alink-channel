@@ -19,24 +19,116 @@ import {
   UNCATEGORIZED_PICKER_OPTION,
 } from "@/features/folders/components/folder-picker-list";
 import { getMoveTargetFolderId } from "@/features/folders/lib/folder-pages";
-import { mapLinkListItem } from "@/features/home/lib/link-card-mapper";
+import { getDomainFromUrl, mapLinkListItem } from "@/features/home/lib/link-card-mapper";
 import { deleteLink, patchLink } from "@/features/links/api";
 import { LinkCard } from "@/features/links/components/link-card/link-card";
 import { LinkCardSkeleton } from "@/features/links/components/link-card/link-card-skeleton";
 import { useLinkCardSize } from "@/features/links/hooks/use-link-card-size";
-import { getLinkCardMinWidth } from "@/features/links/lib/link-card-size";
+import { type LinkCardSize, getLinkCardMinWidth } from "@/features/links/lib/link-card-size";
+import { isPreviewableUrl } from "@/features/links/lib/link-preview/link-preview-result";
 import { openLinkUrl } from "@/features/links/lib/open-link-url";
 import { useSetLinkFavoriteMutation } from "@/features/links/mutations";
 import { invalidateLinkListAndSearchQueries } from "@/features/links/queries";
-import type { LinkListItem } from "@/features/links/types";
+import type { LinkListItem, PublicLinkListItem } from "@/features/links/types";
 import { reportError } from "@/lib/error-reporting";
 import { useGridColumns } from "@/lib/hooks/use-grid-columns";
+import { useWideView } from "@/lib/hooks/use-wide-view";
 import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { ExternalLink, FolderOpen, Star, Trash2 } from "lucide-react-native/icons";
 
 const GRID_GAP = 12;
+const GRID_CLASS_NAME = "w-full flex-row flex-wrap";
+
+function useLinkGridLayout(size: LinkCardSize) {
+  const isWideView = useWideView();
+  const { itemStyle, onLayout } = useGridColumns({
+    gap: GRID_GAP,
+    minItemWidth: getLinkCardMinWidth(size, isWideView),
+  });
+  return { itemStyle, onLayout };
+}
+
+function LinkCardGridLayout<T extends { id: number }>({
+  links,
+  size,
+  className,
+  isLoading,
+  skeletonCount,
+  renderCard,
+}: {
+  links: T[];
+  size: LinkCardSize;
+  className?: string;
+  isLoading: boolean;
+  skeletonCount: number;
+  renderCard: (link: T) => React.ReactNode;
+}) {
+  const { itemStyle, onLayout } = useLinkGridLayout(size);
+  return (
+    <View
+      className={cn(GRID_CLASS_NAME, className)}
+      style={{ gap: GRID_GAP }}
+      testID="link-card-grid"
+      onLayout={onLayout}
+    >
+      {isLoading
+        ? Array.from({ length: skeletonCount }, (_, index) => (
+            <View
+              key={`skeleton-${index}`}
+              style={itemStyle}
+            >
+              <LinkCardSkeleton />
+            </View>
+          ))
+        : links.map((link) => (
+            <View
+              key={link.id}
+              style={itemStyle}
+            >
+              {renderCard(link)}
+            </View>
+          ))}
+    </View>
+  );
+}
+
+function ReadOnlyLinkCardGrid({
+  links,
+  size,
+  folderId,
+  activeLinkId,
+  isLoading,
+}: {
+  links: PublicLinkListItem[];
+  size: LinkCardSize;
+  folderId?: number;
+  activeLinkId?: number;
+  isLoading: boolean;
+}) {
+  return (
+    <LinkCardGridLayout
+      links={links}
+      size={size}
+      isLoading={isLoading}
+      skeletonCount={8}
+      renderCard={({ id, title, url, thumbnailUrl, faviconUrl, isVideo, contentExcerpt }) => (
+        <LinkCard
+          active={activeLinkId === id}
+          bodyHref={folderId ? `/folders/${folderId}?linkId=${id}` : `/links/${id}`}
+          domain={getDomainFromUrl(url)}
+          excerpt={contentExcerpt}
+          faviconUrl={faviconUrl}
+          isVideo={isVideo}
+          thumbnailUrl={thumbnailUrl}
+          title={title}
+          onImagePress={isPreviewableUrl(url) ? () => openLinkUrl(url) : undefined}
+        />
+      )}
+    />
+  );
+}
 
 function HoverActionButton({
   icon,
@@ -129,10 +221,6 @@ function LinkCardGrid({
   });
   const favoriteMutation = useSetLinkFavoriteMutation();
   const { isWideView, linkCardSize } = useLinkCardSize();
-  const { itemStyle, onLayout } = useGridColumns({
-    gap: GRID_GAP,
-    minItemWidth: getLinkCardMinWidth(linkCardSize, isWideView),
-  });
 
   const handleBookmark = React.useCallback(
     async (item: LinkListItem) => {
@@ -204,79 +292,65 @@ function LinkCardGrid({
 
   return (
     <>
-      <View
-        className={cn("w-full flex-row flex-wrap", className)}
-        style={{ gap: GRID_GAP }}
-        testID="link-card-grid"
-        onLayout={onLayout}
-      >
-        {isLoading
-          ? Array.from({ length: skeletonCount }, (_, index) => (
-              <View
-                key={`skeleton-${index}`}
-                style={itemStyle}
-              >
-                <LinkCardSkeleton />
-              </View>
-            ))
-          : links.map((item) => {
-              const mapped = mapLinkListItem(item);
-              const bookmarkHoverAction =
-                isWideView || item.isFavorite ? (
-                  <BookmarkBadgeButton
-                    isFavorite={item.isFavorite}
-                    onPress={() => handleBookmark(item)}
-                  />
-                ) : undefined;
-              const trailingHoverActions = isWideView ? (
-                <>
-                  <HoverActionButton
-                    icon={ExternalLink}
-                    label="원본 열기"
-                    onPress={() => openLinkUrl(item.url)}
-                  />
-                  <HoverActionButton
-                    icon={FolderOpen}
-                    label="폴더 이동"
-                    onPress={() => setFolderMoveLink(item)}
-                  />
-                  <HoverActionButton
-                    icon={Trash2}
-                    label="삭제"
-                    tone="destructive"
-                    onPress={() => setDeleteTargetLink(item)}
-                  />
-                </>
-              ) : undefined;
-              return (
-                <View
-                  key={mapped.id}
-                  style={itemStyle}
-                >
-                  <LinkCard
-                    active={activeLinkId === mapped.id}
-                    bookmarkHoverAction={bookmarkHoverAction}
-                    bookmarkPinned={item.isFavorite}
-                    domain={mapped.domain}
-                    excerpt={mapped.excerpt}
-                    faviconUrl={mapped.faviconUrl}
-                    highlightQuery={highlightQuery}
-                    isVideo={mapped.isVideo}
-                    snippet={mapped.snippet}
-                    statusLabel={mapped.statusLabel}
-                    statusVariant={mapped.statusVariant}
-                    tags={mapped.tags}
-                    thumbnailUrl={mapped.thumbnailUrl}
-                    title={mapped.title}
-                    todoCounts={mapped.todoCounts}
-                    trailingHoverActions={trailingHoverActions}
-                    onImagePress={() => openLinkUrl(item.url)}
-                    onPress={() => onCardPress(item)}
-                  />
-                </View>
-              );
-            })}
-      </View>
+      <LinkCardGridLayout
+        className={className}
+        isLoading={isLoading}
+        links={links}
+        size={linkCardSize}
+        skeletonCount={skeletonCount}
+        renderCard={(item) => {
+          const mapped = mapLinkListItem(item);
+          const bookmarkHoverAction =
+            isWideView || item.isFavorite ? (
+              <BookmarkBadgeButton
+                isFavorite={item.isFavorite}
+                onPress={() => handleBookmark(item)}
+              />
+            ) : undefined;
+          const trailingHoverActions = isWideView ? (
+            <>
+              <HoverActionButton
+                icon={ExternalLink}
+                label="원본 열기"
+                onPress={() => openLinkUrl(item.url)}
+              />
+              <HoverActionButton
+                icon={FolderOpen}
+                label="폴더 이동"
+                onPress={() => setFolderMoveLink(item)}
+              />
+              <HoverActionButton
+                icon={Trash2}
+                label="삭제"
+                tone="destructive"
+                onPress={() => setDeleteTargetLink(item)}
+              />
+            </>
+          ) : undefined;
+          return (
+            <LinkCard
+              active={activeLinkId === mapped.id}
+              bookmarkHoverAction={bookmarkHoverAction}
+              bookmarkPinned={item.isFavorite}
+              domain={mapped.domain}
+              excerpt={mapped.excerpt}
+              faviconUrl={mapped.faviconUrl}
+              highlightQuery={highlightQuery}
+              isVideo={mapped.isVideo}
+              snippet={mapped.snippet}
+              statusLabel={mapped.statusLabel}
+              statusVariant={mapped.statusVariant}
+              tags={mapped.tags}
+              thumbnailUrl={mapped.thumbnailUrl}
+              title={mapped.title}
+              todoCounts={mapped.todoCounts}
+              trailingHoverActions={trailingHoverActions}
+              onImagePress={() => openLinkUrl(item.url)}
+              onPress={() => onCardPress(item)}
+            />
+          );
+        }}
+      />
 
       <FolderPickerDialog
         confirmLabel="확인"
@@ -325,5 +399,5 @@ function LinkCardGrid({
   );
 }
 
-export { LinkCardGrid };
+export { LinkCardGrid, ReadOnlyLinkCardGrid };
 export type { LinkCardGridProps };

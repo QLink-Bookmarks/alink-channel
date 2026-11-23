@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { Kbd } from "@/components/ui/kbd";
+import { LoadErrorState } from "@/components/ui/load-error-state";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { useMyProfileQuery } from "@/features/account/queries";
@@ -153,7 +154,7 @@ function WideHomeScreen() {
   const toggleTodo = useToggleTodoCompletedMutation();
   const todoGrid = useGridColumns({ gap: TODO_GRID_GAP, minItemWidth: TODO_MIN_CARD_WIDTH });
 
-  const shortcuts = favoritesQuery.data?.contents ?? [];
+  const shortcuts = favoritesQuery.data?.contents.slice(0, SHORTCUT_PREVIEW_COUNT) ?? [];
   const todos = React.useMemo(() => todosQuery.data?.contents ?? [], [todosQuery.data?.contents]);
   const previewTodos = React.useMemo(() => {
     return [...todos]
@@ -182,7 +183,9 @@ function WideHomeScreen() {
     [queryClient, toggleTodo],
   );
 
-  if (!recentLinksQuery.isLoading && !recentLinksQuery.isError && recentLinks.length === 0) {
+  const isRecentError = recentLinksQuery.isError && !recentLinksQuery.data;
+
+  if (recentLinksQuery.isSuccess && recentLinks.length === 0) {
     return (
       <ScrollView
         className="flex-1"
@@ -329,17 +332,25 @@ function WideHomeScreen() {
           <SectionHeader
             emoji="🔖"
             title="최근 저장"
-            count={recentLinks.length}
+            count={recentLinksQuery.data ? recentLinks.length : undefined}
             onSeeAll={() => router.push("/links" as Href)}
           />
-          {!recentLinksQuery.isLoading && recentLinks.length === 0 ? (
+          {isRecentError ? (
+            <LoadErrorState
+              title="링크를 불러오지 못했어요"
+              isRetrying={recentLinksQuery.isFetching}
+              onRetry={() => {
+                void recentLinksQuery.refetch();
+              }}
+            />
+          ) : recentLinksQuery.data && recentLinks.length === 0 ? (
             <EmptyState
               emoji="⛓️‍💥"
               title="최근 저장 링크가 없어요"
             />
           ) : (
             <LinkCardGrid
-              isLoading={recentLinksQuery.isLoading}
+              isLoading={recentLinksQuery.isPending}
               links={recentLinks}
               skeletonCount={RECENT_PREVIEW_COUNT}
               onCardPress={(item) => router.push(`/links/${item.id}` as Href)}

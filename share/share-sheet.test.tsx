@@ -77,7 +77,16 @@ const PREPROCESSING = {
 };
 
 function folder(id: number, name: string, emoji: string | null, isShared = false): Folder {
-  return { id, name, emoji, isShared, shareCounts: 0, linkCounts: 0, myLinkCounts: 0 };
+  return {
+    id,
+    name,
+    emoji,
+    isShared,
+    isPublic: false,
+    shareCounts: 0,
+    linkCounts: 0,
+    myLinkCounts: 0,
+  };
 }
 
 const FOLDERS: Folder[] = [
@@ -429,7 +438,9 @@ describe("ShareSheet", () => {
     expect(screen.getByText("로그인을 먼저 해주세요")).toBeTruthy();
     fireEvent.press(screen.getByText("로그인 하러가기"));
 
-    expect(mockOpenHostApp).toHaveBeenCalledWith("login");
+    expect(mockOpenHostApp).toHaveBeenCalledWith(
+      `login?sharedUrl=${encodeURIComponent(SHARED_URL)}`,
+    );
     expect(mockClose).toHaveBeenCalledTimes(1);
   });
 

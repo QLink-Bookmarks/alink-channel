@@ -1,16 +1,11 @@
 import * as React from "react";
-import { Pressable } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { useFilterRowPrimaryChipLayout } from "@/components/ui/filter-cover-row";
-import { PressableHitSlopArea } from "@/components/ui/icon-button";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
 
 const isWeb = process.env.EXPO_OS === "web";
-
-// The chip is 32px tall; its press area reaches 6px above and below (44px). The filter row leaves
-// that room around its chips.
-const CHIP_HIT_SLOP = { top: 6, bottom: 6 };
 
 type FilterChipProps = {
   label: string;
@@ -67,28 +62,34 @@ function FilterChip({
       accessibilityState={{ checked: selected, disabled }}
       aria-checked={selected}
       className={cn(
-        "h-8 flex-row items-center justify-center gap-1 rounded-full border px-2.5",
-        selected ? "border-primary bg-primary" : "border-border bg-card",
+        "h-11 justify-center",
         !disabled && "active:opacity-70",
         disabled && "opacity-50",
-        isWeb && "outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring",
-        className,
+        isWeb && "group outline-none focus-visible:z-20",
       )}
       disabled={disabled}
-      hitSlop={CHIP_HIT_SLOP}
       testID={testID}
       onLayout={handleLayout}
       onPress={onPress}
       {...spaceKeyProps}
     >
-      <PressableHitSlopArea hitSlop={CHIP_HIT_SLOP} />
-      <Text
-        className={textClassName}
-        numberOfLines={1}
+      <View
+        className={cn(
+          "h-8 flex-row items-center justify-center gap-1 rounded-full border px-2.5",
+          selected ? "border-primary bg-primary" : "border-border bg-card",
+          isWeb &&
+            "transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background",
+          className,
+        )}
       >
-        {label}
-      </Text>
-      {hasCount ? <Text className={cn(textClassName, "opacity-75")}>{count}</Text> : null}
+        <Text
+          className={textClassName}
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
+        {hasCount ? <Text className={cn(textClassName, "opacity-75")}>{count}</Text> : null}
+      </View>
     </Pressable>
   );
 }

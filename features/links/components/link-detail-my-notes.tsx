@@ -12,6 +12,7 @@ import { formatTagLabel } from "@/features/links/lib/format-tag-label";
 import { reportError } from "@/lib/error-reporting";
 import { cn } from "@/lib/utils";
 
+import { LinkDetailFolderRow } from "./link-detail-notes-layout";
 import {
   DetailRow,
   DetailRowAddButton,
@@ -354,21 +355,10 @@ function LinkDetailMyNotes({
   children,
 }: LinkDetailMyNotesProps) {
   return (
-    <View
-      accessibilityLabel="내 정리"
-      testID="link-detail-my-notes"
-    >
-      <Text
-        aria-level={2}
-        className="mb-1 text-sm font-bold text-foreground"
-        role="heading"
-      >
-        내 정리
-      </Text>
-      <DetailRow
-        first
-        label="폴더"
-        testID="link-detail-folder-row"
+    <>
+      <LinkDetailFolderRow
+        name={folderName}
+        emoji={folderEmoji}
         trailing={
           <DetailRowEditButton
             disabled={isEditingActions}
@@ -377,24 +367,7 @@ function LinkDetailMyNotes({
             onPress={onOpenFolderMove}
           />
         }
-      >
-        {folderName ? (
-          <Text
-            className="text-[13px] font-semibold leading-5 text-foreground"
-            numberOfLines={2}
-            testID="link-detail-folder-name"
-          >
-            {`${folderEmoji ?? "📁"} ${folderName}`}
-          </Text>
-        ) : (
-          <Text
-            className="text-[13px] leading-5 text-muted-foreground"
-            testID="link-detail-folder-name"
-          >
-            폴더 없음
-          </Text>
-        )}
-      </DetailRow>
+      />
       <TagsRow
         disabled={isEditingActions}
         linkId={linkId}
@@ -408,7 +381,7 @@ function LinkDetailMyNotes({
         onUpdateLink={onUpdateLink}
       />
       {children}
-    </View>
+    </>
   );
 }
 

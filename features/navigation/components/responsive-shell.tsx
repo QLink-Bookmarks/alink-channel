@@ -3,7 +3,6 @@ import { Platform, View } from "react-native";
 
 import { RouteErrorBoundary } from "@/components/error/route-error-boundary";
 import { AppHeader } from "@/components/layout/app-header";
-import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { BrandHeader } from "@/components/layout/brand-header";
 import { Fab } from "@/components/layout/fab";
 import { Sheet } from "@/components/layout/sheet";
@@ -18,17 +17,12 @@ import {
   CreateFolderDialog,
   type CreatedFolder,
 } from "@/features/folders/components/create-folder-dialog";
-import { FolderHeaderActions } from "@/features/folders/components/folder-header-actions";
 import { FOLDER_SECTIONS_SHEET_TIMING } from "@/features/folders/hooks/use-section-accordion";
-import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
-import { useFolderQuery } from "@/features/folders/queries";
 import { DetailPanel } from "@/features/links/components/detail-panel/detail-panel";
 import {
   LinkCreateForm,
   type LinkCreateFormHandle,
 } from "@/features/links/components/link-create-form";
-import { isLinkNotFound } from "@/features/links/lib/is-link-not-found";
-import { useLinkDetailQuery } from "@/features/links/queries";
 import { NotificationBellButton } from "@/features/notifications/components/notification-bell-button";
 import { SearchDialog } from "@/features/search/components/search-dialog";
 import { cn } from "@/lib/utils";
@@ -44,27 +38,22 @@ import { useSearchDialog } from "@/stores/search-dialog";
 import { useAnySheetOpen } from "@/stores/sheet-tracker";
 
 import { useAddLinkSheet } from "../hooks/use-add-link-sheet";
+import { useDocumentTitle } from "../hooks/use-document-title";
 import { useLinkOverlayState } from "../hooks/use-link-overlay-state";
 import { type ShellActions, ShellActionsContext } from "../hooks/use-shell-actions";
 import { useShellRouteState } from "../hooks/use-shell-route-state";
 import { useWideShellInsets } from "../hooks/use-wide-shell-insets";
-import { getFolderIdFromPath } from "../lib/folder-path";
 import { isNewLinkShortcut, suppressNextTextInput } from "../lib/new-link-shortcut";
+import { consumeReturnDestination } from "../lib/return-destination";
 import { canOpenWideOverlayInPlace } from "../routes";
-import type { MobileTabKey } from "../types";
+import { MobileBottomTabs } from "./mobile-bottom-tabs";
 import { WideSidebarColumn } from "./wide-sidebar-column";
 
 import { type Href, Redirect, useGlobalSearchParams, useRouter } from "expo-router";
-import { Folder, House, ListTodo, Plus, Search, Settings } from "lucide-react-native";
-
-const mobileTabItems = [
-  { key: "home", label: "홈", icon: House },
-  { key: "folders", label: "폴더", icon: Folder },
-  { key: "todos", label: "액션", icon: ListTodo },
-  { key: "settings", label: "설정", icon: Settings },
-] satisfies React.ComponentProps<typeof BottomTabs>["items"];
+import { Plus, Search, Settings } from "lucide-react-native";
 
 function ResponsiveShell({ children }: { children: React.ReactNode }) {
+  useDocumentTitle(true);
   const router = useRouter();
   const routeState = useShellRouteState();
   const wideInsets = useWideShellInsets();
@@ -92,22 +81,18 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   const [sharedLinkUrl, setSharedLinkUrl] = React.useState<string | null>(null);
   const wasAddLinkOpenRef = React.useRef(false);
   const addLinkFormRef = React.useRef<LinkCreateFormHandle>(null);
-  const { linkUrl: linkUrlParam } = useGlobalSearchParams<{ linkUrl?: string }>();
+  const { linkUrl: linkUrlParam, pendingShareUrl } = useGlobalSearchParams<{
+    linkUrl?: string;
+    pendingShareUrl?: string;
+  }>();
+  const returnAfterShareRef = React.useRef(false);
   const openFolderSection = useFolderNavigation((state) => state.openSectionOn);
   const isAnnouncementsListRoute = routeState.pathname === "/announcements";
-  const mobileFolderId = getFolderIdFromPath(routeState.pathname) ?? Number.NaN;
-  const mobileFolderQuery = useFolderQuery(mobileFolderId, {
-    enabled: !routeState.isWideView && mobileFolderId !== UNCATEGORIZED_FOLDER_ID,
-  });
-  // The mobile link detail draws its own header (back + toolbar) once the detail is loaded.
-  const mobileLinkDetailId = /^\/links\/([^/]+)$/.exec(routeState.pathname)?.[1];
-  const mobileLinkDetailQuery = useLinkDetailQuery(
-    routeState.isWideView ? null : mobileLinkDetailId,
-  );
+  const isResourceDetailRoute = /^\/(folders|links)\/[^/]+$/.test(routeState.pathname);
   const { detail, error, handleOpenChange, isLoading, isOpen, notFound } = useLinkOverlayState({
     isWideView: routeState.isWideView,
     overlayBaseHref: routeState.overlayBaseHref,
-    overlayLinkId: routeState.overlayLinkId,
+    overlayLinkId: isResourceDetailRoute ? undefined : routeState.overlayLinkId,
   });
   // Closing the detail asks first while its action editor holds unsaved edits.
   const handleOverlayOpenChange = React.useCallback(
@@ -131,11 +116,12 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   }, [routeState.pathname]);
 
   React.useEffect(() => {
-    const url = linkUrlParam?.trim();
+    const url = (pendingShareUrl || linkUrlParam)?.trim();
     if (!url) {
       return;
     }
     setSharedLinkUrl(url);
+    returnAfterShareRef.current = Boolean(pendingShareUrl);
     if (routeState.isWideView) {
       setAddLinkFormKey((key) => key + 1);
       setIsAddLinkDialogOpen(true);
@@ -143,8 +129,8 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
       setHasOpenedAddLinkSheet(true);
       openAddLinkSheet();
     }
-    router.setParams({ linkUrl: "" });
-  }, [linkUrlParam, openAddLinkSheet, routeState.isWideView, router]);
+    router.setParams(pendingShareUrl ? { pendingShareUrl: undefined } : { linkUrl: undefined });
+  }, [linkUrlParam, openAddLinkSheet, pendingShareUrl, routeState.isWideView, router]);
 
   React.useEffect(() => {
     // Only clear the shared URL on the open -> closed transition. Clearing whenever
@@ -154,23 +140,14 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     const isAddLinkOpen = isAddLinkDialogOpen || isAddLinkSheetOpen;
     if (wasAddLinkOpenRef.current && !isAddLinkOpen) {
       setSharedLinkUrl(null);
+      if (returnAfterShareRef.current) {
+        returnAfterShareRef.current = false;
+        const destination = consumeReturnDestination();
+        if (destination) router.replace(destination as Href);
+      }
     }
     wasAddLinkOpenRef.current = isAddLinkOpen;
-  }, [isAddLinkDialogOpen, isAddLinkSheetOpen]);
-
-  const handleMobileTabChange = React.useCallback(
-    (value: string) => {
-      const nextHrefByTab: Record<MobileTabKey, string> = {
-        home: "/home",
-        folders: "/folders",
-        todos: "/todos",
-        settings: "/settings",
-      };
-
-      router.replace(nextHrefByTab[value as MobileTabKey] as Href);
-    },
-    [router],
-  );
+  }, [isAddLinkDialogOpen, isAddLinkSheetOpen, router]);
 
   const handleBack = React.useCallback(() => {
     if (router.canGoBack()) {
@@ -366,7 +343,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
           <WideSidebarColumn
             activeKey={routeState.wideSidebarKey}
             folderListKey={sidebarFolderListKey}
-            isOverlayOpen={isOpen}
+            isOverlayOpen={Boolean(routeState.overlayLinkId)}
             pathname={routeState.pathname}
             onAddFolderPress={handleWideAddFolderPress}
             onAddLinkPress={handleWideAddLinkPress}
@@ -493,17 +470,6 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
   }
 
   const isMobileHome = routeState.pathname === "/home";
-  // Folder detail keeps its title right after the back button, so the title does not shift with
-  // the role-dependent actions on the right. Every other mobile header stays centered.
-  const isMobileFolderDetail = getFolderIdFromPath(routeState.pathname) !== undefined;
-  const mobileFolder = mobileFolderQuery.folder;
-  const isMobileLinkDetailShown =
-    mobileLinkDetailId !== undefined &&
-    mobileLinkDetailQuery.data !== undefined &&
-    !(mobileLinkDetailQuery.isError && isLinkNotFound(mobileLinkDetailQuery.error));
-  const mobileHeaderTitle = mobileFolder
-    ? `${mobileFolder.emoji ? `${mobileFolder.emoji} ` : ""}${mobileFolder.name}`
-    : routeState.routeTitle;
   const showMobileFab =
     routeState.pathname === "/home" ||
     routeState.pathname === "/todos" ||
@@ -513,7 +479,7 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
     <>
       {redirectCover}
       <View className={cn("flex-1 bg-background", redirectHref && "hidden")}>
-        {isMobileLinkDetailShown ? null : (
+        {isResourceDetailRoute ? null : (
           <AppHeader
             back={!isMobileHome && routeState.showBackButton}
             onBack={handleBack}
@@ -534,17 +500,11 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
                     onPress={handleNotificationsPress}
                   />
                 </View>
-              ) : mobileFolder ? (
-                <FolderHeaderActions
-                  folder={mobileFolder}
-                  mode="mobile"
-                />
               ) : isAnnouncementsListRoute ? (
                 <AnnouncementsHeaderAction mode="mobile" />
               ) : undefined
             }
-            title={isMobileHome ? undefined : mobileHeaderTitle}
-            titleAlign={isMobileFolderDetail ? "start" : "center"}
+            title={isMobileHome ? undefined : routeState.routeTitle}
           />
         )}
         <View
@@ -563,10 +523,9 @@ function ResponsiveShell({ children }: { children: React.ReactNode }) {
             />
           ) : null}
         </View>
-        <BottomTabs
-          items={mobileTabItems}
-          value={routeState.mobileTabKey ?? ""}
-          onValueChange={handleMobileTabChange}
+        <MobileBottomTabs
+          activeTab={routeState.mobileTabKey}
+          onNavigate={router.replace}
         />
         {hasOpenedAddLinkSheet && isAddLinkSheetOpen ? (
           <Sheet

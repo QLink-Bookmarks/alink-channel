@@ -143,6 +143,7 @@ jest.mock("@/features/links/components/detail-panel/detail-panel", () => ({
   DetailPanel: () => null,
 }));
 jest.mock("@/features/links/queries", () => ({ useLinkDetailQuery: () => ({ data: undefined }) }));
+jest.mock("../hooks/use-document-title", () => ({ useDocumentTitle: jest.fn() }));
 jest.mock("@/features/notifications/components/notification-bell-button", () => ({
   NotificationBellButton: () => null,
 }));

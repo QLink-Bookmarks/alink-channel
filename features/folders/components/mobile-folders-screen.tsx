@@ -120,7 +120,7 @@ function MobileFoldersScreen() {
   );
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="relative z-0 flex-1 bg-background">
       {/* 루트 ScrollView 예외: 두 제목줄을 스크롤 밖에 고정하고 섹션마다 위치를 기억하려고, 열린 섹션의 FlatList가 스크롤을 맡는다(#10 5번 설계). */}
       <FolderSections
         availableHeight="container"

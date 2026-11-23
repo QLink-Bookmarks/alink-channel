@@ -11,13 +11,14 @@ type LinkDetailToolbarProps = {
   /** `panel`: the wide panel's top row with a close button. `screen`: the mobile header's right slot. */
   mode: "panel" | "screen";
   isFavorite: boolean;
-  /** A link in someone else's shared folder offers `개인 폴더로 추가` instead of `수정`. */
-  isMyOwnLink: boolean;
+  canEdit: boolean;
+  canCopy: boolean;
   /** While the 액션 row is being edited, `수정` and `새로고침` are off. */
   isEditing: boolean;
   isCopyPending: boolean;
   refreshing: boolean;
   refreshFailed: boolean;
+  visibility?: React.ReactNode;
   onToggleFavorite: () => void;
   onShare: () => void;
   onEdit: () => void;
@@ -26,15 +27,49 @@ type LinkDetailToolbarProps = {
   onClose?: () => void;
 };
 
-// ★ (icon only), 공유, 수정 (or 개인 폴더로 추가), 새로고침; the wide panel adds 닫기 at the end.
+function LinkDetailToolbarLayout({
+  mode,
+  children,
+  onClose,
+}: {
+  mode: LinkDetailToolbarProps["mode"];
+  children?: React.ReactNode;
+  onClose?: () => void;
+}) {
+  return (
+    <View
+      className={cn("flex-row items-center", mode === "panel" ? "-mx-2 h-12" : "min-w-0")}
+      testID="link-detail-toolbar"
+    >
+      {children}
+      {mode === "panel" ? (
+        <>
+          <View className="min-w-0 flex-1" />
+          <IconButton
+            accessibilityLabel="닫기"
+            hitSlop={4}
+            icon={X}
+            size="sm"
+            testID="link-detail-close"
+            variant="ghost"
+            onPress={onClose}
+          />
+        </>
+      ) : null}
+    </View>
+  );
+}
+
 function LinkDetailToolbar({
   mode,
   isFavorite,
-  isMyOwnLink,
+  canEdit,
+  canCopy,
   isEditing,
   isCopyPending,
   refreshing,
   refreshFailed,
+  visibility,
   onToggleFavorite,
   onShare,
   onEdit,
@@ -56,11 +91,12 @@ function LinkDetailToolbar({
   );
 
   return (
-    <View
-      className={cn("flex-row items-center", mode === "panel" ? "-mx-2 h-12" : "min-w-0")}
-      testID="link-detail-toolbar"
+    <LinkDetailToolbarLayout
+      mode={mode}
+      onClose={onClose}
     >
       {star}
+      {visibility}
       <DetailToolbarButton
         compact={compact}
         icon={Share2}
@@ -68,7 +104,7 @@ function LinkDetailToolbar({
         testID="link-detail-share"
         onPress={onShare}
       />
-      {isMyOwnLink ? (
+      {canEdit ? (
         <DetailToolbarButton
           compact={compact}
           disabled={isEditing}
@@ -77,16 +113,19 @@ function LinkDetailToolbar({
           testID="link-detail-edit"
           onPress={onEdit}
         />
-      ) : (
+      ) : null}
+      {canCopy ? (
         <DetailToolbarButton
+          accessibilityLabel="개인 폴더로 추가"
           compact={compact}
           disabled={isCopyPending}
           icon={FolderPlus}
-          label="개인 폴더로 추가"
+          label={canEdit ? undefined : "개인 폴더로 추가"}
           testID="link-detail-copy"
+          tooltip={canEdit && !compact ? "개인 폴더로 추가" : undefined}
           onPress={onCopy}
         />
-      )}
+      ) : null}
       <RefreshButton
         compact={compact}
         disabled={isEditing}
@@ -94,23 +133,9 @@ function LinkDetailToolbar({
         refreshing={refreshing}
         onPress={onRefresh}
       />
-      {mode === "panel" ? (
-        <>
-          <View className="min-w-0 flex-1" />
-          <IconButton
-            accessibilityLabel="닫기"
-            hitSlop={4}
-            icon={X}
-            size="sm"
-            testID="link-detail-close"
-            variant="ghost"
-            onPress={onClose}
-          />
-        </>
-      ) : null}
-    </View>
+    </LinkDetailToolbarLayout>
   );
 }
 
-export { LinkDetailToolbar };
+export { LinkDetailToolbar, LinkDetailToolbarLayout };
 export type { LinkDetailToolbarProps };

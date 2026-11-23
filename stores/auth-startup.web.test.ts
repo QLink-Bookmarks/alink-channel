@@ -7,6 +7,7 @@ import {
 } from "./auth-startup.web";
 
 const originalLocation = Object.getOwnPropertyDescriptor(window, "location");
+const originalSessionStorage = globalThis.sessionStorage;
 
 function openAt(href: string) {
   Object.defineProperty(window, "location", {
@@ -22,6 +23,7 @@ function refresherReturning(result: () => Promise<string | null>) {
 
 afterEach(() => {
   jest.useRealTimers();
+  globalThis.sessionStorage = originalSessionStorage;
   if (originalLocation) {
     Object.defineProperty(window, "location", originalLocation);
   }
@@ -60,14 +62,38 @@ describe("resolveStartupTokens on web", () => {
     await expect(resolveStartupTokens(null, rejected.refresher)).resolves.toBeNull();
   });
 
-  it.each(["https://app.test/?code=abc&state=kakao:1", "https://app.test/#access_token=naver"])(
-    "does not refresh on a social login return (%s)",
-    async (href) => {
-      openAt(href);
+  it.each([
+    ["kakao", "?code=abc&state=kakao:1"],
+    ["naver", "#access_token=abc&state=naver:1"],
+  ])(
+    "skips refresh only for a pending %s login on the callback route",
+    async (provider, params) => {
+      const attempt = { provider, mode: "login", state: `${provider}:1` };
+      const removeItem = jest.fn();
+      globalThis.sessionStorage = {
+        getItem: () => JSON.stringify(attempt),
+        removeItem,
+      } as unknown as Storage;
       const { refresh, refresher } = refresherReturning(() => Promise.resolve("fresh"));
 
+      openAt(`https://app.test/auth/callback${params}`);
       await expect(resolveStartupTokens(null, refresher)).resolves.toBeNull();
       expect(refresh).not.toHaveBeenCalled();
+      expect(removeItem).not.toHaveBeenCalled();
+
+      openAt(`https://app.test/${params}`);
+      await expect(resolveStartupTokens(null, refresher)).resolves.toEqual({
+        accessToken: "fresh",
+        refreshToken: null,
+      });
+
+      openAt(`https://app.test/auth/callback${params}`);
+      attempt.mode = "connect";
+      await expect(resolveStartupTokens(null, refresher)).resolves.toEqual({
+        accessToken: "fresh",
+        refreshToken: null,
+      });
+      expect(refresh).toHaveBeenCalledTimes(2);
     },
   );
 

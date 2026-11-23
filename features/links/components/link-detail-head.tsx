@@ -5,6 +5,7 @@ import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { formatLinkStatus, getDomainFromUrl } from "@/features/home/lib/link-card-mapper";
+import { isPreviewableUrl } from "@/features/links/lib/link-preview/link-preview-result";
 import { openLinkUrl } from "@/features/links/lib/open-link-url";
 import type { LinkDetail } from "@/features/links/types";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ type LinkDetailHeadProps = {
   isVideo?: boolean;
   status?: LinkDetail["status"];
   workModel?: string | null;
+  readOnly?: boolean;
 };
 
 const SOURCE_HIT_SLOP = { top: 12, bottom: 12, left: 4, right: 4 };
@@ -38,11 +40,15 @@ function LinkDetailHeadBase({
   isVideo,
   status,
   workModel,
+  readOnly = false,
 }: LinkDetailHeadProps) {
   const domain = React.useMemo(() => getDomainFromUrl(url), [url]);
   const statusMeta = formatLinkStatus(status, workModel);
   const hasImage = Boolean(thumbnailUrl);
-  const handleOpenOriginal = React.useCallback(() => openLinkUrl(url), [url]);
+  const canOpenOriginal = !readOnly || isPreviewableUrl(url);
+  const handleOpenOriginal = React.useCallback(() => {
+    if (canOpenOriginal) openLinkUrl(url);
+  }, [canOpenOriginal, url]);
 
   return (
     <>
@@ -50,6 +56,7 @@ function LinkDetailHeadBase({
         <Pressable
           accessibilityLabel="원본 열기"
           accessibilityRole="link"
+          disabled={!canOpenOriginal}
           className={cn(
             "overflow-hidden rounded-[14px] border border-border-soft",
             "web:transition-colors web:hover:border-primary",
@@ -91,6 +98,7 @@ function LinkDetailHeadBase({
           <Pressable
             accessibilityLabel={`원본 열기, ${domain}`}
             accessibilityRole="link"
+            disabled={!canOpenOriginal}
             className={cn(
               "group min-w-0 shrink flex-row items-center gap-1.5 rounded-sm",
               FOCUS_RING_CLASS_NAME,

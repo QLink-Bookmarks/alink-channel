@@ -69,6 +69,7 @@ function folderList(ids: number[]) {
     shareCounts: 2,
     linkCounts: 0,
     myLinkCounts: 0,
+    isPublic: false,
   }));
   return { isEmpty: contents.length === 0, contents, hasNext: false, nextCursor: null };
 }

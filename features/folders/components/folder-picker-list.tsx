@@ -27,6 +27,7 @@ type FolderPickerSelection<Id = FolderPickerId> = {
   id: Id;
   label: string;
   emoji?: string | null;
+  isPublic?: boolean;
 };
 
 type FolderPickerListProps = {
@@ -106,7 +107,14 @@ function FolderPickerList({
         isLarge={isLarge}
         label={folder.name}
         selected={selectedFolderId === folder.id}
-        onPress={() => onSelect({ id: folder.id, label: folder.name, emoji: folder.emoji ?? null })}
+        onPress={() =>
+          onSelect({
+            id: folder.id,
+            label: folder.name,
+            emoji: folder.emoji ?? null,
+            isPublic: folder.isPublic,
+          })
+        }
       />
     ),
     [isLarge, onSelect, selectedFolderId],

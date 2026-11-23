@@ -92,6 +92,7 @@ describe("formatSummaryModelLabel", () => {
 describe("mapLinkListItem", () => {
   const item: LinkListItem = {
     id: 7,
+    isPublic: false,
     url: "https://www.notion.so/team/onboarding",
     title: "온보딩 문서",
     thumbnailUrl: null,

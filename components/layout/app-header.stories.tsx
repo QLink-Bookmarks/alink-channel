@@ -13,6 +13,7 @@ type AppHeaderStoryProps = {
   showLeftSlot: boolean;
   showRightSlot: boolean;
   titleAlign: AppHeaderTitleAlign;
+  titleAccessibilityRole?: "header";
 };
 
 function AppHeaderStory({
@@ -22,10 +23,12 @@ function AppHeaderStory({
   showLeftSlot,
   showRightSlot,
   titleAlign,
+  titleAccessibilityRole,
 }: AppHeaderStoryProps) {
   return (
     <AppHeader
       title={title}
+      titleAccessibilityRole={titleAccessibilityRole}
       back={back}
       transparent={transparent}
       titleAlign={titleAlign}
@@ -100,5 +103,15 @@ export const TitleStart: Story = {
   args: {
     title: "아주 긴 폴더 이름이 오른쪽 아이콘 앞에서 말줄임되는지 확인하는 예시",
     titleAlign: "start",
+  },
+};
+
+export const FolderTitle: Story = {
+  name: "폴더 제목",
+  args: {
+    title: "📁 디자인 레퍼런스",
+    titleAccessibilityRole: "header",
+    titleAlign: "start",
+    showRightSlot: false,
   },
 };

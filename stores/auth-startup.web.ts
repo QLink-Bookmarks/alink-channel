@@ -1,11 +1,9 @@
+import { OAUTH_CALLBACK_PATH, readOauthCallback } from "@/features/auth/lib/oauth-callback";
+import { getOauthAttempt } from "@/features/auth/lib/oauth-state";
+
 import type { AuthTokens, StartupRefresh } from "./auth-tokens";
 
 const STARTUP_REFRESH_WAIT_MS = 4000;
-
-function isOauthReturn() {
-  const url = new URL(window.location.href);
-  return url.searchParams.has("code") || url.hash.includes("access_token");
-}
 
 function waitAtMost<T>(promise: Promise<T>, fallback: T, ms: number): Promise<T> {
   return new Promise<T>((resolve) => {
@@ -30,8 +28,12 @@ async function resolveStartupTokens(
   if (stored?.accessToken) {
     return { accessToken: stored.accessToken, refreshToken: null };
   }
-  if (typeof window === "undefined" || isOauthReturn()) {
-    return null;
+  if (typeof window === "undefined") return null;
+  if (window.location.pathname === OAUTH_CALLBACK_PATH) {
+    const callback = readOauthCallback(new URL(window.location.href));
+    if (callback && getOauthAttempt(callback.provider, callback.state)?.mode === "login") {
+      return null;
+    }
   }
   const accessToken = await waitAtMost(
     refresher.then((refresh) => refresh()),

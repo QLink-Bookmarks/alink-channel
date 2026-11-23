@@ -1,6 +1,11 @@
 import { getGridColumnCount } from "@/lib/hooks/use-grid-columns";
 
-import { getLinkCardMinWidth, normalizeLinkCardSize, resolveLinkCardSize } from "./link-card-size";
+import {
+  getLinkCardMinWidth,
+  getLinkCardPageSize,
+  normalizeLinkCardSize,
+  resolveLinkCardSize,
+} from "./link-card-size";
 
 const GAP = 12;
 
@@ -55,5 +60,14 @@ describe("getLinkCardMinWidth", () => {
   it("gives four and two columns in the wide home's ~930px recent list", () => {
     expect(columnsAt(930, "small", true)).toBe(4);
     expect(columnsAt(930, "large", true)).toBe(2);
+  });
+});
+
+describe("getLinkCardPageSize", () => {
+  it("uses 60/40 on wide and 40/30 on mobile for small/large cards", () => {
+    expect(getLinkCardPageSize("small", true)).toBe(60);
+    expect(getLinkCardPageSize("large", true)).toBe(40);
+    expect(getLinkCardPageSize("small", false)).toBe(40);
+    expect(getLinkCardPageSize("large", false)).toBe(30);
   });
 });

@@ -1,4 +1,5 @@
-import { getLinkQueryKeyRoot } from "@/features/links/queries";
+import { invalidateLinkListAndSearchQueries } from "@/features/links/queries";
+import { todoQueryKeys } from "@/features/todos/queries";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -7,6 +8,7 @@ import {
   createFolderInvitation,
   deleteFolder,
   deleteFolderMember,
+  setFolderPrivacy,
   transferFolderOwnership,
   updateFolder,
 } from "./api";
@@ -16,6 +18,7 @@ import type {
   CreateFolderInvitationRequest,
   CreateFolderRequest,
   DeleteFolderParams,
+  Folder,
   UpdateFolderRequest,
 } from "./types";
 
@@ -30,15 +33,50 @@ function useCreateFolderMutation() {
   });
 }
 
-function useUpdateFolderMutation() {
+function useInvalidateFolderWrites() {
   const queryClient = useQueryClient();
+  return (id: number, visibilityChanged: boolean) => {
+    const invalidations = [
+      queryClient.invalidateQueries({ queryKey: folderQueryKeys.all }),
+      invalidateLinkListAndSearchQueries(queryClient),
+      queryClient.invalidateQueries({ queryKey: ["resource-read", "folders", id] }),
+    ];
+    if (visibilityChanged) {
+      invalidations.push(
+        queryClient.invalidateQueries({ queryKey: ["links", "detail"] }),
+        queryClient.invalidateQueries({ queryKey: ["resource-read", "links"] }),
+        queryClient.invalidateQueries({ queryKey: ["folder-read", id] }),
+        queryClient.invalidateQueries({ queryKey: todoQueryKeys.lists() }),
+      );
+    }
+    return Promise.all(invalidations);
+  };
+}
 
+function useUpdateFolderMutation() {
+  const invalidate = useInvalidateFolderWrites();
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UpdateFolderRequest }) =>
       updateFolder(id, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: folderQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: getLinkQueryKeyRoot() });
+    onSuccess: (_response, { id }) => invalidate(id, false),
+  });
+}
+
+function useSetFolderPrivacyMutation() {
+  const invalidate = useInvalidateFolderWrites();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isPublic }: { id: number; isPublic: boolean }) =>
+      setFolderPrivacy(id, { isPublic }),
+    onError: (_error, { id }) => invalidate(id, true),
+    onSuccess: async (response, { id }) => {
+      const queryKey = folderQueryKeys.detail(id);
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      queryClient.setQueryData<Folder>(
+        queryKey,
+        (folder) => folder && { ...folder, isPublic: response.data.isPublic },
+      );
+      await invalidate(id, true);
     },
   });
 }
@@ -107,6 +145,7 @@ export {
   useDeleteFolderMemberMutation,
   useDeleteFolderMutation,
   useLeaveFolderMutation,
+  useSetFolderPrivacyMutation,
   useTransferFolderOwnershipMutation,
   useUpdateFolderMutation,
 };

@@ -22,7 +22,12 @@ import Animated, {
 import { Icon } from "@/components/ui/icon";
 import { PressableHitSlopArea } from "@/components/ui/icon-button";
 import { TextClassContext } from "@/components/ui/text";
-import { type FilterPillLevel, PILL_ROW_GAP, pickPillLevel } from "@/lib/filter-pill-level";
+import {
+  type FilterPillLevel,
+  PILL_ROW_GAP,
+  PRIMARY_FADE_WIDTH,
+  pickPillLevel,
+} from "@/lib/filter-pill-level";
 import { getThemeTokens } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { useDisplaySettings } from "@/stores/display-settings";
@@ -35,7 +40,7 @@ import { SlidersHorizontal, X } from "lucide-react-native/icons";
 
 const isWeb = process.env.EXPO_OS === "web";
 
-// The button (icon / X) is a 32px circle; its press area reaches 6px past every side (44 × 44).
+// The button (icon / X) is drawn as a 32px circle in a 44px press area.
 const BUTTON_SIZE = 32;
 const BUTTON_HIT_SLOP = 6;
 const ROW_HEIGHT = BUTTON_SIZE + BUTTON_HIT_SLOP * 2;
@@ -49,10 +54,8 @@ const CONTENT_FADE_WIDTH = 16;
 const CONTENT_PADDING_LEFT = 20;
 // Room between the last 2nd item and the X button.
 const COVER_PADDING_RIGHT = 8;
-// The 1st chip row fades out over its last 16px when it scrolls.
-const PRIMARY_FADE_WIDTH = 16;
 // The 1st chip scroll reaches 4px past the row on both sides and pads its content back, so the
-// 3px keyboard focus ring of the first and last chip is not clipped (as in #69). Chip x values
+// 2px keyboard focus ring and its 2px gap are not clipped. Chip x values
 // come from inside that padding.
 const PRIMARY_RING_ROOM = 4;
 // Space between 1st chips (gap-1).
@@ -96,6 +99,7 @@ type FilterPillPart = {
 
 type FilterPill = {
   parts: FilterPillPart[];
+  compactMarkOnly?: boolean;
 };
 
 // "fill": the cover spans the whole row (mobile). "content": it is as wide as its content (wide).
@@ -107,6 +111,7 @@ type FilterCoverRowProps = {
   // Accessible name of the 1st chips as one single-choice group, e.g. "폴더", "액션 상태". Leave it
   // out when `primary` is not a set of chips.
   primaryLabel?: string;
+  protectedPrimaryChipCount?: number;
   // The 2nd set shown in the cover: toggles (`FilterCoverPart`) and `SortCriterionChips`, placed
   // directly (a fragment), not wrapped in another view.
   cover: React.ReactNode;
@@ -158,31 +163,25 @@ function getFilterCoverButtonLabel(
   return appliedLabel ? `${base}, 적용 중: ${appliedLabel}` : base;
 }
 
-/** Right edge of the last chip that must stay whole, from the chips' own left edge. */
 /**
  * Right edge of the last chip that must stay whole, from the chips' own left edge. Built from the
  * chip widths: react-native-web reports onLayout on resize only, so a chip that moves without
  * resizing (e.g. when the counts arrive and an earlier chip widens) keeps a stale x. The x values
  * only give the order.
  */
-function getProtectedPrimaryRight(layouts: Iterable<{ x: number; width: number }>) {
-  const sorted = [...layouts].sort((a, b) => a.x - b.x);
-  if (sorted.length === 0) {
+function getProtectedPrimaryRight(layouts: Iterable<{ x: number; width: number }>, count: number) {
+  const protectedChips = [...layouts].sort((a, b) => a.x - b.x).slice(0, count);
+  if (protectedChips.length === 0) {
     return null;
   }
-  const protectedChips = sorted.slice(0, PROTECTED_PRIMARY_CHIPS);
   const widths = protectedChips.reduce((sum, layout) => sum + layout.width, 0);
-  return PRIMARY_RING_ROOM + widths + PRIMARY_CHIP_GAP * (protectedChips.length - 1);
+  return widths + PRIMARY_CHIP_GAP * (protectedChips.length - 1);
 }
 
 /** The same color fully transparent, so a fade does not pass through grey. */
 function toTransparent(color: string) {
   const match = color.match(/hsl\(\s*([0-9.]+)\s+([0-9.]+)%\s+([0-9.]+)%\s*\)/i);
   return match ? `hsla(${match[1]}, ${match[2]}%, ${match[3]}%, 0)` : "transparent";
-}
-
-function offsetOrNull(right: number | null) {
-  return right == null ? null : right - PRIMARY_RING_ROOM;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -221,11 +220,13 @@ function useReduceMotionEnabled() {
 function PillMeasure({
   parts,
   level,
+  markOnly = false,
   layout,
   onWidth,
 }: {
   parts: FilterPillPart[];
   level: FilterPillLevel;
+  markOnly?: boolean;
   layout: PillCopyLayout;
   onWidth: (level: FilterPillLevel, width: number) => void;
 }) {
@@ -236,7 +237,11 @@ function PillMeasure({
       className="absolute left-0 top-0 h-8 flex-row items-center rounded-full border border-transparent opacity-0"
       importantForAccessibility="no-hide-descendants"
       pointerEvents="none"
-      style={{ paddingLeft: PILL_PADDING_LEFT }}
+      style={
+        markOnly
+          ? { width: BUTTON_SIZE, justifyContent: "center" }
+          : { paddingLeft: PILL_PADDING_LEFT }
+      }
       onLayout={(event) => onWidth(level, event.nativeEvent.layout.width)}
     >
       <TextClassContext.Provider value="text-sm font-semibold">
@@ -255,7 +260,7 @@ function PillMeasure({
           ))}
         </View>
       </TextClassContext.Provider>
-      <View className="h-8 w-[30px]" />
+      {markOnly ? null : <View className="h-8 w-[30px]" />}
     </View>
   );
 }
@@ -306,6 +311,7 @@ function GhostPiece({ ghost, progress }: { ghost: Ghost; progress: { value: numb
 function FilterCoverRow({
   primary,
   primaryLabel,
+  protectedPrimaryChipCount = PROTECTED_PRIMARY_CHIPS,
   cover,
   coverLabel,
   pill,
@@ -326,7 +332,7 @@ function FilterCoverRow({
   const [primaryChipLayouts, setPrimaryChipLayouts] = React.useState<
     Map<string, { x: number; width: number }>
   >(() => new Map());
-  const [primaryFade, setPrimaryFade] = React.useState(false);
+  const [primaryFade, setPrimaryFade] = React.useState({ left: false, right: false });
   const [ghosts, setGhosts] = React.useState<Ghost[]>([]);
 
   const rowRef = React.useRef<View>(null);
@@ -359,12 +365,12 @@ function FilterCoverRow({
   const coverPaddingLeft = coverMode === "fill" ? FILL_PADDING_LEFT : CONTENT_PADDING_LEFT;
   const protectRight =
     coverMode === "fill"
-      ? offsetOrNull(getProtectedPrimaryRight(primaryChipLayouts.values()))
+      ? getProtectedPrimaryRight(primaryChipLayouts.values(), protectedPrimaryChipCount)
       : null;
   const pillLevel: FilterPillLevel = pickPillLevel({ rowWidth, protectRight, pillWidths });
-  const pillWidth = hasPill
-    ? (pillWidths[pillLevel] ?? pillWidths.text ?? BUTTON_SIZE)
-    : BUTTON_SIZE;
+  const markOnly = pillLevel === "mark" && pill?.compactMarkOnly === true;
+  const pillWidth =
+    hasPill && !markOnly ? (pillWidths[pillLevel] ?? pillWidths.text ?? BUTTON_SIZE) : BUTTON_SIZE;
 
   const coverLeft =
     coverMode === "fill"
@@ -457,7 +463,9 @@ function FilterCoverRow({
         }
         const coverX = coverLeft + itemsX + rect.x - coverScrollXRef.current + rect.width / 2;
         const coverY = itemsY + rect.y + rect.height / 2;
-        const pillX = rowWidth - pillWidth + thisPieceX + piece.width / 2;
+        const pillX = markOnly
+          ? rowWidth - pillWidth / 2
+          : rowWidth - pillWidth + thisPieceX + piece.width / 2;
         const scale = clamp(rect.height / piece.height, 1, 1.25);
         const content = pillLevel === "text" ? part.text : part.mark;
         const ghost = {
@@ -495,6 +503,7 @@ function FilterCoverRow({
       coverLeft,
       coverPaddingLeft,
       coverWidth,
+      markOnly,
       pill,
       pillLevel,
       pillWidth,
@@ -610,8 +619,12 @@ function FilterCoverRow({
 
   const updatePrimaryFade = React.useCallback(() => {
     const { viewport, content, offset } = primaryMeasureRef.current;
-    const next = content > viewport + 1 && offset + viewport < content - 1;
-    setPrimaryFade((current) => (current === next ? current : next));
+    const overflows = content > viewport + 1;
+    const left = overflows && offset > 1;
+    const right = overflows && offset + viewport < content - 1;
+    setPrimaryFade((current) =>
+      current.left === left && current.right === right ? current : { left, right },
+    );
   }, []);
 
   const handlePrimaryLayout = React.useCallback(
@@ -721,9 +734,7 @@ function FilterCoverRow({
   const buttonLabel = getFilterCoverButtonLabel(coverLabel, isOpen, appliedLabel);
   const ariaControls = isWeb ? ({ "aria-controls": coverId } as Record<string, string>) : undefined;
   const hitSlop = {
-    top: BUTTON_HIT_SLOP,
     right: BUTTON_HIT_SLOP,
-    bottom: BUTTON_HIT_SLOP,
     left: BUTTON_HIT_SLOP,
   };
   const transparentPage = toTransparent(pageColor);
@@ -744,43 +755,50 @@ function FilterCoverRow({
           accessibilityElementsHidden={isOpen}
           accessibilityLabel={primaryLabel}
           accessibilityRole={primaryLabel ? "radiogroup" : undefined}
-          className="min-w-0 flex-1"
+          className="min-w-0 flex-1 web:isolate"
           importantForAccessibility={isOpen ? "no-hide-descendants" : "auto"}
           style={{ marginRight: pillWidth + PILL_ROW_GAP }}
           onLayout={handlePrimaryLayout}
         >
           <ScrollView
             horizontal
-            className="grow-0"
+            className="grow-0 web:transform-none web:scroll-px-1"
             contentContainerClassName="items-center gap-1"
             contentContainerStyle={{
-              paddingVertical: BUTTON_HIT_SLOP,
               paddingHorizontal: PRIMARY_RING_ROOM,
             }}
             style={{ marginHorizontal: -PRIMARY_RING_ROOM }}
             scrollEventThrottle={32}
             showsHorizontalScrollIndicator={false}
+            testID={testID ? `${testID}-primary-scroll` : undefined}
             onContentSizeChange={handlePrimaryContentSize}
             onScroll={handlePrimaryScroll}
           >
             {primary}
           </ScrollView>
-          {primaryFade ? (
-            // Placed with style: className is not mapped onto expo-linear-gradient on native.
-            <LinearGradient
-              colors={[transparentPage, pageColor]}
-              end={{ x: 1, y: 0 }}
-              pointerEvents="none"
-              start={{ x: 0, y: 0 }}
-              style={{
-                position: "absolute",
-                top: 0,
-                bottom: 0,
-                right: -PRIMARY_RING_ROOM,
-                width: PRIMARY_FADE_WIDTH + PRIMARY_RING_ROOM,
-              }}
-            />
-          ) : null}
+          {(["left", "right"] as const).map(
+            (edge) =>
+              primaryFade[edge] && (
+                <LinearGradient
+                  key={edge}
+                  colors={
+                    edge === "left" ? [pageColor, transparentPage] : [transparentPage, pageColor]
+                  }
+                  end={{ x: 1, y: 0 }}
+                  pointerEvents="none"
+                  start={{ x: 0, y: 0 }}
+                  testID={testID ? `${testID}-primary-fade-${edge}` : undefined}
+                  style={{
+                    position: "absolute",
+                    zIndex: 1,
+                    top: 0,
+                    bottom: 0,
+                    [edge]: -PRIMARY_RING_ROOM,
+                    width: PRIMARY_FADE_WIDTH + PRIMARY_RING_ROOM,
+                  }}
+                />
+              ),
+          )}
         </View>
 
         {/* 2nd set: always laid out (so its pieces can be measured), shown only while open */}
@@ -880,20 +898,16 @@ function FilterCoverRow({
           </Animated.View>
         </View>
 
-        {/* The button: its press area is the visible pill or circle, reaching 6px past it */}
         <Pressable
           ref={buttonRef}
           accessibilityLabel={buttonLabel}
           accessibilityRole="button"
           accessibilityState={{ expanded: isOpen }}
           aria-expanded={isOpen}
-          className={cn(
-            "absolute right-0 h-8 rounded-full",
-            isWeb && "outline-none focus-visible:ring-[3px] focus-visible:ring-ring",
-          )}
+          className={cn("absolute right-0 h-11 rounded-full", isWeb && "group outline-none")}
           hitSlop={hitSlop}
           style={{
-            top: (rowSize.height - BUTTON_SIZE) / 2,
+            top: (rowSize.height - ROW_HEIGHT) / 2,
             width: isOpen ? BUTTON_SIZE : pillWidth,
           }}
           testID={testID ? `${testID}-button` : undefined}
@@ -901,6 +915,9 @@ function FilterCoverRow({
           {...ariaControls}
         >
           <PressableHitSlopArea hitSlop={hitSlop} />
+          {isWeb ? (
+            <View className="pointer-events-none absolute inset-x-0 top-1.5 h-8 rounded-full group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background" />
+          ) : null}
           {/* Looks: the pill window, the open X circle and the two icons. Drawn for the eye only; the
               button name says the same. */}
           <View
@@ -908,7 +925,7 @@ function FilterCoverRow({
             className="absolute right-0 overflow-hidden"
             importantForAccessibility="no-hide-descendants"
             pointerEvents="none"
-            style={{ top: 0, width: pillWidth, height: BUTTON_SIZE }}
+            style={{ top: BUTTON_HIT_SLOP, width: pillWidth, height: BUTTON_SIZE }}
           >
             {/* Animated views take only `style`; their looks live on plain views inside. */}
             <Animated.View
@@ -929,9 +946,10 @@ function FilterCoverRow({
                 <View
                   className={cn(
                     "h-8 flex-row items-center rounded-full border",
+                    markOnly && "justify-center",
                     isPillTinted ? "border-primary bg-primary/10" : "border-border bg-card",
                   )}
-                  style={{ width: pillWidth, paddingLeft: PILL_PADDING_LEFT }}
+                  style={{ width: pillWidth, paddingLeft: markOnly ? 0 : PILL_PADDING_LEFT }}
                 >
                   {hasPill ? (
                     <Animated.View style={[PILL_LABEL_ROW_STYLE, pillLabelStyle]}>
@@ -954,13 +972,15 @@ function FilterCoverRow({
               <View className="size-8 rounded-full border border-border bg-card" />
             </Animated.View>
             <View className="absolute right-0 top-0 size-8 items-center justify-center">
-              <Animated.View style={[ICON_LAYER_STYLE, filterIconStyle]}>
-                <Icon
-                  as={SlidersHorizontal}
-                  className={isPillTinted ? "text-primary" : "text-muted-foreground"}
-                  size={16}
-                />
-              </Animated.View>
+              {markOnly ? null : (
+                <Animated.View style={[ICON_LAYER_STYLE, filterIconStyle]}>
+                  <Icon
+                    as={SlidersHorizontal}
+                    className={isPillTinted ? "text-primary" : "text-muted-foreground"}
+                    size={16}
+                  />
+                </Animated.View>
+              )}
               <Animated.View style={[ICON_LAYER_STYLE, closeIconStyle]}>
                 <Icon
                   as={X}
@@ -991,6 +1011,7 @@ function FilterCoverRow({
             <PillMeasure
               layout={copyLayoutsRef.current.mark}
               level="mark"
+              markOnly={pill.compactMarkOnly}
               parts={pill.parts}
               onWidth={handlePillWidth}
             />

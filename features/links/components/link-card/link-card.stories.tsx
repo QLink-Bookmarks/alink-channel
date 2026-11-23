@@ -69,6 +69,16 @@ export const Basic: Story = {
   name: "기본",
 };
 
+export const ReadOnly: Story = {
+  name: "읽기 전용 링크 카드",
+  args: {
+    bodyHref: "/links/1",
+    tags: [],
+    thumbnailUrl: null,
+    todoCounts: null,
+  },
+};
+
 export const Video: Story = {
   name: "영상",
   args: {

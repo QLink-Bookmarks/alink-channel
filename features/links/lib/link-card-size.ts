@@ -7,6 +7,11 @@ const MIN_CARD_WIDTH: Record<LinkCardSize, { wide: number; mobile: number }> = {
   large: { wide: 360, mobile: 280 },
 };
 
+const LINK_CARD_PAGE_SIZE: Record<LinkCardSize, { wide: number; mobile: number }> = {
+  small: { wide: 60, mobile: 40 },
+  large: { wide: 40, mobile: 30 },
+};
+
 /** A stored card size, or null when nothing valid was stored. */
 function normalizeLinkCardSize(value: unknown): LinkCardSize | null {
   return LINK_CARD_SIZES.includes(value as LinkCardSize) ? (value as LinkCardSize) : null;
@@ -22,5 +27,9 @@ function getLinkCardMinWidth(size: LinkCardSize, isWideView: boolean): number {
   return MIN_CARD_WIDTH[size][isWideView ? "wide" : "mobile"];
 }
 
-export { getLinkCardMinWidth, normalizeLinkCardSize, resolveLinkCardSize };
+function getLinkCardPageSize(size: LinkCardSize, isWideView: boolean): number {
+  return LINK_CARD_PAGE_SIZE[size][isWideView ? "wide" : "mobile"];
+}
+
+export { getLinkCardMinWidth, getLinkCardPageSize, normalizeLinkCardSize, resolveLinkCardSize };
 export type { LinkCardSize };

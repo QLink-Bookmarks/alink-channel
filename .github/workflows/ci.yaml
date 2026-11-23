@@ -1,11 +1,15 @@
 name: PR 검사
 
-# main 대상 PR 마다 Jest 단위 테스트를 실행한다.
+# main 과 feat/**, refactor/**, fix/** 대상 PR 마다 Jest 단위 테스트를 실행한다.
+# 스택 PR 의 대상이 그 패턴을 따라야 검사가 돈다 (branch-name.yaml).
 # Playwright E2E 는 여기서 돌리지 않는다.
 on:
   pull_request:
     branches:
       - main
+      - "feat/**"
+      - "refactor/**"
+      - "fix/**"
 
 jobs:
   unit_test:

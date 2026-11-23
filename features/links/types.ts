@@ -16,6 +16,7 @@ type CreateLinkTodoRequest = {
 };
 
 type CreateLinkRequest = {
+  isPublic?: boolean;
   url: string;
   title: string;
   summary?: string;
@@ -117,6 +118,8 @@ type LinkDetailContent = {
 };
 
 type LinkDetail = {
+  isPublic: boolean;
+  isOwner?: boolean;
   id: number;
   url: string;
   title: string;
@@ -150,7 +153,37 @@ type ApiEnvelope<TData> = {
   } | null;
 };
 
-type LinkDetailResponse = ApiEnvelope<LinkDetail>;
+type UpdateLinkResponse = ApiEnvelope<
+  Pick<LinkDetail, "isPublic" | "sourceType" | "tags" | "thumbnailUrl" | "title" | "url"> & {
+    folderId: number | null;
+    memo: string | null;
+    summary: string | null;
+  }
+>;
+type PatchLinkResponse = ApiEnvelope<
+  Pick<LinkDetail, "isPublic" | "tags" | "todos"> & {
+    folderId: number | null;
+    memo: string | null;
+  }
+>;
+type PublicLinkSource = {
+  id: number;
+  title: string;
+  url: string;
+  thumbnailUrl: string | null;
+  faviconUrl: string | null;
+  isVideo: boolean;
+};
+
+type PublicLinkListItem = PublicLinkSource & { contentExcerpt: string | null };
+
+type PublicLinkDetail = PublicLinkSource & {
+  folderId: number;
+  folderName: string;
+  folderEmoji: string | null;
+  content: { excerpt: string | null };
+  todos: null;
+};
 type DeleteLinkResponse = ApiEnvelope<null>;
 
 /**
@@ -165,6 +198,7 @@ type LinkTodoCounts = {
 
 type LinkListItem = {
   id: number;
+  isPublic: boolean;
   folderId?: number | null;
   folderName?: string | null;
   folderEmoji?: string | null;
@@ -206,6 +240,7 @@ type GetLinksParams = {
   cursor?: string;
   size?: number;
   isFavorite?: boolean;
+  isPublic?: boolean;
 };
 
 // A link preview holds at most one image: the stored main image (`thumbnailUrl`),
@@ -229,6 +264,8 @@ type LinkPreviewResponse = ApiEnvelope<{
 }>;
 
 export type {
+  PublicLinkDetail,
+  PublicLinkListItem,
   ApiEnvelope,
   CopyLinkRequest,
   CopyLinkResponse,
@@ -246,9 +283,9 @@ export type {
   GetLinksResponse,
   LinkDetail,
   LinkDetailContent,
-  LinkDetailResponse,
   LinkListItem,
   PatchLinkRequest,
+  PatchLinkResponse,
   LinkTodoCounts,
   LinkOrderKey,
   LinkScrollResponse,
@@ -259,4 +296,5 @@ export type {
   SetLinkFavoriteResponse,
   SourceType,
   UpdateLinkRequest,
+  UpdateLinkResponse,
 };
