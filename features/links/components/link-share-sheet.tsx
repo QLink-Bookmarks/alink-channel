@@ -94,7 +94,7 @@ function LinkShareSheet({
       onOpenChange={onOpenChange}
     >
       <SheetHeader title={title} />
-      {open ? (
+      {open && process.env.EXPO_OS === "web" ? (
         <LinkShareSheetFocus
           title={title}
           onCloseFocus={onCloseFocus}
@@ -102,7 +102,9 @@ function LinkShareSheet({
         >
           {children}
         </LinkShareSheetFocus>
-      ) : null}
+      ) : (
+        children
+      )}
     </Sheet>
   );
 }
