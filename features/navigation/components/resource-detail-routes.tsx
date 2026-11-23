@@ -41,32 +41,51 @@ import { MemberFolderDetailContext, UnavailableResourceRedirect } from "./resour
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { BookCopyIcon } from "lucide-react-native";
 
-type PanelState = Omit<React.ComponentProps<typeof DetailPanel>, "mode" | "overlayWithinParent">;
+type PanelState = Omit<
+  React.ComponentProps<typeof DetailPanel>,
+  "mode" | "overlayWithinParent" | "coveredContentRef"
+>;
 
 function ResourceDetailViewport({
   isPublic,
+  managePanelFocus,
   header,
   panel,
   children,
 }: {
   isPublic: boolean;
+  managePanelFocus?: boolean;
   header?: React.ReactNode;
   panel?: PanelState;
   children?: React.ReactNode;
 }) {
+  const coveredContentRef = React.useRef<React.ElementRef<typeof View>>(null);
   return (
     <View
       className="relative flex-1"
       role={isPublic ? "main" : undefined}
       testID="resource-detail-viewport"
     >
-      {header}
-      {children}
+      {managePanelFocus ? (
+        <View
+          ref={coveredContentRef}
+          className="min-h-0 flex-1"
+        >
+          {header}
+          {children}
+        </View>
+      ) : (
+        <>
+          {header}
+          {children}
+        </>
+      )}
       {panel ? (
         <DetailPanel
           {...panel}
           mode="overlay"
           overlayWithinParent={isPublic}
+          coveredContentRef={managePanelFocus ? coveredContentRef : undefined}
         />
       ) : null}
     </View>
@@ -92,6 +111,7 @@ function FolderDetailRouteScreen() {
     return (
       <ResourceDetailViewport
         isPublic={isPublic}
+        managePanelFocus={process.env.EXPO_OS === "web" && isPublic && route.isWideView}
         panel={route.isWideView ? panel : undefined}
         header={
           route.isWideView ? null : (
@@ -273,7 +293,14 @@ function PublicFolderController({
   const isListed = links.data?.pages.some(({ contents }) =>
     contents.some(({ id }) => id === overlayId),
   );
-  const handleClose = () => router.replace(`/folders/${folder.id}`);
+  const folderPath = `/folders/${folder.id}` as const;
+  const handleClose = () => {
+    if (process.env.EXPO_OS === "web") {
+      router.setParams({ linkId: undefined });
+    } else {
+      router.replace(folderPath);
+    }
+  };
   return renderFolder({
     headerTitle: [folder.emoji, folder.name].filter(Boolean).join(" "),
     headerAction: visit.headerAction,
@@ -282,6 +309,9 @@ function PublicFolderController({
       isLoading: overlay.isPending,
       notFound: selected === null || isUnavailableResource(overlay.error),
       error: overlay.isError,
+      onRetry: () => void overlay.refetch(),
+      isRetrying: overlay.isFetching,
+      returnFocusHref: `${folderPath}?linkId=${overlayId}`,
       onOpenChange: () => requestLeave(handleClose),
       onDeleted: handleClose,
       observeAuthenticatedDetail: true,

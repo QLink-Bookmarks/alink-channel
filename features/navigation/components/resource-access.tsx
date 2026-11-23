@@ -1,5 +1,5 @@
 import * as React from "react";
-import { View, type ViewStyle } from "react-native";
+import { AppState, Appearance, View, type ViewStyle } from "react-native";
 
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { LoadErrorState } from "@/components/ui/load-error-state";
@@ -8,6 +8,7 @@ import { getFolderDetail } from "@/features/folders/api";
 import type { Folder } from "@/features/folders/types";
 import { getLinkAccess } from "@/features/links/api";
 import {
+  RESOURCE_DETAIL_PATH,
   isUnavailableResource,
   resourceReadOptions,
 } from "@/features/navigation/lib/resource-read";
@@ -31,8 +32,9 @@ import {
   useRouter,
 } from "expo-router";
 import Head from "expo-router/head";
+import { vars } from "nativewind";
 
-const DETAIL_PATH = /^\/(folders|links)\/(\d+)\/?$/;
+const isWeb = process.env.EXPO_OS === "web";
 const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 
 const MemberFolderDetailContext = React.createContext<{ folder: Folder; updatedAt: number } | null>(
@@ -41,7 +43,7 @@ const MemberFolderDetailContext = React.createContext<{ folder: Folder; updatedA
 
 function UnavailableResourceRedirect({ kind, id }: { kind: "folders" | "links"; id: number }) {
   const router = useRouter();
-  const path = DETAIL_PATH.exec(usePathname());
+  const path = RESOURCE_DETAIL_PATH.exec(usePathname());
   const isCurrentResource = path?.[1] === kind && Number(path[2]) === id;
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const authToken = useAuthStore((state) => state.accessToken);
@@ -52,11 +54,7 @@ function UnavailableResourceRedirect({ kind, id }: { kind: "folders" | "links"; 
     if (!isCurrentResource || !hasHydrated || redirectedResource.current === sourceKey) return;
 
     redirectedResource.current = sourceKey;
-    if (!authToken && process.env.EXPO_OS !== "web") {
-      router.replace("/login");
-      return;
-    }
-    router.replace(authToken ? "/home" : "/");
+    router.replace(authToken ? "/home" : isWeb ? "/" : "/login");
     useToastStore.getState().showToast({
       variant: "warning",
       title: kind === "folders" ? "폴더를 찾을 수 없어요" : "찾으시는 링크가 없어요",
@@ -69,32 +67,28 @@ function UnavailableResourceRedirect({ kind, id }: { kind: "folders" | "links"; 
 }
 
 function subscribeToSystemTheme(onChange: () => void) {
+  if (!isWeb) {
+    const subscription = Appearance.addChangeListener(onChange);
+    return () => subscription.remove();
+  }
   const preference = window.matchMedia(COLOR_SCHEME_QUERY);
   preference.addEventListener("change", onChange);
   return () => preference.removeEventListener("change", onChange);
 }
 
-function useSystemTheme() {
-  const isDark = React.useSyncExternalStore(
-    subscribeToSystemTheme,
-    () => window.matchMedia(COLOR_SCHEME_QUERY).matches,
-    () => false,
-  );
-  return isDark ? "dark" : "light";
+function getIsSystemDark() {
+  return isWeb
+    ? window.matchMedia(COLOR_SCHEME_QUERY).matches
+    : Appearance.getColorScheme() === "dark";
 }
 
 function ResourceAccess({ children }: { children: React.ReactNode }) {
   const { state } = Navigator.useContext();
   const slot = state.routes[state.index];
-  const match = DETAIL_PATH.exec(usePathname());
+  const match = RESOURCE_DETAIL_PATH.exec(usePathname());
   const kind = match?.[1];
   const id = Number(match?.[2]);
-  if (
-    process.env.EXPO_OS !== "web" ||
-    (kind !== "folders" && kind !== "links") ||
-    !Number.isSafeInteger(id) ||
-    id <= 0
-  ) {
+  if ((kind !== "folders" && kind !== "links") || !Number.isSafeInteger(id) || id <= 0) {
     return <PrivatePagesLayout>{children}</PrivatePagesLayout>;
   }
   const slotId = (slot?.params as { id?: string } | undefined)?.id;
@@ -124,21 +118,25 @@ function ResourceVisit({
   const router = useRouter();
   const { isResolved: isWideViewResolved, isWideView } = useWideViewState();
   const linkId = readParamValue(useGlobalSearchParams().linkId);
-  const systemTheme = useSystemTheme();
+  const isSystemDark = React.useSyncExternalStore(
+    subscribeToSystemTheme,
+    getIsSystemDark,
+    () => false,
+  );
   const { hasResolved, needsAgreement } = useAgreementStatus();
   const waitingForAgreement = Boolean(authToken && !hasResolved);
   const readToken = needsAgreement ? null : authToken;
   const focused = useIsFocused();
   const visit = React.useId();
   const queryClient = useQueryClient();
-  const [browserVisit, advanceBrowserVisit] = React.useReducer((value) => value + 1, 0);
+  const [visibilityVisit, advanceVisibilityVisit] = React.useReducer((value) => value + 1, 0);
   const [session, setSession] = React.useState({ authToken, version: 0 });
   const [revokedVisit, setRevokedVisit] = React.useState<string>();
   if (session.authToken !== authToken) {
     setSession({ authToken, version: session.version + 1 });
   }
 
-  const listVisit = `${visit}:${session.version}:${browserVisit}:${needsAgreement}`;
+  const listVisit = `${visit}:${session.version}:${visibilityVisit}:${needsAgreement}`;
   const resourceKey = ["resource-read", kind, id, listVisit] as const;
   const wasRevoked = revokedVisit === listVisit;
   const access = useQuery({
@@ -193,7 +191,7 @@ function ResourceVisit({
       : undefined;
 
   React.useLayoutEffect(() => {
-    if (!focused || canUseApp) return;
+    if (!isWeb || !focused || canUseApp) return;
     document.title = publicTitle ? `${publicTitle} · ALink` : "ALink";
   }, [canUseApp, focused, publicTitle]);
 
@@ -205,11 +203,22 @@ function ResourceVisit({
 
   React.useEffect(() => {
     if (!focused || canUseApp) return;
+    if (!isWeb) {
+      let wasBackgrounded = AppState.currentState === "background";
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "background") wasBackgrounded = true;
+        if (state === "active" && wasBackgrounded) {
+          wasBackgrounded = false;
+          advanceVisibilityVisit();
+        }
+      });
+      return () => subscription.remove();
+    }
     const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) advanceBrowserVisit();
+      if (event.persisted) advanceVisibilityVisit();
     };
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") advanceBrowserVisit();
+      if (document.visibilityState === "visible") advanceVisibilityVisit();
     };
     window.addEventListener("pageshow", handlePageShow);
     document.addEventListener("visibilitychange", handleVisibility);
@@ -223,6 +232,13 @@ function ResourceVisit({
     if (openLinkScreen) router.replace(`/links/${overlayId}`);
     else if (clearInvalidMemberOverlay) router.setParams({ linkId: undefined });
   }, [clearInvalidMemberOverlay, openLinkScreen, overlayId, router]);
+
+  const guestTheme = authToken ? undefined : isSystemDark ? "dark" : "light";
+  const guestThemeStyle = React.useMemo(() => {
+    if (!guestTheme) return undefined;
+    const themeVars = getNativeThemeVars(guestTheme, "gray");
+    return isWeb ? (themeVars as ViewStyle) : vars(themeVars);
+  }, [guestTheme]);
 
   if (!focused) return null;
   if (hasHydrated && unavailable) {
@@ -250,7 +266,6 @@ function ResourceVisit({
     return <PrivatePagesLayout>{children}</PrivatePagesLayout>;
   }
 
-  const guestTheme = authToken ? undefined : systemTheme;
   const renderRoute = (headerAction?: React.ReactNode) =>
     resource && resource.mode !== "app" ? (
       <PublicResourceContext
@@ -269,15 +284,17 @@ function ResourceVisit({
 
   return (
     <View
-      className={guestTheme === "dark" ? "dark flex-1" : "flex-1"}
-      style={guestTheme ? (getNativeThemeVars(guestTheme, "gray") as ViewStyle) : undefined}
+      className={guestTheme === "dark" ? "dark flex-1 bg-background" : "flex-1 bg-background"}
+      style={guestThemeStyle}
     >
-      <Head>
-        <meta
-          name="robots"
-          content="noindex"
-        />
-      </Head>
+      {isWeb ? (
+        <Head>
+          <meta
+            name="robots"
+            content="noindex"
+          />
+        </Head>
+      ) : null}
       {!hasHydrated || access.isPending ? (
         <ActivityIndicator
           size="large"

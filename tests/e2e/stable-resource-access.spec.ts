@@ -98,6 +98,43 @@ async function mockPublicFolder(page: Page) {
   return state;
 }
 
+for (const isOwner of [true, false]) {
+  test(`keeps notes for a public link opened by an authenticated ${isOwner ? "owner" : "member"}`, async ({
+    page,
+  }) => {
+    const [baseFolder] = makeFolders(1);
+    const folder = {
+      ...baseFolder,
+      id: FOLDER_ID,
+      name: FOLDER_NAME,
+      isShared: true,
+      isPublic: true,
+      ownerId: isOwner ? 1 : 2,
+    };
+    const link = makeLink({
+      id: LINK_ID,
+      folderId: folder.id,
+      folderName: folder.name,
+      title: "오래된 골목길",
+      isPublic: true,
+    });
+    await mockApi(page, {
+      folders: [folder],
+      links: [link],
+      details: { [LINK_ID]: makeDetail(link, { isOwner }) },
+    });
+
+    await page.goto(`/links/${LINK_ID}`);
+
+    const detail = page.getByTestId("link-detail");
+    await expect(detail.getByRole("heading", { name: link.title })).toBeVisible();
+    const notes = detail.getByTestId("link-detail-my-notes");
+    await expect(notes.getByRole("heading", { name: "내 정리" })).toBeVisible();
+    await expect(notes).toHaveAttribute("aria-label", "내 정리");
+    await expect(notes.getByTestId("link-detail-folder-row")).toContainText(FOLDER_NAME);
+  });
+}
+
 for (const signedIn of [false, true]) {
   for (const kind of ["folders", "links"] as const) {
     test(`replaces a denied ${kind} address and shows one toast (signed in: ${signedIn})`, async ({
@@ -187,12 +224,19 @@ for (const signedIn of [false, true]) {
     await expect(page).toHaveURL(detailHref);
     const detail = page.getByTestId("link-detail");
     await expect(detail.getByRole("heading", { name: "오래된 골목길" })).toBeVisible();
-    const notes = detail.getByTestId("link-detail-my-notes");
-    await expect(notes.getByTestId("link-detail-folder-row")).toBeVisible();
-    await expect(notes.getByTestId("link-detail-todos")).toHaveCount(0);
-    await expect(notes.getByText("액션", { exact: true })).toHaveCount(0);
-    await expect(notes.getByText("다음 산책 코스 고르기")).toHaveCount(0);
-    await expect(notes.getByText("전시 예약하기")).toHaveCount(0);
+    const folderRow = detail.getByTestId("link-detail-folder-row");
+    await expect(folderRow.getByText("폴더", { exact: true })).toBeVisible();
+    await expect(folderRow.getByRole("link", { name: new RegExp(FOLDER_NAME) })).toHaveAttribute(
+      "href",
+      WEB_PATH,
+    );
+    await expect(detail.getByText(/^(내 정리|보관 폴더)$/)).toHaveCount(0);
+    await expect(detail.locator('[aria-label="내 정리"], [aria-label="보관 폴더"]')).toHaveCount(0);
+    await expect(detail.getByRole("heading", { name: /^(내 정리|보관 폴더)$/ })).toHaveCount(0);
+    await expect(detail.getByTestId("link-detail-todos")).toHaveCount(0);
+    await expect(detail.getByText("액션", { exact: true })).toHaveCount(0);
+    await expect(detail.getByText("다음 산책 코스 고르기")).toHaveCount(0);
+    await expect(detail.getByText("전시 예약하기")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^공개 설정, / })).toHaveCount(0);
     if (signedIn) {
       await expect(page.getByRole("button", { name: "로그인", exact: true })).toHaveCount(0);
@@ -209,6 +253,13 @@ for (const signedIn of [false, true]) {
     await expect(page.getByRole("heading", { name: "오래된 골목길" })).toBeVisible();
     if (isMobile) await detail.getByRole("link", { name: new RegExp(FOLDER_NAME) }).click();
     else await detail.getByRole("button", { name: "닫기" }).click();
+    await expect(heading).toBeVisible();
+    await page.goto(`/links/${LINK_ID}`);
+    await expect(detail.getByRole("heading", { name: "오래된 골목길" })).toBeVisible();
+    await expect(detail.getByText(/^(내 정리|보관 폴더)$/)).toHaveCount(0);
+    await expect(detail.locator('[aria-label="내 정리"], [aria-label="보관 폴더"]')).toHaveCount(0);
+    await folderRow.getByRole("link", { name: new RegExp(FOLDER_NAME) }).click();
+    await expect(page).toHaveURL(WEB_PATH);
     await expect(heading).toBeVisible();
     expect(state.requests.map(({ path }) => path)).not.toContain("/api/todos");
     expect(
@@ -287,11 +338,105 @@ test("keeps a denied link notice inside the wide public folder panel", async ({
   await page.goto(path);
   const panel = page.getByTestId("detail-panel");
   await expect(panel.getByText("찾으시는 링크가 없어요", { exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "다시 시도" })).toHaveCount(0);
   await expect(page).toHaveURL(path);
   await expect(page.getByText("삭제되었거나 접근 권한이 없어요.")).toHaveCount(0);
   await panel.getByRole("button", { name: "닫기" }).click();
   await expect(page).toHaveURL(WEB_PATH);
   await expect(page.getByRole("link", { name: state.links[0].title })).toBeVisible();
+});
+
+test("retries a failed card request without leaving the wide public folder panel", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "The public panel opens on wide web");
+  await mockApi(page, { seedSession: false });
+  const state = await mockPublicFolder(page);
+  state.linkStatus = 503;
+
+  await page.goto(WEB_PATH);
+  await page.getByRole("link", { name: state.links[0].title }).click();
+  const panel = page.getByTestId("detail-panel");
+  await expect(panel.getByText("링크 상세를 불러오지 못했어요")).toBeVisible();
+  await expect(page).toHaveURL(`${WEB_PATH}?linkId=${LINK_ID}`);
+
+  state.linkStatus = 200;
+  await panel.getByRole("button", { name: "다시 시도" }).click();
+
+  await expect(panel.getByRole("heading", { name: state.links[0].title })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "다시 시도" })).toHaveCount(0);
+  await expect(page).toHaveURL(`${WEB_PATH}?linkId=${LINK_ID}`);
+  expect(state.requests.filter(({ path }) => path === `/api/links/${LINK_ID}`)).toHaveLength(2);
+});
+
+test("moves keyboard focus into the public panel and restores it to the card on close", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "The public panel opens on wide web");
+  await mockApi(page, { seedSession: false });
+  const state = await mockPublicFolder(page);
+  await page.goto(WEB_PATH);
+
+  const card = page.getByRole("link", { name: state.links[0].title });
+  const panel = page.getByTestId("detail-panel");
+  const close = panel.getByRole("button", { name: "닫기" });
+  await card.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(panel.getByRole("heading", { name: state.links[0].title })).toBeVisible();
+  await expect(close).toBeFocused();
+  const coveredCard = page.locator(`a[href="${WEB_PATH}?linkId=${LINK_ID}"]`);
+  await expect(coveredCard.locator("xpath=ancestor::*[@inert]")).toHaveCount(1);
+  await page.keyboard.press("Tab");
+  await expect
+    .poll(() => panel.evaluate((node) => node.contains(document.activeElement)))
+    .toBe(true);
+  for (let tab = 0; tab < 6; tab++) {
+    await page.keyboard.press("Tab");
+    const coveredFocus = await page.evaluate(() => {
+      const active = document.activeElement;
+      return active?.closest("[inert], [aria-hidden=true]") ? active.outerHTML : null;
+    });
+    expect(coveredFocus).toBeNull();
+  }
+
+  await close.press("Enter");
+  await expect(panel).toHaveCount(0);
+  await expect(card).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(close).toBeFocused();
+  await close.click();
+  await expect(panel).toHaveCount(0);
+  await expect(card).toBeFocused();
+});
+
+test("shows loading while a public folder access check is pending", async ({ page }) => {
+  await mockApi(page, { seedSession: false });
+  await mockPublicFolder(page);
+  let releaseRequest = () => {};
+  const pendingRequest = new Promise<void>((resolve) => {
+    releaseRequest = resolve;
+  });
+  await page.route(
+    (url) => url.pathname === API_PATH,
+    async (route) => {
+      await pendingRequest;
+      await route.fallback();
+    },
+  );
+
+  const heading = page.getByRole("heading", { name: new RegExp(FOLDER_NAME) });
+  try {
+    await page.goto(WEB_PATH);
+    await expect(page.getByRole("progressbar")).toBeVisible();
+    await expect(heading).toHaveCount(0);
+  } finally {
+    releaseRequest();
+  }
+  await expect(heading).toBeVisible();
 });
 
 test("retries a standalone link after a network error and a server error", async ({ page }) => {
@@ -396,6 +541,46 @@ test("checks the public address again after returning through browser history", 
   await expect(page.getByRole("link", { name: "오래된 골목길" })).toHaveCount(0);
 });
 
+test("checks an open public link again when the browser tab becomes visible", async ({ page }) => {
+  await mockApi(page, { seedSession: false });
+  const state = await mockPublicFolder(page);
+  await page.goto(`/links/${LINK_ID}`);
+  const heading = page.getByRole("heading", { name: "오래된 골목길" });
+  await expect(heading).toBeVisible();
+
+  state.linkStatus = 404;
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+
+  await expect(page).toHaveURL("/");
+  await expect(heading).toHaveCount(0);
+  await expect(page.getByText("찾으시는 링크가 없어요", { exact: true })).toHaveCount(1);
+});
+
+test("going back from guest login restores the public folder and link", async ({
+  page,
+  isMobile,
+}) => {
+  await mockApi(page, { seedSession: false });
+  await mockPublicFolder(page);
+
+  for (const [path, title] of [
+    [WEB_PATH, FOLDER_NAME],
+    [`/links/${LINK_ID}`, "오래된 골목길"],
+  ]) {
+    await page.goto(path);
+    const heading = page.getByRole("heading", { level: 1, name: new RegExp(title) });
+    await expect(heading).toBeVisible();
+    if (isMobile) await page.getByRole("button", { name: "사이드바 열기" }).click();
+    await page.getByRole("button", { name: "로그인", exact: true }).click();
+    await expect(page).toHaveURL("/login");
+
+    await page.goBack();
+
+    await expect(page).toHaveURL(path);
+    await expect(heading).toBeVisible();
+  }
+});
+
 test("keeps a long title within the existing link card", async ({ page, isMobile }) => {
   await mockApi(page, { seedSession: false });
   const state = await mockPublicFolder(page);
@@ -419,6 +604,9 @@ test("restores the system color scheme for an anonymous folder and link", async 
     await page.goto(path);
     const heading = page.getByRole("heading", { level: 1 });
     await expect(heading).toBeVisible();
+    const title = path === WEB_PATH ? FOLDER_NAME : "오래된 골목길";
+    await expect(page).toHaveTitle(`${title} · ALink`);
+    await expect(page.getByText("앱에서 열기", { exact: true })).toHaveCount(0);
     const background = () =>
       heading.evaluate((element) =>
         getComputedStyle(element).getPropertyValue("--background").trim(),
@@ -426,6 +614,10 @@ test("restores the system color scheme for an anonymous folder and link", async 
     const light = await background();
     await page.emulateMedia({ colorScheme: "dark" });
     await expect.poll(background).not.toBe(light);
+    await page.reload();
+    await expect(heading).toBeVisible();
+    await expect(page).toHaveTitle(`${title} · ALink`);
+    await expect(page.getByText("앱에서 열기", { exact: true })).toHaveCount(0);
   }
 });
 

@@ -1,4 +1,5 @@
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { FullWindowOverlay } from "react-native-screens";
 
 import type { LinkDetail } from "@/features/links/types";
 import { fireEvent, render, screen } from "@testing-library/react-native";
@@ -71,6 +72,22 @@ describe("DetailPanel", () => {
       ),
     );
     expect(screen.getByTestId("detail-panel")).toHaveStyle({ width: 420 });
+  });
+
+  it("keeps a contained native panel in its parent viewport", () => {
+    render(
+      withSafeArea(
+        <DetailPanel
+          mode="overlay"
+          overlayWithinParent
+          isLoading
+          open
+        />,
+      ),
+    );
+
+    expect(screen.getByTestId("detail-panel")).toBeOnTheScreen();
+    expect(screen.UNSAFE_queryByType(FullWindowOverlay)).toBeNull();
   });
 
   it("closes from the not-found overlay", () => {

@@ -12,6 +12,7 @@ import { useScreenTracking } from "@/features/analytics";
 import { ShareIntentBridge } from "@/features/auth/components/share-intent-bridge";
 import { useSocialSdks } from "@/features/auth/hooks/use-social-sdks";
 import { useDocumentTitle } from "@/features/navigation/hooks/use-document-title";
+import { RESOURCE_DETAIL_PATH } from "@/features/navigation/lib/resource-read";
 import { PushNotificationsBridge } from "@/features/notifications/components/push-notifications-bridge";
 import { AnimatedSplash } from "@/features/splash/components/animated-splash";
 import { getNavTheme } from "@/lib/theme";
@@ -22,7 +23,7 @@ import { useDisplaySettings } from "@/stores/display-settings";
 import { ThemeProvider } from "@react-navigation/native";
 import { PortalHost } from "@rn-primitives/portal";
 
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { ShareIntentProvider } from "expo-share-intent";
 import { useColorScheme, vars } from "nativewind";
 
@@ -49,6 +50,10 @@ function SettingsHydrator() {
 function DisplayThemeBridge() {
   const theme = useDisplaySettings((state) => state.display.theme);
   const accent = useDisplaySettings((state) => state.display.accent);
+  const authToken = useAuthStore((state) => state.accessToken);
+  const pathname = usePathname();
+  const usesSystemTheme =
+    process.env.EXPO_OS !== "web" && !authToken && RESOURCE_DETAIL_PATH.test(pathname);
   const { setColorScheme } = useColorScheme();
 
   // Web: drive everything from the document so :root[data-accent] CSS variables apply.
@@ -63,8 +68,8 @@ function DisplayThemeBridge() {
   // Native: a parent `className="dark"` does not propagate to children, so we must
   // tell NativeWind's color-scheme store directly.
   React.useEffect(() => {
-    setColorScheme(theme);
-  }, [setColorScheme, theme]);
+    setColorScheme(usesSystemTheme ? "system" : theme);
+  }, [setColorScheme, theme, usesSystemTheme]);
 
   return null;
 }

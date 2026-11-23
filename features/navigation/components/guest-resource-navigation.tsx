@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { ScrollView, View, type ViewStyle } from "react-native";
+import { ScrollView, View, type ViewStyle, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BrandHeader } from "@/components/layout/brand-header";
@@ -17,6 +17,9 @@ import { MobileBottomTabs } from "./mobile-bottom-tabs";
 
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { LogIn, Menu } from "lucide-react-native/icons";
+import { vars } from "nativewind";
+
+const isWeb = process.env.EXPO_OS === "web";
 
 function GuestResourceNavigation({
   children,
@@ -30,6 +33,8 @@ function GuestResourceNavigation({
   const router = useRouter();
   const isWide = useWideView();
   const insets = useSafeAreaInsets();
+  const { height, width } = useWindowDimensions();
+  const themeVars = getNativeThemeVars(theme, "gray");
 
   const handleLoginPress = () => {
     const overlayId = readParamValue(linkId);
@@ -48,7 +53,10 @@ function GuestResourceNavigation({
       className="flex-1"
       contentInsetAdjustmentBehavior="automatic"
       contentContainerClassName="grow p-3"
-      contentContainerStyle={{ paddingTop: 12 + insets.top, paddingBottom: 12 + insets.bottom }}
+      contentContainerStyle={{
+        paddingTop: 12 + (isWide || isWeb ? insets.top : 0),
+        paddingBottom: 12 + insets.bottom,
+      }}
     >
       <BrandHeader
         mode={theme}
@@ -105,9 +113,20 @@ function GuestResourceNavigation({
       </DialogTrigger>
       <DialogContent
         aria-describedby={undefined}
-        className="m-0 h-[100dvh] w-72 max-w-[calc(100%-3rem)] gap-0 rounded-none border-y-0 border-l-0 border-sidebar-border bg-sidebar p-0 web:zoom-in-100 sm:max-w-72"
+        className="native:max-w-none m-0 gap-0 rounded-none border-y-0 border-l-0 border-sidebar-border bg-sidebar p-0 web:h-[100dvh] web:w-72 web:max-w-[calc(100%-3rem)] web:zoom-in-100 web:sm:max-w-72"
         overlayClassName="z-50 items-start justify-start p-0"
-        style={getNativeThemeVars(theme, "gray") as ViewStyle}
+        style={
+          isWeb
+            ? (themeVars as ViewStyle)
+            : [
+                vars(themeVars),
+                {
+                  height: height - insets.top,
+                  marginTop: insets.top,
+                  width: Math.min(288, width - 48),
+                },
+              ]
+        }
       >
         <DialogTitle className="sr-only">사이드바</DialogTitle>
         {sidebarContent}

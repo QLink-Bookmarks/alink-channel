@@ -13,6 +13,7 @@ import { FullWindowOverlay as RNFullWindowOverlay } from "react-native-screens";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
+import { LoadErrorState } from "@/components/ui/load-error-state";
 import { isLinkNotFound } from "@/features/links/lib/is-link-not-found";
 import { useLinkDetailQuery } from "@/features/links/queries";
 import type { LinkDetail, PublicLinkDetail } from "@/features/links/types";
@@ -47,6 +48,8 @@ type DetailPanelBodyProps = {
   error?: boolean;
   notFound?: boolean;
   isLoading?: boolean;
+  isRetrying?: boolean;
+  onRetry?: () => void;
   onDeleted?: () => void;
   onOpenChange?: (open: boolean) => void;
 };
@@ -57,10 +60,32 @@ function DetailPanelBody({
   error,
   notFound,
   isLoading,
+  isRetrying,
+  onRetry,
   style,
   onDeleted,
   onOpenChange,
 }: DetailPanelBodyProps) {
+  const closeHeader = (
+    <View className="flex-row justify-end px-5 pt-4">
+      <IconButton
+        accessibilityLabel="닫기"
+        hitSlop={4}
+        icon={X}
+        size="sm"
+        testID={notFound ? "link-detail-not-found-close" : undefined}
+        variant="ghost"
+        onPress={() => onOpenChange?.(false)}
+      />
+    </View>
+  );
+  const loadingState = (
+    <EmptyState
+      className={onRetry ? "flex-1" : "h-full"}
+      description="링크 상세 정보를 불러오는 중이다."
+      title="불러오는 중"
+    />
+  );
   return (
     <View
       className={cn(
@@ -71,11 +96,14 @@ function DetailPanelBody({
       testID="detail-panel"
     >
       {isLoading ? (
-        <EmptyState
-          className="h-full"
-          description="링크 상세 정보를 불러오는 중이다."
-          title="불러오는 중"
-        />
+        onRetry ? (
+          <View className="h-full">
+            {closeHeader}
+            {loadingState}
+          </View>
+        ) : (
+          loadingState
+        )
       ) : detail && !notFound ? (
         // A failed refresh keeps the detail on screen; the view shows the failure itself.
         <LinkDetailResourceContent
@@ -86,22 +114,22 @@ function DetailPanelBody({
         />
       ) : notFound ? (
         <View className="h-full">
-          <View className="flex-row justify-end px-5 pt-4">
-            <IconButton
-              accessibilityLabel="닫기"
-              hitSlop={4}
-              icon={X}
-              size="sm"
-              testID="link-detail-not-found-close"
-              variant="ghost"
-              onPress={() => onOpenChange?.(false)}
-            />
-          </View>
+          {closeHeader}
           <EmptyState
             className="flex-1"
             emoji="🔍"
             description="이미 삭제됐거나 잘못된 주소일 수 있어요."
             title="찾으시는 링크가 없어요"
+          />
+        </View>
+      ) : error && onRetry ? (
+        <View className="h-full">
+          {closeHeader}
+          <LoadErrorState
+            className="flex-1"
+            title="링크 상세를 불러오지 못했어요"
+            isRetrying={isRetrying}
+            onRetry={onRetry}
           />
         </View>
       ) : error ? (
@@ -167,8 +195,12 @@ function DetailPanel({
   error,
   notFound,
   isLoading,
+  isRetrying,
+  onRetry,
   mode = "inline",
   overlayWithinParent,
+  coveredContentRef,
+  returnFocusHref,
   observeAuthenticatedDetail,
   onDeleted,
   onOpenChange,
@@ -179,8 +211,12 @@ function DetailPanel({
   error?: boolean;
   notFound?: boolean;
   isLoading?: boolean;
+  isRetrying?: boolean;
+  onRetry?: () => void;
   mode?: "inline" | "overlay";
   overlayWithinParent?: boolean;
+  coveredContentRef?: React.RefObject<React.ElementRef<typeof View> | null>;
+  returnFocusHref?: string;
   observeAuthenticatedDetail?: boolean;
   onDeleted?: () => void;
   onOpenChange?: (open: boolean) => void;
@@ -188,6 +224,42 @@ function DetailPanel({
   const handleClose = React.useCallback(() => onOpenChange?.(false), [onOpenChange]);
   useCloseOnEscape(open && mode === "overlay", handleClose);
   const nativeOverlayStyle = useNativeOverlayStyle();
+  const panelRef = React.useRef<React.ElementRef<typeof View>>(null);
+  const manageFocus =
+    process.env.EXPO_OS === "web" && open && mode === "overlay" && Boolean(coveredContentRef);
+
+  React.useLayoutEffect(() => {
+    if (!manageFocus) return;
+    const covered = coveredContentRef?.current;
+    const panel = panelRef.current;
+    if (!(covered instanceof HTMLElement) || !(panel instanceof HTMLElement)) return;
+
+    const wasInert = covered.inert;
+    panel.focus({ preventScroll: true });
+    covered.inert = true;
+
+    return () => {
+      covered.inert = wasInert;
+      if (returnFocusHref) {
+        requestAnimationFrame(() => {
+          if (!covered.isConnected || covered.inert) return;
+          const card = covered.querySelector<HTMLElement>(
+            `a[href="${CSS.escape(returnFocusHref)}"]`,
+          );
+          card?.focus({ preventScroll: true });
+        });
+      }
+    };
+  }, [coveredContentRef, manageFocus, returnFocusHref]);
+
+  React.useLayoutEffect(() => {
+    if (!manageFocus || !(panelRef.current instanceof HTMLElement)) return;
+    const panel = panelRef.current;
+    if (document.activeElement === panel || document.activeElement === document.body) {
+      const close = panel.querySelector<HTMLElement>('[aria-label="닫기"]');
+      (close ?? panel).focus({ preventScroll: true });
+    }
+  }, [detail, error, isLoading, isRetrying, manageFocus, notFound]);
 
   if (!open) {
     return null;
@@ -200,6 +272,8 @@ function DetailPanel({
     error,
     notFound,
     isLoading,
+    isRetrying,
+    onRetry,
     onDeleted,
     onOpenChange,
   };
@@ -214,8 +288,9 @@ function DetailPanel({
     );
 
   if (mode === "overlay") {
+    const Overlay = overlayWithinParent ? React.Fragment : FullWindowOverlay;
     return (
-      <FullWindowOverlay>
+      <Overlay>
         <View
           className={cn(
             "bottom-0 left-0 right-0 top-0 flex",
@@ -229,6 +304,8 @@ function DetailPanel({
         >
           <Pressable
             className="absolute bottom-0 left-0 right-0 top-0 z-backdrop bg-overlay"
+            aria-hidden={manageFocus || undefined}
+            tabIndex={manageFocus ? -1 : undefined}
             onPress={() => onOpenChange?.(false)}
           />
           <View
@@ -236,6 +313,8 @@ function DetailPanel({
             pointerEvents="box-none"
           >
             <Animated.View
+              ref={panelRef}
+              tabIndex={manageFocus ? -1 : undefined}
               entering={SlideInRight.duration(220)}
               exiting={SlideOutRight.duration(180)}
             >
@@ -244,7 +323,7 @@ function DetailPanel({
             </Animated.View>
           </View>
         </View>
-      </FullWindowOverlay>
+      </Overlay>
     );
   }
 
