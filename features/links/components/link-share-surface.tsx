@@ -47,6 +47,8 @@ function LinkShareSurface({
 }: LinkShareSurfaceProps) {
   const [open, setOpen] = React.useState(false);
   const [savedSelection, setSavedSelection] = React.useState<boolean>();
+  const popoverHeading = React.useRef<React.ComponentRef<typeof Text>>(null);
+  const sheetTrigger = React.useRef<View>(null);
   const hasVisibility = isOwner && typeof isPublic === "boolean";
   const folder = useFolderDetailQuery(folderId, open && hasVisibility);
   const checking = folderId !== null && folder.isFetching;
@@ -78,6 +80,20 @@ function LinkShareSurface({
       setSavedSelection(undefined);
     }
   };
+
+  const handlePopoverOpenFocus = (event: Event) => {
+    const heading = popoverHeading.current;
+    if (!(heading instanceof HTMLElement)) return;
+    event.preventDefault();
+    heading.focus();
+  };
+
+  const handleSheetCloseFocus = React.useCallback(() => {
+    const trigger = sheetTrigger.current;
+    if (trigger instanceof HTMLElement) {
+      trigger.querySelector<HTMLElement>('[data-testid="link-detail-share"]')?.focus();
+    }
+  }, []);
 
   const content = open ? (
     <View className="gap-3">
@@ -195,10 +211,13 @@ function LinkShareSurface({
           className="gap-3 rounded-xl p-3"
           side="bottom"
           sideOffset={8}
+          onOpenAutoFocus={handlePopoverOpenFocus}
         >
           <Text
-            className="text-sm font-semibold"
+            ref={popoverHeading}
+            className="text-sm font-semibold web:focus:outline-none"
             role="heading"
+            tabIndex={-1}
           >
             {title}
           </Text>
@@ -210,16 +229,22 @@ function LinkShareSurface({
 
   return (
     <>
-      <DetailToolbarButton
-        compact={mode === "screen"}
-        icon={Share2}
-        label="공유"
-        testID="link-detail-share"
-        onPress={() => setOpen(true)}
-      />
+      <View
+        ref={sheetTrigger}
+        className="shrink-0"
+      >
+        <DetailToolbarButton
+          compact={mode === "screen"}
+          icon={Share2}
+          label="공유"
+          testID="link-detail-share"
+          onPress={() => setOpen(true)}
+        />
+      </View>
       <LinkShareSheet
         open={open}
         title={title}
+        onCloseFocus={handleSheetCloseFocus}
         onOpenChange={setOpen}
       >
         {content}

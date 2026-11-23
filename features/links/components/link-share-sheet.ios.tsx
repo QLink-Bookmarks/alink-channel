@@ -1,6 +1,7 @@
 import * as React from "react";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FullWindowOverlay } from "react-native-screens";
 
 import { IconButton } from "@/components/ui/icon-button";
 import { Text } from "@/components/ui/text";
@@ -20,13 +21,14 @@ import { X } from "lucide-react-native/icons";
 
 function ShareSheetContainer({ children }: { children?: React.ReactNode }) {
   return (
-    <View
-      accessibilityViewIsModal
-      className="absolute inset-0"
-      pointerEvents="box-none"
-    >
-      {children}
-    </View>
+    <FullWindowOverlay unstable_accessibilityContainerViewIsModal>
+      <View
+        className="absolute inset-0"
+        pointerEvents="box-none"
+      >
+        {children}
+      </View>
+    </FullWindowOverlay>
   );
 }
 

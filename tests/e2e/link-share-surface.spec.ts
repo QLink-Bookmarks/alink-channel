@@ -291,11 +291,88 @@ test("anchors the 769px popover and reaches the copy button at 768px", async ({ 
     if (width === 769) {
       const triggerBox = (await trigger.boundingBox())!;
       expect((await everyone.boundingBox())!.x).toBeCloseTo(triggerBox.x + 12, -1);
-      await everyone.focus();
+      await page.keyboard.press("Tab");
+      await expect(everyone).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(copy).toBeFocused();
       await page.keyboard.press("Escape");
       await expect(trigger).toBeFocused();
     }
   }
+});
+
+test("moves focus into the wide popover while checking and reaches visibility and copy from the trigger", async ({
+  page,
+  context,
+}) => {
+  test.skip(!isWideProject(), "keyboard navigation of the wide detail popover");
+  const { savedFolder } = await setup(page);
+  const read = deferred();
+  await page.route("**/api/folders/1", async (route) => {
+    await read.ready;
+    await route.fulfill({ json: envelope(savedFolder) });
+  });
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto(PATH);
+  const { trigger, everyone, copy } = controls(page);
+  const heading = page.getByRole("heading", { name: TITLE });
+  try {
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    await expect(heading).toBeFocused();
+    await expect(page.getByText(CHECKING)).toBeVisible();
+  } finally {
+    read.release();
+  }
+  await expect(everyone).toBeEnabled();
+  await expect(heading).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(everyone).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(copy).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("공개 주소를 복사했어요.")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await expect(heading).toHaveCount(0);
+});
+
+test("keeps keyboard focus in the 390px share sheet and restores it after Escape and Close", async ({
+  page,
+}) => {
+  test.skip(isWideProject(), "keyboard navigation of the mobile share sheet");
+  await setup(page);
+  await page.goto(PATH);
+  const { trigger, everyone, copy, onlyMe, original } = controls(page);
+  const dialog = page.getByRole("dialog", { name: TITLE });
+  const close = dialog.getByRole("button", { name: "닫기" });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeVisible();
+  await expect(everyone).toBeEnabled();
+  await page.keyboard.press("Tab");
+  await expect(everyone).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(copy).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(onlyMe).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(original).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(everyone).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await expect(dialog).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeVisible();
+  await expect(everyone).toBeEnabled();
+  await page.keyboard.press("Shift+Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(trigger).toBeFocused();
+  await expect(dialog).toHaveCount(0);
 });
