@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { envelope, makeFolders, mockApi, scroll } from "./support/mock-api";
+import { envelope, makeDetail, makeFolders, makeLink, mockApi, scroll } from "./support/mock-api";
 
 const FOLDER_ID = 118;
 const LINK_ID = 229;
@@ -135,14 +135,25 @@ for (const signedIn of [false, true]) {
     isMobile,
   }) => {
     test.skip(!isMobile, "The standalone screen opens on narrow web");
-    await mockApi(page, { seedSession: signedIn });
-    const state = await mockPublicFolder(page);
+    const title = "오래된 골목길";
+    if (signedIn) {
+      const [folder] = makeFolders(1);
+      const link = makeLink({ id: LINK_ID, folderId: FOLDER_ID, title });
+      await mockApi(page, {
+        folders: [{ ...folder, id: FOLDER_ID }],
+        links: [link],
+        details: { [LINK_ID]: makeDetail(link) },
+      });
+    } else {
+      await mockApi(page, { seedSession: false });
+      await mockPublicFolder(page);
+    }
 
     await page.goto("/privacy");
     await page.goto(`${WEB_PATH}?linkId=${LINK_ID}`);
     await expect(page).toHaveURL(`/links/${LINK_ID}`);
     await expect(
-      page.getByTestId("link-detail").getByRole("heading", { name: state.links[0].title }),
+      page.getByTestId("link-detail").getByRole("heading", { name: title }),
     ).toBeVisible();
     await page.goBack();
     await expect(page).toHaveURL("/privacy");
