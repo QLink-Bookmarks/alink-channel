@@ -6,10 +6,9 @@ import { LinkShareSurface } from "./link-share-surface";
 jest.mock("react-native-worklets", () => require("react-native-worklets/src/mock"));
 jest.mock("react-native-reanimated", () => require("react-native-reanimated/mock"));
 /* eslint-enable @typescript-eslint/no-require-imports */
-jest.mock("@/components/layout/sheet", () => ({
-  Sheet: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+jest.mock("./link-share-sheet", () => ({
+  LinkShareSheet: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? children : null,
-  SheetHeader: () => null,
 }));
 jest.mock("@/features/folders/queries", () => ({
   useFolderDetailQuery: () => ({ data: { isPublic: true } }),

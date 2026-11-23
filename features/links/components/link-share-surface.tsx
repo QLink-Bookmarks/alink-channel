@@ -1,7 +1,6 @@
 import * as React from "react";
 import { Pressable, View } from "react-native";
 
-import { Sheet, SheetHeader } from "@/components/layout/sheet";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -11,6 +10,7 @@ import { useFolderDetailQuery } from "@/features/folders/queries";
 import { cn } from "@/lib/utils";
 
 import { DetailToolbarButton, FOCUS_RING_CLASS_NAME } from "./link-detail-parts";
+import { LinkShareSheet } from "./link-share-sheet";
 
 import { Check, Globe, Lock, Share2 } from "lucide-react-native/icons";
 
@@ -217,15 +217,13 @@ function LinkShareSurface({
         testID="link-detail-share"
         onPress={() => setOpen(true)}
       />
-      <Sheet
-        fitContent
-        fixedHeader
+      <LinkShareSheet
         open={open}
+        title={title}
         onOpenChange={setOpen}
       >
-        <SheetHeader title={title} />
         {content}
-      </Sheet>
+      </LinkShareSheet>
     </>
   );
 }
