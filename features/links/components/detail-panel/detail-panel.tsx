@@ -214,8 +214,9 @@ function DetailPanel({
     );
 
   if (mode === "overlay") {
+    const Overlay = overlayWithinParent ? React.Fragment : FullWindowOverlay;
     return (
-      <FullWindowOverlay>
+      <Overlay>
         <View
           className={cn(
             "bottom-0 left-0 right-0 top-0 flex",
@@ -244,7 +245,7 @@ function DetailPanel({
             </Animated.View>
           </View>
         </View>
-      </FullWindowOverlay>
+      </Overlay>
     );
   }
 
