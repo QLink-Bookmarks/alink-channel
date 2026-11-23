@@ -294,6 +294,32 @@ test("keeps a denied link notice inside the wide public folder panel", async ({
   await expect(page.getByRole("link", { name: state.links[0].title })).toBeVisible();
 });
 
+test("shows loading while a public folder access check is pending", async ({ page }) => {
+  await mockApi(page, { seedSession: false });
+  await mockPublicFolder(page);
+  let releaseRequest = () => {};
+  const pendingRequest = new Promise<void>((resolve) => {
+    releaseRequest = resolve;
+  });
+  await page.route(
+    (url) => url.pathname === API_PATH,
+    async (route) => {
+      await pendingRequest;
+      await route.fallback();
+    },
+  );
+
+  const heading = page.getByRole("heading", { name: new RegExp(FOLDER_NAME) });
+  try {
+    await page.goto(WEB_PATH);
+    await expect(page.getByRole("progressbar")).toBeVisible();
+    await expect(heading).toHaveCount(0);
+  } finally {
+    releaseRequest();
+  }
+  await expect(heading).toBeVisible();
+});
+
 test("retries a standalone link after a network error and a server error", async ({ page }) => {
   await mockApi(page, { seedSession: false });
   const state = await mockPublicFolder(page);
