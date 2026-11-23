@@ -88,9 +88,12 @@ test("a new folder defaults to private and returns its public address without co
   expect(
     state.requests.filter(({ path, method }) => path === "/api/folders" && method === "POST"),
   ).toHaveLength(1);
-  const address = new URL(`/folders/${FOLDER_ID}`, page.url()).href;
-  await expect(page.getByText(address, { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "주소 복사" }).click();
+  const path = `/folders/${FOLDER_ID}`;
+  const address = new URL(path, page.url()).href;
+  const copy = page.getByRole("button", { name: "공개 주소 복사" });
+  await expect(page.getByText(path, { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "공개 페이지 열기" })).toHaveCount(0);
+  await copy.click();
   await expect(page.getByText("공개 주소를 복사했어요.")).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(address);
 
@@ -105,10 +108,8 @@ test("a new folder defaults to private and returns its public address without co
       setting: "denied",
     });
   }
-  await page.getByRole("button", { name: "주소 복사" }).click();
-  await expect(
-    page.getByText("복사하지 못했어요. 위 주소를 선택해 직접 복사해 주세요."),
-  ).toBeVisible();
+  await copy.click();
+  await expect(page.getByText("공개 주소를 복사하지 못했어요. 다시 시도해주세요.")).toBeVisible();
   await expect(page.getByText(address, { exact: true })).toHaveCSS("user-select", "text");
 });
 

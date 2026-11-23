@@ -30,22 +30,16 @@ const statusMessages = {
 function VisibilityPopover({
   folderId,
   isPublic,
-  canPublish = true,
-  pending,
-  error,
-  status = "ready",
+  status,
   confirming,
   triggerRef,
   onOpenChange,
   onChange,
   onRetry,
 }: {
-  folderId?: number;
+  folderId: number;
   isPublic: boolean;
-  canPublish?: boolean;
-  pending?: boolean;
-  error?: string;
-  status?: keyof typeof statusMessages;
+  status: keyof typeof statusMessages;
   confirming?: boolean;
   triggerRef?: Ref<TriggerRef>;
   onOpenChange?: (open: boolean) => void;
@@ -55,11 +49,10 @@ function VisibilityPopover({
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const selected = isPublic ? choices[0] : choices[1];
-  const isFolder = folderId !== undefined;
   const isBusy = status === "checking" || status === "saving";
   const isUnavailable = status === "unavailable";
-  const hasError = Boolean(error) || isUnavailable || status === "save-error";
-  const message = statusMessages[status] ?? error;
+  const hasError = isUnavailable || status === "save-error";
+  const message = statusMessages[status];
 
   return (
     <Popover onOpenChange={onOpenChange}>
@@ -77,17 +70,14 @@ function VisibilityPopover({
       </PopoverTrigger>
       <PopoverContent
         accessible={false}
-        accessibilityState={{ busy: isBusy || pending }}
+        accessibilityState={{ busy: isBusy }}
         align="end"
-        className={cn("gap-2 rounded-xl p-2", !isFolder && "w-48")}
-        insets={
-          isFolder ? { ...insets, left: insets.left + 12, right: insets.right + 12 } : undefined
-        }
+        className="gap-2 rounded-xl p-2 web:mx-3"
+        insets={{ ...insets, left: insets.left + 12, right: insets.right + 12 }}
         side="bottom"
         sideOffset={8}
-        style={
-          isFolder ? { width: Math.min(288, width - insets.left - insets.right - 24) } : undefined
-        }
+        style={{ width: Math.min(288, width - insets.left - insets.right - 24) }}
+        testID="folder-visibility-popover"
         {...(isWeb && {
           onInteractOutside: (event) => {
             if (confirming) event.preventDefault();
@@ -103,8 +93,7 @@ function VisibilityPopover({
         >
           {choices.map(({ value, label, icon }) => {
             const checked = value === selected.value;
-            const disabled =
-              isBusy || isUnavailable || confirming || (value === "public" && !canPublish);
+            const disabled = isBusy || isUnavailable || confirming;
             return (
               <View
                 key={value}
@@ -123,7 +112,7 @@ function VisibilityPopover({
                   )}
                   disabled={disabled}
                   onPress={() => {
-                    if (!pending && !checked) onChange(value === "public");
+                    if (!checked) onChange(value === "public");
                   }}
                 >
                   <Icon
@@ -140,11 +129,7 @@ function VisibilityPopover({
                     />
                   ) : null}
                 </Pressable>
-                {folderId !== undefined &&
-                value === "public" &&
-                isPublic &&
-                status !== "checking" &&
-                !isUnavailable ? (
+                {value === "public" && isPublic && status !== "checking" && !isUnavailable ? (
                   <PublicAddressRow path={`/folders/${folderId}`} />
                 ) : null}
               </View>

@@ -164,7 +164,7 @@ function LinkShareSurface({
       ) : null}
       <View className={cn("items-start gap-1", hasVisibility && "border-t border-border pt-3")}>
         <Text
-          className="w-full text-xs text-muted-foreground"
+          className="w-full text-sm text-muted-foreground"
           numberOfLines={2}
         >
           {url}

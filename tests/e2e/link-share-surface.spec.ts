@@ -233,8 +233,14 @@ test("copies the full address, exposes it to keyboard selection on failure, and 
   expect(await path.evaluate((node) => node.scrollWidth - node.clientWidth)).toBe(0);
   const origin = page.getByText(longAddress.origin, { exact: true });
   expect(await origin.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
+  expect(
+    await origin.evaluate((node) => parseFloat(getComputedStyle(node).fontSize)),
+  ).toBeGreaterThan(11);
   const originalUrl = page.getByText(ORIGINAL, { exact: true });
   await expect(originalUrl).toBeVisible();
+  expect(
+    await originalUrl.evaluate((node) => parseFloat(getComputedStyle(node).fontSize)),
+  ).toBeGreaterThan(11);
   const originalBox = (await original.boundingBox())!;
   expect(originalBox.y).toBeGreaterThan((await originalUrl.boundingBox())!.y);
   expect(originalBox.width).toBeLessThan((await originalUrl.boundingBox())!.width);
