@@ -1,7 +1,7 @@
 import { type Page, expect, test } from "@playwright/test";
 
 import { isWideProject } from "./support/helpers";
-import { makeDetail, makeFolders, makeLink, mockApi } from "./support/mock-api";
+import { envelope, makeDetail, makeFolders, makeLink, mockApi } from "./support/mock-api";
 
 const FOLDER_COUNT = 45;
 const OLDEST_ID = 1;
@@ -102,7 +102,7 @@ test.describe("folder detail lookup", () => {
     });
   });
 
-  test("an id that no page holds ends in 폴더를 찾을 수 없어요 after a loading state", async ({
+  test("a denied folder address replaces the loading screen with home and a toast", async ({
     page,
   }) => {
     let finishLookup = () => {};
@@ -123,9 +123,34 @@ test.describe("folder detail lookup", () => {
 
     await expect(page.getByRole("progressbar").first()).toBeVisible();
     finishLookup();
+    await expect(page).toHaveURL("/home");
     await expect(page.getByText("폴더를 찾을 수 없어요")).toBeVisible({ timeout: 15_000 });
-    expect(folderRequests(state)).toEqual([]);
     expect(state.requests.some((request) => request.path === "/api/folders/9999")).toBe(true);
+  });
+
+  test("keeps an accessible folder open when it is missing from the cached folder list", async ({
+    page,
+  }) => {
+    const [listed] = makeFolders(1);
+    const folder = { ...listed, id: 99, name: "방금 만든 폴더", myLinkCounts: 1 };
+    const link = makeLink({ id: 501, folderId: folder.id, title: "새 폴더의 링크" });
+    const state = await mockApi(page, {
+      folders: [listed],
+      links: [link],
+      handlers: {
+        "GET /api/folders/99": (route) => route.fulfill({ json: envelope(folder) }),
+      },
+    });
+
+    await page.goto("/folders/99");
+
+    await expectFolderOpened(page, folder.name);
+    await expect(
+      page.getByTestId("link-list-body").getByText(link.title, { exact: true }),
+    ).toBeVisible();
+    await expect(page).toHaveURL("/folders/99");
+    expect(state.requests.some(({ path }) => path === "/api/folders/99")).toBe(true);
+    expect(folderRequests(state).length).toBeGreaterThan(0);
   });
 
   test("first-batch failure shows an error with retry instead of not-found, and retry opens the folder", async ({
