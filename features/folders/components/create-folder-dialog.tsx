@@ -119,7 +119,7 @@ function CreateFolderDialog({
     <View className="gap-3">
       <Text role="status">폴더를 만들었어요.</Text>
       <FolderPrivacyStatus
-        createdFolderId={created.id}
+        addressFolderId={created.id}
         query={privacy}
       />
       <Button onPress={() => handleOpenChange(false)}>
@@ -312,6 +312,7 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
   };
 
   const useSheetActions = mode === "mobile" && process.env.EXPO_OS !== "web";
+  const addressFolderId = process.env.EXPO_OS === "android" ? folder.id : undefined;
   const isWriting = mutation.isPending || privacyMutation.isPending;
   const isPending = isWriting || (draftPrivacy !== undefined && privacy.isFetching);
   const body = notice ? (
@@ -323,6 +324,12 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
       >
         <Text role="status">{notice}</Text>
       </View>
+      {addressFolderId !== undefined ? (
+        <FolderPrivacyStatus
+          addressFolderId={addressFolderId}
+          query={privacy}
+        />
+      ) : null}
       <Button onPress={() => handleOpenChange(false)}>
         <Text>완료</Text>
       </Button>
@@ -348,7 +355,10 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
             isPublic={isPublic}
             onChange={setDraftPrivacy}
           />
-          <FolderPrivacyStatus query={privacy} />
+          <FolderPrivacyStatus
+            addressFolderId={addressFolderId}
+            query={privacy}
+          />
         </View>
       }
       name={name}
@@ -451,10 +461,10 @@ function EditFolderDialog({ mode, open, folder, onOpenChange, onUpdated }: EditF
 }
 
 function FolderPrivacyStatus({
-  createdFolderId,
+  addressFolderId,
   query,
 }: {
-  createdFolderId?: number;
+  addressFolderId?: number;
   query: ReturnType<typeof useFolderDetailQuery>;
 }) {
   if (query.isFetching) {
@@ -474,10 +484,10 @@ function FolderPrivacyStatus({
       </View>
     );
   }
-  return createdFolderId !== undefined && query.data?.isPublic === true ? (
+  return addressFolderId !== undefined && query.data?.isPublic === true ? (
     <PublicFolderAddress
-      key={createdFolderId}
-      folderId={createdFolderId}
+      key={addressFolderId}
+      folderId={addressFolderId}
     />
   ) : null;
 }

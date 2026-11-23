@@ -90,6 +90,39 @@ test("hides the cached public address while a fresh read is pending or failed an
   await expect(copy).toBeVisible();
 });
 
+test("keeps a previously confirmed address hidden offline and rechecks on reconnect", async ({
+  page,
+  context,
+}) => {
+  const { saved, api } = setup(page, true);
+  await api;
+  const { trigger, onlyMe, everyone, address, copy } = controls(page);
+  await page.goto(PATH);
+  await trigger.click();
+  await expect(copy).toBeVisible();
+  await trigger.click();
+  await expect(copy).toHaveCount(0);
+
+  saved.isPublic = false;
+  await context.setOffline(true);
+  try {
+    await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
+    await trigger.click();
+    await expect(page.getByText(LOADING)).toBeVisible();
+    await expect(everyone).toBeDisabled();
+    await expect(onlyMe).toBeDisabled();
+    await expect(address).toHaveCount(0);
+    await expect(copy).toHaveCount(0);
+  } finally {
+    await context.setOffline(false);
+  }
+
+  await expect(onlyMe).toBeEnabled();
+  await expect(onlyMe).toHaveAttribute("aria-pressed", "true");
+  await expect(address).toHaveCount(0);
+  await expect(copy).toHaveCount(0);
+});
+
 for (const initiallyPublic of [false, true]) {
   test(`holds the previous selection and address through a failed write and retries (public: ${initiallyPublic})`, async ({
     page,
