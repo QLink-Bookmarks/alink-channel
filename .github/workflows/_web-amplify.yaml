@@ -135,8 +135,8 @@ jobs:
           current=$(aws amplify get-app --app-id "$AMPLIFY_APP_ID" --query 'app.customRules' --output json)
           desired=$(jq -c --arg source "$source" '
             [
-              { source: "</^\\/folders\\/[0-9]+\\/?$/>", target: "/folders/[id].html", status: "200", condition: null },
-              { source: "</^\\/links\\/[0-9]+\\/?$/>", target: "/links/[id].html", status: "200", condition: null }
+              { source: "</^\\/folders\\/[0-9]+\\/?$/>", target: "/folders/[id].html", status: "200" },
+              { source: "</^\\/links\\/[0-9]+\\/?$/>", target: "/links/[id].html", status: "200" }
             ] as $detail |
             $detail + ((. // []) | map(select(.source != $source and (.source as $existing | all($detail[]; .source != $existing)))))
           ' <<< "$current")
