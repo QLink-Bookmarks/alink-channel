@@ -287,11 +287,79 @@ test("keeps a denied link notice inside the wide public folder panel", async ({
   await page.goto(path);
   const panel = page.getByTestId("detail-panel");
   await expect(panel.getByText("찾으시는 링크가 없어요", { exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "다시 시도" })).toHaveCount(0);
   await expect(page).toHaveURL(path);
   await expect(page.getByText("삭제되었거나 접근 권한이 없어요.")).toHaveCount(0);
   await panel.getByRole("button", { name: "닫기" }).click();
   await expect(page).toHaveURL(WEB_PATH);
   await expect(page.getByRole("link", { name: state.links[0].title })).toBeVisible();
+});
+
+test("retries a failed card request without leaving the wide public folder panel", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "The public panel opens on wide web");
+  await mockApi(page, { seedSession: false });
+  const state = await mockPublicFolder(page);
+  state.linkStatus = 503;
+
+  await page.goto(WEB_PATH);
+  await page.getByRole("link", { name: state.links[0].title }).click();
+  const panel = page.getByTestId("detail-panel");
+  await expect(panel.getByText("링크 상세를 불러오지 못했어요")).toBeVisible();
+  await expect(page).toHaveURL(`${WEB_PATH}?linkId=${LINK_ID}`);
+
+  state.linkStatus = 200;
+  await panel.getByRole("button", { name: "다시 시도" }).click();
+
+  await expect(panel.getByRole("heading", { name: state.links[0].title })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "다시 시도" })).toHaveCount(0);
+  await expect(page).toHaveURL(`${WEB_PATH}?linkId=${LINK_ID}`);
+  expect(state.requests.filter(({ path }) => path === `/api/links/${LINK_ID}`)).toHaveLength(2);
+});
+
+test("moves keyboard focus into the public panel and restores it to the card on close", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "The public panel opens on wide web");
+  await mockApi(page, { seedSession: false });
+  const state = await mockPublicFolder(page);
+  await page.goto(WEB_PATH);
+
+  const card = page.getByRole("link", { name: state.links[0].title });
+  const panel = page.getByTestId("detail-panel");
+  const close = panel.getByRole("button", { name: "닫기" });
+  await card.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(panel.getByRole("heading", { name: state.links[0].title })).toBeVisible();
+  await expect(close).toBeFocused();
+  const coveredCard = page.locator(`a[href="${WEB_PATH}?linkId=${LINK_ID}"]`);
+  await expect(coveredCard.locator("xpath=ancestor::*[@inert]")).toHaveCount(1);
+  await page.keyboard.press("Tab");
+  await expect
+    .poll(() => panel.evaluate((node) => node.contains(document.activeElement)))
+    .toBe(true);
+  for (let tab = 0; tab < 6; tab++) {
+    await page.keyboard.press("Tab");
+    const coveredFocus = await page.evaluate(() => {
+      const active = document.activeElement;
+      return active?.closest("[inert], [aria-hidden=true]") ? active.outerHTML : null;
+    });
+    expect(coveredFocus).toBeNull();
+  }
+
+  await close.press("Enter");
+  await expect(panel).toHaveCount(0);
+  await expect(card).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(close).toBeFocused();
+  await close.click();
+  await expect(panel).toHaveCount(0);
+  await expect(card).toBeFocused();
 });
 
 test("shows loading while a public folder access check is pending", async ({ page }) => {

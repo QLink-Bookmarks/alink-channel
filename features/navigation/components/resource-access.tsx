@@ -9,7 +9,6 @@ import type { Folder } from "@/features/folders/types";
 import { getLinkAccess } from "@/features/links/api";
 import {
   RESOURCE_DETAIL_PATH,
-  isPublicResourcePlatform,
   isUnavailableResource,
   resourceReadOptions,
 } from "@/features/navigation/lib/resource-read";
@@ -56,7 +55,6 @@ function UnavailableResourceRedirect({ kind, id }: { kind: "folders" | "links"; 
 
     redirectedResource.current = sourceKey;
     router.replace(authToken ? "/home" : isWeb ? "/" : "/login");
-    if (!authToken && !isPublicResourcePlatform) return;
     useToastStore.getState().showToast({
       variant: "warning",
       title: kind === "folders" ? "폴더를 찾을 수 없어요" : "찾으시는 링크가 없어요",
@@ -90,12 +88,7 @@ function ResourceAccess({ children }: { children: React.ReactNode }) {
   const match = RESOURCE_DETAIL_PATH.exec(usePathname());
   const kind = match?.[1];
   const id = Number(match?.[2]);
-  if (
-    !isPublicResourcePlatform ||
-    (kind !== "folders" && kind !== "links") ||
-    !Number.isSafeInteger(id) ||
-    id <= 0
-  ) {
+  if ((kind !== "folders" && kind !== "links") || !Number.isSafeInteger(id) || id <= 0) {
     return <PrivatePagesLayout>{children}</PrivatePagesLayout>;
   }
   const slotId = (slot?.params as { id?: string } | undefined)?.id;

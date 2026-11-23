@@ -53,7 +53,7 @@ function DisplayThemeBridge() {
   const authToken = useAuthStore((state) => state.accessToken);
   const pathname = usePathname();
   const usesSystemTheme =
-    process.env.EXPO_OS === "ios" && !authToken && RESOURCE_DETAIL_PATH.test(pathname);
+    process.env.EXPO_OS !== "web" && !authToken && RESOURCE_DETAIL_PATH.test(pathname);
   const { setColorScheme } = useColorScheme();
 
   // Web: drive everything from the document so :root[data-accent] CSS variables apply.

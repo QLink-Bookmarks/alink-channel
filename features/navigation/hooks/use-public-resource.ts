@@ -3,8 +3,6 @@ import * as React from "react";
 import type { PublicFolder } from "@/features/folders/types";
 import type { PublicLinkDetail } from "@/features/links/types";
 
-import { isPublicResourcePlatform } from "../lib/resource-read";
-
 type PublicResource =
   | { mode: "folder"; data: PublicFolder }
   | { mode: "link"; data: PublicLinkDetail };
@@ -30,7 +28,7 @@ function usePublicResource() {
 
 function useMemberResourceAccess(kind: "folders" | "links", id: number) {
   const member = React.use(MemberResourceContext);
-  if (!isPublicResourcePlatform || !Number.isSafeInteger(id) || id <= 0) return true;
+  if (!Number.isSafeInteger(id) || id <= 0) return true;
   return member?.kind === kind && member.id === id;
 }
 

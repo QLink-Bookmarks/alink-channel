@@ -3,7 +3,6 @@ import type { ApiRequestConfig } from "@/lib/api-client";
 import { isAxiosError } from "axios";
 
 const RESOURCE_DETAIL_PATH = /^\/(folders|links)\/(\d+)\/?$/;
-const isPublicResourcePlatform = process.env.EXPO_OS === "web" || process.env.EXPO_OS === "ios";
 
 function resourceReadOptions(authToken: string | null, signal: AbortSignal): ApiRequestConfig {
   return {
@@ -17,9 +16,4 @@ function isUnavailableResource(error: unknown) {
   return isAxiosError(error) && error.response?.status === 404;
 }
 
-export {
-  RESOURCE_DETAIL_PATH,
-  isPublicResourcePlatform,
-  isUnavailableResource,
-  resourceReadOptions,
-};
+export { RESOURCE_DETAIL_PATH, isUnavailableResource, resourceReadOptions };

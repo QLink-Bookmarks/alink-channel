@@ -4,7 +4,8 @@ These files are served from the web build root (`public/` → `/.well-known/...`
 association covers invite URLs and folder and link detail URLs (`/folders/*`, `/links/*`).
 The `/folders` and `/links` list URLs open on the web. Android App Links cover invite URLs.
 
-Keep `apple-app-site-association` and `apple-app-site-association.json` in sync. The web
+Keep `paths` and `components` in sync in both `apple-app-site-association` and
+`apple-app-site-association.json`. The web
 deployment serves the `.json` copy at `/.well-known/apple-app-site-association`. Updating
 its paths takes a web deployment. Existing iOS installations also need the OTA update for
 public reading and the `applinks:<web-host>` entitlement already present in the installed build.
