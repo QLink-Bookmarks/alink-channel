@@ -4,8 +4,13 @@
     "details": [
       {
         "appID": "26QB7FPNYA.com.qlinkapps.qlink",
-        "paths": ["/invite", "/invite/*"],
-        "components": [{ "/": "/invite", "comment": "folder invite accept" }, { "/": "/invite/*" }]
+        "paths": ["/invite", "/invite/*", "/folders/*", "/links/*"],
+        "components": [
+          { "/": "/invite", "comment": "folder invite accept" },
+          { "/": "/invite/*" },
+          { "/": "/folders/*" },
+          { "/": "/links/*" }
+        ]
       }
     ]
   }

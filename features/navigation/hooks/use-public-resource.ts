@@ -28,7 +28,7 @@ function usePublicResource() {
 
 function useMemberResourceAccess(kind: "folders" | "links", id: number) {
   const member = React.use(MemberResourceContext);
-  if (process.env.EXPO_OS !== "web" || !Number.isSafeInteger(id) || id <= 0) return true;
+  if (!Number.isSafeInteger(id) || id <= 0) return true;
   return member?.kind === kind && member.id === id;
 }
 

@@ -188,10 +188,17 @@ for (const member of [true, false]) {
     await expect(detail.getByTestId("link-thumbnail-hint-play")).toBeVisible();
     const notes = detail.getByTestId("link-detail-my-notes");
     await expect(detail.getByTestId("link-detail-excerpt-text")).toContainText(excerpt);
-    await expect(notes.getByTestId("link-detail-todos")).toHaveCount(member ? 1 : 0);
-    await expect(notes.getByText(action)).toHaveCount(member ? 1 : 0);
-    await expect(notes.getByTestId("link-detail-todos-add")).toHaveCount(member ? 1 : 0);
-    await expect(notes.getByText("회원만 보는 메모")).toHaveCount(member ? 1 : 0);
+    if (member) {
+      await expect(notes.getByRole("heading", { name: "내 정리" })).toBeVisible();
+      await expect(notes).toHaveAttribute("aria-label", "내 정리");
+    } else {
+      await expect(notes).toHaveCount(0);
+    }
+    await expect(detail.getByTestId("link-detail-folder-row")).toBeVisible();
+    await expect(detail.getByTestId("link-detail-todos")).toHaveCount(member ? 1 : 0);
+    await expect(detail.getByText(action)).toHaveCount(member ? 1 : 0);
+    await expect(detail.getByTestId("link-detail-todos-add")).toHaveCount(member ? 1 : 0);
+    await expect(detail.getByText("회원만 보는 메모")).toHaveCount(member ? 1 : 0);
     const ordered = await detail
       .locator("[data-testid]")
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid")));
@@ -199,7 +206,7 @@ for (const member of [true, false]) {
       "link-detail-thumbnail",
       "link-detail-title",
       "link-detail-excerpt",
-      "link-detail-my-notes",
+      ...(member ? ["link-detail-my-notes"] : []),
       "link-detail-folder-row",
       ...(member ? ["link-detail-todos"] : []),
     ];
@@ -216,6 +223,8 @@ for (const member of [true, false]) {
       await page.goto(`/links/${publicRows[2].id}`);
       await expect(detail.getByTestId("link-detail-thumbnail-fallback")).toBeVisible();
       await expect(detail.getByTestId("link-detail-excerpt")).toHaveCount(0);
+      await expect(notes).toHaveCount(0);
+      await expect(detail.getByTestId("link-detail-folder-row")).toBeVisible();
       await expect(detail.getByTestId("link-detail-todos")).toHaveCount(0);
       expect(requests.map(({ method, url, token }) => [method, url.pathname, token])).toEqual(
         expect.arrayContaining([["GET", `/api/folders/${folder.id}`, undefined]]),

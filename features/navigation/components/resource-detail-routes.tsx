@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Text } from "@/components/ui/text";
 import { FolderHeaderActions } from "@/features/folders/components/folder-header-actions";
-import { UNCATEGORIZED_FOLDER_ID } from "@/features/folders/lib/folder-pages";
+import { UNCATEGORIZED_FOLDER_ID, isFolderId } from "@/features/folders/lib/folder-pages";
 import { usePublicFolderLinksQuery } from "@/features/folders/public-queries";
-import { useFolderQuery } from "@/features/folders/queries";
+import { useFolderDetailQuery, useFolderQuery } from "@/features/folders/queries";
 import type { PublicFolder } from "@/features/folders/types";
 import {
   LinkListView,
@@ -36,36 +36,56 @@ import {
 import { useShellRouteState } from "../hooks/use-shell-route-state";
 import { isUnavailableResource, resourceReadOptions } from "../lib/resource-read";
 import { readParamValue } from "../routes";
+import { MemberFolderDetailContext, UnavailableResourceRedirect } from "./resource-access";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { BookCopyIcon } from "lucide-react-native";
 
-type PanelState = Omit<React.ComponentProps<typeof DetailPanel>, "mode" | "overlayWithinParent">;
+type PanelState = Omit<
+  React.ComponentProps<typeof DetailPanel>,
+  "mode" | "overlayWithinParent" | "coveredContentRef"
+>;
 
 function ResourceDetailViewport({
   isPublic,
+  managePanelFocus,
   header,
   panel,
   children,
 }: {
   isPublic: boolean;
+  managePanelFocus?: boolean;
   header?: React.ReactNode;
   panel?: PanelState;
   children?: React.ReactNode;
 }) {
+  const coveredContentRef = React.useRef<React.ElementRef<typeof View>>(null);
   return (
     <View
       className="relative flex-1"
       role={isPublic ? "main" : undefined}
       testID="resource-detail-viewport"
     >
-      {header}
-      {children}
+      {managePanelFocus ? (
+        <View
+          ref={coveredContentRef}
+          className="min-h-0 flex-1"
+        >
+          {header}
+          {children}
+        </View>
+      ) : (
+        <>
+          {header}
+          {children}
+        </>
+      )}
       {panel ? (
         <DetailPanel
           {...panel}
           mode="overlay"
           overlayWithinParent={isPublic}
+          coveredContentRef={managePanelFocus ? coveredContentRef : undefined}
         />
       ) : null}
     </View>
@@ -91,6 +111,7 @@ function FolderDetailRouteScreen() {
     return (
       <ResourceDetailViewport
         isPublic={isPublic}
+        managePanelFocus={process.env.EXPO_OS === "web" && isPublic && route.isWideView}
         panel={route.isWideView ? panel : undefined}
         header={
           route.isWideView ? null : (
@@ -153,14 +174,21 @@ function MemberFolderController({
   renderFolder: RenderFolder;
 }) {
   const isUncategorized = folderId === UNCATEGORIZED_FOLDER_ID;
-  const query = useFolderQuery(folderId, { enabled: !isUncategorized });
-  const folder = query.folder;
+  const isWeb = process.env.EXPO_OS === "web";
+  const query = useFolderQuery(folderId, { enabled: isWeb && !isUncategorized });
+  const detail = useFolderDetailQuery(!isWeb && isFolderId(folderId) ? folderId : null);
+  const webDetail = React.use(MemberFolderDetailContext);
+  const folder = query.folder ?? (query.isNotFound ? webDetail?.folder : undefined) ?? detail.data;
+  const folderUpdatedAt = query.folder
+    ? query.dataUpdatedAt
+    : (webDetail?.updatedAt ?? detail.dataUpdatedAt);
+  const isError = isWeb ? query.isError : detail.isError;
   const basePath = `/folders/${folderId}`;
   const panel = useMemberPanel(basePath, isWide, linkId);
   const headerAction = folder ? (
     <FolderHeaderActions
       folder={folder}
-      folderUpdatedAt={query.dataUpdatedAt}
+      folderUpdatedAt={folderUpdatedAt}
       mode={isWide ? "wide" : "mobile"}
     />
   ) : undefined;
@@ -169,6 +197,14 @@ function MemberFolderController({
     headerAction,
     panel,
   };
+  if (!isWeb && isFolderId(folderId) && isUnavailableResource(detail.error)) {
+    return (
+      <UnavailableResourceRedirect
+        kind="folders"
+        id={folderId}
+      />
+    );
+  }
   if (folder || isUncategorized) {
     page.list = {
       folderId,
@@ -179,16 +215,16 @@ function MemberFolderController({
       headerActions: isWide ? headerAction : undefined,
       activeLinkId: linkId ? Number(linkId) : undefined,
     };
-  } else if (query.isError) {
+  } else if (isError) {
     page.status = (
       <FolderNotice
         title="폴더를 불러오지 못했어요"
         emoji="⚠️"
         description="네트워크 연결을 확인한 뒤 다시 시도해주세요."
-        onRetry={query.retry}
+        onRetry={isWeb ? query.retry : () => void detail.refetch()}
       />
     );
-  } else if (query.isNotFound) {
+  } else if (!isFolderId(folderId)) {
     page.status = (
       <FolderNotice
         title="폴더를 찾을 수 없어요"
@@ -257,7 +293,14 @@ function PublicFolderController({
   const isListed = links.data?.pages.some(({ contents }) =>
     contents.some(({ id }) => id === overlayId),
   );
-  const handleClose = () => router.replace(`/folders/${folder.id}`);
+  const folderPath = `/folders/${folder.id}` as const;
+  const handleClose = () => {
+    if (process.env.EXPO_OS === "web") {
+      router.setParams({ linkId: undefined });
+    } else {
+      router.replace(folderPath);
+    }
+  };
   return renderFolder({
     headerTitle: [folder.emoji, folder.name].filter(Boolean).join(" "),
     headerAction: visit.headerAction,
@@ -266,6 +309,9 @@ function PublicFolderController({
       isLoading: overlay.isPending,
       notFound: selected === null || isUnavailableResource(overlay.error),
       error: overlay.isError,
+      onRetry: () => void overlay.refetch(),
+      isRetrying: overlay.isFetching,
+      returnFocusHref: `${folderPath}?linkId=${overlayId}`,
       onOpenChange: () => requestLeave(handleClose),
       onDeleted: handleClose,
       observeAuthenticatedDetail: true,
@@ -370,6 +416,14 @@ function MemberLinkController({
   renderLink: RenderLink;
 }) {
   const panel = useMemberPanel("/links", isWide, linkId);
+  if (isWide && panel.notFound) {
+    return (
+      <UnavailableResourceRedirect
+        kind="links"
+        id={Number(linkId)}
+      />
+    );
+  }
   if (!isWide) {
     return (
       <LinkDetailScreen

@@ -41,7 +41,7 @@ function LinkDetailContent({
           url={head.url}
           canOpenOriginal={!head.readOnly || isPreviewableUrl(head.url)}
         />
-        <LinkDetailNotesLayout>{notes}</LinkDetailNotesLayout>
+        {head.readOnly ? notes : <LinkDetailNotesLayout>{notes}</LinkDetailNotesLayout>}
         {footer}
       </LinkDetailBody>
     </View>
