@@ -419,6 +419,9 @@ test("restores the system color scheme for an anonymous folder and link", async 
     await page.goto(path);
     const heading = page.getByRole("heading", { level: 1 });
     await expect(heading).toBeVisible();
+    const title = path === WEB_PATH ? FOLDER_NAME : "오래된 골목길";
+    await expect(page).toHaveTitle(`${title} · ALink`);
+    await expect(page.getByText("앱에서 열기", { exact: true })).toHaveCount(0);
     const background = () =>
       heading.evaluate((element) =>
         getComputedStyle(element).getPropertyValue("--background").trim(),
@@ -426,6 +429,10 @@ test("restores the system color scheme for an anonymous folder and link", async 
     const light = await background();
     await page.emulateMedia({ colorScheme: "dark" });
     await expect.poll(background).not.toBe(light);
+    await page.reload();
+    await expect(heading).toBeVisible();
+    await expect(page).toHaveTitle(`${title} · ALink`);
+    await expect(page.getByText("앱에서 열기", { exact: true })).toHaveCount(0);
   }
 });
 
